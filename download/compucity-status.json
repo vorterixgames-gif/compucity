@@ -1,0 +1,18 @@
+{
+  "code": 200,
+  "data": {
+    "description": "",
+    "html": "<html><head><meta name=\"color-scheme\" content=\"light dark\"></head><body><pre style=\"word-wrap: break-word; white-space: pre-wrap;\"># Compucity - Project Status\n\n**Última actualización:** 2026-05-27\n\n## 🏪 Proyecto\n- **Nombre:** Compucity - Tu Mundo Digital\n- **Tipo:** E-commerce de informática (sin pasarela de pagos, pedidos por WhatsApp)\n- **Ubicación:** La Falda, Valle de Punilla, Córdoba, Argentina\n- **WhatsApp:** 3517656918\n\n## 🛠️ Stack Tecnológico\n- **Framework:** Next.js 16 + TypeScript\n- **Estilos:** Tailwind CSS 4 + shadcn/ui\n- **Base de datos:** Turso (libSQL) + Prisma ORM\n- **Auth:** NextAuth\n- **Estado:** Zustand + React Query\n- **Deploy:** GitHub → Vercel (auto-deploy on push)\n\n## 🎨 Identidad Visual\n- **Verde principal:** #3A8B68\n- **Verde oscuro:** #2F6F55\n- **Verde claro:** #75AD95\n- **Verde 50:** #EFF5F2\n- **Verde 100:** #D7E7E0\n- **Verde 900:** #1A3E2E\n- **Estilo:** Claro, elegante, limpio\n\n## 🖼️ Logo\n- **Archivo:** `public/images/logo-compucity-icon.png` (191x180px, recortado sin padding transparente)\n- **Componente:** `src/components/ui-custom/CompucityLogo.tsx`\n  - Variantes: full (icono + COMPU+CITY + tagline), icon, horizontal\n  - Tamaños: sm(30px), md(36px), lg(42px), xl(48px) para el ícono\n  - Gap: gap-1.5 (6px) entre ícono y texto\n  - Texto: \"COMPU\" en color texto + \"CITY\" en verde #3A8B68\n  - Tagline: \"TU MUNDO DIGITAL\"\n\n## 📄 Favicon\n- `/public/favicon.ico` (16, 32, 48, 64px)\n- `/public/favicon-32x32.png`\n- `/public/favicon-16x16.png`\n- `/public/apple-touch-icon.png` (180x180)\n- `/public/android-chrome-192x192.png` (192x192)\n\n## 🏠 Hero Section\n- Fondo: `bg-compucity-green` (#3A8B68)\n- Patrón PCB sutil: `/public/images/pcb-pattern.svg` al 60% opacidad\n- Gradiente overlay para profundidad\n- Texto blanco + botones adaptados\n- Sin ícono de CPU (fue removido)\n\n## 📁 Estructura Key Files\n```\nsrc/app/page.tsx              — Home (Hero + Productos)\nsrc/app/layout.tsx            — Layout con favicon metadata\nsrc/app/globals.css           — Variables CSS, paleta #3A8B68\nsrc/components/ui-custom/CompucityLogo.tsx — Logo componente\nsrc/components/layout/Navbar.tsx  — Nav con logo xl\nsrc/components/layout/Footer.tsx  — Footer con logo lg whiteText\nsrc/components/layout/WhatsAppButton.tsx — Botón flotante\ntailwind.config.ts            — Paleta Compucity\npublic/images/logo-compucity-icon.png — Logo recortado\npublic/images/pcb-pattern.svg — Patrón PCB para Hero\n```\n\n## 🔗 Repositorio\n- **GitHub:** https://github.com/vorterixgames-gif/compucity\n- **Vercel:** Auto-deploy desde main\n\n## 📦 Backups\n- `/home/z/my-project/download/backups/compucity-backup-2026-05-27_04-35.tar.gz` (13MB)\n</pre></body></html>",
+    "title": "",
+    "url": "https://raw.githubusercontent.com/vorterixgames-gif/compucity/main/PROJECT_STATUS.md",
+    "usage": {
+      "tokens": 884
+    }
+  },
+  "meta": {
+    "usage": {
+      "tokens": 884
+    }
+  },
+  "status": 20000
+}
