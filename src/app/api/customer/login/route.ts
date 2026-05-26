@@ -40,6 +40,10 @@ export async function POST(request: NextRequest) {
         email: customer.email,
         phone: customer.phone,
         dni: customer.dni,
+        address: customer.address,
+        city: customer.city,
+        province: customer.province,
+        postalCode: customer.postalCode,
       },
     })
 

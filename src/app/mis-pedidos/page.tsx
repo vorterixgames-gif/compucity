@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   User, Mail, Lock, Phone, FileText, Package, LogOut,
   ChevronDown, ChevronUp, Truck, MapPin, Loader2, Eye, EyeOff,
-  ShoppingBag, Clock, CheckCircle2, PackageCheck, CircleDot, XCircle, Search
+  ShoppingBag, Clock, CheckCircle2, PackageCheck, CircleDot, XCircle, Search,
+  Edit3, Save, ExternalLink, Home
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -32,6 +33,17 @@ interface CustomerData {
   postalCode?: string | null
 }
 
+interface ShippingDetailsJSON {
+  method?: string
+  description?: string
+  carrier?: string
+  carrierName?: string
+  service?: string
+  serviceName?: string
+  price?: number
+  estimatedDays?: string
+}
+
 interface OrderItem {
   id: string
   name: string
@@ -53,6 +65,7 @@ interface OrderData {
   shippingZip: string | null
   shippingMethod: string | null
   shippingCost: number
+  shippingDetails: string | null
   trackingNumber: string | null
   status: string
   paymentMethod: string | null
@@ -143,12 +156,20 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: str
   },
 }
 
+const PROVINCES = [
+  'Buenos Aires', 'CABA', 'Catamarca', 'Chaco', 'Chubut', 'Córdoba',
+  'Corrientes', 'Entre Ríos', 'Formosa', 'Jujuy', 'La Pampa', 'La Rioja',
+  'Mendoza', 'Misiones', 'Neuquén', 'Río Negro', 'Salta', 'San Juan',
+  'San Luis', 'Santa Cruz', 'Santa Fe', 'Santiago del Estero',
+  'Tierra del Fuego', 'Tucumán',
+]
+
 function getStatusConfig(status: string) {
   return STATUS_CONFIG[status] || STATUS_CONFIG['pending']
 }
 
 // ============================================
-// Price formatter
+// Helpers
 // ============================================
 
 const formatPrice = (n: number) =>
@@ -167,6 +188,56 @@ const formatDate = (dateStr: string) => {
   } catch {
     return dateStr
   }
+}
+
+/**
+ * Parse shipping details from JSON or legacy notes format
+ */
+function parseShippingDetails(order: OrderData): ShippingDetailsJSON | null {
+  // Try new JSON format first
+  if (order.shippingDetails) {
+    try {
+      return JSON.parse(order.shippingDetails)
+    } catch {
+      // Not valid JSON, fall through
+    }
+  }
+
+  // Try legacy format from notes (e.g. "[Envío: Andreani Estándar · 3-7 días · Andreani]")
+  if (order.notes) {
+    const match = order.notes.match(/\[Envío: (.+?)\]/)
+    if (match) {
+      return { description: match[1], serviceName: match[1] }
+    }
+  }
+
+  return null
+}
+
+/**
+ * Get tracking URL based on tracking number format
+ */
+function getTrackingUrl(trackingNumber: string): { url: string; carrier: string } | null {
+  if (!trackingNumber) return null
+  const tn = trackingNumber.trim().toUpperCase()
+
+  // Andreani tracking numbers are typically numeric, 10-14 digits
+  if (/^\d{10,14}$/.test(tn)) {
+    return { url: `https://www.andreani.com/Centralizador-de-envios/Consulta?numero=${tn}`, carrier: 'Andreani' }
+  }
+
+  // Correo Argentino tracking starts with specific patterns
+  if (/^[A-Z]{2}\d{9}[A-Z]{2}$/.test(tn) || tn.startsWith('CA') || tn.startsWith('RA')) {
+    return { url: `https://www.correoargentino.com.ar/formularios/e-commerce`, carrier: 'Correo Argentino' }
+  }
+
+  // OCA tracking
+  if (tn.startsWith('OCA') || /^[A-Z]{3}\d+$/.test(tn)) {
+    return { url: `https://www.oca.com.ar/Seguimiento/Envio/${tn}`, carrier: 'OCA' }
+  }
+
+  // Generic — return the number without a specific URL
+  return { url: '', carrier: 'Transporte' }
 }
 
 // ============================================
@@ -281,6 +352,7 @@ export default function MisPedidosPage() {
                 expandedOrder={expandedOrder}
                 setExpandedOrder={setExpandedOrder}
                 onLogout={handleLogout}
+                onProfileUpdate={(updated) => setCustomer(updated)}
               />
             </motion.div>
           ) : (
@@ -365,6 +437,10 @@ function AuthForms({ onLoginSuccess }: { onLoginSuccess: (customer: CustomerData
   const [regPhone, setRegPhone] = useState('')
   const [regPassword, setRegPassword] = useState('')
   const [regDni, setRegDni] = useState('')
+  const [regAddress, setRegAddress] = useState('')
+  const [regCity, setRegCity] = useState('')
+  const [regProvince, setRegProvince] = useState('')
+  const [regPostalCode, setRegPostalCode] = useState('')
   const [regError, setRegError] = useState('')
   const [regLoading, setRegLoading] = useState(false)
   const [showRegPassword, setShowRegPassword] = useState(false)
@@ -406,6 +482,10 @@ function AuthForms({ onLoginSuccess }: { onLoginSuccess: (customer: CustomerData
           phone: regPhone,
           password: regPassword,
           dni: regDni,
+          address: regAddress,
+          city: regCity,
+          province: regProvince,
+          postalCode: regPostalCode,
         }),
       })
       const data = await res.json()
@@ -533,6 +613,7 @@ function AuthForms({ onLoginSuccess }: { onLoginSuccess: (customer: CustomerData
             </div>
 
             <form onSubmit={handleRegister} className="space-y-4">
+              {/* Datos personales */}
               <div className="space-y-2">
                 <Label htmlFor="reg-name">Nombre completo *</Label>
                 <div className="relative">
@@ -579,41 +660,100 @@ function AuthForms({ onLoginSuccess }: { onLoginSuccess: (customer: CustomerData
                   </div>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="reg-password">Contraseña *</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="reg-password"
-                    type={showRegPassword ? 'text' : 'password'}
-                    placeholder="Mínimo 6 caracteres"
-                    value={regPassword}
-                    onChange={(e) => setRegPassword(e.target.value)}
-                    className="pl-10 pr-10"
-                    required
-                    minLength={6}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowRegPassword(!showRegPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showRegPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="reg-password">Contraseña *</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="reg-password"
+                      type={showRegPassword ? 'text' : 'password'}
+                      placeholder="Mínimo 6 caracteres"
+                      value={regPassword}
+                      onChange={(e) => setRegPassword(e.target.value)}
+                      className="pl-10 pr-10"
+                      required
+                      minLength={6}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowRegPassword(!showRegPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showRegPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reg-dni">DNI <span className="text-gray-400 font-normal">(opcional)</span></Label>
+                  <div className="relative">
+                    <FileText className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="reg-dni"
+                      type="text"
+                      placeholder="12345678"
+                      value={regDni}
+                      onChange={(e) => setRegDni(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="reg-dni">DNI <span className="text-gray-400 font-normal">(opcional)</span></Label>
-                <div className="relative">
-                  <FileText className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    id="reg-dni"
-                    type="text"
-                    placeholder="12345678"
-                    value={regDni}
-                    onChange={(e) => setRegDni(e.target.value)}
-                    className="pl-10"
-                  />
+
+              {/* Dirección de envío */}
+              <div className="pt-2">
+                <div className="flex items-center gap-2 mb-3">
+                  <Home className="h-4 w-4 text-compucity-green" />
+                  <p className="text-sm font-medium text-gray-700">Dirección de envío <span className="text-gray-400 font-normal">(opcional)</span></p>
+                </div>
+                <div className="space-y-3 bg-gray-50 rounded-lg p-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="reg-address" className="text-xs">Dirección</Label>
+                    <Input
+                      id="reg-address"
+                      type="text"
+                      placeholder="Calle, número, piso, depto"
+                      value={regAddress}
+                      onChange={(e) => setRegAddress(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid sm:grid-cols-3 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="reg-city" className="text-xs">Ciudad</Label>
+                      <Input
+                        id="reg-city"
+                        type="text"
+                        placeholder="Córdoba Capital"
+                        value={regCity}
+                        onChange={(e) => setRegCity(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="reg-province" className="text-xs">Provincia</Label>
+                      <select
+                        id="reg-province"
+                        value={regProvince}
+                        onChange={(e) => setRegProvince(e.target.value)}
+                        className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      >
+                        <option value="">Seleccionar</option>
+                        {PROVINCES.map((p) => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="reg-postalCode" className="text-xs">Código Postal</Label>
+                      <Input
+                        id="reg-postalCode"
+                        type="text"
+                        placeholder="5000"
+                        value={regPostalCode}
+                        onChange={(e) => setRegPostalCode(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                        maxLength={5}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -663,19 +803,73 @@ function CustomerDashboard({
   expandedOrder,
   setExpandedOrder,
   onLogout,
+  onProfileUpdate,
 }: {
   customer: CustomerData
   orders: OrderData[]
   expandedOrder: string | null
   setExpandedOrder: (id: string | null) => void
   onLogout: () => void
+  onProfileUpdate: (customer: CustomerData) => void
 }) {
+  const [editingProfile, setEditingProfile] = useState(false)
+  const [profileData, setProfileData] = useState({
+    name: customer.name,
+    phone: customer.phone || '',
+    dni: customer.dni || '',
+    address: customer.address || '',
+    city: customer.city || '',
+    province: customer.province || '',
+    postalCode: customer.postalCode || '',
+  })
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [profileMsg, setProfileMsg] = useState('')
+
+  useEffect(() => {
+    setProfileData({
+      name: customer.name,
+      phone: customer.phone || '',
+      dni: customer.dni || '',
+      address: customer.address || '',
+      city: customer.city || '',
+      province: customer.province || '',
+      postalCode: customer.postalCode || '',
+    })
+  }, [customer])
+
+  const handleSaveProfile = async () => {
+    setSavingProfile(true)
+    setProfileMsg('')
+    try {
+      const res = await fetch('/api/customer/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profileData),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        onProfileUpdate(data.customer)
+        setEditingProfile(false)
+        setProfileMsg('Perfil actualizado correctamente')
+        setTimeout(() => setProfileMsg(''), 3000)
+      } else {
+        setProfileMsg(data.error || 'Error al actualizar')
+      }
+    } catch {
+      setProfileMsg('Error de conexión')
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
+  const hasAddress = customer.address || customer.city || customer.province
+
   return (
     <div className="space-y-6">
       {/* Customer Info Card */}
       <Card className="border-0 shadow-sm">
         <CardContent className="p-4 sm:p-6">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start justify-between gap-4 mb-4">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-compucity-green flex items-center justify-center text-white font-bold text-lg shrink-0">
                 {customer.name.charAt(0).toUpperCase()}
@@ -686,16 +880,168 @@ function CustomerDashboard({
                 {customer.phone && <p className="text-xs text-gray-400">{customer.phone}</p>}
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onLogout}
-              className="text-gray-500 hover:text-red-600 hover:border-red-200"
-            >
-              <LogOut className="h-4 w-4 mr-1" />
-              Cerrar sesión
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditingProfile(!editingProfile)}
+                className="text-gray-500 hover:text-compucity-green hover:border-compucity-green-100"
+              >
+                <Edit3 className="h-4 w-4 mr-1" />
+                Editar
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onLogout}
+                className="text-gray-500 hover:text-red-600 hover:border-red-200"
+              >
+                <LogOut className="h-4 w-4 mr-1" />
+                Salir
+              </Button>
+            </div>
           </div>
+
+          {/* Address info (non-editing) */}
+          {!editingProfile && hasAddress && (
+            <div className="mt-2 p-3 bg-gray-50 rounded-lg flex items-start gap-2">
+              <Home className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
+              <div className="text-sm text-gray-600">
+                {customer.address && <span>{customer.address}, </span>}
+                {customer.city && <span>{customer.city}</span>}
+                {customer.province && <span>, {customer.province}</span>}
+                {customer.postalCode && <span className="text-gray-400"> (CP {customer.postalCode})</span>}
+              </div>
+            </div>
+          )}
+
+          {/* No address notice */}
+          {!editingProfile && !hasAddress && (
+            <div className="mt-2 p-3 bg-amber-50 border border-amber-100 rounded-lg flex items-start gap-2">
+              <MapPin className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+              <div className="text-sm text-amber-700">
+                No tenés dirección de envío configurada.{' '}
+                <button
+                  onClick={() => setEditingProfile(true)}
+                  className="font-medium underline hover:text-amber-800"
+                >
+                  Agregá tu dirección
+                </button>
+                {' '}para que se autocomplete en tus próximas compras.
+              </div>
+            </div>
+          )}
+
+          {/* Profile success/error message */}
+          {profileMsg && (
+            <div className={`mt-2 p-3 rounded-lg text-sm ${profileMsg.includes('correctamente') ? 'bg-green-50 border border-green-100 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
+              {profileMsg}
+            </div>
+          )}
+
+          {/* Edit Profile Form */}
+          <AnimatePresence>
+            {editingProfile && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div className="pt-4 mt-4 border-t space-y-3">
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Nombre</Label>
+                      <Input
+                        value={profileData.name}
+                        onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Teléfono</Label>
+                      <Input
+                        value={profileData.phone}
+                        onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                        placeholder="351 1234567"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">DNI</Label>
+                      <Input
+                        value={profileData.dni}
+                        onChange={(e) => setProfileData({ ...profileData, dni: e.target.value })}
+                        placeholder="12345678"
+                      />
+                    </div>
+                  </div>
+                  <Separator />
+                  <div className="flex items-center gap-2 mb-1">
+                    <Home className="h-4 w-4 text-compucity-green" />
+                    <p className="text-sm font-medium text-gray-700">Dirección de envío</p>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Dirección</Label>
+                      <Input
+                        value={profileData.address}
+                        onChange={(e) => setProfileData({ ...profileData, address: e.target.value })}
+                        placeholder="Calle, número, piso, depto"
+                      />
+                    </div>
+                    <div className="grid sm:grid-cols-3 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Ciudad</Label>
+                        <Input
+                          value={profileData.city}
+                          onChange={(e) => setProfileData({ ...profileData, city: e.target.value })}
+                          placeholder="Córdoba Capital"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Provincia</Label>
+                        <select
+                          value={profileData.province}
+                          onChange={(e) => setProfileData({ ...profileData, province: e.target.value })}
+                          className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        >
+                          <option value="">Seleccionar</option>
+                          {PROVINCES.map((p) => (
+                            <option key={p} value={p}>{p}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Código Postal</Label>
+                        <Input
+                          value={profileData.postalCode}
+                          onChange={(e) => setProfileData({ ...profileData, postalCode: e.target.value.replace(/\D/g, '').slice(0, 5) })}
+                          placeholder="5000"
+                          maxLength={5}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      onClick={handleSaveProfile}
+                      disabled={savingProfile}
+                      className="bg-compucity-green hover:bg-compucity-green-dark text-white"
+                    >
+                      {savingProfile ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
+                      Guardar cambios
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setEditingProfile(false)}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </CardContent>
       </Card>
 
@@ -757,6 +1103,7 @@ function OrderCard({
   const StatusIcon = statusConfig.icon
   const orderItems = (order.items || []) as OrderItem[]
   const itemsCount = orderItems.reduce((sum, item) => sum + item.quantity, 0)
+  const shippingInfo = parseShippingDetails(order)
 
   return (
     <Card className="border-0 shadow-sm overflow-hidden">
@@ -848,6 +1195,11 @@ function OrderCard({
                     )
                   })}
                 </div>
+                <div className="flex justify-between mt-1">
+                  {['Pendiente', 'Pagado', 'Preparando', 'Enviado', 'Entregado'].map((label, i) => (
+                    <span key={i} className="text-[10px] text-gray-400 flex-1 text-center">{label}</span>
+                  ))}
+                </div>
               </div>
 
               {/* Items */}
@@ -875,33 +1227,70 @@ function OrderCard({
                 {/* Shipping info */}
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Envío</p>
-                  <div className="bg-gray-50 rounded-lg p-3 space-y-1.5">
-                    {order.shippingMethod === 'retiro' ? (
+                  <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                    {order.shippingMethod === 'retiro' || (shippingInfo?.method === 'retiro') ? (
                       <div className="flex items-center gap-2">
                         <MapPin className="h-4 w-4 text-compucity-green shrink-0" />
                         <p className="text-sm text-gray-700">Retiro en local — La Falda, Córdoba</p>
                       </div>
                     ) : (
                       <>
-                        {order.shippingAddress && (
+                        {/* Address */}
+                        {(order.shippingAddress || order.shippingCity) && (
                           <div className="flex items-start gap-2">
                             <MapPin className="h-4 w-4 text-compucity-green shrink-0 mt-0.5" />
                             <div className="text-sm text-gray-700">
-                              <p>{order.shippingAddress}</p>
-                              {order.shippingCity && <p>{order.shippingCity}{order.shippingProvince ? `, ${order.shippingProvince}` : ''}</p>}
+                              {order.shippingAddress && <p>{order.shippingAddress}</p>}
+                              <p>
+                                {order.shippingCity}
+                                {order.shippingProvince ? `, ${order.shippingProvince}` : ''}
+                              </p>
                               {order.shippingZip && <p className="text-xs text-gray-400">CP: {order.shippingZip}</p>}
                             </div>
                           </div>
                         )}
-                        {order.trackingNumber && (
-                          <div className="flex items-center gap-2 pt-1">
-                            <Truck className="h-4 w-4 text-compucity-green shrink-0" />
-                            <p className="text-sm">
-                              <span className="text-gray-500">Tracking:</span>{' '}
-                              <span className="font-medium text-gray-800">{order.trackingNumber}</span>
+
+                        {/* Carrier/Service info from shippingDetails */}
+                        {shippingInfo && shippingInfo.serviceName && (
+                          <div className="flex items-center gap-2">
+                            <Truck className="h-4 w-4 text-gray-400 shrink-0" />
+                            <p className="text-sm text-gray-600">
+                              {shippingInfo.carrierName || shippingInfo.carrier || 'Transporte'} · {shippingInfo.serviceName}
                             </p>
                           </div>
                         )}
+                        {shippingInfo?.estimatedDays && shippingInfo.estimatedDays !== 'Inmediato' && (
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-gray-400 shrink-0" />
+                            <p className="text-sm text-gray-600">Plazo estimado: {shippingInfo.estimatedDays}</p>
+                          </div>
+                        )}
+
+                        {/* Tracking number */}
+                        {order.trackingNumber && (() => {
+                          const tracking = getTrackingUrl(order.trackingNumber)
+                          return (
+                            <div className="flex items-center gap-2 pt-1 border-t border-gray-200 mt-1">
+                              <PackageCheck className="h-4 w-4 text-compucity-green shrink-0" />
+                              <div className="text-sm">
+                                <span className="text-gray-500">Seguimiento:</span>{' '}
+                                {tracking?.url ? (
+                                  <a
+                                    href={tracking.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="font-medium text-compucity-green hover:text-compucity-green-dark inline-flex items-center gap-1"
+                                  >
+                                    {order.trackingNumber}
+                                    <ExternalLink className="h-3 w-3" />
+                                  </a>
+                                ) : (
+                                  <span className="font-medium text-gray-800">{order.trackingNumber}</span>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })()}
                       </>
                     )}
                   </div>
@@ -930,8 +1319,8 @@ function OrderCard({
                 </div>
               </div>
 
-              {/* Notes */}
-              {order.notes && (
+              {/* Notes (only show actual notes, not legacy shipping details) */}
+              {order.notes && !order.notes.startsWith('[Envío:') && (
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Notas</p>
                   <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">{order.notes}</p>

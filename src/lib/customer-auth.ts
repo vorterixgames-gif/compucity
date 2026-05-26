@@ -58,15 +58,23 @@ export async function createCustomer(data: {
   phone?: string
   password: string
   dni?: string
+  address?: string
+  city?: string
+  province?: string
+  postalCode?: string
 }): Promise<CustomerUser> {
   const hashedPassword = await hashPassword(data.password)
   const id = crypto.randomUUID()
   const now = new Date().toISOString()
 
   await db.execute({
-    sql: `INSERT INTO customers (id, name, email, phone, password, dni, createdAt, updatedAt)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [id, data.name, data.email, data.phone || null, hashedPassword, data.dni || null, now, now],
+    sql: `INSERT INTO customers (id, name, email, phone, password, dni, address, city, province, postalCode, createdAt, updatedAt)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      id, data.name, data.email, data.phone || null, hashedPassword, data.dni || null,
+      data.address || null, data.city || null, data.province || null, data.postalCode || null,
+      now, now,
+    ],
   })
 
   return {
@@ -75,10 +83,10 @@ export async function createCustomer(data: {
     email: data.email,
     phone: data.phone || null,
     dni: data.dni || null,
-    address: null,
-    city: null,
-    province: null,
-    postalCode: null,
+    address: data.address || null,
+    city: data.city || null,
+    province: data.province || null,
+    postalCode: data.postalCode || null,
     createdAt: now,
     updatedAt: now,
   }
@@ -121,6 +129,46 @@ export async function getCurrentCustomer(): Promise<CustomerUser | null> {
 /**
  * Get the customer cookie name for setting/clearing.
  */
+/**
+ * Update a customer's profile data (address, phone, etc.)
+ */
+export async function updateCustomer(id: string, data: {
+  name?: string
+  phone?: string
+  dni?: string
+  address?: string
+  city?: string
+  province?: string
+  postalCode?: string
+}): Promise<CustomerUser | null> {
+  const now = new Date().toISOString()
+
+  // Build SET clause dynamically
+  const fields: string[] = []
+  const values: any[] = []
+
+  if (data.name !== undefined) { fields.push('name = ?'); values.push(data.name) }
+  if (data.phone !== undefined) { fields.push('phone = ?'); values.push(data.phone) }
+  if (data.dni !== undefined) { fields.push('dni = ?'); values.push(data.dni) }
+  if (data.address !== undefined) { fields.push('address = ?'); values.push(data.address) }
+  if (data.city !== undefined) { fields.push('city = ?'); values.push(data.city) }
+  if (data.province !== undefined) { fields.push('province = ?'); values.push(data.province) }
+  if (data.postalCode !== undefined) { fields.push('postalCode = ?'); values.push(data.postalCode) }
+
+  if (fields.length === 0) return getCustomerById(id)
+
+  fields.push('updatedAt = ?')
+  values.push(now)
+  values.push(id) // for WHERE clause
+
+  await db.execute({
+    sql: `UPDATE customers SET ${fields.join(', ')} WHERE id = ?`,
+    args: values,
+  })
+
+  return getCustomerById(id)
+}
+
 export function getCustomerCookieName(): string {
   return CUSTOMER_COOKIE_NAME
 }

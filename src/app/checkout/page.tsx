@@ -38,6 +38,7 @@ export default function CheckoutPage() {
     phone: '',
     address: '',
     city: '',
+    province: '',
     postalCode: '',
     notes: '',
   })
@@ -60,6 +61,7 @@ export default function CheckoutPage() {
             dni: c.dni || prev.dni,
             address: c.address || prev.address,
             city: c.city || prev.city,
+            province: c.province || prev.province,
             postalCode: c.postalCode || prev.postalCode,
           }))
         }
@@ -148,6 +150,7 @@ export default function CheckoutPage() {
       message += `   ${selectedQuote?.serviceName || 'Envío por correo'}\n`
       message += `   Dirección: ${customerData.address}\n`
       message += `   Ciudad: ${customerData.city}\n`
+      if (customerData.province) message += `   Provincia: ${customerData.province}\n`
       message += `   CP: ${customerData.postalCode}\n`
       message += `   Costo envío: ${formatPrice(shippingCost)}\n`
       message += `   Plazo: ${selectedQuote?.estimatedDays || 'a confirmar'}\n`
@@ -188,12 +191,13 @@ export default function CheckoutPage() {
           customerId: loggedInCustomer?.id || null,
           shippingAddress: customerData.address,
           shippingCity: customerData.city,
+          shippingProvince: customerData.province,
           shippingZip: customerData.postalCode,
           shippingMethod: shippingMethod === 'retiro' ? 'retiro' : 'envio',
           shippingCost,
           shippingDetails: shippingMethod === 'envio' && selectedQuote
-            ? `${selectedQuote.serviceName} · ${selectedQuote.estimatedDays} · ${selectedQuote.carrierName}`
-            : 'Retiro en local',
+            ? JSON.stringify({ carrier: selectedQuote.carrier, carrierName: selectedQuote.carrierName, service: selectedQuote.service, serviceName: selectedQuote.serviceName, price: selectedQuote.price, estimatedDays: selectedQuote.estimatedDays, description: selectedQuote.description })
+            : JSON.stringify({ method: 'retiro', description: 'Retiro en local - La Falda, Córdoba' }),
           notes: customerData.notes,
           items: items.map(item => ({
             productId: item.id,
@@ -242,7 +246,7 @@ export default function CheckoutPage() {
   const canProceedFromData = customerData.name && customerData.phone
   const canSendOrder = customerData.name && customerData.phone && (
     shippingMethod === 'retiro' || (
-      customerData.address && customerData.city && customerData.postalCode && selectedQuote
+      customerData.address && customerData.city && customerData.province && customerData.postalCode && selectedQuote
     )
   )
 
@@ -468,7 +472,7 @@ export default function CheckoutPage() {
                   </div>
 
                   {/* Dirección de envío */}
-                  <div className="grid md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                  <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Dirección *</label>
                       <input
@@ -479,15 +483,51 @@ export default function CheckoutPage() {
                         className="w-full border rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-compucity-green"
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Ciudad / Localidad *</label>
-                      <input
-                        type="text"
-                        value={customerData.city}
-                        onChange={(e) => setCustomerData({ ...customerData, city: e.target.value })}
-                        placeholder="Córdoba Capital"
-                        className="w-full border rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-compucity-green"
-                      />
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Ciudad / Localidad *</label>
+                        <input
+                          type="text"
+                          value={customerData.city}
+                          onChange={(e) => setCustomerData({ ...customerData, city: e.target.value })}
+                          placeholder="Córdoba Capital"
+                          className="w-full border rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-compucity-green"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Provincia *</label>
+                        <select
+                          value={customerData.province}
+                          onChange={(e) => setCustomerData({ ...customerData, province: e.target.value })}
+                          className="w-full border rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-compucity-green bg-white"
+                        >
+                          <option value="">Seleccionar provincia</option>
+                          <option value="Buenos Aires">Buenos Aires</option>
+                          <option value="CABA">Ciudad Autónoma de Buenos Aires</option>
+                          <option value="Catamarca">Catamarca</option>
+                          <option value="Chaco">Chaco</option>
+                          <option value="Chubut">Chubut</option>
+                          <option value="Córdoba">Córdoba</option>
+                          <option value="Corrientes">Corrientes</option>
+                          <option value="Entre Ríos">Entre Ríos</option>
+                          <option value="Formosa">Formosa</option>
+                          <option value="Jujuy">Jujuy</option>
+                          <option value="La Pampa">La Pampa</option>
+                          <option value="La Rioja">La Rioja</option>
+                          <option value="Mendoza">Mendoza</option>
+                          <option value="Misiones">Misiones</option>
+                          <option value="Neuquén">Neuquén</option>
+                          <option value="Río Negro">Río Negro</option>
+                          <option value="Salta">Salta</option>
+                          <option value="San Juan">San Juan</option>
+                          <option value="San Luis">San Luis</option>
+                          <option value="Santa Cruz">Santa Cruz</option>
+                          <option value="Santa Fe">Santa Fe</option>
+                          <option value="Santiago del Estero">Santiago del Estero</option>
+                          <option value="Tierra del Fuego">Tierra del Fuego</option>
+                          <option value="Tucumán">Tucumán</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                 </div>

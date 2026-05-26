@@ -71,15 +71,16 @@ model Order {
   shippingCity   String?
   shippingProvince String?
   shippingZip    String?
-  shippingMethod String?
-  shippingCost   Float       @default(0)
-  trackingNumber String?
-  status         String      @default("pending") // pending, paid, preparing, shipped, delivered, cancelled
-  paymentMethod  String?
-  paymentId      String?     // ID de Mobbex
-  total          Float
-  notes          String?
-  items          OrderItem[]
+  shippingMethod  String?
+  shippingCost    Float       @default(0)
+  shippingDetails String?     // JSON: carrier, service, estimatedDays, description
+  trackingNumber  String?
+  status          String      @default("pending") // pending, paid, preparing, shipped, delivered, cancelled
+  paymentMethod   String?
+  paymentId       String?     // ID de Mobbex
+  total           Float
+  notes           String?
+  items           OrderItem[]
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 

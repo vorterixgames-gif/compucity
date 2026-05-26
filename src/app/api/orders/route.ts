@@ -118,20 +118,15 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Crear el pedido ──
-    // Combine shipping details + notes
-    const fullNotes = [
-      notes || '',
-      shippingDetails ? `[Envío: ${shippingDetails}]` : '',
-    ].filter(Boolean).join(' | ')
-
+    // Store shippingDetails in its own column, keep notes clean
     await db.execute({
       sql: `INSERT INTO orders (
         id, orderNumber, customerName, customerDni, customerEmail, customerPhone,
         customerId,
         shippingAddress, shippingCity, shippingProvince, shippingZip,
-        shippingMethod, shippingCost,
+        shippingMethod, shippingCost, shippingDetails,
         status, paymentMethod, total, notes, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id,
         orderNumber,
@@ -146,10 +141,11 @@ export async function POST(request: NextRequest) {
         shippingZip || null,
         shippingMethod || 'retiro',
         shippingCost || 0,
+        shippingDetails || null,
         'pendiente',
         'whatsapp',
         total,
-        fullNotes || null,
+        notes || null,
         now,
         now,
       ],

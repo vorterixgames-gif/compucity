@@ -4,7 +4,7 @@ import { createCustomer, getCustomerByEmail, signToken, getCustomerCookieName } 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, email, phone, password, dni } = body
+    const { name, email, phone, password, dni, address, city, province, postalCode } = body
 
     // Validate required fields
     if (!name || !email || !password) {
@@ -47,6 +47,10 @@ export async function POST(request: NextRequest) {
       phone,
       password,
       dni,
+      address,
+      city,
+      province,
+      postalCode,
     })
 
     // Sign the email with HMAC to prevent cookie forgery
@@ -60,6 +64,10 @@ export async function POST(request: NextRequest) {
         email: customer.email,
         phone: customer.phone,
         dni: customer.dni,
+        address: customer.address,
+        city: customer.city,
+        province: customer.province,
+        postalCode: customer.postalCode,
       },
     })
 

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Search, ShoppingCart, User, Menu, X, ChevronDown, Phone } from 'lucide-react'
+import { Search, ShoppingCart, User, Menu, X, ChevronDown, Phone, LogOut, Package, Settings } from 'lucide-react'
 import { useCart } from '@/store/cart'
 import CompucityLogo from '@/components/ui-custom/CompucityLogo'
 
@@ -29,6 +29,12 @@ interface SearchResult {
   images: string[]
 }
 
+interface CustomerInfo {
+  id: string
+  name: string
+  email: string
+}
+
 const NAV_LINKS = [
   { name: 'Arma tu PC', href: '/arma-tu-pc' },
   { name: 'Contacto', href: '/contacto' },
@@ -48,6 +54,11 @@ export default function Navbar() {
   const lastAdded = useCart((s) => s.lastAdded)
   const [bouncing, setBouncing] = useState(false)
   const prevLastAdded = useRef<string | null>(null)
+
+  // User dropdown state
+  const [customer, setCustomer] = useState<CustomerInfo | null>(null)
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false)
+  const userDropdownRef = useRef<HTMLDivElement>(null)
 
   // Search autocomplete state
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
@@ -70,6 +81,41 @@ export default function Navbar() {
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
+
+  // Check if customer is logged in
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const res = await fetch('/api/customer/me')
+        if (res.ok) {
+          const data = await res.json()
+          setCustomer(data.customer)
+        }
+      } catch {
+        // Not logged in
+      }
+    }
+    checkAuth()
+  }, [])
+
+  // Close user dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (userDropdownRef.current && !userDropdownRef.current.contains(e.target as Node)) {
+        setUserDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/customer/logout', { method: 'POST' })
+    } catch {}
+    setCustomer(null)
+    setUserDropdownOpen(false)
+  }
 
   useEffect(() => {
     const loadCategories = async () => {
@@ -157,6 +203,29 @@ export default function Navbar() {
       window.location.href = `/categoria/todos?q=${encodeURIComponent(searchQuery)}`
     }
   }
+
+  // Listen for storage events (cross-tab logout)
+  useEffect(() => {
+    const handleStorage = () => {
+      // Re-check auth when another tab logs out
+      const checkAuth = async () => {
+        try {
+          const res = await fetch('/api/customer/me')
+          if (res.ok) {
+            const data = await res.json()
+            setCustomer(data.customer)
+          } else {
+            setCustomer(null)
+          }
+        } catch {
+          setCustomer(null)
+        }
+      }
+      checkAuth()
+    }
+    window.addEventListener('storage', handleStorage)
+    return () => window.removeEventListener('storage', handleStorage)
+  }, [])
 
   return (
     <header className="sticky top-0 z-50">
@@ -271,10 +340,65 @@ export default function Navbar() {
 
           {/* Actions */}
           <div className="flex items-center gap-1 shrink-0">
-            <Link href="/mis-pedidos" className="hidden md:flex items-center gap-1.5 text-sm text-gray-600 hover:text-compucity-green transition px-3 py-2 rounded-lg hover:bg-compucity-green-50">
-              <User className="h-5 w-5" />
-              <span className="hidden lg:inline font-medium">Mi Cuenta</span>
-            </Link>
+            {/* User Account / Profile Dropdown */}
+            <div className="relative hidden md:block" ref={userDropdownRef}>
+              {customer ? (
+                <button
+                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                  className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-compucity-green transition px-3 py-2 rounded-lg hover:bg-compucity-green-50"
+                >
+                  <div className="w-6 h-6 rounded-full bg-compucity-green flex items-center justify-center text-white text-xs font-bold">
+                    {customer.name.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="hidden lg:inline font-medium max-w-[100px] truncate">{customer.name.split(' ')[0]}</span>
+                  <ChevronDown className={`h-3 w-3 transition-transform ${userDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+              ) : (
+                <Link
+                  href="/mis-pedidos"
+                  className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-compucity-green transition px-3 py-2 rounded-lg hover:bg-compucity-green-50"
+                >
+                  <User className="h-5 w-5" />
+                  <span className="hidden lg:inline font-medium">Mi Cuenta</span>
+                </Link>
+              )}
+
+              {/* User Dropdown Menu */}
+              {customer && userDropdownOpen && (
+                <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-[100] py-1 animate-fade-in">
+                  <div className="px-4 py-3 border-b border-gray-100">
+                    <p className="font-medium text-gray-900 text-sm truncate">{customer.name}</p>
+                    <p className="text-xs text-gray-500 truncate">{customer.email}</p>
+                  </div>
+                  <Link
+                    href="/mis-pedidos"
+                    onClick={() => setUserDropdownOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-compucity-green-50 hover:text-compucity-green-dark transition"
+                  >
+                    <Package className="h-4 w-4 text-gray-400" />
+                    Mis Pedidos
+                  </Link>
+                  <Link
+                    href="/mis-pedidos"
+                    onClick={() => setUserDropdownOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-compucity-green-50 hover:text-compucity-green-dark transition"
+                  >
+                    <Settings className="h-4 w-4 text-gray-400" />
+                    Mi Perfil
+                  </Link>
+                  <div className="border-t border-gray-100 mt-1">
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Cerrar sesión
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <Link href="/carrito" className="relative flex items-center gap-1.5 text-sm text-gray-600 hover:text-compucity-green transition px-3 py-2 rounded-lg hover:bg-compucity-green-50">
               <ShoppingCart className="h-5 w-5" />
               <span className="hidden lg:inline font-medium">Carrito</span>
@@ -394,14 +518,44 @@ export default function Navbar() {
             )}
           </form>
           <div className="border-t border-gray-100">
+            {/* Mobile user section */}
+            {customer ? (
+              <div className="px-5 py-3 bg-compucity-green-50 border-b border-gray-100">
+                <div className="flex items-center gap-2.5 mb-2">
+                  <div className="w-8 h-8 rounded-full bg-compucity-green flex items-center justify-center text-white text-sm font-bold">
+                    {customer.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{customer.name}</p>
+                    <p className="text-xs text-gray-500 truncate">{customer.email}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Link
+                    href="/mis-pedidos"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-compucity-green text-white rounded-lg text-xs font-medium"
+                  >
+                    <Package className="h-3.5 w-3.5" /> Mis Pedidos
+                  </Link>
+                  <button
+                    onClick={() => { handleLogout(); setMobileMenuOpen(false) }}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg text-xs text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition"
+                  >
+                    <LogOut className="h-3.5 w-3.5" /> Salir
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <Link href="/mis-pedidos" className="flex items-center gap-2 px-5 py-3.5 text-sm font-medium text-gray-700 hover:text-compucity-green hover:bg-compucity-green-50 transition" onClick={() => setMobileMenuOpen(false)}>
+                <User className="h-4 w-4 text-compucity-green" /> Iniciar Sesión / Registrarse
+              </Link>
+            )}
             {NAV_LINKS.map((link) => (
               <Link key={link.href} href={link.href} className="flex items-center gap-2 px-5 py-3.5 text-sm font-medium text-gray-700 hover:text-compucity-green hover:bg-compucity-green-50 transition" onClick={() => setMobileMenuOpen(false)}>
                 {link.name}
               </Link>
             ))}
-            <Link href="/mis-pedidos" className="flex items-center gap-2 px-5 py-3.5 text-sm font-medium text-gray-700 hover:text-compucity-green hover:bg-compucity-green-50 transition" onClick={() => setMobileMenuOpen(false)}>
-              <User className="h-4 w-4 text-compucity-green" /> Mis Pedidos
-            </Link>
           </div>
           <div className="border-t border-gray-100">
             <Link href="/categoria/todos" className="flex items-center gap-2 px-5 py-3.5 text-sm font-bold text-compucity-green hover:bg-compucity-green-50 transition" onClick={() => setMobileMenuOpen(false)}>
