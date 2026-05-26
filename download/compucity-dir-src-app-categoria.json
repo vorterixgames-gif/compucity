@@ -1,0 +1,19 @@
+{
+  "code": 200,
+  "data": {
+    "description": "",
+    "html": "<html><head><meta name=\"color-scheme\" content=\"light dark\"></head><body><pre style=\"word-wrap: break-word; white-space: pre-wrap;\">[\n  {\n    \"name\": \"[slug]\",\n    \"path\": \"src/app/categoria/[slug]\",\n    \"sha\": \"56773964db6def93b09e0c063514a90607d7bcc3\",\n    \"size\": 0,\n    \"url\": \"https://api.github.com/repos/vorterixgames-gif/compucity/contents/src/app/categoria/[slug]?ref=main\",\n    \"html_url\": \"https://github.com/vorterixgames-gif/compucity/tree/main/src/app/categoria/[slug]\",\n    \"git_url\": \"https://api.github.com/repos/vorterixgames-gif/compucity/git/trees/56773964db6def93b09e0c063514a90607d7bcc3\",\n    \"download_url\": null,\n    \"type\": \"dir\",\n    \"_links\": {\n      \"self\": \"https://api.github.com/repos/vorterixgames-gif/compucity/contents/src/app/categoria/[slug]?ref=main\",\n      \"git\": \"https://api.github.com/repos/vorterixgames-gif/compucity/git/trees/56773964db6def93b09e0c063514a90607d7bcc3\",\n      \"html\": \"https://github.com/vorterixgames-gif/compucity/tree/main/src/app/categoria/[slug]\"\n    }\n  }\n]\n</pre></body></html>",
+    "publishedTime": "Tue, 26 May 2026 21:18:08 GMT",
+    "title": "",
+    "url": "https://api.github.com/repos/vorterixgames-gif/compucity/contents/src/app/categoria",
+    "usage": {
+      "tokens": 348
+    }
+  },
+  "meta": {
+    "usage": {
+      "tokens": 348
+    }
+  },
+  "status": 20000
+}
