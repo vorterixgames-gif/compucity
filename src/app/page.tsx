@@ -3,6 +3,7 @@ import BrandLogos from '@/components/layout/BrandLogos'
 import ProductCard from '@/components/ui-custom/ProductCard'
 import HeroSection from '@/components/ui-custom/HeroSection'
 import { getFeaturedProducts, getAllActiveProducts } from '@/lib/queries'
+import { ensureMigrations } from '@/lib/db'
 import Link from 'next/link'
 import { Truck, Shield, MessageCircle, Headphones, ArrowRight, Cpu } from 'lucide-react'
 
@@ -14,6 +15,9 @@ function safeParseFirstImage(images: string | null): string | null {
 }
 
 export default async function HomePage() {
+  // Run auto-migrations (adds shippingDetails column if missing)
+  await ensureMigrations()
+
   let featured: any[] = []
   let allProducts: any[] = []
 
