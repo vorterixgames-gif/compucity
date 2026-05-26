@@ -2,6 +2,53 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
 /**
+ * GET /api/orders?orderNumber=CP-XXXX — Buscar un pedido por número
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const orderNumber = searchParams.get('orderNumber')
+
+    if (!orderNumber) {
+      return NextResponse.json(
+        { error: 'Número de pedido requerido' },
+        { status: 400 }
+      )
+    }
+
+    const result = await db.execute({
+      sql: 'SELECT * FROM orders WHERE orderNumber = ?',
+      args: [orderNumber.trim()],
+    })
+
+    const order = result.rows[0] as any
+    if (!order) {
+      return NextResponse.json(
+        { error: 'Pedido no encontrado' },
+        { status: 404 }
+      )
+    }
+
+    // Get order items
+    const itemsResult = await db.execute({
+      sql: 'SELECT * FROM order_items WHERE orderId = ?',
+      args: [order.id],
+    })
+
+    return NextResponse.json({
+      ok: true,
+      order: {
+        ...order,
+        items: itemsResult.rows,
+      },
+    })
+  } catch (error) {
+    console.error('Get order error:', error)
+    return NextResponse.json({ error: 'Error del servidor' }, { status: 500 })
+  }
+}
+
+/**
  * POST /api/orders — Crear un nuevo pedido
  * Guarda el pedido + items en la DB, valida stock, descuenta inventario
  */
@@ -13,6 +60,7 @@ export async function POST(request: NextRequest) {
       customerDni,
       customerEmail,
       customerPhone,
+      customerId,
       shippingAddress,
       shippingCity,
       shippingProvince,
@@ -79,10 +127,11 @@ export async function POST(request: NextRequest) {
     await db.execute({
       sql: `INSERT INTO orders (
         id, orderNumber, customerName, customerDni, customerEmail, customerPhone,
+        customerId,
         shippingAddress, shippingCity, shippingProvince, shippingZip,
         shippingMethod, shippingCost,
         status, paymentMethod, total, notes, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id,
         orderNumber,
@@ -90,6 +139,7 @@ export async function POST(request: NextRequest) {
         customerDni || null,
         customerEmail || null,
         customerPhone,
+        customerId || null,
         shippingAddress || null,
         shippingCity || null,
         shippingProvince || null,

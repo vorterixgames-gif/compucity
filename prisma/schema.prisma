@@ -65,6 +65,8 @@ model Order {
   customerEmail  String?
   customerPhone  String?
   customerDni    String?
+  customerId     String?
+  customer       Customer?   @relation(fields: [customerId], references: [id])
   shippingAddress String?
   shippingCity   String?
   shippingProvince String?
@@ -141,4 +143,23 @@ model Admin {
   updatedAt DateTime @updatedAt
 
   @@map("admins")
+}
+
+// Cliente (registro en la tienda)
+model Customer {
+  id         String   @id @default(cuid())
+  name       String
+  email      String   @unique
+  phone      String?
+  password   String   // hashed
+  dni        String?
+  address    String?
+  city       String?
+  province   String?
+  postalCode String?
+  orders     Order[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("customers")
 }

@@ -5,6 +5,18 @@ import { useCart } from '@/store/cart'
 import { Truck, MapPin, MessageCircle, User, Phone, Mail, FileText, Package, Loader2, ChevronRight, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 
+interface LoggedInCustomer {
+  id: string
+  name: string
+  email: string
+  phone: string | null
+  dni: string | null
+  address?: string | null
+  city?: string | null
+  province?: string | null
+  postalCode?: string | null
+}
+
 interface ShippingQuote {
   carrier: string
   carrierName: string
@@ -18,6 +30,7 @@ interface ShippingQuote {
 export default function CheckoutPage() {
   const { items, totalPrice, clearCart } = useCart()
   const [step, setStep] = useState<'data' | 'shipping'>('data')
+  const [loggedInCustomer, setLoggedInCustomer] = useState<LoggedInCustomer | null>(null)
   const [customerData, setCustomerData] = useState({
     name: '',
     dni: '',
@@ -29,6 +42,33 @@ export default function CheckoutPage() {
     notes: '',
   })
   const [shippingMethod, setShippingMethod] = useState<'retiro' | 'envio'>('retiro')
+
+  // Check if customer is logged in and pre-fill data
+  useEffect(() => {
+    const checkCustomer = async () => {
+      try {
+        const res = await fetch('/api/customer/me')
+        if (res.ok) {
+          const data = await res.json()
+          const c = data.customer as LoggedInCustomer
+          setLoggedInCustomer(c)
+          setCustomerData(prev => ({
+            ...prev,
+            name: c.name || prev.name,
+            email: c.email || prev.email,
+            phone: c.phone || prev.phone,
+            dni: c.dni || prev.dni,
+            address: c.address || prev.address,
+            city: c.city || prev.city,
+            postalCode: c.postalCode || prev.postalCode,
+          }))
+        }
+      } catch {
+        // Not logged in, that's fine
+      }
+    }
+    checkCustomer()
+  }, [])
   const [shippingQuotes, setShippingQuotes] = useState<ShippingQuote[]>([])
   const [selectedQuote, setSelectedQuote] = useState<ShippingQuote | null>(null)
   const [loadingShipping, setLoadingShipping] = useState(false)
@@ -145,6 +185,7 @@ export default function CheckoutPage() {
           customerDni: customerData.dni,
           customerEmail: customerData.email,
           customerPhone: customerData.phone,
+          customerId: loggedInCustomer?.id || null,
           shippingAddress: customerData.address,
           shippingCity: customerData.city,
           shippingZip: customerData.postalCode,
