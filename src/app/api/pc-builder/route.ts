@@ -1,0 +1,110 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+import { fetchDollarRate } from '@/lib/dollar'
+
+async function getConfig(key: string, defaultValue: number): Promise<number> {
+  const result = await db.execute({
+    sql: 'SELECT value FROM store_config WHERE key = ?',
+    args: [key],
+  })
+  const rows = result.rows as any[]
+  if (rows.length > 0) {
+    try {
+      return Number(JSON.parse(rows[0].value).value) || defaultValue
+    } catch {
+      return defaultValue
+    }
+  }
+  return defaultValue
+}
+
+// Map component slots to category slugs
+const COMPONENT_SLOTS: { slot: string; label: string; categorySlug: string }[] = [
+  { slot: 'processor', label: 'Microprocesador', categorySlug: 'microprocesadores' },
+  { slot: 'motherboard', label: 'Motherboard', categorySlug: 'motherboards' },
+  { slot: 'ram', label: 'Memoria RAM', categorySlug: 'memorias-ram' },
+  { slot: 'gpu', label: 'Placa de Video', categorySlug: 'placas-de-video' },
+  { slot: 'ssd', label: 'Disco SSD', categorySlug: 'discos-ssd' },
+  { slot: 'hdd', label: 'Disco HDD', categorySlug: 'discos-hdd' },
+  { slot: 'psu', label: 'Fuente', categorySlug: 'fuentes' },
+  { slot: 'case', label: 'Gabinete', categorySlug: 'gabinetes' },
+  { slot: 'cooling', label: 'Refrigeración', categorySlug: 'refrigeracion' },
+  { slot: 'thermal', label: 'Pasta Térmica', categorySlug: 'pastas-termicas' },
+]
+
+export async function GET(request: NextRequest) {
+  try {
+    const slot = request.nextUrl.searchParams.get('slot')
+
+    const dollar = await fetchDollarRate()
+    const markup = await getConfig('markup', 30)
+    const cashDiscount = await getConfig('cash_discount', 10)
+
+    // If requesting a specific slot, return products for that component category
+    if (slot) {
+      const slotConfig = COMPONENT_SLOTS.find(s => s.slot === slot)
+      if (!slotConfig) {
+        return NextResponse.json({ error: 'Componente no reconocido' }, { status: 400 })
+      }
+
+      // Find the category by slug
+      const catResult = await db.execute({
+        sql: 'SELECT id FROM categories WHERE slug = ?',
+        args: [slotConfig.categorySlug],
+      })
+      const catRows = catResult.rows as any[]
+      if (catRows.length === 0) {
+        return NextResponse.json({ ok: true, products: [], slot: slotConfig })
+      }
+
+      const categoryId = catRows[0].id
+
+      // Get active products in this category
+      const result = await db.execute({
+        sql: `SELECT p.id, p.name, p.slug, p.price, p.comparePrice, p.costPrice, p.images, p.stock, p.specs
+              FROM products p
+              WHERE p.categoryId = ? AND p.isActive = 1
+              ORDER BY p.price ASC`,
+        args: [categoryId],
+      })
+
+      const products = (result.rows as any[]).map(p => {
+        if (p.costPrice && p.costPrice > 0) {
+          const listPrice = Math.ceil(p.costPrice * dollar.rate * (1 + markup / 100))
+          const cashPrice = Math.ceil(listPrice * (1 - cashDiscount / 100))
+          return { ...p, price: listPrice, comparePrice: cashPrice, _calculated: true }
+        }
+        return { ...p, _calculated: false }
+      })
+
+      return NextResponse.json({ ok: true, products, slot: slotConfig })
+    }
+
+    // If no slot specified, return the list of available slots with counts
+    const slotsWithCounts = await Promise.all(
+      COMPONENT_SLOTS.map(async (s) => {
+        try {
+          const catResult = await db.execute({
+            sql: 'SELECT id FROM categories WHERE slug = ?',
+            args: [s.categorySlug],
+          })
+          const catRows = catResult.rows as any[]
+          if (catRows.length === 0) return { ...s, count: 0 }
+
+          const countResult = await db.execute({
+            sql: 'SELECT COUNT(*) as total FROM products WHERE categoryId = ? AND isActive = 1',
+            args: [catRows[0].id],
+          })
+          return { ...s, count: (countResult.rows[0] as any).total }
+        } catch {
+          return { ...s, count: 0 }
+        }
+      })
+    )
+
+    return NextResponse.json({ ok: true, slots: slotsWithCounts })
+  } catch (error) {
+    console.error('PC Builder API error:', error)
+    return NextResponse.json({ error: 'Error del servidor' }, { status: 500 })
+  }
+}

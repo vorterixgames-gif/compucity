@@ -1,0 +1,144 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider  = "sqlite"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL")
+}
+
+// ============================================
+// COMPUCITY - Tienda Online
+// ============================================
+
+// Categorías de productos
+model Category {
+  id        String     @id @default(cuid())
+  name      String
+  slug      String     @unique
+  image     String?
+  enabled   Boolean    @default(true)
+  order     Int        @default(0)
+  parentId  String?
+  parent    Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryHierarchy")
+  products  Product[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@map("categories")
+}
+
+// Productos
+model Product {
+  id           String    @id @default(cuid())
+  name         String
+  slug         String    @unique
+  description  String?
+  price        Float
+  comparePrice Float?    // precio de lista (tachado)
+  costPrice    Float?    // costo del proveedor
+  sku          String?   @unique
+  stock        Int       @default(0)
+  isActive     Boolean   @default(true)
+  isFeatured   Boolean   @default(false)
+  images       String    @default("[]") // JSON array de URLs
+  specs        String    @default("{}") // JSON con especificaciones técnicas
+  providerId   String?   // ID del proveedor
+  providerSku  String?   // SKU del proveedor
+  categoryId   String?
+  category     Category? @relation(fields: [categoryId], references: [id])
+  orderItems   OrderItem[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("products")
+}
+
+// Pedidos
+model Order {
+  id             String      @id @default(cuid())
+  orderNumber    String      @unique
+  customerName   String
+  customerEmail  String?
+  customerPhone  String?
+  customerDni    String?
+  shippingAddress String?
+  shippingCity   String?
+  shippingProvince String?
+  shippingZip    String?
+  shippingMethod String?
+  shippingCost   Float       @default(0)
+  trackingNumber String?
+  status         String      @default("pending") // pending, paid, preparing, shipped, delivered, cancelled
+  paymentMethod  String?
+  paymentId      String?     // ID de Mobbex
+  total          Float
+  notes          String?
+  items          OrderItem[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@map("orders")
+}
+
+// Items del pedido
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
+  name      String  // nombre del producto al momento de la compra
+  price     Float   // precio al momento de la compra
+  quantity  Int     @default(1)
+
+  @@map("order_items")
+}
+
+// Cotización del dólar
+model DollarRate {
+  id        String   @id @default(cuid())
+  rate      Float
+  source    String   @default("blue") // blue, oficial, mayorista
+  updatedAt DateTime @updatedAt
+
+  @@map("dollar_rates")
+}
+
+// Configuración de la tienda
+model StoreConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   // JSON
+  updatedAt DateTime @updatedAt
+
+  @@map("store_config")
+}
+
+// Imágenes de productos (almacenadas en Turso)
+model ProductImage {
+  id        String   @id @default(cuid())
+  data      String   // base64 encoded WebP
+  size      Int      // tamaño en bytes
+  width     Int?
+  height    Int?
+  createdAt DateTime @default(now())
+
+  @@map("product_images")
+}
+
+// Admin (panel de administración)
+model Admin {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String   // hash
+  role      String   @default("admin") // admin, editor
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("admins")
+}
