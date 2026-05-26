@@ -5,18 +5,21 @@ import { verifyToken } from '@/lib/admin-auth'
 /**
  * POST /api/admin/migrate
  * Adds the shippingDetails column to the orders table if it doesn't exist.
- * Called from admin panel or manually.
+ * 
+ * Auth: Admin cookie OR ?key=MIGRATE_SECRET env var
  */
 export async function POST(request: NextRequest) {
   try {
-    // Verify admin auth
+    // Verify admin auth - either cookie or secret key
     const token = request.cookies.get('admin_token')?.value
-    if (!token) {
+    const urlKey = request.nextUrl.searchParams.get('key')
+    const migrateSecret = process.env.MIGRATE_SECRET || 'compucity_migrate_2026'
+
+    const isAdminByCookie = token ? !!(await verifyToken(token)) : false
+    const isAdminByKey = urlKey === migrateSecret
+
+    if (!isAdminByCookie && !isAdminByKey) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
-    }
-    const email = await verifyToken(token)
-    if (!email) {
-      return NextResponse.json({ error: 'Token inválido' }, { status: 401 })
     }
 
     const migrations: string[] = []
