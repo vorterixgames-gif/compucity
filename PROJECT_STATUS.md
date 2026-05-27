@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Última actualización:** 2026-05-27 (sesión 3)
+**Última actualización:** 2026-05-28
 
 ## 🏪 Proyecto
 - **Nombre:** Compucity - Tu Mundo Digital
@@ -41,163 +41,155 @@
 - `/public/apple-touch-icon.png` (180x180)
 - `/public/android-chrome-192x192.png` (192x192)
 
-## 🏠 Hero Section — Carrusel Full-Width
-- **Componente:** `src/components/ui-custom/HeroSection.tsx`
-- **Tipo:** Carrusel full-width con 4 slides y autoplay (5s)
-- **Navegación:** Flechas laterales, dots indicadores, swipe táctil, teclado (←→)
-- **Barra de progreso** animada en la parte inferior
-- **Pausa automática** al hacer hover
-- **Animaciones:** Framer Motion (slide transitions + fade-up de contenido)
-- **Sin info de pagos ni envíos** en el hero (a petición del cliente)
+## 🏠 Homepage
+- **Hero:** Carrusel full-width con 4 slides, autoplay (5s), Framer Motion
+- **Nuestros Productos:** 3 secciones — Notebooks, PCs Armadas, Monitores
+- **Marcas:** 8 logos via SimpleIcons CDN (AMD, Intel, NVIDIA, Kingston, Corsair, ASUS, Samsung, Seagate)
+- **Barra superior:** Marquee dinámico con info de la tienda
 
-### Slides
-| # | Badge | Título | CTA Principal | CTA Secundario | Imagen |
-|---|-------|--------|---------------|----------------|--------|
-| 1 | Armá tu PC | Armá tu PC **gamer** | Comenzar a armar → `/arma-tu-pc` | Ver componentes → `/categoria/componentes` | `hero-slide-pc-builder.png` |
-| 2 | Notebooks | Notebooks y **laptops** | Ver notebooks → `/categoria/notebooks` | Ver todas las marcas → `/categoria/todos` | `hero-slide-notebooks.png` |
-| 3 | Componentes | Placas de video y **componentes** | Ver componentes → `/categoria/componentes` | Ver productos → `/categoria/todos` | `hero-slide-components.png` |
-| 4 | Periféricos | Periféricos **gaming** | Ver periféricos → `/categoria/perifericos` | Ver todo → `/categoria/todos` | `hero-slide-perifericos.png` |
-
-### Imágenes del Hero
-- `public/images/hero-slide-pc-builder.png` — PC gaming con RGB
-- `public/images/hero-slide-notebooks.png` — Notebook premium
-- `public/images/hero-slide-components.png` — Placa de video / GPU
-- `public/images/hero-slide-perifericos.png` — Teclado y mouse gaming
-- `public/images/pcb-pattern.svg` — Patrón PCB (uso legacy, ya no en hero)
-- `public/images/circuit-pattern.svg` — Patrón circuito (uso legacy)
+### Hero Slides
+| # | Badge | Título | CTA | Imagen |
+|---|-------|--------|-----|--------|
+| 1 | Armá tu PC | Armá tu PC **gamer** | Comenzar a armar → `/arma-tu-pc` | `hero-slide-pc-builder.png` |
+| 2 | Notebooks | Notebooks y **laptops** | Ver notebooks → `/categoria/notebooks` | `hero-slide-notebooks.png` |
+| 3 | Componentes | Placas de video y **componentes** | Ver componentes → `/categoria/componentes` | `hero-slide-components.png` |
+| 4 | Periféricos | Periféricos **gaming** | Ver periféricos → `/categoria/perifericos` | `hero-slide-perifericos.png` |
 
 ## 🔐 Sistema de Autenticación de Clientes
 - **Login/Registro:** `/mis-pedidos` — Página con tabs Login / Registrarse
 - **Cookie:** `customer_token` = `email.hmac_signature` (httpOnly, 30 días)
 - **Perfil editable:** Nombre, teléfono, DNI, dirección, ciudad, provincia, CP
 - **Navbar:** Dropdown con avatar del usuario logueado, link a Mis Pedidos, cerrar sesión
-- **Mobile:** Sección de usuario en menú móvil con avatar, nombre, botones
-- **APIs:**
-  - `POST /api/customer/login` — Login con email + contraseña
-  - `POST /api/customer/register` — Registro con datos personales + dirección
-  - `GET /api/customer/me` — Obtener perfil actual
-  - `GET /api/customer/orders` — Pedidos del cliente (match por email o customerId)
-  - `PUT /api/customer/profile` — Actualizar perfil (dirección, teléfono, etc.)
-  - `POST /api/customer/logout` — Cerrar sesión
+- **APIs:** Login, Registro, Perfil, Pedidos, Update, Logout
 
-## 📦 Datos de Envío (Mejorados)
-- **Provincia:** Campo agregado al checkout (dropdown con las 24 provincias argentinas)
-- **shippingDetails:** Campo en la tabla `orders` — JSON estructurado con carrier, serviceName, estimatedDays, price
-- **Vista en Mis Pedidos:** Muestra carrier, servicio, plazo estimado, y tracking con link externo
-- **Tracking URLs:** Detecta Andreani, Correo Argentino, OCA y genera links de seguimiento
-- **Pre-fill:** Si el cliente está logueado, su dirección se autocompleta en el checkout
+## 📦 Datos de Envío
+- **Provincia:** Dropdown con las 24 provincias argentinas
+- **shippingDetails:** JSON con carrier, serviceName, estimatedDays, price
+- **Tracking URLs:** Andreani, Correo Argentino, OCA con links de seguimiento
+- **Pre-fill:** Dirección autocompletada si el cliente está logueado
 
-## 🚚 Proveedores (Suppliers) — Sistema Completo
-- **Página admin:** `/admin/proveedores` — CRUD completo con expand/collapse
-- **APIs soportadas:** Invid Computers, Air Intra, ELIT
-- **Tabla `suppliers`:** name, contactName, contactEmail, contactPhone, website, apiType, apiBaseUrl, apiUserId, apiToken, apiUsername, apiPassword, markup, currency, isActive, lastSyncAt, notes
-- **Sincronización:** Importa productos desde la API del proveedor con paginación, aplica markup, mapea stock status
-- **Test de conexión:** Prueba autenticación antes de sincronizar
-- **Dashboard:** Card de proveedores con count en el dashboard admin
+## 🖥️ Arma tu PC — Configurador de PCs
+- **Ruta:** `/arma-tu-pc`
+- **API:** `GET /api/pc-builder` — productos por slot con filtros de compatibilidad
+- **Motor:** `src/lib/compatibility.ts` — Extracción de socket, DDR, TDP y wattage desde nombres de productos
+- **10 slots:** Procesador, Motherboard, RAM, Placa de Video, SSD, HDD, Fuente, Gabinete, Refrigeración, Pasta Térmica
+- **Checkout:** WhatsApp con resumen de componentes y precios
 
-### APIs de Proveedores
-| Proveedor | Auth | Productos | Precios | Stock |
-|-----------|------|-----------|---------|-------|
-| Invid Computers | JWT (user/pass) | `articulo.php` paginado (100/pág) | USD | STOCK OK / BAJO STOCK / SIN STOCK |
-| Air Intra | Bearer Token (user/pass) | `syp` paginado (500/pág) | USD | Por depósito (air, lug, ros, cba, mza) |
-| ELIT | user_id + token fijo | `productos` paginado (100/pág) | USD | stock_total numérico |
+### 🔄 Sistema de Compatibilidad
+- **Procesador → Motherboard:** Filtra por socket (AM4, AM5, LGA 1700, LGA 1851)
+- **Motherboard → RAM:** Filtra por DDR (DDR4, DDR5) + excluye SODIMM
+- **GPU → Fuente:** Recomienda wattaje mínimo según la placa de video
+- **Procesador → Refrigeración:** Filtra por socket compatible + TDP del procesador
 
-### Mapeo de Categorías (Category Mapping)
-- **Problema resuelto:** Los productos sincronizados caían en categorías incorrectas (ej: notebooks en PC Armadas) porque se usaban IDs hardcodeados
-- **Sistema implementado:**
-  1. La sync guarda la categoría original del proveedor (`supplierCategory`) en cada producto
-  2. El admin mapea categorías del proveedor → categorías de la tienda con un diálogo visual
-  3. Botón "Re-categorizar" aplica los mapeos a todos los productos existentes
-- **Prioridad de asignación:** 1) Mapeo explícito → 2) Keywords en nombre → 3) Sin categoría
-- **Búsqueda dinámica:** Las categorías se buscan por slug en la DB (no más IDs hardcodeados)
-- **Tabla `supplier_category_mappings`:** supplierId, supplierCategory, storeCategoryId
+### TDP de Procesadores (estimado)
+| Rango | Modelos | TDP |
+|-------|---------|-----|
+| Entry | Ryzen 3 3200G, i3-12100F, i3-14100F | 58-65W |
+| Mid | Ryzen 5 5500/8500G/8600G, i5-12400F/14400 | 65W |
+| Mid-High | Ryzen 5 7600X, Ryzen 7 5700X, i7-12700F/14700F | 105-125W |
+| High | Ryzen 7 7700X/9700X, Ryzen 9 7900X, i9-14900F | 105-170W |
+| Ultra | Core Ultra 7 265KF, Core Ultra 9 285K | 125W |
 
-### Endpoints de Proveedores
-| Endpoint | Método | Descripción |
-|----------|--------|-------------|
-| `/api/admin/suppliers` | GET, POST, PUT, DELETE | CRUD de proveedores |
-| `/api/admin/suppliers/sync` | POST | Sincronizar productos desde API del proveedor |
-| `/api/admin/suppliers/test` | POST | Probar conexión a la API del proveedor |
-| `/api/admin/suppliers/category-mappings` | GET, POST, DELETE | Mapeos de categorías proveedor→tienda |
-| `/api/admin/suppliers/recategorize` | POST | Re-categorizar productos según mapeos |
+### Capacidad de Refrigeración (estimada)
+| Tipo | Capacidad |
+|------|-----------|
+| Air Cooler básico (95W) | 95W |
+| Air Cooler tower / premium | 200W |
+| AIO 120mm | 120W |
+| AIO 240mm | 200W |
+| AIO 280mm | 250W |
+| AIO 360mm | 280W |
+| AIO 420mm | 350W |
+| Fan Cooler (gabinete) | Siempre compatible |
 
-## 🗃️ Base de Datos — Tablas
+### UI de Compatibilidad
+- **Badges:** Socket (verde), DDR (azul), Wattage (ámbar), Tipo cooler (púrpura), TDP (verde)
+- **Banners azules:** Indican qué filtro está activo y por qué componente
+- **Sección incompatibles:** Colapsable con motivo de incompatibilidad
+- **Sidebar:** Estado de compatibilidad en tiempo real (socket, DDR, wattage, TDP)
 
-| Tabla | Filas aprox. | Descripción |
-|-------|-------------|-------------|
-| admins | 1 | Administradores |
-| categories | 58 | Categorías y subcategorías (9 padres + 49 hijas) |
-| customers | 1 | Clientes registrados |
-| dollar_rates | 1 | Cotización del dólar |
-| order_items | 3 | Items de pedidos |
-| orders | 3 | Pedidos con shippingDetails |
-| product_images | 8 | Imágenes de productos |
-| products | 1,214 | Productos (incluye supplierCategory) |
-| store_config | 6 | Configuración de la tienda |
-| suppliers | 1 | Proveedores (Invid) |
-| supplier_category_mappings | 0 | Mapeos de categorías proveedor→tienda |
+## 📊 Base de Datos
+- **Productos:** 1,212 activos
+- **Categorías:** 61 (jerárquicas con parentId)
+- **Proveedores:** 1 (Invid Computers)
+- **Mapeos proveedor→categoría:** 85
+- **Config de tienda:** 20 registros (dollar, markup, etc.)
 
-### Estructura de Categorías de la Tienda
-```
-Notebooks/        → Gamer, Oficina, Diseño, Ultrabooks
-PC Armadas/       → Gamer, Oficina, Diseño, Mini PC
-Componentes de PC/ → Placas de Video, Microprocesadores, Motherboards, Memorias RAM,
-                     Discos SSD, Discos HDD, Fuentes, Gabinetes, Refrigeración,
-                     Pastas Térmicas, Combos
-Monitores/        → Gamer, Oficina, Diseño, Soportes y Brazos
-Periféricos/      → Teclados, Mouse, Auriculares, Mousepads, Parlantes,
-                     Webcams, Micrófonos, Joysticks, Kits Gamer
-Impresión/        → Láser, Inyección, Sistema Continuo, Toners y Cartuchos
-Conectividad y Redes/ → Routers WiFi, Switches, Cables y Adaptadores, Placas de Red
-Almacenamiento Externo/ → Discos Externos, Pendrives, Micro SD
-Accesorios/       → Cargadores, Bases, Fundas/Mochilas, UPS, Sillas Gamer, Escritorios
-```
+### Árbol de Categorías
+- **Notebooks** → gamer, oficina, diseño, ultrabooks
+- **PC Armadas** → gamer-pc, oficina-pc, diseño-pc, mini-pc
+- **Componentes de PC** → placas-de-video, microprocesadores, motherboards, memorias-ram, discos-ssd, discos-hdd, fuentes, gabinetes, refrigeracion, pastas-termicas, combos
+- **Monitores** → gamer-mon, oficina-mon, diseño-mon, soportes-y-brazos
+- **Periféricos** → teclados, mouse, auriculares, mousepads, parlantes, webcams, microfonos, joysticks, kits-gamer
+- **Impresión** → laser, inyeccion, sistema-continuo, toners-y-cartuchos
+- **Conectividad y Redes** → routers-wifi, switches, cables-y-adaptadores, placas-de-red
+- **Almacenamiento Externo** → discos-externos, pendrives, micro-sd
+- **Accesorios** → cargadores, bases, fundas-mochilas, ups, sillas-gamer, escritorios
+- **Tablets** → (categoría independiente)
+
+## 🔗 Sincronización de Proveedores
+- **Proveedor:** Invid Computers (invidcomputers.com)
+- **API:** `/api/admin/suppliers/sync` — Sincroniza productos desde Invid
+- **Mapeo:** `supplier_category_mappings` — 85 mapeos de categorías Invid → categorías Compucity
+- **Mapeo inteligente:** Palabras clave en nombres de categoría para mapeo automático
+- **Precios dinámicos:** costPrice × dollarRate × (1 + markup/100), con descuento efectivo
 
 ## 📁 Estructura Key Files
 ```
-src/app/page.tsx              — Home (Hero Carrusel + Productos)
-src/app/layout.tsx            — Layout con favicon metadata
-src/app/globals.css           — Variables CSS, paleta #3A8B68
-src/app/checkout/page.tsx     — Checkout con provincia + shippingDetails JSON
-src/app/mis-pedidos/page.tsx  — Login/Registro/Dashboard de pedidos + perfil editable
-src/app/admin/proveedores/page.tsx — Proveedores (CRUD + sync + mapeo categorías)
-src/app/admin/categorias/page.tsx  — Categorías (CRUD + orden + visibilidad)
-src/app/api/admin/suppliers/route.ts — CRUD proveedores
-src/app/api/admin/suppliers/sync/route.ts — Sync productos (Invid/AirIntra/ELIT)
-src/app/api/admin/suppliers/test/route.ts — Test conexión proveedor
-src/app/api/admin/suppliers/category-mappings/route.ts — Mapeo categorías
-src/app/api/admin/suppliers/recategorize/route.ts — Re-categorizar productos
-src/app/api/admin/categories/route.ts — CRUD categorías
-src/app/api/admin/init-categories/route.ts — Seed categorías
-src/components/ui-custom/HeroSection.tsx  — Hero Carrusel (4 slides, autoplay)
+src/app/page.tsx                           — Home (Hero + Productos + Marcas)
+src/app/layout.tsx                         — Layout con marquee + favicon
+src/app/globals.css                        — Variables CSS, paleta, animación marquee
+src/app/arma-tu-pc/page.tsx                — Configurador de PCs (851 líneas)
+src/app/api/pc-builder/route.ts            — API de PC Builder con filtros compat
+src/lib/compatibility.ts                   — Motor de compatibilidad (socket, DDR, TDP, wattage)
+src/lib/queries.ts                         — Queries de DB (homepage, productos, etc.)
+src/lib/db.ts                              — Conexión Turso
+src/lib/dollar.ts                          — Cotización del dólar
+src/lib/format-product.ts                  — Formateo de nombres de productos
+src/components/ui-custom/HeroSection.tsx   — Hero Carrusel (4 slides, autoplay)
 src/components/ui-custom/CompucityLogo.tsx — Logo componente
-src/components/layout/Navbar.tsx  — Nav con user dropdown (avatar + logout)
-src/components/layout/Footer.tsx  — Footer con logo lg whiteText
-src/components/layout/WhatsAppButton.tsx — Botón flotante
-src/lib/customer-auth.ts      — Auth de clientes (login, registro, perfil, updateCustomer)
-src/lib/admin-auth.ts         — Auth de admin (compartido: hash, verify, sign)
-src/lib/db.ts                 — DB connection + auto-migrations
-tailwind.config.ts            — Paleta Compucity
-public/images/hero-slide-*.png — Imágenes del carrusel hero
-public/images/logo-compucity-icon.png — Logo recortado
+src/components/layout/Navbar.tsx           — Nav con user dropdown + Arma tu PC
+src/components/layout/Footer.tsx           — Footer con links
+src/components/layout/WhatsAppButton.tsx   — Botón flotante WhatsApp
+src/components/BrandLogos.tsx              — Logos de marcas (SimpleIcons CDN)
 ```
 
-## 🔗 Repositorio
+## 🔗 Repositorio y Deploy
 - **GitHub:** https://github.com/vorterixgames-gif/compucity
-- **Vercel:** Auto-deploy desde main
+- **Vercel:** Auto-deploy desde main → https://my-project-eight-liard-96.vercel.app
+- **DB:** Turso `libsql://compucity-vorterixgames-gif.aws-us-east-1.turso.io`
 
 ## 📦 Backups
-| Fecha | Archivo | Tamaño | Contenido |
-|-------|---------|--------|-----------|
-| 2026-05-27 | `compucity-turso-backup-2026-05-27.json` | 1.9 MB | DB completa (JSON) |
-| 2026-05-27 | `compucity-turso-backup-2026-05-27.sql` | 1.7 MB | DB completa (SQL restaurable) |
-| 2026-05-27 | `compucity-project-backup-2026-05-27_2.tar.gz` | 153 KB | Código del proyecto |
-| 2026-05-27 | `compucity-public-backup-2026-05-27_2.tar.gz` | 635 KB | Assets públicos |
-| 2026-05-27 | `compucity-full-backup-2026-05-27.tar.gz` | 2.0 MB | Todo lo anterior combinado |
+- `backups/2026-05-27/` — Primer backup completo (BD + código)
+- `backups/2026-05-28/compucity-db.json` — Backup de BD (1,212 productos, 61 categorías)
+
+## ✅ Funcionalidades Completadas
+- [x] Homepage con hero carrusel, productos por categoría, logos de marcas, marquee
+- [x] Catálogo de productos con categorías jerárquicas
+- [x] Configurador "Arma tu PC" con 10 slots
+- [x] Sistema de compatibilidad (socket, DDR, wattage, TDP)
+- [x] Autenticación de clientes (login/registro/perfil)
+- [x] Checkout con provincia y cotización de envío
+- [x] Mis Pedidos con tracking y perfil editable
+- [x] Sincronización de proveedores (Invid Computers)
+- [x] Precios dinámicos (dólar × markup × descuento efectivo)
+- [x] Formateo automático de nombres de productos
+- [x] Tablets como categoría independiente
+- [x] Backups en GitHub
+
+## 📝 Pendientes
+- [ ] SEO optimization (meta tags, sitemap, structured data)
+- [ ] Carrito de compras (actualmente solo WhatsApp)
+- [ ] Mejora de imágenes de productos (sin saturar la BD)
+- [ ] Integración con pasarela de pagos (futuro)
 
 ## 📝 Historial de Cambios
-- **2026-05-27 (sesión 3):** Sistema de mapeo de categorías — Soluciona productos desordenados tras sync. Nueva tabla `supplier_category_mappings`, columna `supplierCategory` en products, sync con búsqueda dinámica por slug, diálogo "Mapear Categorías" en admin, botón "Re-categorizar" para aplicar mapeos masivamente. Backup completo.
-- **2026-05-27 (sesión 2):** Proveedores + Clientes — Sección completa de Proveedores en admin (CRUD, APIs Invid/AirIntra/ELIT, sync, test conexión). Sección de Clientes en admin. Dashboard con cards. Migraciones auto.
-- **2026-05-27 (sesión 1):** Login de clientes + datos de envío — Sistema completo de autenticación (login/registro/perfil editable), provincia en checkout, shippingDetails como campo propio (JSON), tracking URLs, dropdown de usuario en navbar, perfil editable desde Mis Pedidos
-- **2026-05-27 (sesión 0):** Rediseño del Hero — de sección estática a carrusel full-width con 4 slides (inspirado en análisis de competencia: Gaming City, Mexx, FullH4rd, CompraGamer, Venex)
+- **2026-05-28:** Compatibilidad de refrigeración — Filtrado por socket + TDP del procesador, estimación de TDP para 40+ modelos de CPUs, badges de tipo/capacidad/sockets en coolers, fans de gabinete siempre compatibles
+- **2026-05-28:** Deploy a Vercel — Sincronización del repo local con GitHub, primer deploy exitoso del sistema de compatibilidad
+- **2026-05-27:** Sistema de compatibilidad en Arma tu PC — Filtrado de mothers por socket, RAM por DDR, fuentes por wattaje de GPU. Motor de compatibilidad basado en regex de nombres de productos
+- **2026-05-27:** Homepage mejorada — Productos (Notebooks/PCs/Monitores), logos SimpleIcons CDN, marquee dinámico, hero sin texto en imágenes
+- **2026-05-27:** Categorías — Tablets separada de Notebooks como categoría independiente
+- **2026-05-27:** Sincronización Invid — Mapeo inteligente de categorías, 1,212 productos sincronizados
+- **2026-05-27:** Login de clientes + datos de envío — Auth completa, provincia, shippingDetails, tracking
+- **2026-05-27:** Rediseño del Hero — Carrusel full-width con 4 slides y autoplay
 - **2026-05-27:** Deploy inicial, logo, favicon, paleta de colores, navbar, footer
