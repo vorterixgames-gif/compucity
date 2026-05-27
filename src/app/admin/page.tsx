@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {
   Package,
   ShoppingCart,
+  Users,
   DollarSign,
   TrendingUp,
   Plus,
@@ -27,6 +28,7 @@ interface DashboardStats {
   totalProducts: number
   totalOrders: number
   totalRevenue: number
+  totalCustomers: number
   dollarRate: number
   activeProducts: number
   featuredProducts: number
@@ -102,7 +104,7 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-gray-500">
@@ -133,6 +135,23 @@ export default function AdminDashboard() {
             </div>
             <p className="text-xs text-gray-500 mt-1">
               Gestión de ventas
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-gray-500">
+              Clientes
+            </CardTitle>
+            <Users className="w-5 h-5 text-compucity-green" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-gray-900">
+              {stats?.totalCustomers ?? 0}
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Clientes registrados
             </p>
           </CardContent>
         </Card>

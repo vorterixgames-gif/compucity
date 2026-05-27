@@ -1,4 +1,4 @@
-import { createClient, type Client } from '@libsql/client'
+import { createClient, type Client } from '@libsql/client/web'
 
 const globalForDb = globalThis as unknown as {
   turso: Client | undefined
@@ -8,16 +8,19 @@ const globalForDb = globalThis as unknown as {
 function createTursoClient() {
   const url = process.env.DATABASE_URL || ''
   
-  if (url.startsWith('libsql://')) {
+  if (url.startsWith('libsql://') || url.startsWith('https://') || url.startsWith('http://')) {
     return createClient({
       url,
       authToken: process.env.TURSO_AUTH_TOKEN,
     })
   }
   
-  // Local fallback
+  // Fallback: use Turso URL if no valid URL configured
+  const fallbackUrl = 'libsql://compucity-vorterixgames-gif.aws-us-east-1.turso.io'
+  console.warn(`[db] DATABASE_URL "${url}" not supported, falling back to Turso`)
   return createClient({
-    url: url || 'file:./prisma/dev.db',
+    url: fallbackUrl,
+    authToken: process.env.TURSO_AUTH_TOKEN,
   })
 }
 
@@ -33,23 +36,55 @@ export async function ensureMigrations() {
   if (globalForDb.migrationRan) return
   globalForDb.migrationRan = true
 
+  // 1. Add shippingDetails column to orders
   try {
-    // Check if shippingDetails column exists in orders
-    await db.execute({
-      sql: 'SELECT shippingDetails FROM orders LIMIT 1',
-      args: [],
-    })
+    await db.execute({ sql: 'SELECT shippingDetails FROM orders LIMIT 1', args: [] })
   } catch {
-    // Column doesn't exist — add it
+    try {
+      await db.execute({ sql: 'ALTER TABLE orders ADD COLUMN shippingDetails TEXT', args: [] })
+      console.log('[migration] Added shippingDetails column to orders')
+    } catch (e) {
+      console.warn('[migration] Could not add shippingDetails:', e)
+    }
+  }
+
+  // 2. Add customerId column to orders
+  try {
+    await db.execute({ sql: 'SELECT customerId FROM orders LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({ sql: 'ALTER TABLE orders ADD COLUMN customerId TEXT', args: [] })
+      console.log('[migration] Added customerId column to orders')
+    } catch (e) {
+      console.warn('[migration] Could not add customerId:', e)
+    }
+  }
+
+  // 3. Ensure customers table exists
+  try {
+    await db.execute({ sql: 'SELECT id FROM customers LIMIT 1', args: [] })
+  } catch {
     try {
       await db.execute({
-        sql: 'ALTER TABLE orders ADD COLUMN shippingDetails TEXT',
+        sql: `CREATE TABLE IF NOT EXISTS customers (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          email TEXT NOT NULL UNIQUE,
+          phone TEXT,
+          password TEXT NOT NULL,
+          dni TEXT,
+          address TEXT,
+          city TEXT,
+          province TEXT,
+          postalCode TEXT,
+          createdAt TEXT DEFAULT (datetime('now')),
+          updatedAt TEXT DEFAULT (datetime('now'))
+        )`,
         args: [],
       })
-      console.log('[migration] Added shippingDetails column to orders')
-    } catch (alterError) {
-      // Might fail if already added by another instance — that's fine
-      console.warn('[migration] Could not add shippingDetails column:', alterError)
+      console.log('[migration] Created customers table')
+    } catch (e) {
+      console.warn('[migration] Could not create customers table:', e)
     }
   }
 }
