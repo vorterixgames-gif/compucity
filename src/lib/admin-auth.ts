@@ -5,7 +5,26 @@ import { cookies } from 'next/headers'
 // HMAC Token Signing (Edge-compatible)
 // ============================================
 
-const HMAC_SECRET = process.env.ADMIN_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'compucity_hmac_dev_secret')
+// HMAC secret: prioritize ADMIN_SECRET env var.
+// In development: use a fixed dev secret.
+// In production without ADMIN_SECRET: derive from DATABASE_URL (stable, unique per deployment, NOT in source code).
+// WARNING: Always set ADMIN_SECRET in production for best security.
+function deriveHmacSecret(): string {
+  if (process.env.ADMIN_SECRET) return process.env.ADMIN_SECRET
+  if (process.env.NODE_ENV !== 'production') return 'compucity_hmac_dev_secret'
+  // Production fallback: derive from DATABASE_URL (unique per deployment, not in source)
+  const dbUrl = process.env.DATABASE_URL || ''
+  // Simple deterministic hash of DATABASE_URL
+  let hash = 0
+  for (let i = 0; i < dbUrl.length; i++) {
+    const chr = dbUrl.charCodeAt(i)
+    hash = ((hash << 5) - hash) + chr
+    hash |= 0 // Convert to 32bit integer
+  }
+  return `compucity_hmac_derived_${Math.abs(hash).toString(36)}_prod`
+}
+
+const HMAC_SECRET = deriveHmacSecret()
 
 /**
  * Sign a value with HMAC-SHA256.
