@@ -16,7 +16,7 @@ const slides = [
     titleAccent: 'gamer',
     description: 'Elegí cada componente y armá la PC de tus sueños. Procesadores, placas de video, memorias y más.',
     cta: { label: 'Comenzar a armar', href: '/arma-tu-pc', icon: Cpu, primary: true },
-    ctaSecondary: { label: 'Ver componentes', href: '/categoria/componentes' },
+    ctaSecondary: { label: 'Ver componentes', href: '/categoria/componentes-de-pc' },
     gradient: 'from-compucity-green-dark/95 via-compucity-green/80 to-compucity-green-dark/30',
   },
   {
@@ -37,7 +37,7 @@ const slides = [
     title: 'Placas de video\ny componentes',
     titleAccent: 'componentes',
     description: 'Las últimas GPU, procesadores, RAM y storage. Todo lo que necesitás para tu setup.',
-    cta: { label: 'Ver componentes', href: '/categoria/componentes', icon: CircuitBoard, primary: true },
+    cta: { label: 'Ver componentes', href: '/categoria/componentes-de-pc', icon: CircuitBoard, primary: true },
     ctaSecondary: { label: 'Ver productos', href: '/categoria/todos' },
     gradient: 'from-[#1a2a1a]/95 via-[#2a4a2a]/75 to-[#1a2a1a]/30',
   },
