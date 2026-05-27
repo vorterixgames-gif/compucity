@@ -33,6 +33,9 @@ export async function GET() {
     const customerCount = await db.execute('SELECT COUNT(*) as count FROM customers')
     const totalCustomers = (customerCount.rows as any[])[0]?.count ?? 0
 
+    const supplierCount = await db.execute('SELECT COUNT(*) as count FROM suppliers WHERE isActive = 1')
+    const totalSuppliers = (supplierCount.rows as any[])[0]?.count ?? 0
+
     return NextResponse.json({
       ok: true,
       stats: {
@@ -41,6 +44,7 @@ export async function GET() {
         totalRevenue,
         dollarRate,
         totalCustomers,
+        totalSuppliers,
         activeProducts: (activeProducts.rows as any[])[0]?.count ?? 0,
         featuredProducts: (featuredProducts.rows as any[])[0]?.count ?? 0,
       },

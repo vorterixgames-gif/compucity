@@ -87,4 +87,39 @@ export async function ensureMigrations() {
       console.warn('[migration] Could not create customers table:', e)
     }
   }
+
+  // 4. Ensure suppliers table exists
+  try {
+    await db.execute({ sql: 'SELECT id FROM suppliers LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({
+        sql: `CREATE TABLE IF NOT EXISTS suppliers (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          contactName TEXT,
+          contactEmail TEXT,
+          contactPhone TEXT,
+          website TEXT,
+          apiType TEXT,
+          apiBaseUrl TEXT,
+          apiUserId TEXT,
+          apiToken TEXT,
+          apiUsername TEXT,
+          apiPassword TEXT,
+          markup INTEGER DEFAULT 30,
+          currency TEXT,
+          isActive INTEGER DEFAULT 1,
+          lastSyncAt TEXT,
+          notes TEXT,
+          createdAt TEXT,
+          updatedAt TEXT
+        )`,
+        args: [],
+      })
+      console.log('[migration] Created suppliers table')
+    } catch (e) {
+      console.warn('[migration] Could not create suppliers table:', e)
+    }
+  }
 }

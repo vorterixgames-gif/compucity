@@ -9,6 +9,7 @@ import {
   FolderOpen,
   ShoppingCart,
   Users,
+  Truck,
   Settings,
   ExternalLink,
   LogOut,
@@ -25,6 +26,7 @@ const navItems = [
   { href: '/admin/categorias', label: 'Categorías', icon: FolderOpen },
   { href: '/admin/pedidos', label: 'Pedidos', icon: ShoppingCart },
   { href: '/admin/clientes', label: 'Clientes', icon: Users },
+  { href: '/admin/proveedores', label: 'Proveedores', icon: Truck },
   { href: '/admin/configuracion', label: 'Configuración', icon: Settings },
 ]
 
