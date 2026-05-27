@@ -340,7 +340,11 @@ function getAirIntraSupplierCategory(product: any): string {
  * Extract the supplier category from an ELIT product.
  */
 function getElitSupplierCategory(product: any): string {
-  return product.rubro || product.categoria || product.familia || product.grupo || product.linea || ''
+  // Elit provides categoria + sub_categoria which are more specific
+  if (product.categoria && product.sub_categoria) {
+    return `${product.categoria} > ${product.sub_categoria}`
+  }
+  return product.categoria || product.rubro || product.familia || product.grupo || product.linea || ''
 }
 
 async function syncInvid(supplier: any): Promise<SyncResult> {
