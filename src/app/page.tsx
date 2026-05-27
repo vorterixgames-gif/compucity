@@ -2,7 +2,7 @@ import CategoryIcons from '@/components/layout/CategoryIcons'
 import BrandLogos from '@/components/layout/BrandLogos'
 import ProductCard from '@/components/ui-custom/ProductCard'
 import HeroSection from '@/components/ui-custom/HeroSection'
-import { getFeaturedProducts, getAllActiveProducts } from '@/lib/queries'
+import { getFeaturedProducts, getHomepageProducts } from '@/lib/queries'
 import { ensureMigrations } from '@/lib/db'
 import Link from 'next/link'
 import { Truck, Shield, MessageCircle, Headphones, ArrowRight, Cpu } from 'lucide-react'
@@ -24,7 +24,7 @@ export default async function HomePage() {
   try {
     [featured, allProducts] = await Promise.all([
       getFeaturedProducts(),
-      getAllActiveProducts(),
+      getHomepageProducts(12),
     ])
   } catch (error) {
     console.error('Homepage data fetch error:', error)
@@ -92,7 +92,7 @@ export default async function HomePage() {
       <section className="py-10">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Nuestros Productos</h2>
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Notebooks, PCs y Monitores</h2>
             <Link href="/categoria/todos" className="inline-flex items-center gap-1 text-sm text-compucity-green hover:text-compucity-green-dark font-semibold group transition">
               Ver todos <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
             </Link>

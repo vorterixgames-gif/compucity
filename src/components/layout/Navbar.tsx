@@ -229,14 +229,28 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-50">
-      {/* Top bar */}
-      <div className="bg-compucity-green-dark text-white text-xs">
-        <div className="max-w-7xl mx-auto px-4 py-1.5 flex items-center justify-center gap-4">
-          <span className="hidden sm:inline">🚚 Envíos a todo el país</span>
-          <span className="hidden sm:inline text-white/40">·</span>
-          <a href="https://wa.me/5493517656918" target="_blank" className="hover:underline">WhatsApp: 3517656918</a>
-          <span className="hidden md:inline text-white/40">·</span>
-          <span className="hidden md:inline">La Falda, Córdoba</span>
+      {/* Top bar - Marquee */}
+      <div className="bg-compucity-green-dark text-white text-xs overflow-hidden">
+        <div className="py-1.5 relative">
+          {/* Fade edges */}
+          <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-compucity-green-dark to-transparent z-10 pointer-events-none" />
+          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-compucity-green-dark to-transparent z-10 pointer-events-none" />
+          <div className="flex whitespace-nowrap animate-marquee">
+            {[0, 1, 2, 3].map((i) => (
+              <span key={i} className="flex items-center gap-6 mr-6">
+                <span className="flex items-center gap-2">🚚 Envíos a todo el país</span>
+                <span className="text-white/40">·</span>
+                <a href="https://wa.me/5493517656918" target="_blank" className="hover:underline flex items-center gap-2">📱 WhatsApp: 3517656918</a>
+                <span className="text-white/40">·</span>
+                <span className="flex items-center gap-2">📍 La Falda, Córdoba</span>
+                <span className="text-white/40">·</span>
+                <span className="flex items-center gap-2">💳 Todos los medios de pago</span>
+                <span className="text-white/40">·</span>
+                <span className="flex items-center gap-2">🛡️ Compra segura</span>
+                <span className="text-white/40">·</span>
+              </span>
+            ))}
+          </div>
         </div>
       </div>
 
