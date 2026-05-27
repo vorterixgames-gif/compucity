@@ -17,7 +17,7 @@ const slides = [
     description: 'Elegí cada componente y armá la PC de tus sueños. Procesadores, placas de video, memorias y más.',
     cta: { label: 'Comenzar a armar', href: '/arma-tu-pc', icon: Cpu, primary: true },
     ctaSecondary: { label: 'Ver componentes', href: '/categoria/componentes' },
-    gradient: 'from-compucity-green-dark/90 via-compucity-green/70 to-transparent',
+    gradient: 'from-compucity-green-dark/95 via-compucity-green/80 to-compucity-green-dark/30',
   },
   {
     id: 2,
@@ -28,7 +28,7 @@ const slides = [
     description: 'Las mejores notebooks para trabajo, estudio y gaming. Lenovo, Asus, HP y más marcas.',
     cta: { label: 'Ver notebooks', href: '/categoria/notebooks', icon: Laptop, primary: true },
     ctaSecondary: { label: 'Ver todas las marcas', href: '/categoria/todos' },
-    gradient: 'from-[#1a2e3a]/90 via-[#2a4a5a]/60 to-transparent',
+    gradient: 'from-[#1a2e3a]/95 via-[#2a4a5a]/75 to-[#1a2e3a]/30',
   },
   {
     id: 3,
@@ -39,7 +39,7 @@ const slides = [
     description: 'Las últimas GPU, procesadores, RAM y storage. Todo lo que necesitás para tu setup.',
     cta: { label: 'Ver componentes', href: '/categoria/componentes', icon: CircuitBoard, primary: true },
     ctaSecondary: { label: 'Ver productos', href: '/categoria/todos' },
-    gradient: 'from-[#1a2a1a]/90 via-[#2a4a2a]/60 to-transparent',
+    gradient: 'from-[#1a2a1a]/95 via-[#2a4a2a]/75 to-[#1a2a1a]/30',
   },
   {
     id: 4,
@@ -50,7 +50,7 @@ const slides = [
     description: 'Teclados, mouses, auriculares y monitores. Mejorá tu experiencia de juego y trabajo.',
     cta: { label: 'Ver periféricos', href: '/categoria/perifericos', icon: Mouse, primary: true },
     ctaSecondary: { label: 'Ver todo', href: '/categoria/todos' },
-    gradient: 'from-[#2a1a2a]/90 via-[#4a2a4a]/50 to-transparent',
+    gradient: 'from-[#2a1a2a]/95 via-[#4a2a4a]/75 to-[#2a1a2a]/30',
   },
 ]
 
@@ -173,8 +173,8 @@ export default function HeroSection() {
           />
           {/* Gradient Overlay - ensures text readability */}
           <div className={`absolute inset-0 bg-gradient-to-r ${slide.gradient}`} />
-          {/* Subtle dark overlay for depth */}
-          <div className="absolute inset-0 bg-black/20" />
+          {/* Dark overlay for depth + text readability */}
+          <div className="absolute inset-0 bg-black/30" />
         </motion.div>
       </AnimatePresence>
 
