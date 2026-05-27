@@ -87,10 +87,12 @@ export async function GET(request: NextRequest) {
       const socketParam = request.nextUrl.searchParams.get('socket')
       const ddrParam = request.nextUrl.searchParams.get('ddr')
       const minWattageParam = request.nextUrl.searchParams.get('minWattage')
+      const cpuTdpParam = request.nextUrl.searchParams.get('cpuTdp')
 
       if (socketParam) filters.socket = socketParam
       if (ddrParam) filters.ddr = ddrParam
       if (minWattageParam) filters.minWattage = parseInt(minWattageParam)
+      if (cpuTdpParam) filters.cpuTdp = parseInt(cpuTdpParam)
 
       // Apply compatibility filters and enrich products with compat info
       const enrichedProducts = applyCompatibilityFilters(products, slot, filters)

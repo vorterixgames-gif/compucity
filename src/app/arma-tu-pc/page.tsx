@@ -192,6 +192,10 @@ export default function ArmaTuPCPage() {
       if (currentSlot.slot === 'psu' && compatibilityFilters.minWattage) {
         params.set('minWattage', String(compatibilityFilters.minWattage))
       }
+      if (currentSlot.slot === 'cooling') {
+        if (compatibilityFilters.socket) params.set('socket', compatibilityFilters.socket)
+        if (compatibilityFilters.cpuTdp) params.set('cpuTdp', String(compatibilityFilters.cpuTdp))
+      }
 
       const res = await fetch(`/api/pc-builder?${params.toString()}`)
       const data = await res.json()
@@ -289,6 +293,21 @@ export default function ArmaTuPCPage() {
         detail: selectedGpu ? `GPU: ${selectedGpu.product.name}` : undefined,
       }
     }
+    if (currentSlot.slot === 'cooling' && (compatibilityFilters.socket || compatibilityFilters.cpuTdp)) {
+      const parts: string[] = []
+      if (compatibilityFilters.socket) {
+        const label = SOCKET_LABELS[compatibilityFilters.socket] || compatibilityFilters.socket
+        parts.push(`socket ${label}`)
+      }
+      if (compatibilityFilters.cpuTdp) {
+        parts.push(`TDP de ${compatibilityFilters.cpuTdp}W o más`)
+      }
+      return {
+        icon: <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />,
+        text: `Mostrando refrigeración compatible: ${parts.join(' y ')}`,
+        detail: selectedProcessor ? `Procesador: ${selectedProcessor.product.name}` : undefined,
+      }
+    }
     return null
   }
 
@@ -329,7 +348,8 @@ export default function ArmaTuPCPage() {
                   const hasFilter =
                     (slot.slot === 'motherboard' && !!compatibilityFilters.socket) ||
                     (slot.slot === 'ram' && !!compatibilityFilters.ddr) ||
-                    (slot.slot === 'psu' && !!compatibilityFilters.minWattage)
+                    (slot.slot === 'psu' && !!compatibilityFilters.minWattage) ||
+                    (slot.slot === 'cooling' && (!!compatibilityFilters.socket || !!compatibilityFilters.cpuTdp))
                   return (
                     <button
                       key={slot.slot}
@@ -486,7 +506,7 @@ export default function ArmaTuPCPage() {
                         <div className="flex-1 min-w-0">
                           <h3 className="font-medium text-gray-900 text-sm mb-1 line-clamp-2">{product.name}</h3>
                           {/* Compatibility badges */}
-                          {compatInfo && (compatInfo.socket || compatInfo.ddr) && (
+                          {compatInfo && (compatInfo.socket || compatInfo.ddr || compatInfo.sockets || compatInfo.coolingCapacity || compatInfo.coolerType) && (
                             <div className="flex flex-wrap gap-1.5 mb-2">
                               {compatInfo.socket && (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700">
@@ -504,6 +524,24 @@ export default function ArmaTuPCPage() {
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700">
                                   <Zap className="w-3 h-3" />
                                   {compatInfo.wattage}W
+                                </span>
+                              )}
+                              {compatInfo.coolerType && currentSlot.slot === 'cooling' && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 text-purple-700">
+                                  <Wind className="w-3 h-3" />
+                                  {compatInfo.coolerType === 'aio' ? 'Water Cooling' : compatInfo.coolerType === 'air' ? 'Air Cooler' : 'Fan'}
+                                </span>
+                              )}
+                              {compatInfo.coolingCapacity && currentSlot.slot === 'cooling' && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700">
+                                  <ShieldCheck className="w-3 h-3" />
+                                  TDP {compatInfo.coolingCapacity}W
+                                </span>
+                              )}
+                              {compatInfo.sockets && compatInfo.sockets.length > 0 && currentSlot.slot === 'cooling' && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-700">
+                                  <Cpu className="w-3 h-3" />
+                                  {compatInfo.sockets.includes('AM4') && compatInfo.sockets.includes('1700') ? 'AMD + Intel' : compatInfo.sockets.includes('AM4') ? 'AMD' : 'Intel'}
                                 </span>
                               )}
                             </div>
@@ -581,6 +619,10 @@ export default function ArmaTuPCPage() {
                               reason = 'Memoria SODIMM (notebook), no compatible con PCs de escritorio'
                             } else if (currentSlot.slot === 'psu' && compatibilityFilters.minWattage && compatInfo?.wattage && compatInfo.wattage < compatibilityFilters.minWattage) {
                               reason = `${compatInfo.wattage}W insuficiente (se recomienda ${compatibilityFilters.minWattage}W+ para tu placa de video)`
+                            } else if (currentSlot.slot === 'cooling' && compatibilityFilters.socket && compatInfo?.sockets && !compatInfo.sockets.includes(compatibilityFilters.socket)) {
+                              reason = `No compatible con ${SOCKET_LABELS[compatibilityFilters.socket] || compatibilityFilters.socket}`
+                            } else if (currentSlot.slot === 'cooling' && compatibilityFilters.cpuTdp && compatInfo?.coolingCapacity && compatInfo.coolingCapacity < compatibilityFilters.cpuTdp) {
+                              reason = `Capacidad ${compatInfo.coolingCapacity}W insuficiente (tu procesador necesita ${compatibilityFilters.cpuTdp}W+)`
                             }
 
                             return (
@@ -714,7 +756,7 @@ export default function ArmaTuPCPage() {
               </div>
 
               {/* Compatibility Status */}
-              {(processorInfo || motherboardInfo) && (
+              {(processorInfo || motherboardInfo || gpuInfo) && (
                 <div className="px-5 py-3 bg-blue-50 border-b border-blue-100">
                   <div className="flex items-center gap-2 mb-1.5">
                     <ShieldCheck className="w-4 h-4 text-blue-600" />
@@ -724,6 +766,7 @@ export default function ArmaTuPCPage() {
                     {processorInfo?.socket && (
                       <p className="text-[11px] text-blue-700">
                         Procesador: {SOCKET_LABELS[processorInfo.socket] || processorInfo.socket}
+                        {processorInfo.cpuTdp ? ` · TDP ${processorInfo.cpuTdp}W` : ''}
                       </p>
                     )}
                     {motherboardInfo?.ddr && (
@@ -734,6 +777,11 @@ export default function ArmaTuPCPage() {
                     {gpuInfo?.wattage && (
                       <p className="text-[11px] text-blue-700">
                         Fuente recomendada: {gpuInfo.wattage}W+
+                      </p>
+                    )}
+                    {processorInfo?.cpuTdp && (
+                      <p className="text-[11px] text-blue-700">
+                        Refrigeración: TDP {processorInfo.cpuTdp}W+ recomendado
                       </p>
                     )}
                   </div>
@@ -765,7 +813,8 @@ export default function ArmaTuPCPage() {
                   const hasFilter =
                     (slot.slot === 'motherboard' && !!compatibilityFilters.socket) ||
                     (slot.slot === 'ram' && !!compatibilityFilters.ddr) ||
-                    (slot.slot === 'psu' && !!compatibilityFilters.minWattage)
+                    (slot.slot === 'psu' && !!compatibilityFilters.minWattage) ||
+                    (slot.slot === 'cooling' && (!!compatibilityFilters.socket || !!compatibilityFilters.cpuTdp))
 
                   return (
                     <div key={slot.slot} className={`flex items-center gap-2 p-2 rounded-lg ${hasFilter ? 'bg-blue-50 border border-blue-100' : 'bg-gray-50'}`}>
@@ -784,6 +833,9 @@ export default function ArmaTuPCPage() {
                         )}
                         {slot.slot === 'psu' && compatibilityFilters.minWattage && (
                           <span className="text-blue-500 ml-1">({compatibilityFilters.minWattage}W+)</span>
+                        )}
+                        {slot.slot === 'cooling' && compatibilityFilters.socket && (
+                          <span className="text-blue-500 ml-1">({SOCKET_LABELS[compatibilityFilters.socket] || compatibilityFilters.socket}{compatibilityFilters.cpuTdp ? ` · ${compatibilityFilters.cpuTdp}W+` : ''})</span>
                         )}
                       </span>
                       {slot.required && <span className="text-[10px] text-red-400">Requerido</span>}

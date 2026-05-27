@@ -14,13 +14,18 @@ export interface CompatibilityInfo {
   ddrType?: 'desktop' | 'sodimm'  // Desktop DIMM or laptop SODIMM
   wattage?: number      // PSU wattage in watts
   gpuTdp?: number       // Estimated GPU TDP in watts
+  cpuTdp?: number       // Estimated CPU TDP in watts
   brand?: string        // AMD or Intel (for processors)
+  sockets?: string[]    // For coolers: list of supported sockets
+  coolingCapacity?: number // Cooler TDP capacity in watts
+  coolerType?: 'air' | 'aio' | 'fan'  // Type of cooling product
 }
 
 export interface CompatibilityFilters {
-  socket?: string       // Filter motherboards by processor socket
+  socket?: string       // Filter motherboards/cooling by processor socket
   ddr?: string          // Filter RAM by motherboard DDR type
   minWattage?: number   // Filter PSUs by minimum wattage (based on GPU)
+  cpuTdp?: number       // Filter cooling by minimum TDP capacity (based on CPU)
 }
 
 // ============================================
@@ -62,7 +67,90 @@ export function extractProcessorCompatibility(name: string): CompatibilityInfo {
     socket = '1700' // Default for Intel processors without explicit socket
   }
 
-  return { socket, brand }
+  // TDP estimation based on processor model
+  const cpuTdp = estimateProcessorTdp(name, brand, socket)
+
+  return { socket, brand, cpuTdp }
+}
+
+/**
+ * Estimate processor TDP from the name.
+ * This is a conservative estimate based on common models.
+ */
+export function estimateProcessorTdp(name: string, brand?: string, socket?: string): number {
+  const upper = name.toUpperCase()
+
+  // Specific model TDP estimates (conservative, max turbo power considered)
+  const tdpMap: { pattern: RegExp; tdp: number }[] = [
+    // AMD Ryzen 9 / high-end Ryzen 7
+    { pattern: /\bRYZEN\s*9\s*9900X\b/i, tdp: 120 },
+    { pattern: /\bRYZEN\s*9\s*7900X\b/i, tdp: 170 },
+    { pattern: /\bRYZEN\s*9\s*5900XT\b/i, tdp: 105 },
+    { pattern: /\bRYZEN\s*7\s*9800X3D\b/i, tdp: 120 },
+    { pattern: /\bRYZEN\s*7\s*9850X3D\b/i, tdp: 120 },
+    { pattern: /\bRYZEN\s*7\s*7800X3D\b/i, tdp: 120 },
+    { pattern: /\bRYZEN\s*7\s*7700X\b/i, tdp: 105 },
+    { pattern: /\bRYZEN\s*7\s*9700X\b/i, tdp: 105 },
+    { pattern: /\bRYZEN\s*7\s*7900X\b/i, tdp: 170 },
+    // AMD Ryzen 7 mid-range
+    { pattern: /\bRYZEN\s*7\s*7700\b/i, tdp: 65 },
+    { pattern: /\bRYZEN\s*7\s*8700[FG]\b/i, tdp: 65 },
+    { pattern: /\bRYZEN\s*7\s*5700X\b/i, tdp: 105 },
+    { pattern: /\bRYZEN\s*7\s*5700G\b/i, tdp: 65 },
+    { pattern: /\bRYZEN\s*7\s*5700\b/i, tdp: 65 },
+    // AMD Ryzen 5
+    { pattern: /\bRYZEN\s*5\s*9600X\b/i, tdp: 65 },
+    { pattern: /\bRYZEN\s*5\s*7600X\b/i, tdp: 105 },
+    { pattern: /\bRYZEN\s*5\s*9600\b/i, tdp: 65 },
+    { pattern: /\bRYZEN\s*5\s*8600G\b/i, tdp: 65 },
+    { pattern: /\bRYZEN\s*5\s*8400F\b/i, tdp: 65 },
+    { pattern: /\bRYZEN\s*5\s*8500G\b/i, tdp: 65 },
+    { pattern: /\bRYZEN\s*5\s*5600GT\b/i, tdp: 65 },
+    { pattern: /\bRYZEN\s*5\s*5500\b/i, tdp: 65 },
+    // AMD Ryzen 3
+    { pattern: /\bRYZEN\s*3\s*3200G\b/i, tdp: 65 },
+    // Intel Core Ultra 9
+    { pattern: /\bULTRA\s*9\s*285K\b/i, tdp: 125 },
+    // Intel Core Ultra 7
+    { pattern: /\bULTRA\s*7\s*265KF\b/i, tdp: 125 },
+    { pattern: /\bULTRA\s*7\s*265[FK]?\b/i, tdp: 125 },
+    // Intel Core Ultra 5
+    { pattern: /\bULTRA\s*5\s*250KF\b/i, tdp: 125 },
+    { pattern: /\bULTRA\s*5\s*250K\b/i, tdp: 125 },
+    { pattern: /\bULTRA\s*5\s*245KF\b/i, tdp: 125 },
+    { pattern: /\bULTRA\s*5\s*245K\b/i, tdp: 125 },
+    { pattern: /\bULTRA\s*5\s*225F\b/i, tdp: 65 },
+    { pattern: /\bULTRA\s*5\s*225\b/i, tdp: 65 },
+    // Intel Core i9
+    { pattern: /\bI9[-\s]*14900F?\b/i, tdp: 125 },
+    // Intel Core i7
+    { pattern: /\bI7[-\s]*14700F?\b/i, tdp: 125 },
+    { pattern: /\bI7[-\s]*12700F?\b/i, tdp: 125 },
+    // Intel Core i5
+    { pattern: /\bI5[-\s]*14400\b/i, tdp: 65 },
+    { pattern: /\bI5[-\s]*12400F\b/i, tdp: 65 },
+    // Intel Core i3
+    { pattern: /\bI3[-\s]*14100F\b/i, tdp: 58 },
+    { pattern: /\bI3[-\s]*12100F\b/i, tdp: 58 },
+  ]
+
+  for (const entry of tdpMap) {
+    if (entry.pattern.test(upper)) {
+      return entry.tdp
+    }
+  }
+
+  // Fallback TDP by brand and socket
+  if (brand === 'Intel') {
+    if (socket === '1851') return 125 // Arrow/Lunar Lake tends to be hotter
+    if (socket === '1700') return 65   // Alder/Raptor Lake i5/i7 default
+  }
+  if (brand === 'AMD') {
+    if (socket === 'AM5') return 65     // Ryzen 7000/9000 default
+    if (socket === 'AM4') return 65     // Ryzen 5000 default
+  }
+
+  return 65 // Conservative default
 }
 
 /**
@@ -237,9 +325,84 @@ export function extractCompatibility(slot: string, name: string): CompatibilityI
       return extractGpuCompatibility(name)
     case 'psu':
       return extractPsuCompatibility(name)
+    case 'cooling':
+      return extractCoolingCompatibility(name)
     default:
       return {}
   }
+}
+
+/**
+ * Extract compatibility info from a cooling product name.
+ * Examples:
+ *   "Cpu Cooler Kelyx Potencia Max 95W Pamd/intel" → { sockets: ['AM4','AM5','1700','1851'], coolingCapacity: 95, coolerType: 'air' }
+ *   "Water Cooling Corsair Nautilus 240mm" → { sockets: ['AM4','AM5','1700','1851'], coolerType: 'aio' }
+ *   "Fan Cooler Raptor Frost Slim Ring120mm" → { coolerType: 'fan' }
+ */
+export function extractCoolingCompatibility(name: string): CompatibilityInfo {
+  const upper = name.toUpperCase()
+
+  // Determine cooler type
+  let coolerType: 'air' | 'aio' | 'fan' | undefined
+  if (/\bWATER\s*COOL/i.test(upper) || /\bAIO\b/i.test(upper)) {
+    coolerType = 'aio'
+  } else if (/\bCPU\s*COOL/i.test(upper)) {
+    coolerType = 'air'
+  } else if (/\bFAN\s*COOL/i.test(upper)) {
+    coolerType = 'fan'
+  }
+
+  // Detect supported sockets from name
+  const sockets: string[] = []
+
+  // "AMD" or "P/amd" or "Pamd" in cooler name means AMD support (AM4+AM5)
+  const supportsAmd = /\bAMD\b/i.test(upper) || /PAMD/i.test(upper) || /P\/AMD/i.test(upper) || /PARA\s*AMD/i.test(upper)
+  // "Intel" in cooler name means Intel support (1700+1851)
+  const supportsIntel = /\bINTEL\b/i.test(upper) || /PINTEL/i.test(upper) || /P\/INTEL/i.test(upper) || /PARA\s*INTEL/i.test(upper)
+
+  if (supportsAmd) {
+    sockets.push('AM4', 'AM5')
+  }
+  if (supportsIntel) {
+    sockets.push('1700', '1851')
+  }
+
+  // If neither AMD nor Intel is mentioned, assume universal compatibility
+  // (most CPU coolers and AIOs support both)
+  if (sockets.length === 0 && (coolerType === 'air' || coolerType === 'aio')) {
+    sockets.push('AM4', 'AM5', '1700', '1851')
+  }
+
+  // Detect cooling capacity (TDP rating) from name
+  // Examples: "Potencia Max 95W", "220W", "TDP 200W"
+  let coolingCapacity: number | undefined
+  const tdpMatch = upper.match(/(?:POTENCIA\s*MAX|TDP|CAPACIDAD)[\s:]*(\d{2,3})\s*W/i)
+    || upper.match(/(\d{2,3})\s*W\s*(?:TDP|MAX|POTENCIA)/i)
+    || upper.match(/(\d{2,3})W\s*(?:TDP)/i)
+  if (tdpMatch) {
+    coolingCapacity = parseInt(tdpMatch[1])
+  }
+
+  // Estimate cooling capacity based on cooler type if not specified
+  if (!coolingCapacity) {
+    if (coolerType === 'aio') {
+      // AIO size-based capacity estimate
+      if (/\b420\s*MM\b/i.test(upper)) coolingCapacity = 350
+      else if (/\b360\s*MM\b/i.test(upper)) coolingCapacity = 280
+      else if (/\b280\s*MM\b/i.test(upper)) coolingCapacity = 250
+      else if (/\b240\s*MM\b/i.test(upper)) coolingCapacity = 200
+      else if (/\b120\s*MM\b/i.test(upper)) coolingCapacity = 120
+      else coolingCapacity = 200 // Default AIO
+    } else if (coolerType === 'air') {
+      // Air cooler - check for size hints
+      if (/\bTOWER\b/i.test(upper) || /\bDUAL/i.test(upper)) coolingCapacity = 200
+      else if (/\b(ASTRIA\s*400|COREFROZR)\b/i.test(upper)) coolingCapacity = 200
+      else coolingCapacity = 95 // Default basic air cooler
+    }
+    // Fan coolers don't have meaningful TDP capacity (they're case fans)
+  }
+
+  return { sockets, coolingCapacity, coolerType }
 }
 
 // ============================================
@@ -268,6 +431,10 @@ export function buildCompatibilityFilters(
       case 'motherboard':
         // Motherboard determines RAM DDR type
         if (info.ddr) filters.ddr = info.ddr
+        break
+      case 'processor':
+        // Processor TDP determines minimum cooling capacity
+        if (info.cpuTdp) filters.cpuTdp = info.cpuTdp
         break
       case 'gpu':
         // GPU determines minimum PSU wattage
@@ -316,6 +483,26 @@ export function applyCompatibilityFilters(
     if (filters.minWattage && slot === 'psu') {
       if (compatInfo.wattage && compatInfo.wattage < filters.minWattage) {
         isCompatible = false
+      }
+    }
+
+    // Socket + TDP filter (for cooling)
+    if (slot === 'cooling') {
+      // Filter by socket compatibility
+      if (filters.socket && compatInfo.sockets && compatInfo.sockets.length > 0) {
+        if (!compatInfo.sockets.includes(filters.socket)) {
+          isCompatible = false
+        }
+      }
+      // Filter by TDP capacity (cooler must handle at least the CPU TDP)
+      if (filters.cpuTdp && compatInfo.coolingCapacity) {
+        if (compatInfo.coolingCapacity < filters.cpuTdp) {
+          isCompatible = false
+        }
+      }
+      // Fan coolers (case fans) are always compatible - they don't cool the CPU directly
+      if (compatInfo.coolerType === 'fan') {
+        isCompatible = true
       }
     }
 
