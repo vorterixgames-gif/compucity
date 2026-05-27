@@ -1,0 +1,23 @@
+[
+  {
+    "id": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "name": "Invid Computers",
+    "contactName": null,
+    "contactEmail": null,
+    "contactPhone": null,
+    "website": "https://www.invidcomputers.com",
+    "apiType": "invid",
+    "apiBaseUrl": "https://www.invidcomputers.com",
+    "apiUserId": null,
+    "apiToken": null,
+    "apiUsername": "pmariavirgina",
+    "apiPassword": "Pivetta_M",
+    "markup": 30,
+    "currency": "USD",
+    "isActive": 1,
+    "lastSyncAt": "2026-05-27T13:01:41.347Z",
+    "notes": null,
+    "createdAt": "2026-05-27T13:00:41.486Z",
+    "updatedAt": "2026-05-27T13:01:41.347Z"
+  }
+]

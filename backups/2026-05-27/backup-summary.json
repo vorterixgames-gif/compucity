@@ -1,0 +1,18 @@
+{
+  "date": "2026-05-27T16:37:45.492Z",
+  "database": "compucity-vorterixgames-gif",
+  "totalRows": 1396,
+  "tables": [
+    "admins",
+    "categories",
+    "customers",
+    "dollar_rates",
+    "order_items",
+    "orders",
+    "product_images",
+    "products",
+    "store_config",
+    "supplier_category_mappings",
+    "suppliers"
+  ]
+}

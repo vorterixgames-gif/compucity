@@ -1,0 +1,16 @@
+[
+  {
+    "id": "be021966-ec99-4a4f-af20-485a6c9b12f6",
+    "name": "Gonzalo Paulero",
+    "email": "gpaulero@gmail.com",
+    "phone": "0117131094",
+    "password": "f127078557fa430f405f4e86e822c2e3ddf77969464c9630b26039e6cb5afab9",
+    "dni": null,
+    "address": ", valle hermoso",
+    "city": "Valle hermoso",
+    "province": "Córdoba",
+    "postalCode": "5000",
+    "createdAt": "2026-05-27T01:38:28.345Z",
+    "updatedAt": "2026-05-27T01:38:28.345Z"
+  }
+]

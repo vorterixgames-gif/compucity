@@ -1,0 +1,26 @@
+[
+  {
+    "id": "ebb46e72-9bd0-410d-abd4-48eb823c40d0",
+    "orderId": "04f67a52-2b1f-46b9-b58d-716875bc881a",
+    "productId": "56f7cb03-1739-4b6f-93ae-148a245cd6e9",
+    "name": "Notebook",
+    "price": 205073,
+    "quantity": 1
+  },
+  {
+    "id": "b010caf0-9a1e-48c9-99d7-e09b1714e00f",
+    "orderId": "79eb2eaf-ebe0-4206-8603-7abe9995c8d1",
+    "productId": "8d7d9d5a-7d9b-4aa6-b9b5-8ae6353be3c0",
+    "name": "Notebook Lenovo Ideapad 1 15AMN7 Ryzen 5 7520U 8Gb Ssd 256Gb 15.6 W11 Abyss Blue",
+    "price": 585585,
+    "quantity": 1
+  },
+  {
+    "id": "fc15ab89-3405-4401-a261-5b7ec03edda3",
+    "orderId": "d43bbc6e-c221-4aa7-b006-083ccb616032",
+    "productId": "f987e64c-0909-4868-a559-1ec981a1ef0c",
+    "name": "Auricular c/ Microfono Genius HS-02B  (4703)",
+    "price": 7713,
+    "quantity": 1
+  }
+]

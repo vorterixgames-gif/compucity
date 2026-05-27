@@ -1,0 +1,11 @@
+[
+  {
+    "id": "d09e97f7-6135-4894-9a3b-6626bf2c9c10",
+    "email": "admin@compucity.com",
+    "name": "Admin",
+    "password": "1b1d005b9ceed7a2df8b192fb4af721ce6e90e8e179294168a5ee5e9e0b8a10a",
+    "role": "admin",
+    "createdAt": "2026-05-22T15:27:00.802Z",
+    "updatedAt": "2026-05-22T15:27:00.802Z"
+  }
+]

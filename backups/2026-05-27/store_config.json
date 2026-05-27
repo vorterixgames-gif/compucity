@@ -1,0 +1,122 @@
+[
+  {
+    "id": "sc1",
+    "key": "store_name",
+    "value": "{\"value\":\"Compucity\"}",
+    "updatedAt": "2026-05-27T14:57:41.007Z"
+  },
+  {
+    "id": "sc2",
+    "key": "store_slogan",
+    "value": "{\"value\":\"Tu Mundo Digital\"}",
+    "updatedAt": "2026-05-22T12:30:05.878Z"
+  },
+  {
+    "id": "sc3",
+    "key": "whatsapp_number",
+    "value": "{\"value\":\"3517656918\"}",
+    "updatedAt": "2026-05-22T12:30:05.878Z"
+  },
+  {
+    "id": "2aaa2690-9d06-484f-9ff7-56d6f5a51baa",
+    "key": "markup",
+    "value": "30",
+    "updatedAt": "2026-05-27T14:57:41.007Z"
+  },
+  {
+    "id": "bca66db1-e939-46ec-b02e-ecc586453372",
+    "key": "cash_discount",
+    "value": "10",
+    "updatedAt": "2026-05-27T14:57:41.007Z"
+  },
+  {
+    "id": "d8629297-a79f-4bca-89c5-700679e6a206",
+    "key": "dollar_source",
+    "value": "nacion",
+    "updatedAt": "2026-05-27T14:57:41.007Z"
+  },
+  {
+    "id": "40f4daa7-51a8-4dca-8343-262b7d12c8d4",
+    "key": "slogan",
+    "value": "",
+    "updatedAt": "2026-05-27T14:57:41.007Z"
+  },
+  {
+    "id": "4dba71e7-f019-437e-9494-0afffded99aa",
+    "key": "whatsapp",
+    "value": "",
+    "updatedAt": "2026-05-27T14:57:41.007Z"
+  },
+  {
+    "id": "09150053-cdd2-4298-a5d8-3aaf1de38484",
+    "key": "origin_cp",
+    "value": "5172",
+    "updatedAt": "2026-05-27T14:57:41.007Z"
+  },
+  {
+    "id": "442befcf-7c7b-473b-ba0f-8ebea4ec515f",
+    "key": "shipping_markup",
+    "value": "0",
+    "updatedAt": "2026-05-27T14:57:41.007Z"
+  },
+  {
+    "id": "1c9267be-832f-42a8-a1d6-13dc2e2cc185",
+    "key": "weight_per_item",
+    "value": "2",
+    "updatedAt": "2026-05-27T14:57:41.007Z"
+  },
+  {
+    "id": "2144184c-bd11-4d41-835b-7060be52083e",
+    "key": "andreani_user",
+    "value": "",
+    "updatedAt": "2026-05-27T14:57:41.007Z"
+  },
+  {
+    "id": "855cbad6-1408-4a04-9b0d-b639d4670e7f",
+    "key": "andreani_password",
+    "value": "",
+    "updatedAt": "2026-05-27T14:57:41.007Z"
+  },
+  {
+    "id": "c3c6f4f6-01b4-45ab-85d1-fd1a32e778b8",
+    "key": "andreani_cliente",
+    "value": "",
+    "updatedAt": "2026-05-27T14:57:41.007Z"
+  },
+  {
+    "id": "ec391905-f0bd-442e-bdc1-223eb35a8550",
+    "key": "andreani_contrato_domicilio",
+    "value": "",
+    "updatedAt": "2026-05-27T14:57:41.007Z"
+  },
+  {
+    "id": "08241ae9-5029-4579-9185-dd716e8bc2c4",
+    "key": "andreani_contrato_sucursal",
+    "value": "",
+    "updatedAt": "2026-05-27T14:57:41.007Z"
+  },
+  {
+    "id": "96924824-3b58-43a4-b0f8-26175879a7fb",
+    "key": "correo_user_token",
+    "value": "",
+    "updatedAt": "2026-05-27T14:57:41.007Z"
+  },
+  {
+    "id": "4c338c4c-9518-4a08-ad89-f2af14290270",
+    "key": "correo_password_token",
+    "value": "",
+    "updatedAt": "2026-05-27T14:57:41.007Z"
+  },
+  {
+    "id": "a4a41f99-2ffc-4904-a156-6d07445065fa",
+    "key": "correo_email",
+    "value": "",
+    "updatedAt": "2026-05-27T14:57:41.007Z"
+  },
+  {
+    "id": "3bdf1556-1464-4dc5-ba75-550886bad3e9",
+    "key": "correo_password",
+    "value": "",
+    "updatedAt": "2026-05-27T14:57:41.007Z"
+  }
+]

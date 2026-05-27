@@ -1,0 +1,682 @@
+[
+  {
+    "id": "4df50ddd-53a6-4eaa-adbe-4c55e52c7154",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Auriculares",
+    "storeCategoryId": "f1f9d31f-9482-4429-a7d2-4208668e3ba3",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "a5b4141c-2f6d-42c9-8443-e217acf6c411",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Mouse",
+    "storeCategoryId": "ac551783-8734-4858-a316-d0a54701e437",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "03ad4b14-9e7c-498a-80f3-a106e035fea6",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Plataforma Intel",
+    "storeCategoryId": "b4211f62-d18d-430e-a918-8dadafde4723",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "263276e2-6821-4026-bcff-8cb5fa010139",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Línea NVIDIA GEFORCE",
+    "storeCategoryId": "cfbf9b6c-5d7b-4d42-aaa3-066a52848fbd",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "78d39617-cb27-4e50-8d55-a1a461f53f2d",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Consumibles HP",
+    "storeCategoryId": "66f20839-0487-433a-930f-9705ca43365d",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "e84cb1a3-05a3-4fde-89fa-e268ea7b2c62",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "PC",
+    "storeCategoryId": "a8e88983-0d7c-476b-a895-37588b8e70b1",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27 15:20:39"
+  },
+  {
+    "id": "86427c07-bf3e-4ea3-8f41-361c3ec2c9cb",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Gabinetes sin Fuente",
+    "storeCategoryId": "b24872b5-c02e-4969-892b-aa03f1acdae8",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "7840661d-4f65-43d2-9639-b6e0e4dd7a81",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Teclados",
+    "storeCategoryId": "dede1e27-d8b0-44b1-9ac0-8112ad91a57d",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "0c6aa2ad-369f-4d3a-9396-688fbeaee4d3",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Memoria DDR4",
+    "storeCategoryId": "8fec8068-83c9-43a9-a972-9eeafe9e0bda",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "00e727fe-b80b-472b-9af4-7e5807b123d2",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Consumo",
+    "storeCategoryId": "4cd2d1e5-dc53-4d23-b2e0-586a1c9823fd",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27 15:33:53"
+  },
+  {
+    "id": "971f4332-2904-4bbe-8e2b-bc3686b0aa6f",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Parlantes",
+    "storeCategoryId": "a4ca4e17-7730-4feb-a6c6-a7a8b96075ac",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "5b44c6f1-a513-430a-b700-616944f1c0e4",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Plataforma AMD",
+    "storeCategoryId": "b4211f62-d18d-430e-a918-8dadafde4723",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "5bc8c556-b344-4045-b868-75201828c846",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Disco SSD M2",
+    "storeCategoryId": "18b32130-e146-4843-95c5-860142417306",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "c82e4170-1ab0-487c-bbc0-150c569a0d45",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Memoria DDR5",
+    "storeCategoryId": "8fec8068-83c9-43a9-a972-9eeafe9e0bda",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "6d2f0561-53f5-42e2-a861-da776fca1184",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Fuentes de Alimentación",
+    "storeCategoryId": "bce97e5d-3ccf-4e49-9c23-1af8ece63612",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "7516a12b-a3b2-48c7-97db-5286ce1fad65",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Intel",
+    "storeCategoryId": "b4211f62-d18d-430e-a918-8dadafde4723",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "a92caaa5-3f52-45dd-b1e3-83c88c5f86ac",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Pen Drive",
+    "storeCategoryId": "f78dc8a5-69e0-4097-b4f9-c928fd90069f",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "2cb92cf8-c028-4aac-b70b-d5b2a91ea11b",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Access Point y Extensores de Rango",
+    "storeCategoryId": "be240fd6-301f-405a-a42d-e6937fa9bcf9",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "dbbf3c7f-478a-4fc0-9632-4694774748f7",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Línea AMD RADEON",
+    "storeCategoryId": "cfbf9b6c-5d7b-4d42-aaa3-066a52848fbd",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "f0efcb45-249b-4a4d-a3fb-0b3086e9f01e",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Mouse y Mousepads",
+    "storeCategoryId": "ac551783-8734-4858-a316-d0a54701e437",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "a6096463-ccfc-4711-a817-65127bf22136",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "AMD",
+    "storeCategoryId": "b4211f62-d18d-430e-a918-8dadafde4723",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "793495c8-e628-402a-8873-a2c9c9b2ac48",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Gamer",
+    "storeCategoryId": "7ee43df2-6ade-4425-87a4-8575d0cc3459",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27 15:20:39"
+  },
+  {
+    "id": "4b8dbed9-0e50-46d6-b52c-1fdf8d3a76c4",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Disco Rígido SATA",
+    "storeCategoryId": "63761dd5-d992-4bab-b9a6-fb95c3ff2cef",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "1addfb84-1e22-4df4-a528-28feae93ef99",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Switches Administrables",
+    "storeCategoryId": "2624baab-e1ba-4f28-aa2f-2d4d1b726b84",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "4603acda-1e4d-4b28-87dd-807b25ef4b4f",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Router Wireless",
+    "storeCategoryId": "172af915-f189-476c-a735-e9a7b05bd16c",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "93b7546c-7538-4e13-9cc4-4698871804b1",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Disco SSD",
+    "storeCategoryId": "18b32130-e146-4843-95c5-860142417306",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "2f966c34-b534-4afc-b7d0-5873b1592f56",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Streaming",
+    "storeCategoryId": "8e03c174-cb16-4b19-b920-73fc96236fbd",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "479c19e9-cc3c-409d-8d5d-bf55b5c49d7b",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Memoria Sodimm",
+    "storeCategoryId": "8fec8068-83c9-43a9-a972-9eeafe9e0bda",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "4c21847f-7ad0-4367-826f-d346eec4bb36",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Pantalla Profesional",
+    "storeCategoryId": "47287fdb-d05e-4d59-b0a0-2fdb61509236",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27 15:21:30"
+  },
+  {
+    "id": "ab781682-6f5d-4fff-8392-23bf8f220943",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Mousepads",
+    "storeCategoryId": "724ec70f-dab0-496f-b3a2-7ddee9a4770d",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "4742d93c-a43b-4cb2-b55c-33bc981f9744",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Disco Rígido Externo",
+    "storeCategoryId": "404bbe6d-bc9a-471c-b264-fcf18d693295",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "b275e3e2-02a1-4493-8649-4734a4126fdd",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Switches No Administrables",
+    "storeCategoryId": "2624baab-e1ba-4f28-aa2f-2d4d1b726b84",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "16373e44-5f3f-4ae6-a9e1-62173208f725",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Electrodomésticos",
+    "storeCategoryId": "f9c2ec9c-bdda-4534-92f3-1818026553fc",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27 15:20:39"
+  },
+  {
+    "id": "c532e199-a33a-49aa-9461-3e0b5efb5182",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Tarjetas de memoria",
+    "storeCategoryId": "797adcdf-c7ae-4aa0-9b14-18b3a5b8ea45",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "e27999cd-3378-4f22-b3b8-3f6023ee60d6",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Monitor Corporativo",
+    "storeCategoryId": "9c577c6f-ab09-4ca6-b6a9-8f7cc2f98d55",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27 15:20:39"
+  },
+  {
+    "id": "4337dd9f-116f-42e4-a400-ba7ece42c908",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Teclado + Mouse",
+    "storeCategoryId": "b19a7241-88e7-454f-8b5e-b0030d9c6716",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "ad48c9e8-6429-4bcd-a730-21d2bf16103e",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Monitor Gamer",
+    "storeCategoryId": "b27231ee-0682-471b-b6c1-59b9402e447c",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27 15:20:39"
+  },
+  {
+    "id": "e870d950-d22f-4054-8ebc-2609d5c6e446",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Web Cam",
+    "storeCategoryId": "8e03c174-cb16-4b19-b920-73fc96236fbd",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "0e2260d8-c7af-4dd1-b40d-679ae36b125e",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Modem ADSL y GPON",
+    "storeCategoryId": "172af915-f189-476c-a735-e9a7b05bd16c",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "565569bd-7530-430e-8d1f-040c56244020",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Placas de Red WiFi USB",
+    "storeCategoryId": "be240fd6-301f-405a-a42d-e6937fa9bcf9",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "6157e8c7-da39-41f6-89af-f4abd93b1c55",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Tintas",
+    "storeCategoryId": "66f20839-0487-433a-930f-9705ca43365d",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "dcce5925-e467-4e55-8ac3-497f36cae534",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Watercoolers",
+    "storeCategoryId": "57b1e5cc-59e6-49f0-a9d1-b3f388c19f79",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "bf0fd553-8612-4d3a-83fd-a3c2bd0efc91",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Cámaras IP",
+    "storeCategoryId": "be240fd6-301f-405a-a42d-e6937fa9bcf9",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "71923722-b025-4423-885e-62190f999364",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Memoria DDR3",
+    "storeCategoryId": "8fec8068-83c9-43a9-a972-9eeafe9e0bda",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "d22f0e9f-e7d1-463f-b26f-250d9dff6919",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "UPS",
+    "storeCategoryId": "b854e149-1790-4cad-abc6-0a4fb187740b",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "5db08db3-7150-4aef-a559-5d11b3f0b63b",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Multifunción",
+    "storeCategoryId": "3cb0cac6-46c9-4db2-baba-57244d650938",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27 15:21:30"
+  },
+  {
+    "id": "2e926eb2-5d4a-465d-a256-cd91979c3af4",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Tablets",
+    "storeCategoryId": "4ab6e5e7-f724-4ead-96d2-a169fe41d372",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27 15:20:39"
+  },
+  {
+    "id": "ac6b79ea-35da-44a2-a5ac-e210c3683289",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Sillas y Escritorios",
+    "storeCategoryId": "bdf7ba10-c068-4b61-845c-5d38e2b87a61",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "f42ea6c9-15e9-4cf7-a674-c6e2f1ae41d1",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Cartuchos",
+    "storeCategoryId": "66f20839-0487-433a-930f-9705ca43365d",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "be3bb8af-28c4-42ec-acc4-89c806ce14f5",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Media conv/módulos",
+    "storeCategoryId": "3f166420-a367-43a9-96d6-55760385bbb5",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "650eb4e2-ee07-4f0e-adea-1130480b73a4",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Monitor Consumo",
+    "storeCategoryId": "9c577c6f-ab09-4ca6-b6a9-8f7cc2f98d55",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27 15:20:39"
+  },
+  {
+    "id": "653272fc-e75c-4213-8966-7bba047c6477",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Línea Quadro/Radeon Pro",
+    "storeCategoryId": "cfbf9b6c-5d7b-4d42-aaa3-066a52848fbd",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "fc3154c9-c761-4d33-9ad4-e2dcf6e3c73d",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Placas de Red Ethernet y Adaptadores USB",
+    "storeCategoryId": "be240fd6-301f-405a-a42d-e6937fa9bcf9",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "9c560116-82c8-42d5-9a9e-d17d7ae42a54",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "De red",
+    "storeCategoryId": "0b090bb2-5761-4bfb-8337-f6e217c8e7a5",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "ddbb24d0-a1c0-4ecf-a0de-f88798fa76ba",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Disco Rígido NAS",
+    "storeCategoryId": "63761dd5-d992-4bab-b9a6-fb95c3ff2cef",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "628d6653-b741-4361-a437-0fa0d74bb58f",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Gabinetes con Fuente",
+    "storeCategoryId": "b24872b5-c02e-4969-892b-aa03f1acdae8",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "df8e29c2-e917-49dc-a8e8-852d2910592e",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Multimedia y Periféricos",
+    "storeCategoryId": "cat3",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "95b3cda3-b79a-4ac8-a4e4-c066963d6fc2",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "All in One",
+    "storeCategoryId": "a8e88983-0d7c-476b-a895-37588b8e70b1",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27 15:21:30"
+  },
+  {
+    "id": "278c30f1-6493-4dff-a393-3fc3a76b44f3",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Smart Home",
+    "storeCategoryId": "cc25fabd-0043-4113-8199-af6436fa236e",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27 15:20:39"
+  },
+  {
+    "id": "5d5953b7-c4b6-4d0e-89a2-44345ba05454",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Fans",
+    "storeCategoryId": "57b1e5cc-59e6-49f0-a9d1-b3f388c19f79",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "3f704867-5fa6-435a-bc64-6cb4375aa838",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Micrófonos",
+    "storeCategoryId": "6498104b-2a0e-4770-86af-bd7c2572555a",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "464ec626-5543-41ce-ba59-234fb2789692",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Proyectores",
+    "storeCategoryId": "3cb0cac6-46c9-4db2-baba-57244d650938",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27 15:21:30"
+  },
+  {
+    "id": "b8da1ab3-3b3e-467e-ba4b-abd82a142a9e",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "KIT PC",
+    "storeCategoryId": "7a609a02-093f-4a06-9aa6-34e527452143",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "0eb29f4d-c3ff-4e1c-bab2-acd2b11a6300",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Mini PC",
+    "storeCategoryId": "00176d39-d1cb-4f68-a01e-617fb37679cb",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "8fd3d788-36ee-4572-8e3b-e6f60af71bc3",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Placas de Red WiFi PCI",
+    "storeCategoryId": "be240fd6-301f-405a-a42d-e6937fa9bcf9",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "b99acaec-7d30-4479-9f0d-1acd127ee6b8",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Scanners",
+    "storeCategoryId": "3cb0cac6-46c9-4db2-baba-57244d650938",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27 15:21:30"
+  },
+  {
+    "id": "d89435fe-2464-4f03-b029-f49866029922",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Router",
+    "storeCategoryId": "172af915-f189-476c-a735-e9a7b05bd16c",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "65bdbc10-1105-411c-80a4-966b225c6b7c",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Estabilizadores",
+    "storeCategoryId": "b854e149-1790-4cad-abc6-0a4fb187740b",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "d4299a6b-a962-4399-a930-da8ce808da42",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Laser",
+    "storeCategoryId": "0ea463ed-b83e-4d9b-8c37-635737f1779e",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "7d963eb1-430f-4398-a776-2dfed2b923dc",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Accesorios Bluetooth",
+    "storeCategoryId": "3f166420-a367-43a9-96d6-55760385bbb5",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "27038423-6411-462a-b8f3-4a9b24249d9f",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Ink Jet",
+    "storeCategoryId": "3cb0cac6-46c9-4db2-baba-57244d650938",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "2760250d-9240-4471-9a96-fcc9c9e79532",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "DDR4",
+    "storeCategoryId": "8fec8068-83c9-43a9-a972-9eeafe9e0bda",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "a761f38b-3c3f-46d6-8c2f-088c26c6838d",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Kit Gabinete, teclado, mouse y parlante",
+    "storeCategoryId": "b19a7241-88e7-454f-8b5e-b0030d9c6716",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "d545ebd0-7b4c-462e-be94-264e7a04f401",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "DDR5",
+    "storeCategoryId": "8fec8068-83c9-43a9-a972-9eeafe9e0bda",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "c2d75cab-9332-4380-a161-3df1acb35c6d",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "POE (Power Over Ethernet)",
+    "storeCategoryId": "0b090bb2-5761-4bfb-8337-f6e217c8e7a5",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "9ee656db-ae5f-4b38-82a5-4217733abda9",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Papel Resma",
+    "storeCategoryId": "66f20839-0487-433a-930f-9705ca43365d",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27 15:21:30"
+  },
+  {
+    "id": "4b973667-b6d8-4890-bb5c-82f5a698eade",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Disco Rígido Notebook",
+    "storeCategoryId": "63761dd5-d992-4bab-b9a6-fb95c3ff2cef",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "2b209f6b-eefb-4019-bb94-6e1731cd0330",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Carry Disk",
+    "storeCategoryId": "404bbe6d-bc9a-471c-b264-fcf18d693295",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "61062f91-b781-425f-abff-1db69673297c",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Impresoras",
+    "storeCategoryId": "3cb0cac6-46c9-4db2-baba-57244d650938",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27 15:21:30"
+  },
+  {
+    "id": "9a0d2e5a-5541-45f7-bf4f-304abc47e3c0",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Power Banks",
+    "storeCategoryId": "6af5a32c-f21d-4498-9927-c33a97e72a16",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "dc93213f-3941-4a9d-b30b-68b935e698fd",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Corporativa",
+    "storeCategoryId": "6af5a32c-f21d-4498-9927-c33a97e72a16",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27 15:21:30"
+  },
+  {
+    "id": "0439372f-29cc-47c9-b1da-052403f4256d",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Discos Rígidos / SSD",
+    "storeCategoryId": "18b32130-e146-4843-95c5-860142417306",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "06051408-ed08-4903-aff4-95af5c911b04",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Memoria DDR2",
+    "storeCategoryId": "8fec8068-83c9-43a9-a972-9eeafe9e0bda",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "3fab0722-c1eb-46d5-8be9-40438ef97b4a",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "DDR3",
+    "storeCategoryId": "8fec8068-83c9-43a9-a972-9eeafe9e0bda",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  },
+  {
+    "id": "38576cd2-90d1-44cb-9e62-58fe30b1ddf1",
+    "supplierId": "8c7b9e2c-c004-4f70-9e17-abda903395af",
+    "supplierCategory": "Línea Intel Arc",
+    "storeCategoryId": "cfbf9b6c-5d7b-4d42-aaa3-066a52848fbd",
+    "createdAt": "2026-05-27T14:29:57.130Z",
+    "updatedAt": "2026-05-27T14:29:57.130Z"
+  }
+]
