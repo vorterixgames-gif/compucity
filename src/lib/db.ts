@@ -122,4 +122,38 @@ export async function ensureMigrations() {
       console.warn('[migration] Could not create suppliers table:', e)
     }
   }
+
+  // 5. Add supplierCategory column to products
+  try {
+    await db.execute({ sql: 'SELECT supplierCategory FROM products LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({ sql: 'ALTER TABLE products ADD COLUMN supplierCategory TEXT' })
+      console.log('[migration] Added supplierCategory column to products')
+    } catch (e) {
+      console.warn('[migration] Could not add supplierCategory:', e)
+    }
+  }
+
+  // 6. Ensure supplier_category_mappings table exists
+  try {
+    await db.execute({ sql: 'SELECT id FROM supplier_category_mappings LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({
+        sql: `CREATE TABLE IF NOT EXISTS supplier_category_mappings (
+          id TEXT PRIMARY KEY,
+          supplierId TEXT NOT NULL,
+          supplierCategory TEXT NOT NULL,
+          storeCategoryId TEXT NOT NULL,
+          createdAt TEXT,
+          updatedAt TEXT
+        )`,
+        args: [],
+      })
+      console.log('[migration] Created supplier_category_mappings table')
+    } catch (e) {
+      console.warn('[migration] Could not create supplier_category_mappings table:', e)
+    }
+  }
 }

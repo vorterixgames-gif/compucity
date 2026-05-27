@@ -20,6 +20,9 @@ import {
   ChevronDown,
   ChevronUp,
   AlertTriangle,
+  FolderInput,
+  ArrowRight,
+  Save,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -92,6 +95,27 @@ interface FormData {
   notes: string
 }
 
+interface SupplierCategoryInfo {
+  supplierCategory: string
+  productCount: number
+}
+
+interface CategoryMapping {
+  id: string
+  supplierId: string
+  supplierCategory: string
+  storeCategoryId: string
+  storeCategoryName: string | null
+}
+
+interface StoreCategory {
+  id: string
+  name: string
+  slug: string
+  parentId: string | null
+  displayName: string
+}
+
 const emptyForm: FormData = {
   name: '',
   contactName: '',
@@ -150,6 +174,18 @@ export default function AdminProveedores() {
   // Test connection
   const [testingId, setTestingId] = useState<string | null>(null)
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null)
+
+  // Category mapping dialog
+  const [mappingOpen, setMappingOpen] = useState(false)
+  const [mappingSupplierId, setMappingSupplierId] = useState<string | null>(null)
+  const [mappingSupplierName, setMappingSupplierName] = useState('')
+  const [supplierCategories, setSupplierCategories] = useState<SupplierCategoryInfo[]>([])
+  const [categoryMappings, setCategoryMappings] = useState<CategoryMapping[]>([])
+  const [storeCategories, setStoreCategories] = useState<StoreCategory[]>([])
+  const [mappingLoading, setMappingLoading] = useState(false)
+  const [mappingSaving, setMappingSaving] = useState<Record<string, boolean>>({})
+  const [recategorizing, setRecategorizing] = useState(false)
+  const [recategorizeResult, setRecategorizeResult] = useState<{ ok: boolean; message: string } | null>(null)
 
   const loadSuppliers = useCallback(async (searchTerm: string = '', pageNum: number = 1) => {
     try {
@@ -361,6 +397,103 @@ export default function AdminProveedores() {
       case 'elit': return 'https://clientes.elit.com.ar'
       default: return ''
     }
+  }
+
+  // Category mapping handlers
+  const openMappingDialog = async (e: React.MouseEvent, supplier: Supplier) => {
+    e.stopPropagation()
+    setMappingSupplierId(supplier.id)
+    setMappingSupplierName(supplier.name)
+    setMappingLoading(true)
+    setMappingOpen(true)
+    setRecategorizeResult(null)
+
+    try {
+      const res = await fetch(`/api/admin/suppliers/category-mappings?supplierId=${supplier.id}`)
+      const data = await res.json()
+      if (data.ok) {
+        setSupplierCategories(data.supplierCategories || [])
+        setCategoryMappings(data.mappings || [])
+        setStoreCategories(data.storeCategories || [])
+      }
+    } catch (error) {
+      console.error('Error loading category mappings:', error)
+    } finally {
+      setMappingLoading(false)
+    }
+  }
+
+  const handleMappingSave = async (supplierCategory: string, storeCategoryId: string) => {
+    if (!mappingSupplierId) return
+    setMappingSaving(prev => ({ ...prev, [supplierCategory]: true }))
+
+    try {
+      const res = await fetch('/api/admin/suppliers/category-mappings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          supplierId: mappingSupplierId,
+          supplierCategory,
+          storeCategoryId,
+        }),
+      })
+
+      const data = await res.json()
+      if (data.ok) {
+        // Refresh mappings
+        const mapRes = await fetch(`/api/admin/suppliers/category-mappings?supplierId=${mappingSupplierId}`)
+        const mapData = await mapRes.json()
+        if (mapData.ok) {
+          setCategoryMappings(mapData.mappings || [])
+        }
+      }
+    } catch (error) {
+      console.error('Error saving mapping:', error)
+    } finally {
+      setMappingSaving(prev => ({ ...prev, [supplierCategory]: false }))
+    }
+  }
+
+  const handleMappingDelete = async (mappingId: string) => {
+    try {
+      await fetch(`/api/admin/suppliers/category-mappings?id=${mappingId}`, { method: 'DELETE' })
+      // Refresh mappings
+      if (mappingSupplierId) {
+        const mapRes = await fetch(`/api/admin/suppliers/category-mappings?supplierId=${mappingSupplierId}`)
+        const mapData = await mapRes.json()
+        if (mapData.ok) {
+          setCategoryMappings(mapData.mappings || [])
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting mapping:', error)
+    }
+  }
+
+  const handleRecategorize = async () => {
+    if (!mappingSupplierId) return
+    setRecategorizing(true)
+    setRecategorizeResult(null)
+
+    try {
+      const res = await fetch('/api/admin/suppliers/recategorize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ supplierId: mappingSupplierId }),
+      })
+
+      const data = await res.json()
+      setRecategorizeResult({ ok: data.ok, message: data.message || 'Recategorización completada' })
+    } catch (error: any) {
+      setRecategorizeResult({ ok: false, message: `Error: ${error.message}` })
+    } finally {
+      setRecategorizing(false)
+    }
+  }
+
+  // Helper: get current mapping for a supplier category
+  const getMappingForCategory = (supplierCategory: string): CategoryMapping | undefined => {
+    return categoryMappings.find(m => m.supplierCategory === supplierCategory)
   }
 
   if (loading) {
@@ -628,6 +761,15 @@ export default function AdminProveedores() {
                                 <RefreshCw className="w-4 h-4" />
                               )}
                               {isSyncing ? 'Sincronizando...' : 'Sincronizar Productos'}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 gap-1"
+                              onClick={(e) => openMappingDialog(e, supplier)}
+                            >
+                              <FolderInput className="w-4 h-4" />
+                              Mapear Categorías
                             </Button>
                           </>
                         )}
@@ -956,6 +1098,161 @@ export default function AdminProveedores() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Category Mapping Dialog */}
+      <Dialog open={mappingOpen} onOpenChange={setMappingOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              <div className="flex items-center gap-2">
+                <FolderInput className="w-5 h-5 text-amber-600" />
+                Mapear Categorías — {mappingSupplierName}
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+
+          {mappingLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-compucity-green" />
+              <span className="ml-2 text-gray-500">Cargando categorías...</span>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Info Banner */}
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                <strong>Cómo funciona:</strong> Las categorías del proveedor se asignan a las categorías de tu tienda.
+                Cuando sincronices, los productos se asignarán automáticamente a la categoría correcta.
+                Primero sincroniza los productos, luego mapea las categorías, y finalmente haz clic en &quot;Re-categorizar&quot;.
+              </div>
+
+              {/* Re-categorize result */}
+              {recategorizeResult && (
+                <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
+                  recategorizeResult.ok
+                    ? 'bg-green-50 text-green-700 border border-green-200'
+                    : 'bg-red-50 text-red-700 border border-red-200'
+                }`}>
+                  {recategorizeResult.ok ? <CheckCircle className="w-4 h-4 flex-shrink-0" /> : <AlertTriangle className="w-4 h-4 flex-shrink-0" />}
+                  {recategorizeResult.message}
+                  <button onClick={() => setRecategorizeResult(null)} className="ml-auto text-current opacity-60 hover:opacity-100">✕</button>
+                </div>
+              )}
+
+              {/* Re-categorize button */}
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-600">
+                  {supplierCategories.length} categorías del proveedor encontradas · {categoryMappings.length} mapeos configurados
+                </p>
+                <Button
+                  onClick={handleRecategorize}
+                  disabled={recategorizing || categoryMappings.length === 0}
+                  className="bg-amber-600 hover:bg-amber-700 gap-1"
+                  size="sm"
+                >
+                  {recategorizing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                  {recategorizing ? 'Re-categorizando...' : 'Re-categorizar Productos'}
+                </Button>
+              </div>
+
+              {supplierCategories.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">
+                  <FolderInput className="w-10 h-10 mx-auto mb-2 opacity-30" />
+                  <p>No se encontraron categorías del proveedor</p>
+                  <p className="text-xs mt-1">
+                    Primero sincroniza los productos para que las categorías del proveedor se registren.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {supplierCategories.map((sc) => {
+                    const existingMapping = getMappingForCategory(sc.supplierCategory)
+                    const isSaving = mappingSaving[sc.supplierCategory]
+
+                    return (
+                      <div
+                        key={sc.supplierCategory}
+                        className="flex items-center gap-3 p-3 bg-white border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
+                      >
+                        {/* Supplier category */}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate" title={sc.supplierCategory}>
+                            {sc.supplierCategory || '(sin categoría)'}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {sc.productCount} producto{sc.productCount !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+
+                        {/* Arrow */}
+                        <ArrowRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+
+                        {/* Store category selector */}
+                        <div className="flex-1 min-w-0">
+                          <select
+                            className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm"
+                            value={existingMapping?.storeCategoryId || ''}
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                handleMappingSave(sc.supplierCategory, e.target.value)
+                              }
+                            }}
+                          >
+                            <option value="">— Sin mapear —</option>
+                            {storeCategories
+                              .sort((a, b) => a.displayName.localeCompare(b.displayName))
+                              .map((cat) => (
+                                <option key={cat.id} value={cat.id}>
+                                  {cat.displayName}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+
+                        {/* Status indicator */}
+                        {isSaving ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-amber-500 flex-shrink-0" />
+                        ) : existingMapping ? (
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                            {existingMapping.storeCategoryName && (
+                              <span className="text-xs text-green-600 max-w-[120px] truncate" title={existingMapping.storeCategoryName}>
+                                {existingMapping.storeCategoryName}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <XCircle className="w-4 h-4 text-gray-300 flex-shrink-0" />
+                        )}
+
+                        {/* Delete mapping button */}
+                        {existingMapping && (
+                          <button
+                            onClick={() => handleMappingDelete(existingMapping.id)}
+                            className="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
+                            title="Eliminar mapeo"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMappingOpen(false)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
