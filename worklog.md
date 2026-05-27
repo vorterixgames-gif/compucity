@@ -41,3 +41,21 @@ Stage Summary:
 - Table created manually in Turso (also exists in ensureMigrations auto-creation)
 - Admin panel now has a "Clientes" section between Pedidos and Configuración
 - Dashboard shows total registered customers count
+
+---
+Task ID: 2
+Agent: main
+Task: Full backup of project + database
+
+Work Log:
+- Created full Turso database JSON backup (all 9 tables, 78 rows, 498 KB)
+- Created Turso SQL backup with schema + INSERT statements (492 KB)
+- Created full project code tar.gz backup (30 MB, excluding node_modules/.next)
+- Created public assets backup (634 KB)
+- All backups saved to /home/z/my-project/download/
+
+Stage Summary:
+- compucity-turso-backup-2026-05-27T02-07-56-515Z.json (498 KB) - Full JSON with base64 images
+- compucity-turso-backup-2026-05-27T02-08-30-850Z.sql (492 KB) - SQL schema + data
+- compucity-project-backup-2026-05-27_02-08.tar.gz (30 MB) - Full project code
+- compucity-public-backup-2026-05-27_02-08.tar.gz (634 KB) - Public assets
