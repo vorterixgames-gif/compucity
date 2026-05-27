@@ -1,8 +1,23 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getCurrentAdmin } from '@/lib/admin-auth'
+
+/** Strip sensitive API credentials from supplier objects */
+function stripSupplierCredentials(supplier: any) {
+  const { apiToken, apiPassword, apiUsername, ...safe } = supplier
+  return {
+    ...safe,
+    apiToken: apiToken ? '••••••••' : null,
+    apiPassword: apiPassword ? '••••••••' : null,
+    apiUsername: apiUsername || null,
+  }
+}
 
 export async function GET(request: Request) {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const { searchParams } = new URL(request.url)
     const search = searchParams.get('search') || ''
     const page = parseInt(searchParams.get('page') || '1')
@@ -55,7 +70,7 @@ export async function GET(request: Request) {
     }
 
     const enrichedSuppliers = suppliers.map(s => ({
-      ...s,
+      ...stripSupplierCredentials(s),
       productCount: productCounts[s.id] || 0,
     }))
 
@@ -74,6 +89,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const body = await request.json()
     const {
       name,
@@ -131,7 +149,7 @@ export async function POST(request: Request) {
       args: [id],
     })
 
-    return NextResponse.json({ ok: true, supplier: (result.rows as any[])[0] })
+    return NextResponse.json({ ok: true, supplier: stripSupplierCredentials((result.rows as any[])[0]) })
   } catch (error) {
     console.error('Error creating supplier:', error)
     return NextResponse.json({ error: 'Error del servidor' }, { status: 500 })
@@ -140,6 +158,9 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const body = await request.json()
     const { id, name, contactName, contactEmail, contactPhone, website, apiType, apiBaseUrl, apiUserId, apiToken, apiUsername, apiPassword, markup, currency, isActive, notes } = body
 
@@ -183,7 +204,7 @@ export async function PUT(request: Request) {
 
     const result = await db.execute({ sql: 'SELECT * FROM suppliers WHERE id = ?', args: [id] })
 
-    return NextResponse.json({ ok: true, supplier: (result.rows as any[])[0] })
+    return NextResponse.json({ ok: true, supplier: stripSupplierCredentials((result.rows as any[])[0]) })
   } catch (error) {
     console.error('Error updating supplier:', error)
     return NextResponse.json({ error: 'Error del servidor' }, { status: 500 })
@@ -192,6 +213,9 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const { id } = await request.json()
     if (!id) {
       return NextResponse.json({ error: 'ID requerido' }, { status: 400 })

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getCurrentCustomer } from '@/lib/customer-auth'
 
 /**
  * GET /api/orders?orderNumber=CP-XXXX — Buscar un pedido por número
@@ -35,11 +36,19 @@ export async function GET(request: NextRequest) {
       args: [order.id],
     })
 
+    // Check if the requesting customer owns this order
+    const customer = await getCurrentCustomer()
+    const isOwner = customer && order.customerId === customer.id
+
+    // Strip sensitive PII unless the customer is the owner
+    const { customerDni, customerEmail, customerPhone, shippingAddress, shippingCity, shippingProvince, shippingZip, ...safeOrder } = order
+
     return NextResponse.json({
       ok: true,
       order: {
-        ...order,
+        ...safeOrder,
         items: itemsResult.rows,
+        ...(isOwner ? { customerDni, customerEmail, customerPhone, shippingAddress, shippingCity, shippingProvince, shippingZip } : {}),
       },
     })
   } catch (error) {

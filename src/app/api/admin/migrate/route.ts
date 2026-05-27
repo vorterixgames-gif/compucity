@@ -1,22 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { verifyToken } from '@/lib/admin-auth'
+import { getCurrentAdmin, verifyToken } from '@/lib/admin-auth'
 
 /**
  * POST /api/admin/migrate
  * Adds the shippingDetails column to the orders table if it doesn't exist.
  * 
- * Auth: Admin cookie OR ?key=MIGRATE_SECRET env var
+ * Auth: Admin cookie OR ?key=MIGRATE_SECRET env var (env var REQUIRED, no hardcoded fallback)
  */
 export async function POST(request: NextRequest) {
   try {
     // Verify admin auth - either cookie or secret key
-    const token = request.cookies.get('admin_token')?.value
+    const admin = await getCurrentAdmin()
     const urlKey = request.nextUrl.searchParams.get('key')
-    const migrateSecret = process.env.MIGRATE_SECRET || 'compucity_migrate_2026'
+    const migrateSecret = process.env.MIGRATE_SECRET
 
-    const isAdminByCookie = token ? !!(await verifyToken(token)) : false
-    const isAdminByKey = urlKey === migrateSecret
+    const isAdminByCookie = !!admin
+    const isAdminByKey = !!(migrateSecret && urlKey === migrateSecret)
 
     if (!isAdminByCookie && !isAdminByKey) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })

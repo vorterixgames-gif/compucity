@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getCurrentAdmin } from '@/lib/admin-auth'
 
 export async function POST(request: NextRequest) {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const { action } = await request.json()
 
     if (action === 'clean-categories') {

@@ -5,7 +5,7 @@ import { cookies } from 'next/headers'
 // HMAC Token Signing (Edge-compatible)
 // ============================================
 
-const HMAC_SECRET = process.env.ADMIN_SECRET || 'compucity_hmac_secret_2026_prod'
+const HMAC_SECRET = process.env.ADMIN_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'compucity_hmac_dev_secret')
 
 /**
  * Sign a value with HMAC-SHA256.

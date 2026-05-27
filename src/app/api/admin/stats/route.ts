@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getCurrentAdmin } from '@/lib/admin-auth'
 
 export async function GET() {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const productCount = await db.execute('SELECT COUNT(*) as count FROM products')
     const totalProducts = (productCount.rows as any[])[0]?.count ?? 0
 

@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getCurrentAdmin } from '@/lib/admin-auth'
 
 export async function GET() {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const result = await db.execute(
       'SELECT * FROM orders ORDER BY createdAt DESC'
     )
@@ -28,6 +32,9 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const body = await request.json()
     const { id, status, trackingNumber, notes } = body
 

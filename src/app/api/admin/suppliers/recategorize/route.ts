@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getCurrentAdmin } from '@/lib/admin-auth'
 
 // Import subcategory rules from sync route
 const SUBCATEGORY_RULES: { parentSlug: string; rules: { keywords: string[]; subcategorySlug: string; name: string }[] }[] = [
@@ -54,6 +55,9 @@ const SUBCATEGORY_RULES: { parentSlug: string; rules: { keywords: string[]; subc
  */
 export async function POST(request: Request) {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const { supplierId } = await request.json()
 
     if (!supplierId) {

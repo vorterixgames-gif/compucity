@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { formatProductName, generateSlug } from '@/lib/format-product'
+import { getCurrentAdmin } from '@/lib/admin-auth'
 
 interface SyncResult {
   ok: boolean
@@ -917,6 +918,9 @@ async function syncElit(supplier: any): Promise<SyncResult> {
 
 export async function POST(request: Request) {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const { supplierId } = await request.json()
 
     if (!supplierId) {

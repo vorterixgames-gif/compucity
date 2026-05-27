@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { fetchDollarRate } from '@/lib/dollar'
+import { getCurrentAdmin } from '@/lib/admin-auth'
 
 async function getConfig(key: string, defaultValue: number): Promise<number> {
   const result = await db.execute({
@@ -20,6 +21,9 @@ async function getConfig(key: string, defaultValue: number): Promise<number> {
 
 export async function GET() {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     // Get current dollar rate and config
     const dollar = await fetchDollarRate()
     const markup = await getConfig('markup', 30)
@@ -65,6 +69,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const body = await request.json()
     const {
       name, description, price, comparePrice, costPrice, sku, stock,
@@ -151,6 +158,9 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const body = await request.json()
     const { id, name, description, price, comparePrice, costPrice, sku, stock,
       isActive, isFeatured, images, specs, providerId, providerSku, categoryId } = body
@@ -216,6 +226,9 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const id = request.nextUrl.searchParams.get('id')
     if (!id) {
       return NextResponse.json({ error: 'ID es requerido' }, { status: 400 })

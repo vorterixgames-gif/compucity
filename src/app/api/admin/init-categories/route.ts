@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getCurrentAdmin } from '@/lib/admin-auth'
 
 const CATEGORIES_STRUCTURE: { name: string; slug: string; children: { name: string; slug: string }[] }[] = [
   {
@@ -109,6 +110,9 @@ const CATEGORIES_STRUCTURE: { name: string; slug: string; children: { name: stri
 
 export async function POST() {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const results: string[] = []
 
     // Step 1: Create categories table if it doesn't exist

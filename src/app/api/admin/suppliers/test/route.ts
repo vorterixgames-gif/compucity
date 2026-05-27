@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
+import { getCurrentAdmin } from '@/lib/admin-auth'
 
 export async function POST(request: Request) {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const { apiType, apiBaseUrl, apiUsername, apiPassword, apiUserId, apiToken } = await request.json()
 
     switch (apiType) {

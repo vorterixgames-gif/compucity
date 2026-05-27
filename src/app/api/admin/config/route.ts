@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getCurrentAdmin } from '@/lib/admin-auth'
 
 export async function GET() {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const result = await db.execute('SELECT * FROM store_config')
     const config: Record<string, string> = {}
     for (const row of result.rows as any[]) {
@@ -17,6 +21,9 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const body = await request.json()
     const { configs } = body as { configs: Record<string, string> }
 

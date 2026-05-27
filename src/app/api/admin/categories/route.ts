@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getCurrentAdmin } from '@/lib/admin-auth'
 
 export async function GET() {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const result = await db.execute(
       'SELECT * FROM categories ORDER BY "order" ASC, name ASC'
     )
@@ -16,6 +20,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const body = await request.json()
     const { name, image, parentId, enabled, order } = body
 
@@ -63,6 +70,9 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const body = await request.json()
     const { id, name, image, parentId, enabled, order } = body
 
@@ -129,6 +139,9 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const id = request.nextUrl.searchParams.get('id')
     if (!id) {
       return NextResponse.json({ error: 'ID es requerido' }, { status: 400 })

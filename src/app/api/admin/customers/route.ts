@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getCurrentAdmin } from '@/lib/admin-auth'
 
 export async function GET(request: Request) {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const { searchParams } = new URL(request.url)
     const search = searchParams.get('search') || ''
     const page = parseInt(searchParams.get('page') || '1')
@@ -78,6 +82,9 @@ export async function GET(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const { id } = await request.json()
     if (!id) {
       return NextResponse.json({ error: 'ID requerido' }, { status: 400 })

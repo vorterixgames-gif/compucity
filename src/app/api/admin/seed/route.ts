@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getCurrentAdmin } from '@/lib/admin-auth'
 
 // Estructura de categorías - nombres cortos como el admin los quiere
 const CATEGORIES_STRUCTURE: { name: string; slug: string; children: { name: string; slug: string }[] }[] = [
@@ -110,6 +111,9 @@ const CATEGORIES_STRUCTURE: { name: string; slug: string; children: { name: stri
 
 export async function POST(request: NextRequest) {
   try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const { action } = await request.json()
 
     if (action === 'seed-categories') {
