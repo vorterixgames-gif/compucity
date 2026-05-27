@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { formatProductName, generateSlug } from '@/lib/format-product'
 
 interface SyncResult {
   ok: boolean
@@ -450,11 +451,8 @@ async function syncInvid(supplier: any): Promise<SyncResult> {
             }
 
             const newId = crypto.randomUUID()
-            const slug = product.TITLE
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, '-')
-              .replace(/^-|-$/g, '')
-              .substring(0, 100)
+            const formattedName = formatProductName(product.TITLE)
+            const slug = generateSlug(formattedName)
 
             const images = product.IMAGE_URL ? JSON.stringify([product.IMAGE_URL]) : '[]'
             const specs: Record<string, string> = {}
@@ -475,7 +473,7 @@ async function syncInvid(supplier: any): Promise<SyncResult> {
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               args: [
                 newId,
-                product.TITLE,
+                formattedName,
                 slug,
                 product.DESCRIPTION || product.LONG_DESCRIPTION || '',
                 sellingPrice,
@@ -650,11 +648,8 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
             }
 
             const newId = crypto.randomUUID()
-            const slug = product.descrip
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, '-')
-              .replace(/^-|-$/g, '')
-              .substring(0, 100)
+            const formattedName = formatProductName(product.descrip)
+            const slug = generateSlug(formattedName)
 
             const specs: Record<string, string> = {}
             if (product.garantia) specs['Garantía'] = product.garantia
@@ -665,7 +660,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
                     VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
               args: [
                 newId,
-                product.descrip,
+                formattedName,
                 slug,
                 sellingPrice,
                 costPrice,
@@ -818,11 +813,8 @@ async function syncElit(supplier: any): Promise<SyncResult> {
             }
 
             const newId = crypto.randomUUID()
-            const slug = product.nombre
-              .toLowerCase()
-              .replace(/[^a-z0-9áéíóúñ]+/g, '-')
-              .replace(/^-|-$/g, '')
-              .substring(0, 100)
+            const formattedName = formatProductName(product.nombre)
+            const slug = generateSlug(formattedName)
 
             const images = Array.isArray(product.imagenes) && product.imagenes.length > 0
               ? JSON.stringify(product.imagenes)
@@ -840,7 +832,7 @@ async function syncElit(supplier: any): Promise<SyncResult> {
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               args: [
                 newId,
-                product.nombre,
+                formattedName,
                 slug,
                 product.descripcion || '',
                 sellingPrice,
