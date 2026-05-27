@@ -253,6 +253,36 @@ function mapProductToCategory(
     return { categoryId: null, method: 'none' }
   }
 
+  // 2.5. Category correction: if a product was mapped to a category by supplier mapping
+  // but its name indicates it should be in a different category, correct it.
+  // This handles cases like "Plataforma AMD/Intel" mapping to microprocesadores
+  // but containing both processors and motherboards.
+  const upperName = (productName || '').toUpperCase()
+  const CATEGORY_CORRECTIONS: { nameKeyword: string; targetSlug: string; sourceSlugs: string[] }[] = [
+    {
+      // Motherboards incorrectly mapped to microprocesadores
+      nameKeyword: 'MOTHER',
+      targetSlug: 'motherboards',
+      sourceSlugs: ['microprocesadores'],
+    },
+  ]
+
+  if (method === 'mapping') {
+    for (const correction of CATEGORY_CORRECTIONS) {
+      if (upperName.includes(correction.nameKeyword)) {
+        // Check if current category is one of the source slugs
+        const currentSlug = Object.entries(slugToId).find(([_, id]) => id === matchedCategoryId)?.[0]
+        if (currentSlug && correction.sourceSlugs.includes(currentSlug)) {
+          const correctedCategoryId = slugToId[correction.targetSlug]
+          if (correctedCategoryId) {
+            matchedCategoryId = correctedCategoryId
+            method = 'mapping+corrected'
+          }
+        }
+      }
+    }
+  }
+
   // 3. Subcategory refinement: if the matched category is a parent, try to find a subcategory
   const isParent = idToParentId[matchedCategoryId] === null || idToParentId[matchedCategoryId] === undefined
   if (isParent) {

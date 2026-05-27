@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { fetchDollarRate } from '@/lib/dollar'
+import {
+  extractCompatibility,
+  applyCompatibilityFilters,
+  type CompatibilityFilters,
+} from '@/lib/compatibility'
 
 async function getConfig(key: string, defaultValue: number): Promise<number> {
   const result = await db.execute({
@@ -54,7 +59,7 @@ export async function GET(request: NextRequest) {
       })
       const catRows = catResult.rows as any[]
       if (catRows.length === 0) {
-        return NextResponse.json({ ok: true, products: [], slot: slotConfig })
+        return NextResponse.json({ ok: true, products: [], slot: slotConfig, filters: {} })
       }
 
       const categoryId = catRows[0].id
@@ -77,7 +82,36 @@ export async function GET(request: NextRequest) {
         return { ...p, _calculated: false }
       })
 
-      return NextResponse.json({ ok: true, products, slot: slotConfig })
+      // Parse compatibility filters from query params
+      const filters: CompatibilityFilters = {}
+      const socketParam = request.nextUrl.searchParams.get('socket')
+      const ddrParam = request.nextUrl.searchParams.get('ddr')
+      const minWattageParam = request.nextUrl.searchParams.get('minWattage')
+
+      if (socketParam) filters.socket = socketParam
+      if (ddrParam) filters.ddr = ddrParam
+      if (minWattageParam) filters.minWattage = parseInt(minWattageParam)
+
+      // Apply compatibility filters and enrich products with compat info
+      const enrichedProducts = applyCompatibilityFilters(products, slot, filters)
+
+      // Separate compatible and incompatible for sorting (compatible first)
+      const compatible = enrichedProducts.filter(e => e.isCompatible)
+      const incompatible = enrichedProducts.filter(e => !e.isCompatible)
+      const sorted = [...compatible, ...incompatible]
+
+      const finalProducts = sorted.map(({ product, compatInfo, isCompatible }) => ({
+        ...product,
+        compatInfo,
+        isCompatible,
+      }))
+
+      return NextResponse.json({
+        ok: true,
+        products: finalProducts,
+        slot: slotConfig,
+        filters,
+      })
     }
 
     // If no slot specified, return the list of available slots with counts

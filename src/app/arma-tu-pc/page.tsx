@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import {
   Cpu,
@@ -21,9 +21,20 @@ import {
   Loader2,
   Search,
   X,
+  AlertTriangle,
+  ShieldCheck,
+  Info,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  extractCompatibility,
+  buildCompatibilityFilters,
+  SOCKET_LABELS,
+  DDR_LABELS,
+  type CompatibilityInfo,
+  type CompatibilityFilters,
+} from '@/lib/compatibility'
 
 // ============================================
 // Types
@@ -49,6 +60,8 @@ interface BuilderProduct {
   stock: number
   specs: string
   _calculated: boolean
+  compatInfo?: CompatibilityInfo
+  isCompatible?: boolean
 }
 
 interface SelectedComponent {
@@ -105,9 +118,37 @@ export default function ArmaTuPCPage() {
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [slotsWithCounts, setSlotsWithCounts] = useState<ComponentSlot[]>([])
+  const [showIncompatible, setShowIncompatible] = useState(false)
+  const [activeFilters, setActiveFilters] = useState<CompatibilityFilters>({})
 
   const currentSlot = SLOTS[currentStep]
   const selectedForCurrentSlot = selectedComponents.find(c => c.slot === currentSlot.slot)
+
+  // Build compatibility filters from selected components
+  const compatibilityFilters = useMemo(() => {
+    return buildCompatibilityFilters(selectedComponents.map(c => ({
+      slot: c.slot,
+      product: { name: c.product.name },
+    })))
+  }, [selectedComponents])
+
+  // Get compatibility info for the currently selected processor
+  const selectedProcessor = selectedComponents.find(c => c.slot === 'processor')
+  const processorInfo = selectedProcessor
+    ? extractCompatibility('processor', selectedProcessor.product.name)
+    : null
+
+  // Get compatibility info for the currently selected motherboard
+  const selectedMotherboard = selectedComponents.find(c => c.slot === 'motherboard')
+  const motherboardInfo = selectedMotherboard
+    ? extractCompatibility('motherboard', selectedMotherboard.product.name)
+    : null
+
+  // Get compatibility info for the currently selected GPU
+  const selectedGpu = selectedComponents.find(c => c.slot === 'gpu')
+  const gpuInfo = selectedGpu
+    ? extractCompatibility('gpu', selectedGpu.product.name)
+    : null
 
   // Load slot counts on mount
   useEffect(() => {
@@ -134,15 +175,29 @@ export default function ArmaTuPCPage() {
     loadSlotCounts()
   }, [])
 
-  // Load products when step changes
+  // Load products when step changes or compatibility filters change
   const loadProducts = useCallback(async () => {
     setLoading(true)
     setSearch('')
     try {
-      const res = await fetch(`/api/pc-builder?slot=${currentSlot.slot}`)
+      const params = new URLSearchParams({ slot: currentSlot.slot })
+
+      // Pass compatibility filters to API
+      if (currentSlot.slot === 'motherboard' && compatibilityFilters.socket) {
+        params.set('socket', compatibilityFilters.socket)
+      }
+      if (currentSlot.slot === 'ram' && compatibilityFilters.ddr) {
+        params.set('ddr', compatibilityFilters.ddr)
+      }
+      if (currentSlot.slot === 'psu' && compatibilityFilters.minWattage) {
+        params.set('minWattage', String(compatibilityFilters.minWattage))
+      }
+
+      const res = await fetch(`/api/pc-builder?${params.toString()}`)
       const data = await res.json()
       if (data.ok) {
         setProducts(data.products || [])
+        setActiveFilters(data.filters || {})
       }
     } catch (error) {
       console.error('Error loading products:', error)
@@ -150,7 +205,7 @@ export default function ArmaTuPCPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentSlot.slot])
+  }, [currentSlot.slot, compatibilityFilters])
 
   useEffect(() => {
     loadProducts()
@@ -172,7 +227,15 @@ export default function ArmaTuPCPage() {
   const completedRequired = SLOTS.filter(s => s.required).every(s => selectedComponents.some(c => c.slot === s.slot))
   const completedCount = selectedComponents.length
 
-  const filteredProducts = products.filter(p =>
+  // Separate compatible and incompatible products
+  const compatibleProducts = products.filter(p => p.isCompatible !== false)
+  const incompatibleProducts = products.filter(p => p.isCompatible === false)
+
+  // Apply search filter
+  const filteredCompatible = compatibleProducts.filter(p =>
+    p.name.toLowerCase().includes(search.toLowerCase())
+  )
+  const filteredIncompatible = incompatibleProducts.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase())
   )
 
@@ -202,6 +265,35 @@ export default function ArmaTuPCPage() {
     return `https://wa.me/5493517656918?text=${encodeURIComponent(msg)}`
   }
 
+  // Build compatibility info banner text
+  const getFilterBanner = () => {
+    if (currentSlot.slot === 'motherboard' && compatibilityFilters.socket) {
+      const label = SOCKET_LABELS[compatibilityFilters.socket] || compatibilityFilters.socket
+      return {
+        icon: <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />,
+        text: `Mostrando mothers compatibles con ${label}`,
+        detail: selectedProcessor ? `Procesador: ${selectedProcessor.product.name}` : undefined,
+      }
+    }
+    if (currentSlot.slot === 'ram' && compatibilityFilters.ddr) {
+      return {
+        icon: <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />,
+        text: `Mostrando memorias ${compatibilityFilters.ddr} (compatibles con tu mother)`,
+        detail: selectedMotherboard ? `Mother: ${selectedMotherboard.product.name}` : undefined,
+      }
+    }
+    if (currentSlot.slot === 'psu' && compatibilityFilters.minWattage) {
+      return {
+        icon: <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />,
+        text: `Se recomienda fuente de ${compatibilityFilters.minWattage}W o más para tu placa de video`,
+        detail: selectedGpu ? `GPU: ${selectedGpu.product.name}` : undefined,
+      }
+    }
+    return null
+  }
+
+  const filterBanner = getFilterBanner()
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -209,6 +301,14 @@ export default function ArmaTuPCPage() {
         <div className="max-w-7xl mx-auto px-4 py-8">
           <h1 className="text-3xl md:text-4xl font-bold mb-2">Arma tu PC a medida</h1>
           <p className="text-gray-300">Elegí los componentes y te la armamos. Envíos a todo el país.</p>
+          {processorInfo?.socket && (
+            <div className="mt-3 flex items-center gap-2 text-sm">
+              <ShieldCheck className="w-4 h-4 text-green-400" />
+              <span className="text-green-300">
+                Filtrado por compatibilidad activado
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -225,6 +325,11 @@ export default function ArmaTuPCPage() {
                   const Icon = slot.icon
                   const isSelected = selectedComponents.some(c => c.slot === slot.slot)
                   const isCurrent = idx === currentStep
+                  // Check if this slot has a compatibility filter active
+                  const hasFilter =
+                    (slot.slot === 'motherboard' && !!compatibilityFilters.socket) ||
+                    (slot.slot === 'ram' && !!compatibilityFilters.ddr) ||
+                    (slot.slot === 'psu' && !!compatibilityFilters.minWattage)
                   return (
                     <button
                       key={slot.slot}
@@ -234,11 +339,15 @@ export default function ArmaTuPCPage() {
                           ? 'bg-compucity-green text-white shadow-md'
                           : isSelected
                           ? 'bg-green-50 text-green-700 border border-green-200'
+                          : hasFilter
+                          ? 'bg-blue-50 text-blue-600 border border-blue-200'
                           : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
                       }`}
                     >
                       {isSelected ? (
                         <Check className="h-3.5 w-3.5 shrink-0" />
+                      ) : hasFilter ? (
+                        <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
                       ) : (
                         <Icon className="h-3.5 w-3.5 shrink-0" />
                       )}
@@ -295,6 +404,21 @@ export default function ArmaTuPCPage() {
               )}
             </div>
 
+            {/* Compatibility Filter Banner */}
+            {filterBanner && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+                <div className="flex items-start gap-2">
+                  {filterBanner.icon}
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-blue-800">{filterBanner.text}</p>
+                    {filterBanner.detail && (
+                      <p className="text-xs text-blue-600 mt-0.5">{filterBanner.detail}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Search */}
             <div className="relative mb-4">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -317,7 +441,7 @@ export default function ArmaTuPCPage() {
                 <div className="flex items-center justify-center py-16 bg-white rounded-xl border">
                   <Loader2 className="w-8 h-8 animate-spin text-compucity-green" />
                 </div>
-              ) : filteredProducts.length === 0 ? (
+              ) : filteredCompatible.length === 0 && filteredIncompatible.length === 0 ? (
                 <div className="text-center py-16 bg-white rounded-xl border">
                   <Cpu className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                   <p className="text-gray-500 mb-1">No hay productos disponibles</p>
@@ -328,76 +452,207 @@ export default function ArmaTuPCPage() {
                   </p>
                 </div>
               ) : (
-                filteredProducts.map((product) => {
-                  const isSelected = selectedForCurrentSlot?.product.id === product.id
-                  const image = safeParseFirstImage(product.images)
-                  const specs = parseSpecs(product.specs)
-                  const specEntries = Object.entries(specs).slice(0, 4)
+                <>
+                  {/* Compatible products */}
+                  {filteredCompatible.map((product) => {
+                    const isSelected = selectedForCurrentSlot?.product.id === product.id
+                    const image = safeParseFirstImage(product.images)
+                    const specs = parseSpecs(product.specs)
+                    const specEntries = Object.entries(specs).slice(0, 4)
+                    const compatInfo = product.compatInfo
 
-                  return (
-                    <button
-                      key={product.id}
-                      onClick={() => selectProduct(product)}
-                      className={`w-full text-left bg-white rounded-xl border p-4 flex items-start gap-4 transition hover:shadow-md ${
-                        isSelected
-                          ? 'border-compucity-green bg-compucity-green-50/50 ring-2 ring-compucity-green-100'
-                          : 'border-gray-200 hover:border-compucity-green-100'
-                      }`}
-                    >
-                      {/* Image */}
-                      <div className="w-16 h-16 rounded-lg bg-gray-100 overflow-hidden shrink-0">
-                        {image ? (
-                          <img src={image} alt={product.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-gray-300">
-                            <Cpu className="w-6 h-6" />
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-gray-900 text-sm mb-1 line-clamp-2">{product.name}</h3>
-                        {specEntries.length > 0 && (
-                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mb-2">
-                            {specEntries.map(([key, value]) => (
-                              <span key={key} className="text-xs text-gray-500">
-                                <span className="text-gray-400">{key}:</span> {value}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs text-gray-400">Lista: {formatPrice(product.price)}</span>
-                          {product.comparePrice && product.comparePrice < product.price && (
-                            <span className="text-sm font-bold text-green-600">
-                              Efectivo: {formatPrice(product.comparePrice)}
-                            </span>
-                          )}
-                          {!product.comparePrice && (
-                            <span className="text-sm font-bold text-gray-900">{formatPrice(product.price)}</span>
-                          )}
-                          {product.stock <= 0 && (
-                            <span className="text-xs text-red-500 font-medium">Sin stock</span>
+                    return (
+                      <button
+                        key={product.id}
+                        onClick={() => selectProduct(product)}
+                        className={`w-full text-left bg-white rounded-xl border p-4 flex items-start gap-4 transition hover:shadow-md ${
+                          isSelected
+                            ? 'border-compucity-green bg-compucity-green-50/50 ring-2 ring-compucity-green-100'
+                            : 'border-gray-200 hover:border-compucity-green-100'
+                        }`}
+                      >
+                        {/* Image */}
+                        <div className="w-16 h-16 rounded-lg bg-gray-100 overflow-hidden shrink-0">
+                          {image ? (
+                            <img src={image} alt={product.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-300">
+                              <Cpu className="w-6 h-6" />
+                            </div>
                           )}
                         </div>
-                      </div>
 
-                      {/* Selection indicator */}
-                      <div className="shrink-0 mt-1">
-                        {isSelected ? (
-                          <div className="w-8 h-8 rounded-full bg-compucity-green flex items-center justify-center">
-                            <Check className="w-4 h-4 text-white" />
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium text-gray-900 text-sm mb-1 line-clamp-2">{product.name}</h3>
+                          {/* Compatibility badges */}
+                          {compatInfo && (compatInfo.socket || compatInfo.ddr) && (
+                            <div className="flex flex-wrap gap-1.5 mb-2">
+                              {compatInfo.socket && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700">
+                                  <ShieldCheck className="w-3 h-3" />
+                                  {SOCKET_LABELS[compatInfo.socket] || compatInfo.socket}
+                                </span>
+                              )}
+                              {compatInfo.ddr && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-700">
+                                  <Zap className="w-3 h-3" />
+                                  {compatInfo.ddr}
+                                </span>
+                              )}
+                              {compatInfo.wattage && currentSlot.slot === 'psu' && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700">
+                                  <Zap className="w-3 h-3" />
+                                  {compatInfo.wattage}W
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {specEntries.length > 0 && (
+                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mb-2">
+                              {specEntries.map(([key, value]) => (
+                                <span key={key} className="text-xs text-gray-500">
+                                  <span className="text-gray-400">{key}:</span> {value}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-gray-400">Lista: {formatPrice(product.price)}</span>
+                            {product.comparePrice && product.comparePrice < product.price && (
+                              <span className="text-sm font-bold text-green-600">
+                                Efectivo: {formatPrice(product.comparePrice)}
+                              </span>
+                            )}
+                            {!product.comparePrice && (
+                              <span className="text-sm font-bold text-gray-900">{formatPrice(product.price)}</span>
+                            )}
+                            {product.stock <= 0 && (
+                              <span className="text-xs text-red-500 font-medium">Sin stock</span>
+                            )}
                           </div>
-                        ) : (
-                          <div className="w-8 h-8 rounded-full border-2 border-gray-200 flex items-center justify-center group-hover:border-compucity-cyan-light transition">
-                            <Plus className="w-4 h-4 text-gray-300" />
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                  )
-                })
+                        </div>
+
+                        {/* Selection indicator */}
+                        <div className="shrink-0 mt-1">
+                          {isSelected ? (
+                            <div className="w-8 h-8 rounded-full bg-compucity-green flex items-center justify-center">
+                              <Check className="w-4 h-4 text-white" />
+                            </div>
+                          ) : (
+                            <div className="w-8 h-8 rounded-full border-2 border-gray-200 flex items-center justify-center group-hover:border-compucity-cyan-light transition">
+                              <Plus className="w-4 h-4 text-gray-300" />
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+
+                  {/* Incompatible products toggle */}
+                  {filteredIncompatible.length > 0 && (
+                    <div className="mt-4">
+                      <button
+                        onClick={() => setShowIncompatible(!showIncompatible)}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium hover:bg-amber-100 transition"
+                      >
+                        <AlertTriangle className="w-4 h-4" />
+                        {showIncompatible
+                          ? 'Ocultar productos no compatibles'
+                          : `${filteredIncompatible.length} producto${filteredIncompatible.length > 1 ? 's' : ''} no compatible${filteredIncompatible.length > 1 ? 's' : ''} (ver todos)`}
+                      </button>
+
+                      {showIncompatible && (
+                        <div className="mt-2 space-y-2">
+                          {filteredIncompatible.map((product) => {
+                            const isSelected = selectedForCurrentSlot?.product.id === product.id
+                            const image = safeParseFirstImage(product.images)
+                            const specs = parseSpecs(product.specs)
+                            const specEntries = Object.entries(specs).slice(0, 4)
+                            const compatInfo = product.compatInfo
+
+                            // Determine incompatibility reason
+                            let reason = ''
+                            if (currentSlot.slot === 'motherboard' && compatibilityFilters.socket && compatInfo?.socket && compatInfo.socket !== compatibilityFilters.socket) {
+                              reason = `Socket ${compatInfo.socket} no compatible con tu procesador (${SOCKET_LABELS[compatibilityFilters.socket] || compatibilityFilters.socket})`
+                            } else if (currentSlot.slot === 'ram' && compatibilityFilters.ddr && compatInfo?.ddr && compatInfo.ddr !== compatibilityFilters.ddr) {
+                              reason = `${compatInfo.ddr} no compatible con tu mother (requiere ${compatibilityFilters.ddr})`
+                            } else if (currentSlot.slot === 'ram' && compatInfo?.ddrType === 'sodimm') {
+                              reason = 'Memoria SODIMM (notebook), no compatible con PCs de escritorio'
+                            } else if (currentSlot.slot === 'psu' && compatibilityFilters.minWattage && compatInfo?.wattage && compatInfo.wattage < compatibilityFilters.minWattage) {
+                              reason = `${compatInfo.wattage}W insuficiente (se recomienda ${compatibilityFilters.minWattage}W+ para tu placa de video)`
+                            }
+
+                            return (
+                              <button
+                                key={product.id}
+                                onClick={() => selectProduct(product)}
+                                className={`w-full text-left bg-white rounded-xl border p-4 flex items-start gap-4 transition hover:shadow-md opacity-60 hover:opacity-80 ${
+                                  isSelected
+                                    ? 'border-amber-400 bg-amber-50/50'
+                                    : 'border-amber-200 hover:border-amber-300'
+                                }`}
+                              >
+                                {/* Image */}
+                                <div className="w-16 h-16 rounded-lg bg-gray-100 overflow-hidden shrink-0">
+                                  {image ? (
+                                    <img src={image} alt={product.name} className="w-full h-full object-cover grayscale" />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-300">
+                                      <Cpu className="w-6 h-6" />
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Info */}
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="font-medium text-gray-700 text-sm mb-1 line-clamp-2">{product.name}</h3>
+                                  {/* Incompatibility reason */}
+                                  {reason && (
+                                    <div className="flex items-start gap-1.5 mb-2 p-1.5 rounded bg-amber-50 border border-amber-100">
+                                      <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />
+                                      <span className="text-[11px] text-amber-700">{reason}</span>
+                                    </div>
+                                  )}
+                                  {specEntries.length > 0 && (
+                                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mb-2">
+                                      {specEntries.map(([key, value]) => (
+                                        <span key={key} className="text-xs text-gray-500">
+                                          <span className="text-gray-400">{key}:</span> {value}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-xs text-gray-400">Lista: {formatPrice(product.price)}</span>
+                                    {product.comparePrice && product.comparePrice < product.price && (
+                                      <span className="text-sm font-bold text-gray-500">
+                                        Efectivo: {formatPrice(product.comparePrice)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Selection indicator */}
+                                <div className="shrink-0 mt-1">
+                                  {isSelected ? (
+                                    <div className="w-8 h-8 rounded-full bg-amber-400 flex items-center justify-center">
+                                      <AlertTriangle className="w-4 h-4 text-white" />
+                                    </div>
+                                  ) : (
+                                    <div className="w-8 h-8 rounded-full border-2 border-amber-200 flex items-center justify-center">
+                                      <Plus className="w-4 h-4 text-amber-300" />
+                                    </div>
+                                  )}
+                                </div>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -458,6 +713,33 @@ export default function ArmaTuPCPage() {
                 <p className="text-sm text-gray-500">{completedCount} de {SLOTS.length} componentes</p>
               </div>
 
+              {/* Compatibility Status */}
+              {(processorInfo || motherboardInfo) && (
+                <div className="px-5 py-3 bg-blue-50 border-b border-blue-100">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <ShieldCheck className="w-4 h-4 text-blue-600" />
+                    <span className="text-xs font-semibold text-blue-800">Compatibilidad</span>
+                  </div>
+                  <div className="space-y-1">
+                    {processorInfo?.socket && (
+                      <p className="text-[11px] text-blue-700">
+                        Procesador: {SOCKET_LABELS[processorInfo.socket] || processorInfo.socket}
+                      </p>
+                    )}
+                    {motherboardInfo?.ddr && (
+                      <p className="text-[11px] text-blue-700">
+                        Memoria: {motherboardInfo.ddr} requerida
+                      </p>
+                    )}
+                    {gpuInfo?.wattage && (
+                      <p className="text-[11px] text-blue-700">
+                        Fuente recomendada: {gpuInfo.wattage}W+
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Selected Components List */}
               <div className="p-4 space-y-2 max-h-[50vh] overflow-y-auto">
                 {SLOTS.map((slot) => {
@@ -479,10 +761,31 @@ export default function ArmaTuPCPage() {
                     )
                   }
 
+                  // Show filtered status for unselected slots
+                  const hasFilter =
+                    (slot.slot === 'motherboard' && !!compatibilityFilters.socket) ||
+                    (slot.slot === 'ram' && !!compatibilityFilters.ddr) ||
+                    (slot.slot === 'psu' && !!compatibilityFilters.minWattage)
+
                   return (
-                    <div key={slot.slot} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
-                      <Icon className="w-4 h-4 text-gray-300 shrink-0" />
-                      <span className="text-xs text-gray-400 flex-1">{slot.label}</span>
+                    <div key={slot.slot} className={`flex items-center gap-2 p-2 rounded-lg ${hasFilter ? 'bg-blue-50 border border-blue-100' : 'bg-gray-50'}`}>
+                      {hasFilter ? (
+                        <ShieldCheck className="w-4 h-4 text-blue-400 shrink-0" />
+                      ) : (
+                        <Icon className="w-4 h-4 text-gray-300 shrink-0" />
+                      )}
+                      <span className={`text-xs flex-1 ${hasFilter ? 'text-blue-600' : 'text-gray-400'}`}>
+                        {slot.label}
+                        {slot.slot === 'motherboard' && compatibilityFilters.socket && (
+                          <span className="text-blue-500 ml-1">({SOCKET_LABELS[compatibilityFilters.socket] || compatibilityFilters.socket})</span>
+                        )}
+                        {slot.slot === 'ram' && compatibilityFilters.ddr && (
+                          <span className="text-blue-500 ml-1">({compatibilityFilters.ddr})</span>
+                        )}
+                        {slot.slot === 'psu' && compatibilityFilters.minWattage && (
+                          <span className="text-blue-500 ml-1">({compatibilityFilters.minWattage}W+)</span>
+                        )}
+                      </span>
                       {slot.required && <span className="text-[10px] text-red-400">Requerido</span>}
                     </div>
                   )
