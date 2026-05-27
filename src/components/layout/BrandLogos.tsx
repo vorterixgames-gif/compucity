@@ -19,9 +19,7 @@ const BRANDS: Brand[] = [
   { name: 'Kingston', slug: 'kingstontechnology', logoWidth: 90, logoHeight: 20 },
   { name: 'Corsair', slug: 'corsair', logoWidth: 80, logoHeight: 24 },
   { name: 'ASUS', slug: 'asus', logoWidth: 70, logoHeight: 28 },
-  { name: 'Logitech', slug: 'logitech', logoWidth: 80, logoHeight: 22 },
   { name: 'Samsung', slug: 'samsung', logoWidth: 80, logoHeight: 26 },
-  { name: 'Western Digital', slug: 'westerndigital', logoWidth: 24, logoHeight: 24 },
   { name: 'Seagate', slug: 'seagate', logoWidth: 70, logoHeight: 26 },
 ]
 
@@ -54,7 +52,7 @@ export default function BrandLogos() {
           </div>
 
           {/* Desktop: centered grid */}
-          <div className="hidden md:grid grid-cols-5 gap-4 max-w-3xl mx-auto">
+          <div className="hidden md:grid grid-cols-4 gap-4 max-w-3xl mx-auto">
             {BRANDS.map((brand) => (
               <div
                 key={brand.name}
