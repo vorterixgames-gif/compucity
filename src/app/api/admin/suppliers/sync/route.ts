@@ -11,6 +11,102 @@ interface SyncResult {
   message: string
 }
 
+// Category mapping: keyword patterns -> store category ID
+// Used to auto-assign products from supplier APIs to the correct store category
+const CATEGORY_KEYWORD_MAP: { keywords: string[]; categoryId: string; name: string }[] = [
+  // Auriculares
+  { keywords: ['AURICULAR','HEADSET','HEADPHONE','JBL TOUR','JBL QUANTUM'], categoryId: 'f1f9d31f-9482-4429-a7d2-4208668e3ba3', name: 'Auriculares' },
+  // Mouse
+  { keywords: ['MOUSE'], categoryId: 'ac551783-8734-4858-a316-d0a54701e437', name: 'Mouse' },
+  // Teclados
+  { keywords: ['TECLADO','KEYBOARD'], categoryId: 'dede1e27-d8b0-44b1-9ac0-8112ad91a57d', name: 'Teclados' },
+  // Parlantes
+  { keywords: ['PARLANTE','SPEAKER','BARRA DE SONIDO','SOUND BAR','PARTY LIGHT'], categoryId: 'a4ca4e17-7730-4feb-a6c6-a7a8b96075ac', name: 'Parlantes' },
+  // Mousepads
+  { keywords: ['MOUSEPAD','PAD GAMER','ALFOMBRILLA','PAD '], categoryId: '724ec70f-dab0-496f-b3a2-7ddee9a4770d', name: 'Mousepads' },
+  // Micrófonos
+  { keywords: ['MICROFONO','MICROPHONE','MIC '], categoryId: '6498104b-2a0e-4770-86af-bd7c2572555a', name: 'Micrófonos' },
+  // Webcams
+  { keywords: ['WEBCAM','CAM WEB','WEB CAM','BRIO','FACECAM'], categoryId: '8e03c174-cb16-4b19-b920-73fc96236fbd', name: 'Webcams' },
+  // Joysticks
+  { keywords: ['JOYSTICK','CONTROL ','GAMEPAD','CONTROLLER','GAME PAD','VOLANTE','G29','G923','F710'], categoryId: '964647bd-67e5-4483-91ea-fb74f8f49ca4', name: 'Joysticks' },
+  // Kits Gamer
+  { keywords: ['KIT GABINETE','KIT TECLADO','KIT GAMER'], categoryId: 'b19a7241-88e7-454f-8b5e-b0030d9c6716', name: 'Kits Gamer' },
+  // Toners y Cartuchos
+  { keywords: ['CARTUCHO','TONER','INK CARTRIDGE','PRINT C','IMAGING DRUM','PRINHEAD','CART.','TINTA.','CART.NEGRO','CART.CYAN','CART.MAGENTA','CART.YELLOW','CART.AMARILLO','CART.LIGHT','BOTELLA DE TINTA','HP 935','HP 951','HP 126','HP 122'], categoryId: '66f20839-0487-433a-930f-9705ca43365d', name: 'Toners y Cartuchos' },
+  // Impresión
+  { keywords: ['IMPRESORA','EPSON L','EPSON M','SMART TANK','LASERJET','DESKJET','OFFICEJET','PROYECTOR EPSON'], categoryId: '18191d04-ecf3-412c-b627-7674c148013c', name: 'Impresión' },
+  // Memorias RAM
+  { keywords: ['MEMORIA DDR','DDR3','DDR4','DDR5','SODIMM','CORSAIR MEMORY'], categoryId: '8fec8068-83c9-43a9-a972-9eeafe9e0bda', name: 'Memorias RAM' },
+  // Discos SSD
+  { keywords: ['SSD','NVME','M.2','GEN4','GEN3'], categoryId: '18b32130-e146-4843-95c5-860142417306', name: 'Discos SSD' },
+  // Discos HDD
+  { keywords: ['DISCO RIGIDO','HDD','IRONWOLF','SKYHAWK','HD SEAGATE INTERNO','HD TOSHIBA INTERNO'], categoryId: '63761dd5-d992-4bab-b9a6-fb95c3ff2cef', name: 'Discos HDD' },
+  // Discos Externos
+  { keywords: ['DISCO EXTERNO','EXTERNAL','PORTABLE DRIVE','HD SEAGATE EXTERNO','HD TOSHIBA EXTERNO','CANVIO','EXPANSION BLACK'], categoryId: '404bbe6d-bc9a-471c-b264-fcf18d693295', name: 'Discos Externos' },
+  // Pendrives
+  { keywords: ['PENDRIVE','DATA TRAVELER','DATATRAVELER','FLASH DRIVE','PEN DRIVE'], categoryId: 'f78dc8a5-69e0-4097-b4f9-c928fd90069f', name: 'Pendrives' },
+  // Micro SD
+  { keywords: ['MICRO SD','MICROSD','SD CARD','MICRO MEMORY'], categoryId: '797adcdf-c7ae-4aa0-9b14-18b3a5b8ea45', name: 'Micro SD' },
+  // Microprocesadores
+  { keywords: ['RYZEN','INTEL I3','INTEL I5','INTEL I7','INTEL I9','CORE I','PENTIUM','CORE ULTRA'], categoryId: 'b4211f62-d18d-430e-a918-8dadafde4723', name: 'Microprocesadores' },
+  // Motherboards
+  { keywords: ['MOTHER','H610','B760','H810','A520','A620','B650','B550','H510'], categoryId: '50aed4ad-61dd-4e5d-ad30-2aae7a32504e', name: 'Motherboards' },
+  // Placas de Video
+  { keywords: ['RTX','GTX','RADEON RX','GEFORCE','GRAPHICS CARD','QUADRO RTX'], categoryId: 'cfbf9b6c-5d7b-4d42-aaa3-066a52848fbd', name: 'Placas de Video' },
+  // Fuentes
+  { keywords: ['FUENTE','POWER SUPPLY','PSU'], categoryId: 'bce97e5d-3ccf-4e49-9c23-1af8ece63612', name: 'Fuentes' },
+  // Gabinetes
+  { keywords: ['GABINETE','CHASSIS','CASE ','TOWER','CTE 550','5000T','4500X','BLAZE FORCE','INFINITY GLASS'], categoryId: 'b24872b5-c02e-4969-892b-aa03f1acdae8', name: 'Gabinetes' },
+  // Refrigeración
+  { keywords: ['COOLER','WATER COOL','LIQUID COOL','DISIPADOR','HEATSINK','SWAFAN','FAN COOLER','ICUE LINK','AIO '], categoryId: '57b1e5cc-59e6-49f0-a9d1-b3f388c19f79', name: 'Refrigeración' },
+  // Pastas Térmicas
+  { keywords: ['PASTA TERMICA','THERMAL PASTE'], categoryId: 'b8cc805f-10f4-4bb1-b4d2-dacc0ad395c4', name: 'Pastas Térmicas' },
+  // Monitores
+  { keywords: ['MONITOR','ULTRAFINE','LED MONITOR'], categoryId: 'cat4', name: 'Monitores' },
+  // Notebooks
+  { keywords: ['NOTEBOOK','LAPTOP'], categoryId: 'cat1', name: 'Notebooks' },
+  // Routers WiFi
+  { keywords: ['ARCHER','ROUTER','DECO','MESH WIFI','TL-WR','ROU WI'], categoryId: '172af915-f189-476c-a735-e9a7b05bd16c', name: 'Routers WiFi' },
+  // Switches
+  { keywords: ['SWITCH'], categoryId: '2624baab-e1ba-4f28-aa2f-2d4d1b726b84', name: 'Switches' },
+  // Placas de Red
+  { keywords: ['P.REDW','EAP','CPE','SFP','TL-WN','PREDW','RANGE EXTENDER','TAPO C','CAMARA IP'], categoryId: 'be240fd6-301f-405a-a42d-e6937fa9bcf9', name: 'Placas de Red' },
+  // Cables y Adaptadores
+  { keywords: ['CABLE','ADAPTADOR','FICHA RJ45','CONVERTER','ROLLO','UTP CAT','PROTECTOR KELYX','PROLONGADOR','HUB KELYX','HUB USB'], categoryId: '3f166420-a367-43a9-96d6-55760385bbb5', name: 'Cables y Adaptadores' },
+  // UPS / Estabilizadores
+  { keywords: ['UPS','ESTABILIZADOR','NOBREAK','SURGE PROTECTION'], categoryId: 'b854e149-1790-4cad-abc6-0a4fb187740b', name: 'UPS' },
+  // Cargadores
+  { keywords: ['CARGADOR','CHARGER','POWER BANK'], categoryId: '6af5a32c-f21d-4498-9927-c33a97e72a16', name: 'Cargadores' },
+  // Sillas Gamer
+  { keywords: ['SILLA','GAMING CHAIR'], categoryId: 'bdf7ba10-c068-4b61-845c-5d38e2b87a61', name: 'Sillas Gamer' },
+  // Soportes y Brazos
+  { keywords: ['SOPORTE','BRAZO','MOUNT','STAND'], categoryId: '3d84075f-2bb7-4d20-b321-7f3f9f9fe6f0', name: 'Soportes y Brazos' },
+  // Fundas/Mochilas
+  { keywords: ['MOCHILA','FUNDA','BACKPACK'], categoryId: '4e82d540-2eb2-4d4b-b349-44fe6af49e00', name: 'Fundas/Mochilas' },
+  // Mini PC
+  { keywords: ['MINI PC','STICK PC'], categoryId: '00176d39-d1cb-4f68-a01e-617fb37679cb', name: 'Mini PC' },
+  // Bases
+  { keywords: ['BASE CARGADORA','DOCK'], categoryId: 'ebce56d0-c6a3-46cb-b737-3e69f5163847', name: 'Bases' },
+  // Escritorios
+  { keywords: ['ESCRITORIO','DESK ','MESA GAMER'], categoryId: '9a877f10-5486-4918-97e1-654f457c7420', name: 'Escritorios' },
+]
+
+/**
+ * Map a product name to a store category using keyword matching.
+ * Returns the category ID or null if no match found.
+ */
+function mapProductToCategory(productName: string): string | null {
+  const name = (productName || '').toUpperCase()
+  for (const mapping of CATEGORY_KEYWORD_MAP) {
+    if (mapping.keywords.some(kw => name.includes(kw))) {
+      return mapping.categoryId
+    }
+  }
+  // Default: Periféricos as catch-all
+  return 'cat3'
+}
+
 async function syncInvid(supplier: any): Promise<SyncResult> {
   const baseUrl = supplier.apiBaseUrl || 'https://www.invidcomputers.com'
   const result: SyncResult = { ok: false, total: 0, created: 0, updated: 0, skipped: 0, errors: 0, message: '' }
@@ -49,10 +145,6 @@ async function syncInvid(supplier: any): Promise<SyncResult> {
     let updated = 0
     let skipped = 0
     let errors = 0
-
-    // Get existing categories for mapping
-    const categoriesResult = await db.execute('SELECT id, name FROM categories')
-    const categories = categoriesResult.rows as any[]
 
     while (hasMore) {
       const productsRes = await fetch(`${baseUrl}/api/v1/articulo.php?offset=${offset}`, {
@@ -98,14 +190,8 @@ async function syncInvid(supplier: any): Promise<SyncResult> {
 
           const existingRows = existing.rows as any[]
 
-          // Find matching category
-          let categoryId = null
-          if (product.CATEGORY) {
-            const catMatch = categories.find(c =>
-              c.name.toLowerCase() === (product.CATEGORY || '').toLowerCase()
-            )
-            if (catMatch) categoryId = catMatch.id
-          }
+          // Find matching category using keyword mapping
+          const categoryId = mapProductToCategory(product.TITLE || product.DESCRIPTION || '')
 
           // Calculate selling price using supplier markup
           const costPrice = price
@@ -255,9 +341,6 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
     let skipped = 0
     let errors = 0
 
-    const categoriesResult = await db.execute('SELECT id, name FROM categories')
-    const categories = categoriesResult.rows as any[]
-
     while (hasMore) {
       const productsRes = await fetch(`${baseUrl}/?q=syp&page=${page}`, {
         method: 'POST',
@@ -315,13 +398,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
 
           const existingRows = existing.rows as any[]
 
-          let categoryId = null
-          if (product.rubro) {
-            const catMatch = categories.find(c =>
-              c.name.toLowerCase().includes(product.rubro.toLowerCase())
-            )
-            if (catMatch) categoryId = catMatch.id
-          }
+          const categoryId = mapProductToCategory(product.descrip || '')
 
           if (existingRows.length > 0) {
             await db.execute({
@@ -425,9 +502,6 @@ async function syncElit(supplier: any): Promise<SyncResult> {
     let skipped = 0
     let errors = 0
 
-    const categoriesResult = await db.execute('SELECT id, name FROM categories')
-    const categories = categoriesResult.rows as any[]
-
     while (hasMore) {
       const productsRes = await fetch(
         `${baseUrl}/v1/api/productos?limit=${pageSize}&offset=${offset}`,
@@ -479,13 +553,7 @@ async function syncElit(supplier: any): Promise<SyncResult> {
 
           const existingRows = existing.rows as any[]
 
-          let categoryId = null
-          if (product.categoria) {
-            const catMatch = categories.find(c =>
-              c.name.toLowerCase() === (product.categoria || '').toLowerCase()
-            )
-            if (catMatch) categoryId = catMatch.id
-          }
+          const categoryId = mapProductToCategory(product.nombre || product.descripcion || '')
 
           if (existingRows.length > 0) {
             await db.execute({
