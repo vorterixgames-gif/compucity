@@ -11,6 +11,74 @@ interface SyncResult {
   message: string
 }
 
+// Subcategory keyword rules: when a product maps to a parent category that has subcategories,
+// these rules determine which subcategory to assign based on product name/supplier category.
+// Format: { parentSlug, rules: [{ keywords, subcategorySlug }] }
+const SUBCATEGORY_RULES: { parentSlug: string; rules: { keywords: string[]; subcategorySlug: string; name: string }[] }[] = [
+  {
+    parentSlug: 'notebooks',
+    rules: [
+      // Tablets -> Notebooks/Tablets
+      { keywords: ['TABLET', 'TABLETA', 'IDEA TAB', 'TAB PLUS', 'EASYPEN'], subcategorySlug: 'tablets', name: 'Tablets' },
+      // Gamer notebooks -> Notebooks/Gamer
+      { keywords: ['GAMER', 'GAMING', 'LOQ', 'LEGION', 'RTX', 'GEFORCE', 'RADEON', 'THIN 15', 'TUF GAMING', 'PREDATOR', 'NITRO'], subcategorySlug: 'gamer', name: 'Gamer' },
+      // Ultrabooks -> Notebooks/Ultrabooks
+      { keywords: ['SLIM', 'ULTRABOOK', 'IDEAPAD SLIM', 'BORDER ULTRA', 'IP SLIM'], subcategorySlug: 'ultrabooks', name: 'Ultrabooks' },
+      // Design notebooks -> Notebooks/Diseño
+      { keywords: ['TOUCH', 'TOUCHSCREEN', 'IPS 300', 'PANTALLA TACTIL', 'XPS', 'SPECTRE', 'ZENBOOK'], subcategorySlug: 'diseno', name: 'Diseño' },
+      // Oficina notebooks (default for notebooks) -> Notebooks/Oficina
+      { keywords: ['IDEAPAD', '250 G', '255 G', 'KELYX', 'OFFICE', 'CONSUMO', 'FREE'], subcategorySlug: 'oficina', name: 'Oficina' },
+    ],
+  },
+  {
+    parentSlug: 'monitores',
+    rules: [
+      // Gamer monitors -> Monitores/Gamer
+      { keywords: ['ULTRAGEAR', 'GAMER', 'GAMING', 'RAPTOR HAWK', '144HZ', '165HZ', '180HZ', '200HZ', '240HZ', '1MS', '0.5MS', 'FREESYNC', 'G-SYNC', 'CURVO', 'OLED'], subcategorySlug: 'gamer-mon', name: 'Gamer' },
+      // Design monitors -> Monitores/Diseño
+      { keywords: ['ULTRAFINE', 'ERGO', '4K USB-C', 'COLOR CALIBRATED', 'THUNDERBOLT', 'DUAL ERGO'], subcategorySlug: 'diseno-mon', name: 'Diseño' },
+      // Monitor stands/arms -> Monitores/Soportes y Brazos
+      { keywords: ['SOPORTE', 'BRAZO', 'MOUNT', 'STAND MONITOR'], subcategorySlug: 'soportes-y-brazos', name: 'Soportes y Brazos' },
+      // Oficina monitors (default) -> Monitores/Oficina
+      { keywords: ['MONITOR', 'LED', 'HDMI', 'FULL HD', 'CORPORATIVO', 'CONSUMO'], subcategorySlug: 'oficina-mon', name: 'Oficina' },
+    ],
+  },
+  {
+    parentSlug: 'pc-armadas',
+    rules: [
+      // Gamer PCs -> PC Armadas/Gamer
+      { keywords: ['GAMER', 'GAMING', 'PC GAMER', 'RTX', 'GEFORCE', 'RADEON'], subcategorySlug: 'gamer-pc', name: 'Gamer' },
+      // Mini PC -> PC Armadas/Mini PC
+      { keywords: ['MINI PC', 'STICK PC', 'NUC', 'MELE', 'N100'], subcategorySlug: 'mini-pc', name: 'Mini PC' },
+      // Design PCs -> PC Armadas/Diseño
+      { keywords: ['DESIGN', 'DISEÑO', 'CREATOR', 'STUDIO'], subcategorySlug: 'diseno-pc', name: 'Diseño' },
+      // Oficina PCs (default) -> PC Armadas/Oficina
+      { keywords: ['SIST.', 'KELYX', 'OFFICE', 'OFICINA', 'PC'], subcategorySlug: 'oficina-pc', name: 'Oficina' },
+    ],
+  },
+  {
+    parentSlug: 'accesorios',
+    rules: [
+      // Smart Home -> Accesorios/Smart Home
+      { keywords: ['TAPO', 'SMART HOME', 'SENSOR DE MOVIMIENTO', 'TIMBRE VIDEO', 'PARTY LIGHT', 'LUZ PROYECCION', 'BARRA DE LUZ', 'SMART PLUG', 'BOMBILLA INTELIGENTE'], subcategorySlug: 'smart-home', name: 'Smart Home' },
+      // Hogar Inteligente -> Accesorios/Hogar Inteligente
+      { keywords: ['HELADERA', 'LAVARROPAS', 'AIRE ACONDICIONADO', 'ELECTRODOMESTICO', 'SMART INVERTER', 'INSTAVIEW'], subcategorySlug: 'hogar-inteligente', name: 'Hogar Inteligente' },
+      // UPS -> Accesorios/UPS
+      { keywords: ['UPS', 'ESTABILIZADOR', 'NOBREAK', 'SURGE PROTECTION'], subcategorySlug: 'ups', name: 'UPS' },
+      // Cargadores -> Accesorios/Cargadores
+      { keywords: ['CARGADOR', 'CHARGER', 'POWER BANK'], subcategorySlug: 'cargadores', name: 'Cargadores' },
+      // Sillas Gamer -> Accesorios/Sillas Gamer
+      { keywords: ['SILLA', 'GAMING CHAIR'], subcategorySlug: 'sillas-gamer', name: 'Sillas Gamer' },
+      // Escritorios -> Accesorios/Escritorios
+      { keywords: ['ESCRITORIO', 'DESK ', 'MESA GAMER'], subcategorySlug: 'escritorios', name: 'Escritorios' },
+      // Fundas/Mochilas -> Accesorios/Fundas/Mochilas
+      { keywords: ['MOCHILA', 'FUNDA', 'BACKPACK'], subcategorySlug: 'fundas-mochilas', name: 'Fundas/Mochilas' },
+      // Bases -> Accesorios/Bases
+      { keywords: ['BASE CARGADORA', 'DOCK'], subcategorySlug: 'bases', name: 'Bases' },
+    ],
+  },
+]
+
 // Category keyword mapping: keyword patterns -> store category SLUG
 // Used as fallback when no explicit supplier category mapping exists
 const CATEGORY_KEYWORD_MAP: { keywords: string[]; categorySlug: string; name: string }[] = [
@@ -94,20 +162,33 @@ const CATEGORY_KEYWORD_MAP: { keywords: string[]; categorySlug: string; name: st
 
 /**
  * Build a category lookup from the database.
- * Returns slug -> id map and name -> id map.
+ * Returns slug -> id map, name -> id map, and parent info for subcategory logic.
  */
 async function buildCategoryLookup(): Promise<{
   slugToId: Record<string, string>
   nameToId: Record<string, string>
+  idToParentId: Record<string, string | null>
+  parentSlugToChildSlugs: Record<string, string[]>
 }> {
-  const result = await db.execute('SELECT id, name, slug FROM categories')
+  const result = await db.execute('SELECT id, name, slug, parentId FROM categories')
   const slugToId: Record<string, string> = {}
   const nameToId: Record<string, string> = {}
+  const idToParentId: Record<string, string | null> = {}
+  const parentSlugToChildSlugs: Record<string, string[]> = {}
   for (const row of result.rows as any[]) {
     if (row.slug) slugToId[row.slug] = row.id
     if (row.name) nameToId[row.name.toLowerCase()] = row.id
+    idToParentId[row.id] = row.parentId || null
+    if (row.parentId) {
+      // Find parent slug
+      const parentRow = (result.rows as any[]).find((r: any) => r.id === row.parentId)
+      if (parentRow?.slug) {
+        if (!parentSlugToChildSlugs[parentRow.slug]) parentSlugToChildSlugs[parentRow.slug] = []
+        parentSlugToChildSlugs[parentRow.slug].push(row.slug)
+      }
+    }
   }
-  return { slugToId, nameToId }
+  return { slugToId, nameToId, idToParentId, parentSlugToChildSlugs }
 }
 
 /**
@@ -130,32 +211,82 @@ async function buildSupplierMappingLookup(supplierId: string): Promise<Record<st
  * Map a product to a store category using:
  * 1. Supplier category mapping (if available)
  * 2. Keyword matching with slug-based lookup
- * 3. Default: null (no category)
+ * 3. Subcategory refinement: if the matched category is a parent with subcategories,
+ *    use subcategory rules to find the best subcategory match
+ * 4. Default: null (no category)
  */
 function mapProductToCategory(
   productName: string,
   supplierCategory: string | null,
   supplierMappings: Record<string, string>,
-  slugToId: Record<string, string>
+  slugToId: Record<string, string>,
+  idToParentId: Record<string, string | null>,
+  parentSlugToChildSlugs: Record<string, string[]>,
+  slugToParentSlug?: Record<string, string>
 ): { categoryId: string | null; method: string } {
+  let matchedCategoryId: string | null = null
+  let method = 'none'
+
   // 1. Check supplier category mapping first
   if (supplierCategory && supplierMappings[supplierCategory]) {
-    return { categoryId: supplierMappings[supplierCategory], method: 'mapping' }
+    matchedCategoryId = supplierMappings[supplierCategory]
+    method = 'mapping'
   }
 
-  // 2. Keyword matching
-  const name = (productName || '').toUpperCase()
-  for (const mapping of CATEGORY_KEYWORD_MAP) {
-    if (mapping.keywords.some(kw => name.includes(kw))) {
-      const categoryId = slugToId[mapping.categorySlug]
-      if (categoryId) {
-        return { categoryId, method: 'keyword' }
+  // 2. Keyword matching (only if no mapping match)
+  if (!matchedCategoryId) {
+    const name = (productName || '').toUpperCase()
+    for (const mapping of CATEGORY_KEYWORD_MAP) {
+      if (mapping.keywords.some(kw => name.includes(kw))) {
+        const categoryId = slugToId[mapping.categorySlug]
+        if (categoryId) {
+          matchedCategoryId = categoryId
+          method = 'keyword'
+          break
+        }
       }
     }
   }
 
-  // 3. No match
-  return { categoryId: null, method: 'none' }
+  if (!matchedCategoryId) {
+    return { categoryId: null, method: 'none' }
+  }
+
+  // 3. Subcategory refinement: if the matched category is a parent, try to find a subcategory
+  const isParent = idToParentId[matchedCategoryId] === null || idToParentId[matchedCategoryId] === undefined
+  if (isParent) {
+    // Find the parent slug
+    let parentSlug: string | null = null
+    for (const [slug, id] of Object.entries(slugToId)) {
+      if (id === matchedCategoryId) {
+        parentSlug = slug
+        break
+      }
+    }
+
+    if (parentSlug && parentSlugToChildSlugs[parentSlug]?.length > 0) {
+      // Check subcategory rules
+      const subRules = SUBCATEGORY_RULES.find(r => r.parentSlug === parentSlug)
+      if (subRules) {
+        const name = (productName || '').toUpperCase()
+        const supplierCatUpper = (supplierCategory || '').toUpperCase()
+        for (const rule of subRules.rules) {
+          const nameMatch = rule.keywords.some(kw => name.includes(kw))
+          const supplierCatMatch = rule.keywords.some(kw => supplierCatUpper.includes(kw))
+          if (nameMatch || supplierCatMatch) {
+            const subcategoryId = slugToId[rule.subcategorySlug]
+            if (subcategoryId) {
+              matchedCategoryId = subcategoryId
+              method = method === 'mapping' ? 'mapping+sub' : 'keyword+sub'
+              break
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return { categoryId: matchedCategoryId, method }
 }
 
 /**
@@ -186,7 +317,7 @@ async function syncInvid(supplier: any): Promise<SyncResult> {
 
   try {
     // Build category lookups
-    const { slugToId } = await buildCategoryLookup()
+    const { slugToId, idToParentId, parentSlugToChildSlugs } = await buildCategoryLookup()
     const supplierMappings = await buildSupplierMappingLookup(supplier.id)
 
     // Step 1: Authenticate
@@ -270,12 +401,14 @@ async function syncInvid(supplier: any): Promise<SyncResult> {
 
           const existingRows = existing.rows as any[]
 
-          // Find matching category using mapping -> keyword -> default
+          // Find matching category using mapping -> keyword -> subcategory -> default
           const { categoryId } = mapProductToCategory(
             product.TITLE || product.DESCRIPTION || '',
             supplierCategory,
             supplierMappings,
-            slugToId
+            slugToId,
+            idToParentId,
+            parentSlugToChildSlugs
           )
 
           // Calculate selling price using supplier markup
@@ -403,7 +536,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
 
   try {
     // Build category lookups
-    const { slugToId } = await buildCategoryLookup()
+    const { slugToId, idToParentId, parentSlugToChildSlugs } = await buildCategoryLookup()
     const supplierMappings = await buildSupplierMappingLookup(supplier.id)
 
     // Step 1: Authenticate
@@ -495,7 +628,9 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
             product.descrip || '',
             supplierCategory,
             supplierMappings,
-            slugToId
+            slugToId,
+            idToParentId,
+            parentSlugToChildSlugs
           )
 
           if (existingRows.length > 0) {
@@ -586,7 +721,7 @@ async function syncElit(supplier: any): Promise<SyncResult> {
 
   try {
     // Build category lookups
-    const { slugToId } = await buildCategoryLookup()
+    const { slugToId, idToParentId, parentSlugToChildSlugs } = await buildCategoryLookup()
     const supplierMappings = await buildSupplierMappingLookup(supplier.id)
 
     const userId = parseInt(supplier.apiUserId || '0')
@@ -661,7 +796,9 @@ async function syncElit(supplier: any): Promise<SyncResult> {
             product.nombre || product.descripcion || '',
             supplierCategory,
             supplierMappings,
-            slugToId
+            slugToId,
+            idToParentId,
+            parentSlugToChildSlugs
           )
 
           if (existingRows.length > 0) {

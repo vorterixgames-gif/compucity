@@ -135,7 +135,30 @@ export async function ensureMigrations() {
     }
   }
 
-  // 6. Ensure supplier_category_mappings table exists
+  // 6. Ensure new subcategories exist (Tablets, Smart Home, Hogar Inteligente)
+  try {
+    const existingSlugs = ['tablets', 'smart-home', 'hogar-inteligente']
+    for (const slug of existingSlugs) {
+      const check = await db.execute({ sql: 'SELECT id FROM categories WHERE slug = ?', args: [slug] })
+      if ((check.rows as any[]).length === 0) {
+        // Determine parent ID based on slug
+        let parentId = 'cat1' // Notebooks for tablets
+        let name = 'Tablets'
+        if (slug === 'smart-home') { parentId = 'cat5'; name = 'Smart Home' }
+        if (slug === 'hogar-inteligente') { parentId = 'cat5'; name = 'Hogar Inteligente' }
+        const id = crypto.randomUUID()
+        await db.execute({
+          sql: 'INSERT INTO categories (id, name, slug, parentId) VALUES (?, ?, ?, ?)',
+          args: [id, name, slug, parentId],
+        })
+        console.log(`[migration] Created subcategory: ${name} (${slug})`)
+      }
+    }
+  } catch (e) {
+    console.warn('[migration] Could not create subcategories:', e)
+  }
+
+  // 7. Ensure supplier_category_mappings table exists
   try {
     await db.execute({ sql: 'SELECT id FROM supplier_category_mappings LIMIT 1', args: [] })
   } catch {
