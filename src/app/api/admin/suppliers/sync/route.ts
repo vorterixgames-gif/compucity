@@ -266,19 +266,42 @@ function mapProductToCategory(
       targetSlug: 'motherboards',
       sourceSlugs: ['microprocesadores'],
     },
+    {
+      // Notebooks with RTX/GTX incorrectly mapped to placas-de-video
+      nameKeyword: 'NOTEBOOK',
+      targetSlug: 'notebooks',
+      sourceSlugs: ['placas-de-video'],
+    },
+    {
+      // Notebooks with DDR4/DDR5 incorrectly mapped to memorias-ram
+      nameKeyword: 'NOTEBOOK',
+      targetSlug: 'notebooks',
+      sourceSlugs: ['memorias-ram'],
+    },
+    {
+      // Notebooks with SSD incorrectly mapped to discos-ssd
+      nameKeyword: 'NOTEBOOK',
+      targetSlug: 'notebooks',
+      sourceSlugs: ['discos-ssd'],
+    },
+    {
+      // "Base Notebook" in notebook categories -> bases
+      nameKeyword: 'BASE NOTEBOOK',
+      targetSlug: 'bases',
+      sourceSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'],
+    },
   ]
 
-  if (method === 'mapping') {
-    for (const correction of CATEGORY_CORRECTIONS) {
-      if (upperName.includes(correction.nameKeyword)) {
-        // Check if current category is one of the source slugs
-        const currentSlug = Object.entries(slugToId).find(([_, id]) => id === matchedCategoryId)?.[0]
-        if (currentSlug && correction.sourceSlugs.includes(currentSlug)) {
-          const correctedCategoryId = slugToId[correction.targetSlug]
-          if (correctedCategoryId) {
-            matchedCategoryId = correctedCategoryId
-            method = 'mapping+corrected'
-          }
+  // Apply corrections regardless of mapping method
+  for (const correction of CATEGORY_CORRECTIONS) {
+    if (upperName.includes(correction.nameKeyword)) {
+      // Check if current category is one of the source slugs
+      const currentSlug = Object.entries(slugToId).find(([_, id]) => id === matchedCategoryId)?.[0]
+      if (currentSlug && correction.sourceSlugs.includes(currentSlug)) {
+        const correctedCategoryId = slugToId[correction.targetSlug]
+        if (correctedCategoryId) {
+          matchedCategoryId = correctedCategoryId
+          method = method.includes('corrected') ? method : method + '+corrected'
         }
       }
     }

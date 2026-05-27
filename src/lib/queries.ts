@@ -78,7 +78,7 @@ export interface Product {
   _costUsd?: number
 }
 
-export async function getAllActiveProducts(limit = 50): Promise<Product[]> {
+export async function getAllActiveProducts(limit = 500): Promise<Product[]> {
   const [result, dollar, markup, cashDiscount] = await Promise.all([
     db.execute({
       sql: 'SELECT * FROM products WHERE isActive = 1 ORDER BY createdAt DESC LIMIT ?',
