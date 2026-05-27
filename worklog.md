@@ -20,3 +20,24 @@ Stage Summary:
 - Slide 3: "Placas de video y componentes" → /categoria/componentes
 - Slide 4: "Periféricos gaming" → /categoria/perifericos
 - Funcionalidades: autoplay 5s, pausa en hover, swipe touch, teclado, barra progreso
+---
+Task ID: 1
+Agent: main
+Task: Fix user creation error and add Clients section to admin panel
+
+Work Log:
+- Investigated the project codebase: Prisma schema, customer-auth.ts, admin layout, API routes
+- Discovered the `customers` table did NOT exist in Turso production database (the cause of "Error del servidor" when creating users)
+- Created `customers` table in Turso via API with proper schema
+- Created `/api/admin/customers/route.ts` - GET (list with search/pagination) and DELETE endpoints
+- Created `/admin/clientes/page.tsx` - Full admin page with customer list, search, expandable details, and delete
+- Updated `/admin/layout.tsx` - Added "Clientes" with Users icon to sidebar navigation
+- Updated `/api/admin/stats/route.ts` - Added `totalCustomers` count to stats response
+- Updated `/admin/page.tsx` - Added Customers stat card to dashboard (now 5 cards)
+- Verified build succeeds with no errors
+
+Stage Summary:
+- Root cause of "Error del servidor" when creating users: `customers` table was missing from Turso
+- Table created manually in Turso (also exists in ensureMigrations auto-creation)
+- Admin panel now has a "Clientes" section between Pedidos and Configuración
+- Dashboard shows total registered customers count
