@@ -25,7 +25,7 @@ export async function GET() {
       ejemplo: {
         costoUsd: 100,
         precioLista: Math.ceil(100 * dollar.rate * (1 + markup / 100)),
-        precioEfectivo: Math.ceil(100 * dollar.rate * (1 + markup / 100) * (1 - cashDiscount / 100)),
+        precioEfectivo: Math.ceil(100 * dollar.rate * (1 + (markup - cashDiscount) / 100)),
       },
     })
   } catch (error) {

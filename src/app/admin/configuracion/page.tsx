@@ -340,8 +340,8 @@ export default function AdminConfiguracion() {
               <div className="space-y-1 text-sm text-compucity-green-dark">
                 <p>Costo USD: USD 100</p>
                 <p>Dólar {dollarSource === 'blue' ? 'Blue' : 'Banco Nación'}: ${dollarRate.toLocaleString('es-AR')}</p>
-                <p>Markup: {markup}% → Precio de lista: <strong>{formatPrice(ejemplo.lista)}</strong></p>
-                <p>Desc. efectivo: {cashDiscount}% → Precio en efectivo: <strong className="text-green-700">{formatPrice(ejemplo.efectivo)}</strong></p>
+                <p>+ Margen {markup}% → Precio de lista: <strong>{formatPrice(ejemplo.lista)}</strong></p>
+                <p>+ Margen {markup}% - Desc. {cashDiscount}% → Precio en efectivo: <strong className="text-green-700">{formatPrice(ejemplo.efectivo)}</strong></p>
               </div>
             </div>
           )}

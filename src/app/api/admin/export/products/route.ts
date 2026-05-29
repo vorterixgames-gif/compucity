@@ -48,7 +48,7 @@ export async function GET() {
       // Auto-calculate from USD cost if costPrice > 0 (same logic as admin products API)
       if (p.costPrice && Number(p.costPrice) > 0) {
         listPrice = Math.ceil(Number(p.costPrice) * dollar.rate * (1 + markup / 100))
-        cashPrice = Math.ceil(listPrice * (1 - cashDiscount / 100))
+        cashPrice = Math.ceil(Number(p.costPrice) * dollar.rate * (1 + (markup - cashDiscount) / 100))
       }
 
       return [

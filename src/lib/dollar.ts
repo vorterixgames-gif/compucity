@@ -129,7 +129,7 @@ export async function getStoreConfigNumber(key: string, defaultValue: number): P
 
 // Calculate prices based on dollar rate
 // costPrice (USD) × dollarRate × (1 + markup/100) = precio de lista
-// precio de lista × (1 - cashDiscount/100) = precio en efectivo
+// Base × (1 + markup/100 - cashDiscount/100) = precio en efectivo
 export interface CalculatedPrices {
   dollarRate: number
   dollarSource: string
@@ -145,7 +145,7 @@ export async function calculatePrices(costUsd: number): Promise<CalculatedPrices
   const cashDiscount = await getStoreConfigNumber('cash_discount', 10)
 
   const listPrice = Math.ceil(costUsd * dollar.rate * (1 + markup / 100))
-  const cashPrice = Math.ceil(listPrice * (1 - cashDiscount / 100))
+  const cashPrice = Math.ceil(costUsd * dollar.rate * (1 + (markup - cashDiscount) / 100))
 
   return {
     dollarRate: dollar.rate,
@@ -161,7 +161,7 @@ export async function calculatePrices(costUsd: number): Promise<CalculatedPrices
 export function calculateProductPrices(product: any, dollarRate: number, markup: number, cashDiscount: number) {
   if (product.costPrice && Number(product.costPrice) > 0) {
     const listPrice = Math.ceil(Number(product.costPrice) * dollarRate * (1 + markup / 100))
-    const cashPrice = Math.ceil(listPrice * (1 - cashDiscount / 100))
+    const cashPrice = Math.ceil(Number(product.costPrice) * dollarRate * (1 + (markup - cashDiscount) / 100))
     return {
       ...product,
       price: listPrice,

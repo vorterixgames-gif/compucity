@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
       const products = (result.rows as any[]).map(p => {
         if (p.costPrice && p.costPrice > 0) {
           const listPrice = Math.ceil(p.costPrice * dollar.rate * (1 + markup / 100))
-          const cashPrice = Math.ceil(listPrice * (1 - cashDiscount / 100))
+          const cashPrice = Math.ceil(p.costPrice * dollar.rate * (1 + (markup - cashDiscount) / 100))
           return { ...p, price: listPrice, comparePrice: cashPrice, _calculated: true }
         }
         return { ...p, _calculated: false }

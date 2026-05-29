@@ -51,7 +51,7 @@ export async function GET() {
       if (p.costPrice && p.costPrice > 0) {
         // Auto-calculate from USD cost
         const calculatedListPrice = Math.ceil(p.costPrice * dollar.rate * (1 + markup / 100))
-        const calculatedCashPrice = Math.ceil(calculatedListPrice * (1 - cashDiscount / 100))
+        const calculatedCashPrice = Math.ceil(p.costPrice * dollar.rate * (1 + (markup - cashDiscount) / 100))
         return {
           ...p,
           price: calculatedListPrice,
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
       const cashDiscount = await getConfig('cash_discount', 10)
 
       finalPrice = Math.ceil(Number(costPrice) * dollar.rate * (1 + markup / 100))
-      finalComparePrice = Math.ceil(finalPrice * (1 - cashDiscount / 100))
+      finalComparePrice = Math.ceil(Number(costPrice) * dollar.rate * (1 + (markup - cashDiscount) / 100))
     } else {
       // Manual pricing
       finalPrice = Number(price)
@@ -193,7 +193,7 @@ export async function PUT(request: NextRequest) {
       const cashDiscount = await getConfig('cash_discount', 10)
 
       finalPrice = Math.ceil(Number(costPrice) * dollar.rate * (1 + markup / 100))
-      finalComparePrice = Math.ceil(finalPrice * (1 - cashDiscount / 100))
+      finalComparePrice = Math.ceil(Number(costPrice) * dollar.rate * (1 + (markup - cashDiscount) / 100))
     }
 
     const fields: string[] = []

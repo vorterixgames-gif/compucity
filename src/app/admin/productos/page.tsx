@@ -230,7 +230,7 @@ export default function AdminProductos() {
     const costUsd = Number(form.costPrice)
     if (costUsd > 0 && dollarConfig) {
       const listPrice = Math.ceil(costUsd * dollarConfig.rate * (1 + dollarConfig.markup / 100))
-      const cashPrice = Math.ceil(listPrice * (1 - dollarConfig.cashDiscount / 100))
+      const cashPrice = Math.ceil(costUsd * dollarConfig.rate * (1 + (dollarConfig.markup - dollarConfig.cashDiscount) / 100))
       setCalculatedListPrice(listPrice)
       setCalculatedCashPrice(cashPrice)
       // Auto-fill the price fields
@@ -615,12 +615,12 @@ export default function AdminProductos() {
                   </div>
                   <div className="border-t border-compucity-green-100 pt-2 space-y-1 text-sm">
                     <p className="text-gray-600">
-                      USD {Number(form.costPrice).toFixed(2)} × ${dollarConfig.rate.toLocaleString('es-AR')} × {1 + dollarConfig.markup / 100} = 
+                      USD {Number(form.costPrice).toFixed(2)} × ${dollarConfig.rate.toLocaleString('es-AR')} × (1 + {dollarConfig.markup}%) = 
                       <strong className="text-gray-900"> {formatPrice(calculatedListPrice!)}</strong> <span className="text-gray-500">(lista)</span>
                     </p>
                     <p className="text-gray-600">
-                      {formatPrice(calculatedListPrice!)} × {1 - dollarConfig.cashDiscount / 100} = 
-                      <strong className="text-green-700"> {formatPrice(calculatedCashPrice!)}</strong> <span className="text-gray-500">(efectivo, -{dollarConfig.cashDiscount}%)</span>
+                      USD {Number(form.costPrice).toFixed(2)} × ${dollarConfig.rate.toLocaleString('es-AR')} × (1 + {dollarConfig.markup}% - {dollarConfig.cashDiscount}%) = 
+                      <strong className="text-green-700"> {formatPrice(calculatedCashPrice!)}</strong> <span className="text-gray-500">(efectivo)</span>
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-3 mt-2">
