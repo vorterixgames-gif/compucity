@@ -336,7 +336,7 @@ export default function ArmaTuPCPage() {
           {/* ============================================ */}
           {/* Left: Stepper + Product Selection */}
           {/* ============================================ */}
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             {/* Step Indicator - Horizontal on desktop, progress on mobile */}
             <div className="bg-white rounded-xl border p-4 mb-6 overflow-x-auto">
               <div className="flex items-center gap-1">
