@@ -17,7 +17,7 @@ const slides = [
     description: 'Elegí cada componente y armá la PC de tus sueños. Procesadores, placas de video, memorias y más.',
     cta: { label: 'Comenzar a armar', href: '/arma-tu-pc', icon: Cpu, primary: true },
     ctaSecondary: { label: 'Ver componentes', href: '/categoria/componentes-de-pc' },
-    gradient: 'from-compucity-green-dark/95 via-compucity-green/80 to-compucity-green-dark/30',
+    gradient: 'from-compucity-navy/95 via-compucity-navy-light/75 to-compucity-navy/30',
   },
   {
     id: 2,
@@ -28,7 +28,7 @@ const slides = [
     description: 'Las mejores notebooks para trabajo, estudio y gaming. Lenovo, Asus, HP y más marcas.',
     cta: { label: 'Ver notebooks', href: '/categoria/notebooks', icon: Laptop, primary: true },
     ctaSecondary: { label: 'Ver todas las marcas', href: '/categoria/todos' },
-    gradient: 'from-[#1a2e3a]/95 via-[#2a4a5a]/75 to-[#1a2e3a]/30',
+    gradient: 'from-compucity-navy/95 via-compucity-green-dark/70 to-compucity-navy/30',
   },
   {
     id: 3,
@@ -39,7 +39,7 @@ const slides = [
     description: 'Las últimas GPU, procesadores, RAM y storage. Todo lo que necesitás para tu setup.',
     cta: { label: 'Ver componentes', href: '/categoria/componentes-de-pc', icon: CircuitBoard, primary: true },
     ctaSecondary: { label: 'Ver productos', href: '/categoria/todos' },
-    gradient: 'from-[#1a2a1a]/95 via-[#2a4a2a]/75 to-[#1a2a1a]/30',
+    gradient: 'from-compucity-green-900/95 via-compucity-green-dark/70 to-compucity-green-900/30',
   },
   {
     id: 4,
@@ -50,7 +50,7 @@ const slides = [
     description: 'Teclados, mouses, auriculares y monitores. Mejorá tu experiencia de juego y trabajo.',
     cta: { label: 'Ver periféricos', href: '/categoria/perifericos', icon: Mouse, primary: true },
     ctaSecondary: { label: 'Ver todo', href: '/categoria/todos' },
-    gradient: 'from-[#2a1a2a]/95 via-[#4a2a4a]/75 to-[#2a1a2a]/30',
+    gradient: 'from-compucity-navy/95 via-compucity-navy-light/70 to-compucity-navy/30',
   },
 ]
 
@@ -142,7 +142,7 @@ export default function HeroSection() {
 
   return (
     <section
-      className="relative w-full overflow-hidden bg-compucity-green-dark"
+      className="relative w-full overflow-hidden bg-compucity-navy"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onTouchStart={handleTouchStart}
@@ -213,7 +213,7 @@ export default function HeroSection() {
                   {line.includes(slide.titleAccent) ? (
                     <>
                       {line.split(slide.titleAccent)[0]}
-                      <span className="text-compucity-green-light">{slide.titleAccent}</span>
+                      <span className="text-compucity-gold-light">{slide.titleAccent}</span>
                       {line.split(slide.titleAccent)[1]}
                     </>
                   ) : (
@@ -245,7 +245,7 @@ export default function HeroSection() {
             >
               <Link
                 href={slide.cta.href}
-                className="inline-flex items-center gap-2 px-7 py-3.5 bg-white hover:bg-white/90 text-compucity-green font-bold rounded-lg transition-all duration-200 text-base shadow-lg shadow-black/15 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+                className="inline-flex items-center gap-2 px-7 py-3.5 bg-compucity-green hover:bg-compucity-green-dark text-white font-bold rounded-lg transition-all duration-200 text-base shadow-lg shadow-black/15 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
               >
                 {slide.cta.icon && <slide.cta.icon className="h-4 w-4" />}
                 {slide.cta.label}
@@ -254,7 +254,7 @@ export default function HeroSection() {
               {slide.ctaSecondary && (
                 <Link
                   href={slide.ctaSecondary.href}
-                  className="inline-flex items-center gap-2 px-7 py-3.5 bg-white/15 hover:bg-white/25 text-white font-semibold rounded-lg border border-white/20 hover:border-white/35 transition-all duration-200 text-base backdrop-blur-sm hover:scale-[1.02] active:scale-[0.98]"
+                  className="inline-flex items-center gap-2 px-7 py-3.5 bg-white/15 hover:bg-white/25 text-white font-semibold rounded-lg border border-compucity-gold/30 hover:border-compucity-gold/50 transition-all duration-200 text-base backdrop-blur-sm hover:scale-[1.02] active:scale-[0.98]"
                 >
                   {slide.ctaSecondary.label}
                 </Link>
@@ -301,7 +301,7 @@ export default function HeroSection() {
       <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/20 z-10">
         <motion.div
           key={current}
-          className="h-full bg-white/60"
+          className="h-full bg-compucity-gold/70"
           initial={{ width: '0%' }}
           animate={{ width: isPaused ? `${0}%` : '100%' }}
           transition={{ duration: 5, ease: 'linear' }}

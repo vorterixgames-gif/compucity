@@ -62,7 +62,7 @@ export default async function HomePage() {
       {/* ==========================================
           BENEFITS BAR
           ========================================== */}
-      <section className="bg-compucity-green-50 border-y border-compucity-green/10">
+      <section className="bg-compucity-navy-50 border-y border-compucity-navy/10">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
@@ -75,7 +75,7 @@ export default async function HomePage() {
               return (
                 <div key={i} className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center shrink-0 shadow-sm">
-                    <Icon className="h-5 w-5 text-compucity-green" />
+                    <Icon className="h-5 w-5 text-compucity-navy" />
                   </div>
                   <span className="text-sm text-gray-700 font-medium">{item.label}</span>
                 </div>
@@ -95,11 +95,11 @@ export default async function HomePage() {
           ROW 1 - PC Armadas Gamer
           ========================================== */}
       {gamerPCs.length > 0 && (
-        <section className="py-10">
+        <section className="py-10 bg-compucity-navy">
           <div className="max-w-7xl mx-auto px-4">
             <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl md:text-3xl font-bold text-gray-900">PC Armadas</h2>
-              <Link href="/categoria/gamer-pc" className="inline-flex items-center gap-1 text-sm text-compucity-green hover:text-compucity-green-dark font-semibold group transition">
+              <h2 className="text-2xl md:text-3xl font-bold text-white">PC Armadas</h2>
+              <Link href="/categoria/gamer-pc" className="inline-flex items-center gap-1 text-sm text-compucity-gold-light hover:text-compucity-gold font-semibold group transition">
                 Ver todas <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </div>
@@ -116,7 +116,7 @@ export default async function HomePage() {
           ROW 2 - Monitores
           ========================================== */}
       {monitorProducts.length > 0 && (
-        <section className="py-10 bg-gray-50/70">
+        <section className="py-10">
           <div className="max-w-7xl mx-auto px-4">
             <div className="flex items-center justify-between mb-8">
               <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Monitores</h2>
@@ -137,11 +137,11 @@ export default async function HomePage() {
           ROW 3 - Notebooks
           ========================================== */}
       {notebookProducts.length > 0 && (
-        <section className="py-10">
+        <section className="py-10 bg-compucity-navy">
           <div className="max-w-7xl mx-auto px-4">
             <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Notebooks</h2>
-              <Link href="/categoria/notebooks" className="inline-flex items-center gap-1 text-sm text-compucity-green hover:text-compucity-green-dark font-semibold group transition">
+              <h2 className="text-2xl md:text-3xl font-bold text-white">Notebooks</h2>
+              <Link href="/categoria/notebooks" className="inline-flex items-center gap-1 text-sm text-compucity-gold-light hover:text-compucity-gold font-semibold group transition">
                 Ver todas <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </div>
@@ -157,7 +157,7 @@ export default async function HomePage() {
       {/* ==========================================
           CTA - Claro con acento verde
           ========================================== */}
-      <section className="bg-compucity-green-dark">
+      <section className="bg-gradient-to-r from-compucity-green-dark via-compucity-green to-compucity-green-dark">
         <div className="max-w-7xl mx-auto px-4 py-14 text-center">
           <h2 className="text-2xl md:text-3xl font-bold mb-3 text-white">
             ¿No encontrás lo que buscás?
@@ -166,7 +166,7 @@ export default async function HomePage() {
           <a
             href="https://wa.me/5493517656918?text=Hola!%20Busco%20un%20producto%20que%20no%20vi%20en%20la%20tienda"
             target="_blank"
-            className="inline-flex items-center gap-2 px-8 py-3.5 bg-white hover:bg-gray-100 text-compucity-green-dark font-bold rounded-lg transition-all duration-200"
+            className="inline-flex items-center gap-2 px-8 py-3.5 bg-compucity-gold hover:bg-compucity-gold-light text-compucity-navy font-bold rounded-lg transition-all duration-200 shadow-lg"
           >
             <MessageCircle className="h-5 w-5" />
             Consultar por WhatsApp
