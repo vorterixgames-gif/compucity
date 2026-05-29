@@ -2,7 +2,7 @@ import CategoryIcons from '@/components/layout/CategoryIcons'
 import BrandLogos from '@/components/layout/BrandLogos'
 import ProductCard from '@/components/ui-custom/ProductCard'
 import HeroSection from '@/components/ui-custom/HeroSection'
-import { getFeaturedProducts, getHomepageProducts } from '@/lib/queries'
+import { getFeaturedProducts, getAllActiveProducts, getTopProductsByCategorySlug } from '@/lib/queries'
 import { ensureMigrations } from '@/lib/db'
 import Link from 'next/link'
 import { Truck, Shield, MessageCircle, Headphones, ArrowRight, Cpu } from 'lucide-react'
@@ -20,12 +20,23 @@ export default async function HomePage() {
 
   let featured: any[] = []
   let allProducts: any[] = []
+  let gamerPCs: any[] = []
+  let monitorProducts: any[] = []
+  let notebookProducts: any[] = []
 
   try {
-    [featured, allProducts] = await Promise.all([
+    [featured, allProducts, gamerPCs, monitorProducts, notebookProducts] = await Promise.all([
       getFeaturedProducts(),
-      getHomepageProducts(12),
+      getAllActiveProducts(),
+      getTopProductsByCategorySlug('pc-armadas', 8),
+      getTopProductsByCategorySlug('monitores', 8),
+      getTopProductsByCategorySlug('notebooks', 8),
     ])
+    // Filter: only Gamer subcategory for PCs (exclude Mini PC, Oficina, Diseño)
+    gamerPCs = gamerPCs.filter(p => {
+      const name = (p.name || '').toLowerCase()
+      return !name.includes('mini') && !name.includes('oficina') && !name.includes('diseño')
+    }).slice(0, 8)
   } catch (error) {
     console.error('Homepage data fetch error:', error)
   }
@@ -69,18 +80,20 @@ export default async function HomePage() {
       {/* Category Icons */}
       <CategoryIcons />
 
-      {/* Featured Products */}
-      {featured.length > 0 && (
+      {/* ==========================================
+          ROW 1 - PC Armadas Gamer
+          ========================================== */}
+      {gamerPCs.length > 0 && (
         <section className="py-10">
           <div className="max-w-7xl mx-auto px-4">
             <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Productos Destacados</h2>
-              <Link href="/categoria/todos" className="inline-flex items-center gap-1 text-sm text-compucity-green hover:text-compucity-green-dark font-semibold group transition">
-                Ver todos <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-900">PC Armadas Gamer</h2>
+              <Link href="/categoria/gamer-pc" className="inline-flex items-center gap-1 text-sm text-compucity-green hover:text-compucity-green-dark font-semibold group transition">
+                Ver todas <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
-              {featured.map((product) => (
+              {gamerPCs.map((product) => (
                 <ProductCard key={product.id} id={product.id} name={product.name} slug={product.slug} price={product.price} comparePrice={product.comparePrice} image={safeParseFirstImage(product.images)} stock={product.stock} />
               ))}
             </div>
@@ -88,35 +101,47 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/* All Products */}
-      <section className="py-10">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Notebooks, PCs y Monitores</h2>
-            <Link href="/categoria/todos" className="inline-flex items-center gap-1 text-sm text-compucity-green hover:text-compucity-green-dark font-semibold group transition">
-              Ver todos <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
-            </Link>
-          </div>
-          {allProducts.length > 0 ? (
+      {/* ==========================================
+          ROW 2 - Monitores
+          ========================================== */}
+      {monitorProducts.length > 0 && (
+        <section className="py-10 bg-gray-50/70">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Monitores</h2>
+              <Link href="/categoria/monitores" className="inline-flex items-center gap-1 text-sm text-compucity-green hover:text-compucity-green-dark font-semibold group transition">
+                Ver todas <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
+              </Link>
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
-              {allProducts.map((product) => (
+              {monitorProducts.map((product) => (
                 <ProductCard key={product.id} id={product.id} name={product.name} slug={product.slug} price={product.price} comparePrice={product.comparePrice} image={safeParseFirstImage(product.images)} stock={product.stock} />
               ))}
             </div>
-          ) : (
-            <div className="text-center py-20 bg-compucity-green-50 rounded-2xl border border-compucity-green/10">
-              <div className="w-16 h-16 rounded-full bg-compucity-green/10 flex items-center justify-center mx-auto mb-5">
-                <Cpu className="h-8 w-8 text-compucity-green/30" />
-              </div>
-              <p className="text-gray-700 text-lg mb-2 font-semibold">Próximamente productos</p>
-              <p className="text-gray-400 text-sm mb-6">Estamos cargando el catálogo. Volvé pronto.</p>
-              <Link href="https://wa.me/5493517656918?text=Hola!%20Quiero%20consultar%20por%20un%20producto" target="_blank" className="inline-flex items-center gap-2 px-6 py-2.5 bg-compucity-green hover:bg-compucity-green-dark text-white text-sm font-semibold rounded-lg transition">
-                <MessageCircle className="h-4 w-4" /> Consultar por WhatsApp
+          </div>
+        </section>
+      )}
+
+      {/* ==========================================
+          ROW 3 - Notebooks
+          ========================================== */}
+      {notebookProducts.length > 0 && (
+        <section className="py-10">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Notebooks</h2>
+              <Link href="/categoria/notebooks" className="inline-flex items-center gap-1 text-sm text-compucity-green hover:text-compucity-green-dark font-semibold group transition">
+                Ver todas <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </div>
-          )}
-        </div>
-      </section>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
+              {notebookProducts.map((product) => (
+                <ProductCard key={product.id} id={product.id} name={product.name} slug={product.slug} price={product.price} comparePrice={product.comparePrice} image={safeParseFirstImage(product.images)} stock={product.stock} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ==========================================
           CTA - Claro con acento verde

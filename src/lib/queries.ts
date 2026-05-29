@@ -78,7 +78,7 @@ export interface Product {
   _costUsd?: number
 }
 
-export async function getAllActiveProducts(limit = 500): Promise<Product[]> {
+export async function getAllActiveProducts(limit = 50): Promise<Product[]> {
   const [result, dollar, markup, cashDiscount] = await Promise.all([
     db.execute({
       sql: 'SELECT * FROM products WHERE isActive = 1 ORDER BY createdAt DESC LIMIT ?',
@@ -87,49 +87,6 @@ export async function getAllActiveProducts(limit = 500): Promise<Product[]> {
     fetchDollarRate(),
     getStoreConfigNumber('markup', 30),
     getStoreConfigNumber('cash_discount', 10),
-  ])
-
-  return (result.rows as any[]).map(p =>
-    calculateProductPrices(p, dollar.rate, markup, cashDiscount)
-  ) as Product[]
-}
-
-export async function getHomepageProducts(limit = 12): Promise<Product[]> {
-  // Fetch products from key categories for the homepage: notebooks, pc-armadas, monitores
-  const categorySlugs = ['notebooks', 'pc-armadas', 'monitores']
-
-  const [catResult, dollar, markup, cashDiscount] = await Promise.all([
-    db.execute({
-      sql: `SELECT id FROM categories WHERE slug IN (${categorySlugs.map(() => '?').join(',')}) AND enabled = 1`,
-      args: categorySlugs,
-    }),
-    fetchDollarRate(),
-    getStoreConfigNumber('markup', 30),
-    getStoreConfigNumber('cash_discount', 10),
-  ])
-
-  const parentIds = (catResult.rows as any[]).map(r => r.id)
-
-  if (parentIds.length === 0) {
-    // Fallback to all active products if categories not found
-    return getAllActiveProducts(limit)
-  }
-
-  // Also include subcategories of these parent categories
-  const subResult = await db.execute({
-    sql: `SELECT id FROM categories WHERE parentId IN (${parentIds.map(() => '?').join(',')}) AND enabled = 1`,
-    args: parentIds,
-  })
-  const subIds = (subResult.rows as any[]).map(r => r.id)
-
-  const allIds = [...parentIds, ...subIds]
-  const placeholders = allIds.map(() => '?').join(',')
-
-  const [result] = await Promise.all([
-    db.execute({
-      sql: `SELECT * FROM products WHERE categoryId IN (${placeholders}) AND isActive = 1 ORDER BY createdAt DESC LIMIT ?`,
-      args: [...allIds, limit],
-    }),
   ])
 
   return (result.rows as any[]).map(p =>
@@ -230,6 +187,41 @@ export async function searchProducts(query: string): Promise<Product[]> {
             AND (name LIKE ? OR description LIKE ? OR sku LIKE ?)
             LIMIT 20`,
       args: [searchTerm, searchTerm, searchTerm],
+    }),
+    fetchDollarRate(),
+    getStoreConfigNumber('markup', 30),
+    getStoreConfigNumber('cash_discount', 10),
+  ])
+
+  return (result.rows as any[]).map(p =>
+    calculateProductPrices(p, dollar.rate, markup, cashDiscount)
+  ) as Product[]
+}
+
+export async function getTopProductsByCategorySlug(slug: string, limit = 8): Promise<Product[]> {
+  // Find the category and its enabled subcategories
+  const catResult = await db.execute({
+    sql: 'SELECT id FROM categories WHERE slug = ? AND enabled = 1',
+    args: [slug],
+  })
+  const catRows = catResult.rows as any[]
+  if (catRows.length === 0) return []
+
+  const categoryId = catRows[0].id
+  const subResult = await db.execute({
+    sql: 'SELECT id FROM categories WHERE parentId = ? AND enabled = 1',
+    args: [categoryId],
+  })
+  const subIds = (subResult.rows as any[]).map(r => r.id)
+  const allIds = [categoryId, ...subIds]
+  const placeholders = allIds.map(() => '?').join(',')
+
+  const [result, dollar, markup, cashDiscount] = await Promise.all([
+    db.execute({
+      sql: `SELECT p.* FROM products p
+            WHERE p.categoryId IN (${placeholders}) AND p.isActive = 1
+            ORDER BY p.price DESC LIMIT ?`,
+      args: [...allIds, limit],
     }),
     fetchDollarRate(),
     getStoreConfigNumber('markup', 30),
