@@ -33,6 +33,9 @@ interface DashboardStats {
   totalSuppliers: number
   dollarRate: number
   dollarSource: string
+  dollarCompra: number | null
+  dollarVenta: number | null
+  dollarUpdatedAt: string
   activeProducts: number
   featuredProducts: number
 }
@@ -202,11 +205,17 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-gray-900">
-              ${stats?.dollarRate ? Number(stats.dollarRate).toLocaleString('es-AR') : '—'}
+              ${stats?.dollarRate ? Number(stats.dollarRate).toLocaleString('es-AR', { minimumFractionDigits: 2 }) : '—'}
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              {stats?.dollarSource || 'Cotización actual'}
-            </p>
+            <div className="text-xs text-gray-500 mt-1 space-y-0.5">
+              <p>{stats?.dollarSource === 'blue' ? 'Dólar Blue' : stats?.dollarSource === 'nacion' ? 'Dólar Oficial (Banco Nación)' : stats?.dollarSource || 'Cotización actual'}</p>
+              {stats?.dollarCompra && stats?.dollarVenta && (
+                <p>Compra: ${Number(stats.dollarCompra).toLocaleString('es-AR', { minimumFractionDigits: 2 })} · Venta: ${Number(stats.dollarVenta).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
+              )}
+              {stats?.dollarUpdatedAt && (
+                <p>Actualizado: {new Date(stats.dollarUpdatedAt).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>

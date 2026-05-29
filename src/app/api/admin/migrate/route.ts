@@ -39,6 +39,24 @@ export async function POST(request: NextRequest) {
       migrations.push('Added shippingDetails column to orders')
     }
 
+    // Check if compra/venta columns exist in dollar_rates
+    try {
+      await db.execute({
+        sql: 'SELECT compra, venta FROM dollar_rates LIMIT 1',
+        args: [],
+      })
+    } catch {
+      await db.execute({
+        sql: 'ALTER TABLE dollar_rates ADD COLUMN compra REAL',
+        args: [],
+      })
+      await db.execute({
+        sql: 'ALTER TABLE dollar_rates ADD COLUMN venta REAL',
+        args: [],
+      })
+      migrations.push('Added compra/venta columns to dollar_rates')
+    }
+
     return NextResponse.json({
       ok: true,
       migrations,

@@ -43,14 +43,14 @@ export async function fetchDollarRate(): Promise<DollarInfo> {
 
     if (existing.rows.length > 0) {
       await db.execute({
-        sql: 'UPDATE dollar_rates SET rate = ?, source = ?, updatedAt = ? WHERE id = ?',
-        args: [rate, configSource, now, (existing.rows[0] as any).id],
+        sql: 'UPDATE dollar_rates SET rate = ?, source = ?, compra = ?, venta = ?, updatedAt = ? WHERE id = ?',
+        args: [rate, configSource, data.compra, data.venta, now, (existing.rows[0] as any).id],
       })
     } else {
       const id = crypto.randomUUID()
       await db.execute({
-        sql: 'INSERT INTO dollar_rates (id, rate, source, updatedAt) VALUES (?, ?, ?, ?)',
-        args: [id, rate, configSource, now],
+        sql: 'INSERT INTO dollar_rates (id, rate, source, compra, venta, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+        args: [id, rate, configSource, data.compra, data.venta, now],
       })
     }
 
