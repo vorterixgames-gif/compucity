@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useCart } from '@/store/cart'
-import { Truck, MapPin, MessageCircle, User, Phone, Mail, FileText, Package, Loader2, ChevronRight, ArrowLeft } from 'lucide-react'
+import { Truck, MapPin, MessageCircle, User, Phone, Mail, FileText, Package, Loader2, ChevronRight, ArrowLeft, LogIn, X, Eye, EyeOff, UserPlus, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
 
 interface LoggedInCustomer {
@@ -175,6 +175,96 @@ export default function CheckoutPage() {
   const [sending, setSending] = useState(false)
   const [orderError, setOrderError] = useState('')
 
+  // Login modal state
+  const [showLoginModal, setShowLoginModal] = useState(false)
+  const [loginEmail, setLoginEmail] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [loginError, setLoginError] = useState('')
+  const [loginLoading, setLoginLoading] = useState(false)
+
+  // Post-order account creation state
+  const [showAccountOffer, setShowAccountOffer] = useState(false)
+  const [createAccountPassword, setCreateAccountPassword] = useState('')
+  const [createAccountLoading, setCreateAccountLoading] = useState(false)
+  const [createAccountError, setCreateAccountError] = useState('')
+  const [accountCreated, setAccountCreated] = useState(false)
+  const [orderCompleted, setOrderCompleted] = useState(false)
+
+  const handleLogin = async () => {
+    setLoginLoading(true)
+    setLoginError('')
+    try {
+      const res = await fetch('/api/customer/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setLoginError(data.error || 'Credenciales inválidas')
+        setLoginLoading(false)
+        return
+      }
+      // Login exitoso - actualizar datos del cliente
+      const c = data.customer as LoggedInCustomer
+      setLoggedInCustomer(c)
+      setCustomerData(prev => ({
+        ...prev,
+        name: c.name || prev.name,
+        email: c.email || prev.email,
+        phone: c.phone || prev.phone,
+        dni: c.dni || prev.dni,
+        address: c.address || prev.address,
+        city: c.city || prev.city,
+        province: c.province || prev.province,
+        postalCode: c.postalCode || prev.postalCode,
+      }))
+      setShowLoginModal(false)
+      setLoginEmail('')
+      setLoginPassword('')
+    } catch {
+      setLoginError('Error de conexión. Intentá de nuevo.')
+    } finally {
+      setLoginLoading(false)
+    }
+  }
+
+  const handleCreateAccount = async () => {
+    setCreateAccountLoading(true)
+    setCreateAccountError('')
+    try {
+      const res = await fetch('/api/customer/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: customerData.name,
+          email: customerData.email,
+          phone: customerData.phone,
+          password: createAccountPassword,
+          dni: customerData.dni,
+          address: customerData.address,
+          city: customerData.city,
+          province: customerData.province,
+          postalCode: customerData.postalCode,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setCreateAccountError(data.error || 'Error al crear la cuenta')
+        setCreateAccountLoading(false)
+        return
+      }
+      setAccountCreated(true)
+      const c = data.customer as LoggedInCustomer
+      setLoggedInCustomer(c)
+    } catch {
+      setCreateAccountError('Error de conexión. Intentá de nuevo.')
+    } finally {
+      setCreateAccountLoading(false)
+    }
+  }
+
   const handleSendWhatsApp = async () => {
     setSending(true)
     setOrderError('')
@@ -221,6 +311,12 @@ export default function CheckoutPage() {
       const url = generateWhatsAppMessage()
       window.open(url, '_blank')
       clearCart()
+
+      // 3. Si no está logueado y tiene email, ofrecer crear cuenta
+      if (!loggedInCustomer && customerData.email) {
+        setShowAccountOffer(true)
+      }
+      setOrderCompleted(true)
     } catch (err) {
       setOrderError('Error de conexión. Intentá de nuevo.')
     } finally {
@@ -228,16 +324,81 @@ export default function CheckoutPage() {
     }
   }
 
-  if (items.length === 0) {
+  // Pantalla de pedido completado
+  if (orderCompleted) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
-        <MessageCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
+        <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
         <h1 className="text-2xl font-bold mb-2">¡Pedido enviado!</h1>
         <p className="text-gray-500 mb-6">
           Tu pedido fue enviado por WhatsApp. Un vendedor se va a contactar a la brevedad para confirmar y coordinar el pago y la entrega.
         </p>
-        <Link href="/" className="px-6 py-3 bg-compucity-green text-white rounded-lg hover:bg-compucity-green-dark transition">
+
+        {/* Ofrecer crear cuenta si no está logueado y tiene email */}
+        {showAccountOffer && !accountCreated && (
+          <div className="mt-6 p-6 bg-compucity-green-50 border border-compucity-green-100 rounded-xl text-left max-w-md mx-auto">
+            <div className="flex items-center gap-2 mb-3">
+              <UserPlus className="h-5 w-5 text-compucity-green" />
+              <h3 className="font-semibold text-compucity-green-900">¿Querés crear una cuenta?</h3>
+            </div>
+            <p className="text-sm text-compucity-green-700 mb-4">
+              Con una cuenta podés seguir tus pedidos, guardar tus datos para la próxima compra y acceder a ofertas exclusivas.
+            </p>
+            {createAccountError && (
+              <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{createAccountError}</div>
+            )}
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Contraseña</label>
+                <input
+                  type="password"
+                  value={createAccountPassword}
+                  onChange={(e) => setCreateAccountPassword(e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                  className="w-full border rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-compucity-green"
+                />
+              </div>
+              <button
+                onClick={handleCreateAccount}
+                disabled={createAccountPassword.length < 6 || createAccountLoading}
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-compucity-green text-white font-medium rounded-lg hover:bg-compucity-green-dark disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+              >
+                {createAccountLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                {createAccountLoading ? 'Creando cuenta...' : 'Crear mi cuenta'}
+              </button>
+              <button
+                onClick={() => setShowAccountOffer(false)}
+                className="w-full text-sm text-gray-400 hover:text-gray-600 transition"
+              >
+                No, gracias
+              </button>
+            </div>
+          </div>
+        )}
+
+        {accountCreated && (
+          <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-xl max-w-md mx-auto">
+            <CheckCircle className="h-6 w-6 text-green-600 mx-auto mb-2" />
+            <p className="font-semibold text-green-800">¡Cuenta creada con éxito!</p>
+            <p className="text-sm text-green-700 mt-1">Ya podés seguir tus pedidos desde "Mis pedidos" en el menú.</p>
+          </div>
+        )}
+
+        <Link href="/" className="inline-block mt-6 px-6 py-3 bg-compucity-green text-white rounded-lg hover:bg-compucity-green-dark transition">
           Volver a la tienda
+        </Link>
+      </div>
+    )
+  }
+
+  if (items.length === 0 && !orderCompleted) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-16 text-center">
+        <Package className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+        <h1 className="text-2xl font-bold mb-2">Tu carrito está vacío</h1>
+        <p className="text-gray-500 mb-6">Agregá productos al carrito para hacer un pedido.</p>
+        <Link href="/" className="px-6 py-3 bg-compucity-green text-white rounded-lg hover:bg-compucity-green-dark transition">
+          Ver productos
         </Link>
       </div>
     )
@@ -278,9 +439,36 @@ export default function CheckoutPage() {
         {/* Form */}
         <div className="md:col-span-2">
           {step === 'data' && (
-            <div className="space-y-4 bg-white border rounded-lg p-6">
-              <h2 className="text-lg font-semibold">Tus datos</h2>
-              <p className="text-sm text-gray-500">Completá tus datos para que los vendedores puedan contactarte y coordinar la entrega.</p>
+            <div className="space-y-4">
+              {/* Login prompt - solo si NO está logueado */}
+              {!loggedInCustomer && (
+                <div className="flex items-center justify-between p-4 bg-compucity-green-50 border border-compucity-green-100 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <LogIn className="h-4 w-4 text-compucity-green shrink-0" />
+                    <span className="text-sm text-compucity-green-900">¿Ya tenés una cuenta?</span>
+                  </div>
+                  <button
+                    onClick={() => { setShowLoginModal(true); setLoginError('') }}
+                    className="text-sm font-semibold text-compucity-green hover:text-compucity-green-dark transition"
+                  >
+                    Iniciá sesión
+                  </button>
+                </div>
+              )}
+
+              {/* Logged in indicator */}
+              {loggedInCustomer && (
+                <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                  <span className="text-sm text-green-800">
+                    Sesión iniciada como <strong>{loggedInCustomer.name}</strong> — tus datos se cargaron automáticamente
+                  </span>
+                </div>
+              )}
+
+              <div className="bg-white border rounded-lg p-6 space-y-4">
+                <h2 className="text-lg font-semibold">Tus datos</h2>
+                <p className="text-sm text-gray-500">Completá tus datos para que los vendedores puedan contactarte y coordinar la entrega.</p>
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nombre completo *</label>
@@ -353,6 +541,7 @@ export default function CheckoutPage() {
                 Continuar
                 <ChevronRight className="h-4 w-4" />
               </button>
+            </div>
             </div>
           )}
 
@@ -622,6 +811,70 @@ export default function CheckoutPage() {
           </div>
         </div>
       </div>
+
+      {/* Login Modal */}
+      {showLoginModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowLoginModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Iniciar sesión</h3>
+              <button onClick={() => setShowLoginModal(false)} className="text-gray-400 hover:text-gray-600 transition">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">Iniciá sesión para que tus datos se carguen automáticamente.</p>
+
+            {loginError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{loginError}</div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="email"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    placeholder="tu@email.com"
+                    className="w-full border rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:border-compucity-green"
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleLogin() }}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    placeholder="Tu contraseña"
+                    className="w-full border rounded-lg pl-4 pr-10 py-2 text-sm focus:outline-none focus:border-compucity-green"
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleLogin() }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+              <button
+                onClick={handleLogin}
+                disabled={!loginEmail || !loginPassword || loginLoading}
+                className="w-full flex items-center justify-center gap-2 py-2.5 bg-compucity-green text-white font-medium rounded-lg hover:bg-compucity-green-dark disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+              >
+                {loginLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
+                {loginLoading ? 'Ingresando...' : 'Ingresar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
