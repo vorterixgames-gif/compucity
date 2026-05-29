@@ -32,6 +32,7 @@ interface DashboardStats {
   totalCustomers: number
   totalSuppliers: number
   dollarRate: number
+  dollarSource: string
   activeProducts: number
   featuredProducts: number
 }
@@ -204,7 +205,7 @@ export default function AdminDashboard() {
               ${stats?.dollarRate ? Number(stats.dollarRate).toLocaleString('es-AR') : '—'}
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              Dólar blue actual
+              {stats?.dollarSource || 'Cotización actual'}
             </p>
           </CardContent>
         </Card>

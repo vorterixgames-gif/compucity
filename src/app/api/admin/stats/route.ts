@@ -19,9 +19,10 @@ export async function GET() {
     const totalRevenue = (revenueResult.rows as any[])[0]?.total ?? 0
 
     const dollarResult = await db.execute(
-      'SELECT rate FROM dollar_rates ORDER BY updatedAt DESC LIMIT 1'
+      'SELECT rate, source FROM dollar_rates ORDER BY updatedAt DESC LIMIT 1'
     )
     const dollarRate = (dollarResult.rows as any[])[0]?.rate ?? 0
+    const dollarSource = (dollarResult.rows as any[])[0]?.source ?? ''
 
     const recentOrders = await db.execute(
       'SELECT * FROM orders ORDER BY createdAt DESC LIMIT 5'
@@ -47,6 +48,7 @@ export async function GET() {
         totalOrders,
         totalRevenue,
         dollarRate,
+        dollarSource,
         totalCustomers,
         totalSuppliers,
         activeProducts: (activeProducts.rows as any[])[0]?.count ?? 0,
