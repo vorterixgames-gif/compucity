@@ -9,6 +9,8 @@ import {
   ChevronUp,
   Truck,
   Download,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -119,6 +121,11 @@ export default function AdminPedidos() {
   const [newTracking, setNewTracking] = useState('')
   const [newNotes, setNewNotes] = useState('')
 
+  // Delete dialog
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [orderToDelete, setOrderToDelete] = useState<Order | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
   const loadOrders = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/orders')
@@ -178,6 +185,31 @@ export default function AdminPedidos() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleDeleteOrder = async () => {
+    if (!orderToDelete) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/admin/orders?id=${orderToDelete.id}`, {
+        method: 'DELETE',
+      })
+      const data = await res.json()
+      if (data.ok) {
+        setOrders(prev => prev.filter(o => o.id !== orderToDelete.id))
+        setDeleteDialogOpen(false)
+        setOrderToDelete(null)
+      }
+    } catch (error) {
+      console.error('Error deleting order:', error)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const openDeleteDialog = (order: Order) => {
+    setOrderToDelete(order)
+    setDeleteDialogOpen(true)
   }
 
   if (loading) {
@@ -349,6 +381,18 @@ export default function AdminPedidos() {
                       <Button
                         variant="outline"
                         size="sm"
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openDeleteDialog(order)
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4 mr-1" />
+                        Eliminar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={(e) => {
                           e.stopPropagation()
                           openStatusDialog(order)
@@ -365,6 +409,56 @@ export default function AdminPedidos() {
           })}
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-red-500" />
+              Eliminar Pedido #{orderToDelete?.orderNumber}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-gray-600">
+              ¿Estás seguro de que querés eliminar este pedido? Esta acción no se puede deshacer.
+            </p>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <p className="text-sm font-medium text-red-800">
+                Pedido #{orderToDelete?.orderNumber} - {orderToDelete?.customerName}
+              </p>
+              <p className="text-sm text-red-600 mt-1">
+                Total: {orderToDelete ? formatPrice(orderToDelete.total) : ''}
+              </p>
+              <p className="text-xs text-red-500 mt-1">
+                Se eliminarán {orderToDelete?.items.length} producto(s) del pedido
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteOrder}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Eliminando...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Sí, eliminar
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Status Update Dialog */}
       <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>

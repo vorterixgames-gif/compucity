@@ -69,3 +69,44 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'Error del servidor' }, { status: 500 })
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID es requerido' }, { status: 400 })
+    }
+
+    // Verify order exists
+    const existing = await db.execute({
+      sql: 'SELECT id, orderNumber FROM orders WHERE id = ?',
+      args: [id],
+    })
+
+    if (existing.rows.length === 0) {
+      return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 })
+    }
+
+    // Delete order items first (foreign key constraint)
+    await db.execute({
+      sql: 'DELETE FROM order_items WHERE orderId = ?',
+      args: [id],
+    })
+
+    // Delete the order
+    await db.execute({
+      sql: 'DELETE FROM orders WHERE id = ?',
+      args: [id],
+    })
+
+    return NextResponse.json({ ok: true, deletedOrderNumber: (existing.rows[0] as any).orderNumber })
+  } catch (error) {
+    console.error('Delete order error:', error)
+    return NextResponse.json({ error: 'Error del servidor' }, { status: 500 })
+  }
+}
