@@ -52,7 +52,7 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
   return (
     <Link
       href={`/producto/${slug}`}
-      className="group flex flex-col bg-white rounded-xl border border-gray-200 hover:border-compucity-navy/30 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden"
+      className="group flex flex-col bg-white rounded-xl border border-gray-200 hover:border-compucity-green/30 card-hover overflow-hidden"
     >
       {/* Image */}
       <div className="aspect-square bg-gray-50 relative overflow-hidden p-3">
@@ -68,12 +68,12 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
         {/* Badges - stacked vertically top-left */}
         <div className="absolute top-2 left-2 flex flex-col gap-1">
           {showOfferBadge && (
-            <div className="bg-compucity-gold text-compucity-navy text-[10px] font-bold px-2 py-0.5 rounded-full">
+            <div className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
               OFERTA -{discountPercent}%
             </div>
           )}
           {showFeaturedBadge && (
-            <div className="bg-compucity-navy text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+            <div className="bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
               DESTACADO
             </div>
           )}
@@ -122,7 +122,7 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
             <p className="text-xs text-gray-400 line-through">{formatPrice(price)}</p>
           )}
           {hasDiscount ? (
-            <p className="text-lg font-bold text-compucity-navy">{formatPrice(comparePrice!)}</p>
+            <p className="text-lg font-bold text-compucity-green">{formatPrice(comparePrice!)}</p>
           ) : (
             <p className="text-lg font-bold text-gray-900">{formatPrice(price)}</p>
           )}
@@ -143,7 +143,7 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
         <button
           onClick={handleAddToCart}
           disabled={stock !== undefined && stock <= 0}
-          className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-compucity-navy text-white text-sm font-semibold rounded-lg hover:bg-compucity-navy-light disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+          className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-compucity-green text-white text-sm font-semibold rounded-lg hover:bg-compucity-green-dark disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
         >
           <ShoppingCart className="h-4 w-4" />
           {stock !== undefined && stock <= 0 ? 'Sin stock' : 'Comprar'}

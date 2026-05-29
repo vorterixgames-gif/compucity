@@ -52,16 +52,6 @@
   --color-compucity-dark: #1a1a2e;
   --color-compucity-dark-light: #2d2d44;
 
-  /* Secondary - Navy */
-  --color-compucity-navy: #1B2A4A;
-  --color-compucity-navy-light: #2A3D62;
-  --color-compucity-navy-50: #EEF1F6;
-
-  /* Accent - Gold */
-  --color-compucity-gold: #C9A84C;
-  --color-compucity-gold-light: #DCC47A;
-  --color-compucity-gold-50: #FBF7EC;
-
   /* Animations */
   --animate-fade-in: fade-in 0.4s ease-out;
   --animate-slide-up: slide-up 0.4s ease-out;

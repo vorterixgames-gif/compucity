@@ -230,7 +230,7 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-50">
       {/* Top bar - Marquee */}
-      <div className="bg-compucity-navy text-white overflow-hidden">
+      <div className="bg-gradient-to-r from-compucity-green-900 via-compucity-green-dark to-compucity-green text-white overflow-hidden">
         <div className="animate-marquee flex items-center gap-12 whitespace-nowrap py-1.5">
           {[1, 2].map((repeat) => (
             <span key={repeat} className="flex items-center gap-12 text-xs tracking-wide font-medium">
@@ -431,8 +431,8 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Nav bar - Navy with green accents */}
-      <div className="bg-compucity-navy">
+      {/* Nav bar - green */}
+      <div className="bg-compucity-green-dark">
         <div className="max-w-7xl mx-auto px-4">
           <nav className="hidden md:flex items-center gap-0 h-10 text-sm">
             <div
@@ -440,7 +440,7 @@ export default function Navbar() {
               onMouseEnter={() => setCategoryDropdownOpen(true)}
               onMouseLeave={() => { setCategoryDropdownOpen(false); setHoveredCategory(null) }}
             >
-              <button className="flex items-center gap-2 px-4 py-2 bg-compucity-green hover:bg-compucity-green-dark text-white rounded font-semibold transition h-10 text-sm">
+              <button className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded font-semibold transition h-10 text-sm">
                 <Menu className="h-4 w-4" />
                 Categorías
                 <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${categoryDropdownOpen ? 'rotate-180' : ''}`} />
