@@ -331,7 +331,7 @@ export default function ArmaTuPCPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6 overflow-hidden">
+      <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="flex flex-col lg:flex-row gap-6 items-start">
           {/* ============================================ */}
           {/* Left: Stepper + Product Selection */}
