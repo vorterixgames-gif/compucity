@@ -131,7 +131,15 @@ export default function AdminConfiguracion() {
     }
   }
 
+  const isDiscountInvalid = Number(cashDiscount) > Number(markup)
+
   const handleSaveConfig = async (section?: string) => {
+    // Validate discount vs markup
+    if (section === 'Dólar' && isDiscountInvalid) {
+      setSaveMessage('El descuento en efectivo no puede ser mayor al margen de ganancia')
+      return
+    }
+
     setSaving(true)
     setSaveMessage('')
     try {
@@ -324,13 +332,15 @@ export default function AdminConfiguracion() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="markup">Margen de ganancia (%)</Label>
-              <Input id="markup" type="number" step="1" value={markup} onChange={(e) => setMarkup(e.target.value)} placeholder="30" />
+              <Input id="markup" type="number" step="1" min="0" value={markup} onChange={(e) => setMarkup(e.target.value)} placeholder="30" />
               <p className="text-xs text-gray-400">Se aplica sobre costo USD × dólar</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="cash-discount">Descuento efectivo (%)</Label>
-              <Input id="cash-discount" type="number" step="1" value={cashDiscount} onChange={(e) => setCashDiscount(e.target.value)} placeholder="10" />
-              <p className="text-xs text-gray-400">Descuento por pago en efectivo</p>
+              <Input id="cash-discount" type="number" step="1" min="0" max={markup || '100'} value={cashDiscount} onChange={(e) => setCashDiscount(e.target.value)} placeholder="10" className={isDiscountInvalid ? 'border-red-400 focus:border-red-500' : ''} />
+              <p className={`text-xs ${isDiscountInvalid ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
+                {isDiscountInvalid ? 'No puede ser mayor al margen de ganancia' : 'Descuento por pago en efectivo'}
+              </p>
             </div>
           </div>
 
@@ -348,7 +358,7 @@ export default function AdminConfiguracion() {
 
           <Separator />
           <div className="flex items-center gap-3">
-            <Button onClick={() => handleSaveConfig('Dólar')} className="bg-compucity-green hover:bg-compucity-green-dark" disabled={saving}>
+            <Button onClick={() => handleSaveConfig('Dólar')} className="bg-compucity-green hover:bg-compucity-green-dark" disabled={saving || isDiscountInvalid}>
               {saving ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Guardando...</>) : (<><Save className="w-4 h-4 mr-2" />Guardar</>)}
             </Button>
           </div>
