@@ -18,15 +18,34 @@ export async function GET() {
     )
     const totalRevenue = (revenueResult.rows as any[])[0]?.total ?? 0
 
-    const dollarResult = await db.execute(
-      'SELECT rate, source, compra, venta, updatedAt FROM dollar_rates ORDER BY updatedAt DESC LIMIT 1'
-    )
-    const dollarRow = (dollarResult.rows as any[])[0]
-    const dollarRate = dollarRow?.rate ?? 0
-    const dollarSource = dollarRow?.source ?? ''
-    const dollarCompra = dollarRow?.compra ?? null
-    const dollarVenta = dollarRow?.venta ?? null
-    const dollarUpdatedAt = dollarRow?.updatedAt ?? ''
+    let dollarRate = 0
+    let dollarSource = ''
+    let dollarCompra: number | null = null
+    let dollarVenta: number | null = null
+    let dollarUpdatedAt = ''
+
+    try {
+      const dollarResult = await db.execute(
+        'SELECT rate, source, compra, venta, updatedAt FROM dollar_rates ORDER BY updatedAt DESC LIMIT 1'
+      )
+      const dollarRow = (dollarResult.rows as any[])[0]
+      dollarRate = dollarRow?.rate ?? 0
+      dollarSource = dollarRow?.source ?? ''
+      dollarCompra = dollarRow?.compra ?? null
+      dollarVenta = dollarRow?.venta ?? null
+      dollarUpdatedAt = dollarRow?.updatedAt ?? ''
+    } catch {
+      // Fallback: try without compra/venta columns
+      try {
+        const dollarResult = await db.execute(
+          'SELECT rate, source, updatedAt FROM dollar_rates ORDER BY updatedAt DESC LIMIT 1'
+        )
+        const dollarRow = (dollarResult.rows as any[])[0]
+        dollarRate = dollarRow?.rate ?? 0
+        dollarSource = dollarRow?.source ?? ''
+        dollarUpdatedAt = dollarRow?.updatedAt ?? ''
+      } catch {}
+    }
 
     const recentOrders = await db.execute(
       'SELECT * FROM orders ORDER BY createdAt DESC LIMIT 5'
