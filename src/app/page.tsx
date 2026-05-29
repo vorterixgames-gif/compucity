@@ -28,15 +28,10 @@ export default async function HomePage() {
     [featured, allProducts, gamerPCs, monitorProducts, notebookProducts] = await Promise.all([
       getFeaturedProducts(),
       getAllActiveProducts(),
-      getTopProductsByCategorySlug('pc-armadas', 4),
+      getTopProductsByCategorySlug('gamer-pc', 4),
       getTopProductsByCategorySlug('monitores', 4),
       getTopProductsByCategorySlug('notebooks', 4),
     ])
-    // Filter: only Gamer subcategory for PCs (exclude Mini PC, Oficina, Diseño)
-    gamerPCs = gamerPCs.filter(p => {
-      const name = (p.name || '').toLowerCase()
-      return !name.includes('mini') && !name.includes('oficina') && !name.includes('diseño')
-    }).slice(0, 4)
   } catch (error) {
     console.error('Homepage data fetch error:', error)
   }
