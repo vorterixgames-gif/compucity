@@ -192,7 +192,7 @@ export default function AdminLayout({
                 )?.label ?? 'Admin'}
               </h2>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <Link
                 href="/"
                 target="_blank"
@@ -200,6 +200,14 @@ export default function AdminLayout({
               >
                 Ver tienda
               </Link>
+              <Separator orientation="vertical" className="h-5 hidden sm:block" />
+              <button
+                onClick={async () => { await fetch('/api/admin/auth/logout', { method: 'POST' }); window.location.href = '/admin/login' }}
+                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-red-600 transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">Cerrar sesión</span>
+              </button>
             </div>
           </div>
         </header>

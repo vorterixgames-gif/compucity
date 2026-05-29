@@ -27,11 +27,15 @@ function deriveHmacSecret(): string {
 const HMAC_SECRET = deriveHmacSecret()
 
 /**
- * Sign a value with HMAC-SHA256.
- * Returns `value.signature` (hex).
+ * Sign a value with HMAC-SHA256, including a timestamp for expiration.
+ * Format: `timestamp.value.signature`
  * Compatible with Edge Runtime (uses Web Crypto API).
  */
+const TOKEN_MAX_AGE_MS = 8 * 60 * 60 * 1000 // 8 hours
+
 export async function signToken(value: string): Promise<string> {
+  const timestamp = Date.now().toString(36)
+  const payload = `${timestamp}.${value}`
   const encoder = new TextEncoder()
   const key = await crypto.subtle.importKey(
     'raw',
@@ -40,25 +44,26 @@ export async function signToken(value: string): Promise<string> {
     false,
     ['sign']
   )
-  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(value))
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(payload))
   const hex = Array.from(new Uint8Array(signature))
     .map(b => b.toString(16).padStart(2, '0'))
     .join('')
-  return `${value}.${hex}`
+  return `${payload}.${hex}`
 }
 
 /**
- * Verify a signed token.
- * Returns the original value if valid, or null if tampered.
+ * Verify a signed token including expiration check.
+ * Returns the original value if valid and not expired, or null otherwise.
  * Compatible with Edge Runtime (uses Web Crypto API).
  */
 export async function verifyToken(token: string): Promise<string | null> {
-  const dotIndex = token.lastIndexOf('.')
-  if (dotIndex === -1) return null
+  const lastDotIndex = token.lastIndexOf('.')
+  if (lastDotIndex === -1) return null
 
-  const value = token.substring(0, dotIndex)
-  const providedSig = token.substring(dotIndex + 1)
+  const payload = token.substring(0, lastDotIndex)
+  const providedSig = token.substring(lastDotIndex + 1)
 
+  // Verify HMAC signature
   const encoder = new TextEncoder()
   const key = await crypto.subtle.importKey(
     'raw',
@@ -67,18 +72,32 @@ export async function verifyToken(token: string): Promise<string | null> {
     false,
     ['sign']
   )
-  const expectedSig = await crypto.subtle.sign('HMAC', key, encoder.encode(value))
+  const expectedSig = await crypto.subtle.sign('HMAC', key, encoder.encode(payload))
   const expectedHex = Array.from(new Uint8Array(expectedSig))
     .map(b => b.toString(16).padStart(2, '0'))
     .join('')
 
   // Constant-time comparison to prevent timing attacks
-  if (providedSig.length !== expectedHex.length) return false as unknown as string | null
+  if (providedSig.length !== expectedHex.length) return null
   let mismatch = 0
   for (let i = 0; i < providedSig.length; i++) {
     mismatch |= providedSig.charCodeAt(i) ^ expectedHex.charCodeAt(i)
   }
-  return mismatch === 0 ? value : null
+  if (mismatch !== 0) return null
+
+  // Check expiration — payload format is: timestamp.value
+  const firstDotIndex = payload.indexOf('.')
+  if (firstDotIndex === -1) return null
+
+  const timestampStr = payload.substring(0, firstDotIndex)
+  const value = payload.substring(firstDotIndex + 1)
+
+  const timestamp = parseInt(timestampStr, 36)
+  if (isNaN(timestamp)) return null
+
+  if (Date.now() - timestamp > TOKEN_MAX_AGE_MS) return null
+
+  return value
 }
 
 // ============================================
