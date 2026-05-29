@@ -887,6 +887,11 @@ export default function CheckoutPage() {
                 {loginLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
                 {loginLoading ? 'Ingresando...' : 'Ingresar'}
               </button>
+              <div className="text-center">
+                <Link href="/recuperar-contrasena" className="text-sm text-compucity-green hover:text-compucity-green-dark transition">
+                  ¿Olvidaste tu contraseña?
+                </Link>
+              </div>
             </div>
           </div>
         </div>
