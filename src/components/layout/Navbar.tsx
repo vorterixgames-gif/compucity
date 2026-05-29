@@ -230,27 +230,32 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-50">
       {/* Top bar - Marquee */}
-      <div className="bg-compucity-green-dark text-white text-xs overflow-hidden">
-        <div className="py-1.5 relative">
-          {/* Fade edges */}
-          <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-compucity-green-dark to-transparent z-10 pointer-events-none" />
-          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-compucity-green-dark to-transparent z-10 pointer-events-none" />
-          <div className="flex whitespace-nowrap animate-marquee">
-            {[0, 1, 2, 3].map((i) => (
-              <span key={i} className="flex items-center gap-6 mr-6">
-                <span className="flex items-center gap-2">🚚 Envíos a todo el país</span>
-                <span className="text-white/40">·</span>
-                <a href="https://wa.me/5493517656918" target="_blank" className="hover:underline flex items-center gap-2">📱 WhatsApp: 3517656918</a>
-                <span className="text-white/40">·</span>
-                <span className="flex items-center gap-2">📍 La Falda, Córdoba</span>
-                <span className="text-white/40">·</span>
-                <span className="flex items-center gap-2">💳 Todos los medios de pago</span>
-                <span className="text-white/40">·</span>
-                <span className="flex items-center gap-2">🛡️ Compra segura</span>
-                <span className="text-white/40">·</span>
+      <div className="bg-gradient-to-r from-compucity-green-900 via-compucity-green-dark to-compucity-green text-white overflow-hidden">
+        <div className="animate-marquee flex items-center gap-12 whitespace-nowrap py-1.5">
+          {[1, 2].map((repeat) => (
+            <span key={repeat} className="flex items-center gap-12 text-xs tracking-wide font-medium">
+              <span className="flex items-center gap-2">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-compucity-green-light animate-pulse" />
+                Envíos a todo el país
               </span>
-            ))}
-          </div>
+              <span className="flex items-center gap-2">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-compucity-green-light animate-pulse" />
+                <a href="https://wa.me/5493517656918" target="_blank" className="hover:text-compucity-green-light transition-colors">WhatsApp: 3517656918</a>
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-compucity-green-light animate-pulse" />
+                La Falda, Córdoba
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-compucity-green-light animate-pulse" />
+                Compra segura y asesoramiento personalizado
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-compucity-green-light animate-pulse" />
+                Hacé tu pedido por WhatsApp
+              </span>
+            </span>
+          ))}
         </div>
       </div>
 
