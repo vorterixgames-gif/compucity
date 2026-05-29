@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import WhatsAppButton from "@/components/layout/WhatsAppButton";
+import ScrollToTop from "@/components/layout/ScrollToTop";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -51,6 +52,7 @@ export default function RootLayout({
           <Footer />
         </div>
         <WhatsAppButton />
+        <ScrollToTop />
         <Toaster />
       </body>
     </html>
