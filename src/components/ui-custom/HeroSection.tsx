@@ -17,7 +17,7 @@ const slides = [
     description: 'Elegí cada componente y armá la PC de tus sueños. Procesadores, placas de video, memorias y más.',
     cta: { label: 'Comenzar a armar', href: '/arma-tu-pc', icon: Cpu, primary: true },
     ctaSecondary: { label: 'Ver componentes', href: '/categoria/componentes-de-pc' },
-    gradient: 'from-compucity-green-dark/95 via-compucity-green/80 to-compucity-green-dark/30',
+    gradient: 'from-compucity-green-900/95 via-compucity-green-700/80 to-compucity-green-900/30',
   },
   {
     id: 2,
@@ -28,7 +28,7 @@ const slides = [
     description: 'Las mejores notebooks para trabajo, estudio y gaming. Lenovo, Asus, HP y más marcas.',
     cta: { label: 'Ver notebooks', href: '/categoria/notebooks', icon: Laptop, primary: true },
     ctaSecondary: { label: 'Ver todas las marcas', href: '/categoria/todos' },
-    gradient: 'from-[#1a2e3a]/95 via-[#2a4a5a]/75 to-[#1a2e3a]/30',
+    gradient: 'from-compucity-green-950/95 via-compucity-green-800/80 to-compucity-green-950/30',
   },
   {
     id: 3,
@@ -39,7 +39,7 @@ const slides = [
     description: 'Las últimas GPU, procesadores, RAM y storage. Todo lo que necesitás para tu setup.',
     cta: { label: 'Ver componentes', href: '/categoria/componentes-de-pc', icon: CircuitBoard, primary: true },
     ctaSecondary: { label: 'Ver productos', href: '/categoria/todos' },
-    gradient: 'from-[#1a2a1a]/95 via-[#2a4a2a]/75 to-[#1a2a1a]/30',
+    gradient: 'from-compucity-green-900/95 via-compucity-green-600/70 to-compucity-green-900/30',
   },
   {
     id: 4,
@@ -50,7 +50,7 @@ const slides = [
     description: 'Teclados, mouses, auriculares y monitores. Mejorá tu experiencia de juego y trabajo.',
     cta: { label: 'Ver periféricos', href: '/categoria/perifericos', icon: Mouse, primary: true },
     ctaSecondary: { label: 'Ver todo', href: '/categoria/todos' },
-    gradient: 'from-[#2a1a2a]/95 via-[#4a2a4a]/75 to-[#2a1a2a]/30',
+    gradient: 'from-compucity-green-950/95 via-compucity-green-500/70 to-compucity-green-950/30',
   },
 ]
 
@@ -142,7 +142,7 @@ export default function HeroSection() {
 
   return (
     <section
-      className="relative w-full overflow-hidden bg-compucity-green-dark"
+      className="relative w-full overflow-hidden bg-compucity-green-900"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onTouchStart={handleTouchStart}
@@ -245,7 +245,7 @@ export default function HeroSection() {
             >
               <Link
                 href={slide.cta.href}
-                className="inline-flex items-center gap-2 px-7 py-3.5 bg-white hover:bg-white/90 text-compucity-green font-bold rounded-lg transition-all duration-200 text-base shadow-lg shadow-black/15 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+                className="inline-flex items-center gap-2 px-7 py-3.5 bg-white hover:bg-compucity-green-50 text-compucity-green-800 font-bold rounded-lg transition-all duration-200 text-base shadow-lg shadow-compucity-green-950/20 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
               >
                 {slide.cta.icon && <slide.cta.icon className="h-4 w-4" />}
                 {slide.cta.label}

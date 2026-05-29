@@ -26,9 +26,9 @@ const BRANDS: Brand[] = [
 export default function BrandLogos() {
   return (
     <FadeIn>
-      <section className="py-10 bg-gray-50 border-y border-gray-100">
+      <section className="py-10 bg-compucity-green-50/50 border-y border-compucity-green-100/50">
         <div className="max-w-7xl mx-auto px-4">
-          <h2 className="text-center text-lg md:text-xl font-semibold text-gray-700 mb-8">
+          <h2 className="text-center text-lg md:text-xl font-semibold text-compucity-green-800 mb-8">
             Trabajamos con las mejores marcas
           </h2>
 
@@ -37,7 +37,7 @@ export default function BrandLogos() {
             {BRANDS.map((brand) => (
               <div
                 key={brand.name}
-                className="flex-shrink-0 w-28 h-16 rounded-xl border border-gray-200 bg-white flex items-center justify-center px-3 transition-all duration-300 hover:border-compucity-green/30 hover:shadow-md cursor-default select-none group"
+                className="flex-shrink-0 w-28 h-16 rounded-xl border border-compucity-green-100 bg-white flex items-center justify-center px-3 transition-all duration-300 hover:border-compucity-green-400 hover:shadow-md cursor-default select-none group"
               >
                 <Image
                   src={`https://cdn.simpleicons.org/${brand.slug}/9ca3af`}
@@ -56,7 +56,7 @@ export default function BrandLogos() {
             {BRANDS.map((brand) => (
               <div
                 key={brand.name}
-                className="h-20 rounded-xl border border-gray-200 bg-white flex items-center justify-center px-4 transition-all duration-300 hover:border-compucity-green/30 hover:shadow-md cursor-default select-none group"
+                className="h-20 rounded-xl border border-compucity-green-100 bg-white flex items-center justify-center px-4 transition-all duration-300 hover:border-compucity-green-400 hover:shadow-md cursor-default select-none group"
               >
                 <Image
                   src={`https://cdn.simpleicons.org/${brand.slug}/9ca3af`}

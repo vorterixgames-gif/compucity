@@ -42,13 +42,21 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  /* Compucity Brand Colors - Elegant & Tech */
+  /* Compucity Brand Colors - Elegant & Tech - Full Green Palette */
   --color-compucity-green: #3A8B68;
   --color-compucity-green-light: #75AD95;
   --color-compucity-green-dark: #2F6F55;
   --color-compucity-green-50: #EFF5F2;
   --color-compucity-green-100: #D7E7E0;
+  --color-compucity-green-200: #B0D4C2;
+  --color-compucity-green-300: #8CC0A8;
+  --color-compucity-green-400: #5FA882;
+  --color-compucity-green-500: #3A8B68;
+  --color-compucity-green-600: #2F7A5A;
+  --color-compucity-green-700: #256549;
+  --color-compucity-green-800: #1B4D37;
   --color-compucity-green-900: #1A3E2E;
+  --color-compucity-green-950: #0F2A1E;
   --color-compucity-dark: #1a1a2e;
   --color-compucity-dark-light: #2d2d44;
 
@@ -151,13 +159,13 @@
     background-clip: text;
   }
 
-  /* Card hover effect */
+  /* Card hover effect - deeper green shadow */
   .card-hover {
-    transition: box-shadow 0.25s ease, transform 0.25s ease;
+    transition: box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
   }
   .card-hover:hover {
-    box-shadow: 0 8px 25px rgba(58, 139, 104, 0.1);
-    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(58, 139, 104, 0.18), 0 2px 8px rgba(26, 62, 46, 0.12);
+    transform: translateY(-3px);
   }
 
   /* Link underline animation */
@@ -272,10 +280,10 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #EFF5F2;
 }
 ::-webkit-scrollbar-thumb {
-  background: #D7E7E0;
+  background: #8CC0A8;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {

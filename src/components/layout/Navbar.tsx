@@ -230,7 +230,7 @@ export default function Navbar() {
   return (
     <header className="sticky top-0 z-50">
       {/* Top bar - Marquee */}
-      <div className="bg-gradient-to-r from-compucity-green-900 via-compucity-green-dark to-compucity-green text-white overflow-hidden">
+      <div className="bg-gradient-to-r from-compucity-green-950 via-compucity-green-800 to-compucity-green-700 text-white overflow-hidden">
         <div className="animate-marquee flex items-center gap-12 whitespace-nowrap py-1.5">
           {[1, 2].map((repeat) => (
             <span key={repeat} className="flex items-center gap-12 text-xs tracking-wide font-medium">
@@ -431,8 +431,8 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Nav bar - green */}
-      <div className="bg-compucity-green-dark">
+      {/* Nav bar - green gradient */}
+      <div className="bg-gradient-to-r from-compucity-green-800 via-compucity-green-700 to-compucity-green-800">
         <div className="max-w-7xl mx-auto px-4">
           <nav className="hidden md:flex items-center gap-0 h-10 text-sm">
             <div

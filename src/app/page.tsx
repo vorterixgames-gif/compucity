@@ -62,7 +62,7 @@ export default async function HomePage() {
       {/* ==========================================
           BENEFITS BAR
           ========================================== */}
-      <section className="bg-compucity-green-50 border-y border-compucity-green/10">
+      <section className="bg-gradient-to-r from-compucity-green-50 via-compucity-green-100 to-compucity-green-50 border-y border-compucity-green-200/50">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
@@ -74,10 +74,10 @@ export default async function HomePage() {
               const Icon = item.icon
               return (
                 <div key={i} className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center shrink-0 shadow-sm">
-                    <Icon className="h-5 w-5 text-compucity-green" />
+                  <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center shrink-0 shadow-sm border border-compucity-green-100">
+                    <Icon className="h-5 w-5 text-compucity-green-600" />
                   </div>
-                  <span className="text-sm text-gray-700 font-medium">{item.label}</span>
+                  <span className="text-sm text-compucity-green-900 font-semibold">{item.label}</span>
                 </div>
               )
             })}
@@ -92,14 +92,17 @@ export default async function HomePage() {
       <CategoryIcons />
 
       {/* ==========================================
-          ROW 1 - PC Armadas Gamer
+          ROW 1 - PC Armadas
           ========================================== */}
       {gamerPCs.length > 0 && (
-        <section className="py-10">
+        <section className="py-10 bg-gradient-to-b from-white to-compucity-green-50/50">
           <div className="max-w-7xl mx-auto px-4">
             <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl md:text-3xl font-bold text-gray-900">PC Armadas</h2>
-              <Link href="/categoria/gamer-pc" className="inline-flex items-center gap-1 text-sm text-compucity-green hover:text-compucity-green-dark font-semibold group transition">
+              <div className="flex items-center gap-3">
+                <div className="w-1 h-8 bg-compucity-green-500 rounded-full" />
+                <h2 className="text-2xl md:text-3xl font-bold text-compucity-green-900">PC Armadas</h2>
+              </div>
+              <Link href="/categoria/gamer-pc" className="inline-flex items-center gap-1 text-sm text-compucity-green-600 hover:text-compucity-green-800 font-semibold group transition">
                 Ver todas <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </div>
@@ -116,11 +119,14 @@ export default async function HomePage() {
           ROW 2 - Monitores
           ========================================== */}
       {monitorProducts.length > 0 && (
-        <section className="py-10 bg-gray-50/70">
+        <section className="py-10 bg-compucity-green-900">
           <div className="max-w-7xl mx-auto px-4">
             <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Monitores</h2>
-              <Link href="/categoria/monitores" className="inline-flex items-center gap-1 text-sm text-compucity-green hover:text-compucity-green-dark font-semibold group transition">
+              <div className="flex items-center gap-3">
+                <div className="w-1 h-8 bg-compucity-green-400 rounded-full" />
+                <h2 className="text-2xl md:text-3xl font-bold text-white">Monitores</h2>
+              </div>
+              <Link href="/categoria/monitores" className="inline-flex items-center gap-1 text-sm text-compucity-green-300 hover:text-compucity-green-200 font-semibold group transition">
                 Ver todas <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </div>
@@ -137,11 +143,14 @@ export default async function HomePage() {
           ROW 3 - Notebooks
           ========================================== */}
       {notebookProducts.length > 0 && (
-        <section className="py-10">
+        <section className="py-10 bg-gradient-to-b from-compucity-green-50/30 to-white">
           <div className="max-w-7xl mx-auto px-4">
             <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Notebooks</h2>
-              <Link href="/categoria/notebooks" className="inline-flex items-center gap-1 text-sm text-compucity-green hover:text-compucity-green-dark font-semibold group transition">
+              <div className="flex items-center gap-3">
+                <div className="w-1 h-8 bg-compucity-green-500 rounded-full" />
+                <h2 className="text-2xl md:text-3xl font-bold text-compucity-green-900">Notebooks</h2>
+              </div>
+              <Link href="/categoria/notebooks" className="inline-flex items-center gap-1 text-sm text-compucity-green-600 hover:text-compucity-green-800 font-semibold group transition">
                 Ver todas <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </div>
@@ -155,18 +164,18 @@ export default async function HomePage() {
       )}
 
       {/* ==========================================
-          CTA - Claro con acento verde
+          CTA - Fondo verde oscuro con gradiente
           ========================================== */}
-      <section className="bg-compucity-green-dark">
+      <section className="bg-gradient-to-br from-compucity-green-900 via-compucity-green-800 to-compucity-green-950">
         <div className="max-w-7xl mx-auto px-4 py-14 text-center">
           <h2 className="text-2xl md:text-3xl font-bold mb-3 text-white">
             ¿No encontrás lo que buscás?
           </h2>
-          <p className="text-white/70 mb-8 max-w-md mx-auto">Contactanos por WhatsApp y te conseguimos lo que necesitás al mejor precio</p>
+          <p className="text-compucity-green-200 mb-8 max-w-md mx-auto">Contactanos por WhatsApp y te conseguimos lo que necesitás al mejor precio</p>
           <a
             href="https://wa.me/5493517656918?text=Hola!%20Busco%20un%20producto%20que%20no%20vi%20en%20la%20tienda"
             target="_blank"
-            className="inline-flex items-center gap-2 px-8 py-3.5 bg-white hover:bg-gray-100 text-compucity-green-dark font-bold rounded-lg transition-all duration-200"
+            className="inline-flex items-center gap-2 px-8 py-3.5 bg-white hover:bg-compucity-green-50 text-compucity-green-800 font-bold rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl"
           >
             <MessageCircle className="h-5 w-5" />
             Consultar por WhatsApp

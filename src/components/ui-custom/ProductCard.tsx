@@ -52,10 +52,10 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
   return (
     <Link
       href={`/producto/${slug}`}
-      className="group flex flex-col bg-white rounded-xl border border-gray-200 hover:border-compucity-green/30 card-hover overflow-hidden"
+      className="group flex flex-col bg-white rounded-xl border border-gray-100 hover:border-compucity-green-400/50 card-hover overflow-hidden shadow-sm hover:shadow-md"
     >
       {/* Image */}
-      <div className="aspect-square bg-gray-50 relative overflow-hidden p-3">
+      <div className="aspect-square bg-compucity-green-50 relative overflow-hidden p-3">
         <img
           src={imageUrl}
           alt={name}
@@ -68,12 +68,12 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
         {/* Badges - stacked vertically top-left */}
         <div className="absolute top-2 left-2 flex flex-col gap-1">
           {showOfferBadge && (
-            <div className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+            <div className="bg-compucity-green-800 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-sm">
               OFERTA -{discountPercent}%
             </div>
           )}
           {showFeaturedBadge && (
-            <div className="bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+            <div className="bg-compucity-green-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-sm">
               DESTACADO
             </div>
           )}
@@ -114,7 +114,7 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
 
       {/* Info */}
       <div className="flex flex-col flex-1 p-4">
-        <h3 className="text-sm font-medium text-gray-700 line-clamp-2 mb-3 group-hover:text-compucity-green transition-colors min-h-[2.5rem]">
+        <h3 className="text-sm font-medium text-gray-800 line-clamp-2 mb-3 group-hover:text-compucity-green-700 transition-colors min-h-[2.5rem]">
           {name}
         </h3>
         <div className="mt-auto space-y-0.5">
@@ -122,12 +122,12 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
             <p className="text-xs text-gray-400 line-through">{formatPrice(price)}</p>
           )}
           {hasDiscount ? (
-            <p className="text-lg font-bold text-compucity-green">{formatPrice(comparePrice!)}</p>
+            <p className="text-lg font-extrabold text-compucity-green-700">{formatPrice(comparePrice!)}</p>
           ) : (
-            <p className="text-lg font-bold text-gray-900">{formatPrice(price)}</p>
+            <p className="text-lg font-extrabold text-compucity-green-800">{formatPrice(price)}</p>
           )}
           {hasDiscount && (
-            <p className="text-[11px] text-compucity-green font-medium">Precio efectivo/transferencia</p>
+            <p className="text-[11px] text-compucity-green-600 font-medium">Precio efectivo/transferencia</p>
           )}
 
           {/* Stock indicator */}
@@ -143,7 +143,7 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
         <button
           onClick={handleAddToCart}
           disabled={stock !== undefined && stock <= 0}
-          className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-compucity-green text-white text-sm font-semibold rounded-lg hover:bg-compucity-green-dark disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200"
+          className="mt-3 w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-compucity-green-700 hover:bg-compucity-green-800 text-white text-sm font-semibold rounded-lg disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow-md"
         >
           <ShoppingCart className="h-4 w-4" />
           {stock !== undefined && stock <= 0 ? 'Sin stock' : 'Comprar'}
