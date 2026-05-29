@@ -437,7 +437,10 @@ export default function Navbar() {
           <nav className="hidden md:flex items-center gap-0 h-10 text-sm">
             <div
               className="relative"
-              onMouseEnter={() => setCategoryDropdownOpen(true)}
+              onMouseEnter={() => {
+                setCategoryDropdownOpen(true)
+                if (!hoveredCategory && categories.length > 0) setHoveredCategory(categories[0].id)
+              }}
               onMouseLeave={() => { setCategoryDropdownOpen(false); setHoveredCategory(null) }}
             >
               <button className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded font-semibold transition h-10 text-sm">
@@ -465,24 +468,33 @@ export default function Navbar() {
                     ))}
                   </div>
 
-                  {hoveredCategory && (() => {
+                  {(() => {
                     const cat = categories.find(c => c.id === hoveredCategory)
-                    if (!cat || !cat.children || cat.children.length === 0) return null
-                    return (
-                      <div className="flex-1 p-4 min-w-[280px]">
-                        <Link href={`/categoria/${cat.slug}`} className="text-sm font-bold text-compucity-green-dark hover:text-compucity-green mb-3 block transition" onClick={() => { setCategoryDropdownOpen(false); setHoveredCategory(null) }}>
-                          Ver todo en {cat.name} →
-                        </Link>
-                        <div className={cat.children.length > 6 ? 'grid grid-cols-2 gap-x-4 gap-y-0.5' : 'flex flex-col gap-y-0.5'}>
-                          {cat.children.map((sub) => (
-                            <Link key={sub.id} href={`/categoria/${sub.slug}`} className="block px-2 py-1.5 text-sm text-gray-600 hover:text-compucity-green-dark hover:bg-compucity-green-50 rounded transition" onClick={() => { setCategoryDropdownOpen(false); setHoveredCategory(null) }}>
-                              {sub.name}
-                            </Link>
-                          ))}
+                    if (cat && cat.children && cat.children.length > 0) {
+                      return (
+                        <div className="flex-1 p-4 min-w-[280px]">
+                          <Link href={`/categoria/${cat.slug}`} className="text-sm font-bold text-compucity-green-dark hover:text-compucity-green mb-3 block transition" onClick={() => { setCategoryDropdownOpen(false); setHoveredCategory(null) }}>
+                            Ver todo en {cat.name} →
+                          </Link>
+                          <div className={cat.children.length > 6 ? 'grid grid-cols-2 gap-x-4 gap-y-0.5' : 'flex flex-col gap-y-0.5'}>
+                            {cat.children.map((sub) => (
+                              <Link key={sub.id} href={`/categoria/${sub.slug}`} className="block px-2 py-1.5 text-sm text-gray-600 hover:text-compucity-green-dark hover:bg-compucity-green-50 rounded transition" onClick={() => { setCategoryDropdownOpen(false); setHoveredCategory(null) }}>
+                                {sub.name}
+                              </Link>
+                            ))}
+                          </div>
                         </div>
+                      )
+                    }
+                    // Fallback when no subcategories
+                    return (
+                      <div className="flex-1 p-4 min-w-[280px] flex items-center justify-center">
+                        <Link href={`/categoria/${cat?.slug || 'todos'}`} className="text-sm font-bold text-compucity-green-dark hover:text-compucity-green transition" onClick={() => { setCategoryDropdownOpen(false); setHoveredCategory(null) }}>
+                          Ver todo en {cat?.name || 'Productos'} →
+                        </Link>
                       </div>
                     )
-                  })()}
+                  })()
                 </div>
               )}
             </div>
