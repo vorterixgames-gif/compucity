@@ -14,6 +14,10 @@ import {
   ShoppingBag,
   Trash2,
   Download,
+  KeyRound,
+  Copy,
+  Check,
+  MessageCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -71,6 +75,14 @@ export default function AdminClientes() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  // Reset password state
+  const [resetDialogOpen, setResetDialogOpen] = useState(false)
+  const [customerToReset, setCustomerToReset] = useState<Customer | null>(null)
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetUrl, setResetUrl] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [resetError, setResetError] = useState('')
 
   const loadCustomers = useCallback(async (searchTerm: string = '', pageNum: number = 1) => {
     try {
@@ -148,6 +160,59 @@ export default function AdminClientes() {
     e.stopPropagation()
     setCustomerToDelete(customer)
     setDeleteDialogOpen(true)
+  }
+
+  const openResetDialog = (e: React.MouseEvent, customer: Customer) => {
+    e.stopPropagation()
+    setCustomerToReset(customer)
+    setResetUrl('')
+    setCopied(false)
+    setResetError('')
+    setResetDialogOpen(true)
+  }
+
+  const handleGenerateResetLink = async () => {
+    if (!customerToReset) return
+    setResetLoading(true)
+    setResetError('')
+    try {
+      const res = await fetch('/api/admin/customers/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId: customerToReset.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setResetError(data.error || 'Error al generar enlace')
+        return
+      }
+      setResetUrl(data.resetUrl)
+    } catch {
+      setResetError('Error de conexión')
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(resetUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Fallback
+    }
+  }
+
+  const getWhatsAppUrl = () => {
+    if (!customerToReset || !resetUrl) return ''
+    const phone = customerToReset.phone
+    if (!phone) return ''
+    const cleanPhone = phone.replace(/\D/g, '')
+    const message = encodeURIComponent(
+      `Hola ${customerToReset.name}, acá tenés el enlace para restablecer tu contraseña de Compucity:\n\n${resetUrl}\n\nEl enlace dura 24 horas. Si no lo solicitaste, ignorá este mensaje.`
+    )
+    return `https://wa.me/${cleanPhone.startsWith('0') ? '549' + cleanPhone.substring(1) : '549' + cleanPhone}?text=${message}`
   }
 
   const toggleExpand = (customerId: string) => {
@@ -316,15 +381,26 @@ export default function AdminClientes() {
                       <div className="text-xs text-gray-400">
                         Registrado: {formatDate(customer.createdAt)} · Última actualización: {formatDate(customer.updatedAt)}
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={(e) => openDeleteDialog(e, customer)}
-                      >
-                        <Trash2 className="w-4 h-4 mr-1" />
-                        Eliminar
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-compucity-green hover:text-compucity-green-dark hover:bg-compucity-green-50"
+                          onClick={(e) => openResetDialog(e, customer)}
+                        >
+                          <KeyRound className="w-4 h-4 mr-1" />
+                          Restablecer contraseña
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={(e) => openDeleteDialog(e, customer)}
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          Eliminar
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -358,6 +434,87 @@ export default function AdminClientes() {
           </Button>
         </div>
       )}
+
+      {/* Reset Password Dialog */}
+      <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Restablecer Contraseña</DialogTitle>
+          </DialogHeader>
+          {customerToReset && (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Generá un enlace de recuperación para <strong>{customerToReset.name}</strong> ({customerToReset.email}).
+                Luego enviáselo por WhatsApp para que pueda cambiar su contraseña.
+              </p>
+
+              {!resetUrl ? (
+                <Button
+                  onClick={handleGenerateResetLink}
+                  disabled={resetLoading}
+                  className="w-full bg-compucity-green hover:bg-compucity-green-dark text-white"
+                >
+                  {resetLoading ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generando enlace...</>
+                  ) : (
+                    <><KeyRound className="w-4 h-4 mr-2" />Generar enlace de recuperación</>
+                  )}
+                </Button>
+              ) : (
+                <div className="space-y-3">
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-sm text-green-800 font-medium mb-2">Enlace generado (dura 24 horas):</p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={resetUrl}
+                        className="flex-1 text-xs bg-white border rounded px-2 py-1.5 text-gray-700 select-all"
+                        onClick={(e) => (e.target as HTMLInputElement).select()}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCopyLink}
+                        className="shrink-0"
+                      >
+                        {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {customerToReset.phone ? (
+                    <a
+                      href={getWhatsAppUrl()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 w-full py-2.5 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      Enviar por WhatsApp a {customerToReset.name}
+                    </a>
+                  ) : (
+                    <p className="text-xs text-amber-600">
+                      Este cliente no tiene teléfono registrado. Copiá el enlace y enviáselo manualmente.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {resetError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                  {resetError}
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetDialogOpen(false)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

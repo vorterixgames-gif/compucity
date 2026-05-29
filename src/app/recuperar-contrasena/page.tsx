@@ -1,14 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { Mail, ArrowLeft, CheckCircle, Loader2 } from 'lucide-react'
+import { Mail, ArrowLeft, MessageCircle, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 
 export default function RecuperarContrasenaPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
-  const [sent, setSent] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
+
+  const storePhone = '5493517656918'
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -31,7 +33,7 @@ export default function RecuperarContrasenaPage() {
         return
       }
 
-      setSent(true)
+      setSubmitted(true)
     } catch {
       setError('Error de conexión. Intentá de nuevo.')
     } finally {
@@ -39,15 +41,32 @@ export default function RecuperarContrasenaPage() {
     }
   }
 
+  const whatsappMessage = encodeURIComponent(
+    `Hola, necesito restablecer mi contraseña. Mi email es: ${email}`
+  )
+  const whatsappUrl = `https://wa.me/${storePhone}?text=${whatsappMessage}`
+
   return (
     <div className="min-h-[60vh] flex items-center justify-center px-4 py-12">
       <div className="max-w-md w-full">
-        {sent ? (
+        {submitted ? (
           <div className="text-center bg-white border rounded-xl p-8">
-            <CheckCircle className="h-14 w-14 text-green-500 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-gray-900 mb-3">¡Enlace enviado!</h1>
+            <MessageCircle className="h-14 w-14 text-green-500 mx-auto mb-4" />
+            <h1 className="text-2xl font-bold text-gray-900 mb-3">¡Solicitud recibida!</h1>
             <p className="text-gray-600 mb-6">
-              Si existe una cuenta con el email <strong>{email}</strong>, vas a recibir un enlace para restablecer tu contraseña. Revisá también la carpeta de spam.
+              Para restablecer tu contraseña, contactanos por WhatsApp. Un vendedor te va a enviar un enlace de recuperación.
+            </p>
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-2 w-full py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition mb-4"
+            >
+              <MessageCircle className="h-5 w-5" />
+              Contactar por WhatsApp
+            </a>
+            <p className="text-xs text-gray-400 mb-6">
+              Se va a abrir WhatsApp con un mensaje prellenado. Solo tenés que enviarlo.
             </p>
             <Link
               href="/"
@@ -63,7 +82,7 @@ export default function RecuperarContrasenaPage() {
               <Mail className="h-12 w-12 text-compucity-green mx-auto mb-3" />
               <h1 className="text-2xl font-bold text-gray-900 mb-2">¿Olvidaste tu contraseña?</h1>
               <p className="text-sm text-gray-500">
-                Ingresá tu email y te enviamos un enlace para restablecerla.
+                Ingresá tu email y te ayudamos a restablecerla por WhatsApp.
               </p>
             </div>
 
@@ -94,8 +113,8 @@ export default function RecuperarContrasenaPage() {
                 disabled={!email || loading}
                 className="w-full flex items-center justify-center gap-2 py-2.5 bg-compucity-green text-white font-medium rounded-lg hover:bg-compucity-green-dark disabled:bg-gray-300 disabled:cursor-not-allowed transition"
               >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-                {loading ? 'Enviando...' : 'Enviar enlace'}
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+                {loading ? 'Procesando...' : 'Continuar'}
               </button>
             </form>
 
