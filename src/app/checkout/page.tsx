@@ -190,6 +190,7 @@ export default function CheckoutPage() {
   const [createAccountError, setCreateAccountError] = useState('')
   const [accountCreated, setAccountCreated] = useState(false)
   const [orderCompleted, setOrderCompleted] = useState(false)
+  const [honeypot, setHoneypot] = useState('')
 
   const handleLogin = async () => {
     setLoginLoading(true)
@@ -231,6 +232,8 @@ export default function CheckoutPage() {
   }
 
   const handleCreateAccount = async () => {
+    // Honeypot check - si el campo oculto tiene contenido, es un bot
+    if (honeypot) return
     setCreateAccountLoading(true)
     setCreateAccountError('')
     try {
@@ -247,6 +250,7 @@ export default function CheckoutPage() {
           city: customerData.city,
           province: customerData.province,
           postalCode: customerData.postalCode,
+          _hp: honeypot,
         }),
       })
       const data = await res.json()
@@ -336,7 +340,7 @@ export default function CheckoutPage() {
 
         {/* Ofrecer crear cuenta si no está logueado y tiene email */}
         {showAccountOffer && !accountCreated && (
-          <div className="mt-6 p-6 bg-compucity-green-50 border border-compucity-green-100 rounded-xl text-left max-w-md mx-auto">
+          <div className="relative mt-6 p-6 bg-compucity-green-50 border border-compucity-green-100 rounded-xl text-left max-w-md mx-auto">
             <div className="flex items-center gap-2 mb-3">
               <UserPlus className="h-5 w-5 text-compucity-green" />
               <h3 className="font-semibold text-compucity-green-900">¿Querés crear una cuenta?</h3>
@@ -348,6 +352,18 @@ export default function CheckoutPage() {
               <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{createAccountError}</div>
             )}
             <div className="space-y-3">
+              {/* Honeypot - campo oculto para bots, los humanos no lo ven */}
+              <div className="absolute opacity-0 h-0 w-0 overflow-hidden" aria-hidden="true" tabIndex={-1}>
+                <label htmlFor="website_hp">No completar este campo</label>
+                <input
+                  id="website_hp"
+                  type="text"
+                  value={honeypot}
+                  onChange={(e) => setHoneypot(e.target.value)}
+                  placeholder="Dejar vacío"
+                  autoComplete="off"
+                />
+              </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Contraseña</label>
                 <input
