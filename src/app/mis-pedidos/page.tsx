@@ -588,6 +588,12 @@ function AuthForms({ onLoginSuccess }: { onLoginSuccess: (customer: CustomerData
               </Button>
             </form>
 
+            <div className="text-center mt-2">
+              <Link href="/recuperar-contrasena" className="text-sm text-compucity-green hover:text-compucity-green-dark transition">
+                ¿Olvidaste tu contraseña?
+              </Link>
+            </div>
+
             <div className="mt-4 text-center">
               <p className="text-sm text-gray-500">
                 ¿No tenés cuenta?{' '}
