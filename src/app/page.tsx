@@ -30,8 +30,24 @@ export default async function HomePage() {
       getAllActiveProducts(),
       getTopProductsByCategorySlug('gamer-pc', 4),
       getTopProductsByCategorySlug('monitores', 4),
-      getTopProductsByCategorySlug('notebooks', 4),
+      getTopProductsByCategorySlug('notebooks', 12),
     ])
+    // Pick 4 notebooks with brand/line variety (avoid 4 identical Legion)
+    if (notebookProducts.length > 4) {
+      const seen = new Set<string>()
+      const diverse: any[] = []
+      for (const p of notebookProducts) {
+        const name = (p.name || '').toLowerCase()
+        // Extract brand+line as key (e.g. "lenovo legion", "msi cyborg", "lenovo loq", "lenovo t14")
+        const brandLine = name.match(/(lenovo\s\w+|msi\s\w+|asus\s\w+|hp\s\w+|dell\s\w+|acer\s\w+)/)?.[1] || name.slice(0, 20)
+        if (!seen.has(brandLine)) {
+          seen.add(brandLine)
+          diverse.push(p)
+        }
+        if (diverse.length >= 4) break
+      }
+      notebookProducts = diverse.length >= 4 ? diverse : notebookProducts.slice(0, 4)
+    }
   } catch (error) {
     console.error('Homepage data fetch error:', error)
   }
@@ -82,7 +98,7 @@ export default async function HomePage() {
         <section className="py-10">
           <div className="max-w-7xl mx-auto px-4">
             <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl md:text-3xl font-bold text-gray-900">PC Armadas Gamer</h2>
+              <h2 className="text-2xl md:text-3xl font-bold text-gray-900">PC Armadas</h2>
               <Link href="/categoria/gamer-pc" className="inline-flex items-center gap-1 text-sm text-compucity-green hover:text-compucity-green-dark font-semibold group transition">
                 Ver todas <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
               </Link>
