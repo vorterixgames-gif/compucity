@@ -51,14 +51,16 @@ export default async function ProductPage({ params }: Props) {
 
           {/* Price */}
           <div className="mb-6">
-            <p className="text-sm text-gray-500">Precio de lista: {formatPrice(product.price)}</p>
             {product.comparePrice && product.comparePrice < product.price ? (
-              <p className="text-3xl font-bold text-green-600">{formatPrice(product.comparePrice)}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-3xl font-bold text-green-600">{formatPrice(product.comparePrice)}</p>
+                <span className="bg-compucity-green-800 text-white text-xs font-bold px-2 py-0.5 rounded">EFECTIVO</span>
+              </div>
             ) : (
               <p className="text-3xl font-bold text-gray-900">{formatPrice(product.price)}</p>
             )}
             {product.comparePrice && product.comparePrice < product.price && (
-              <p className="text-sm text-green-600 mt-1">Precio en efectivo</p>
+              <p className="text-sm text-gray-400 mt-1">Precio de lista: {formatPrice(product.price)}</p>
             )}
             <p className="text-sm text-gray-500 mt-1">Hacé tu pedido por WhatsApp</p>
           </div>

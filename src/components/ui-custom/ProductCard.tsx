@@ -40,8 +40,8 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
   }
 
   // Badge logic
-  const showOfferBadge = hasDiscount
-  const showFeaturedBadge = isFeatured && !hasDiscount
+  const showOfferBadge = false // Efectivo badge moved to price area
+  const showFeaturedBadge = isFeatured
   const showLastUnitsBadge = stock !== undefined && stock > 0 && stock <= 3
   const showOutOfStock = stock !== undefined && stock <= 0
 
@@ -117,16 +117,16 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
           {name}
         </h3>
         <div className="mt-auto space-y-0.5">
-          {hasDiscount && (
-            <p className="text-xs text-gray-400 line-through">{formatPrice(price)}</p>
-          )}
           {hasDiscount ? (
-            <p className="text-lg font-extrabold text-compucity-green-700">{formatPrice(comparePrice!)}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-lg font-extrabold text-compucity-green-700">{formatPrice(comparePrice!)}</p>
+              <span className="bg-compucity-green-800 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">EFECTIVO</span>
+            </div>
           ) : (
             <p className="text-lg font-extrabold text-compucity-green-800">{formatPrice(price)}</p>
           )}
           {hasDiscount && (
-            <p className="text-[11px] text-compucity-green-600 font-medium">Precio efectivo/transferencia</p>
+            <p className="text-xs text-gray-400">Lista: {formatPrice(price)}</p>
           )}
 
           {/* Stock indicator */}
