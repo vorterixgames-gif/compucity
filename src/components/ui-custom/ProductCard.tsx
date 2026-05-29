@@ -23,7 +23,6 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
   const isInWishlist = useWishlist((s) => s.isInWishlist(id))
   const imageUrl = image || '/placeholder-product.png'
   const hasDiscount = comparePrice && comparePrice < price
-  const discountPercent = hasDiscount ? Math.round(((price - comparePrice!) / price) * 100) : 0
 
   const formatPrice = (n: number) =>
     new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n)
@@ -41,7 +40,7 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
   }
 
   // Badge logic
-  const showOfferBadge = hasDiscount && discountPercent > 0
+  const showOfferBadge = hasDiscount
   const showFeaturedBadge = isFeatured && !hasDiscount
   const showLastUnitsBadge = stock !== undefined && stock > 0 && stock <= 3
   const showOutOfStock = stock !== undefined && stock <= 0
@@ -69,7 +68,7 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
         <div className="absolute top-2 left-2 flex flex-col gap-1">
           {showOfferBadge && (
             <div className="bg-compucity-green-800 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-sm">
-              OFERTA -{discountPercent}%
+              EFECTIVO
             </div>
           )}
           {showFeaturedBadge && (
