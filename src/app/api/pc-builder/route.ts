@@ -15,7 +15,17 @@ async function getConfig(key: string, defaultValue: number): Promise<number> {
   const rows = result.rows as any[]
   if (rows.length > 0) {
     try {
-      return Number(JSON.parse(rows[0].value).value) || defaultValue
+      const raw = rows[0].value
+      try {
+        const parsed = JSON.parse(raw)
+        if (typeof parsed === 'object' && parsed !== null && 'value' in parsed) {
+          return Number(parsed.value) || defaultValue
+        }
+        if (typeof parsed === 'number') return parsed || defaultValue
+      } catch {
+        // Not valid JSON, treat as plain string number
+      }
+      return Number(raw) || defaultValue
     } catch {
       return defaultValue
     }

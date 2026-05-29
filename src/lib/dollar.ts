@@ -21,7 +21,18 @@ export async function fetchDollarRate(): Promise<DollarInfo> {
       args: [],
     })
     const sourceRow = sourceResult.rows as any[]
-    const configSource = sourceRow[0] ? JSON.parse(sourceRow[0].value).value : 'nacion'
+    const configSource = (() => {
+      if (!sourceRow[0]) return 'nacion'
+      const raw = sourceRow[0].value
+      try {
+        const parsed = JSON.parse(raw)
+        if (typeof parsed === 'object' && parsed !== null && 'value' in parsed) return parsed.value
+        if (typeof parsed === 'string') return parsed
+      } catch {
+        // Not valid JSON
+      }
+      return raw || 'nacion'
+    })()
 
     // Fetch from DolarApi
     const apiUrl = configSource === 'blue' ? DOLAR_API_BLUE : DOLAR_API_OFICIAL
@@ -98,8 +109,17 @@ export async function getStoreConfigNumber(key: string, defaultValue: number): P
   const rows = result.rows as any[]
   if (rows.length > 0) {
     try {
-      const parsed = JSON.parse(rows[0].value)
-      return Number(parsed.value) || defaultValue
+      const raw = rows[0].value
+      try {
+        const parsed = JSON.parse(raw)
+        if (typeof parsed === 'object' && parsed !== null && 'value' in parsed) {
+          return Number(parsed.value) || defaultValue
+        }
+        if (typeof parsed === 'number') return parsed || defaultValue
+      } catch {
+        // Not valid JSON, treat as plain string number
+      }
+      return Number(raw) || defaultValue
     } catch {
       return defaultValue
     }
