@@ -81,7 +81,7 @@ export interface Product {
 export async function getAllActiveProducts(limit = 50): Promise<Product[]> {
   const [result, dollar, markup, cashDiscount] = await Promise.all([
     db.execute({
-      sql: "SELECT * FROM products WHERE isActive = 1 AND stock > 0 AND categoryId IS NOT NULL ORDER BY CASE WHEN images = '[]' THEN 1 ELSE 0 END, COALESCE(createdAt, updatedAt) DESC LIMIT ?",
+      sql: 'SELECT * FROM products WHERE isActive = 1 AND stock > 0 ORDER BY COALESCE(createdAt, updatedAt) DESC LIMIT ?',
       args: [limit],
     }),
     fetchDollarRate(),
@@ -96,7 +96,7 @@ export async function getAllActiveProducts(limit = 50): Promise<Product[]> {
 
 export async function getFeaturedProducts(): Promise<Product[]> {
   const [result, dollar, markup, cashDiscount] = await Promise.all([
-    db.execute("SELECT * FROM products WHERE isFeatured = 1 AND isActive = 1 AND stock > 0 AND categoryId IS NOT NULL ORDER BY COALESCE(createdAt, updatedAt) DESC LIMIT 8"),
+    db.execute("SELECT * FROM products WHERE isFeatured = 1 AND isActive = 1 AND stock > 0 ORDER BY COALESCE(createdAt, updatedAt) DESC LIMIT 8"),
     fetchDollarRate(),
     getStoreConfigNumber('markup', 30),
     getStoreConfigNumber('cash_discount', 10),
@@ -183,7 +183,7 @@ export async function searchProducts(query: string): Promise<Product[]> {
   const [result, dollar, markup, cashDiscount] = await Promise.all([
     db.execute({
       sql: `SELECT * FROM products
-            WHERE isActive = 1 AND stock > 0 AND categoryId IS NOT NULL
+            WHERE isActive = 1 AND stock > 0
             AND (name LIKE ? OR description LIKE ? OR sku LIKE ?)
             LIMIT 20`,
       args: [searchTerm, searchTerm, searchTerm],
@@ -219,8 +219,8 @@ export async function getTopProductsByCategorySlug(slug: string, limit = 8): Pro
   const [result, dollar, markup, cashDiscount] = await Promise.all([
     db.execute({
       sql: `SELECT p.* FROM products p
-            WHERE p.categoryId IN (${placeholders}) AND p.isActive = 1 AND p.stock > 0 AND p.categoryId IS NOT NULL
-            ORDER BY CASE WHEN p.images = '[]' THEN 1 ELSE 0 END, p.price DESC LIMIT ?`,
+            WHERE p.categoryId IN (${placeholders}) AND p.isActive = 1 AND p.stock > 0
+            ORDER BY p.price DESC LIMIT ?`,
       args: [...allIds, limit],
     }),
     fetchDollarRate(),

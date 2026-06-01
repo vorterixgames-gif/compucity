@@ -57,21 +57,31 @@ export async function GET(request: Request) {
     // Get product counts for each supplier
     const supplierIds = suppliers.map(s => s.id)
     let productCounts: Record<string, number> = {}
+    let inactiveCounts: Record<string, number> = {}
 
     if (supplierIds.length > 0) {
       const placeholders = supplierIds.map(() => '?').join(',')
       const productsResult = await db.execute({
-        sql: `SELECT providerId, COUNT(*) as count FROM products WHERE providerId IN (${placeholders}) GROUP BY providerId`,
+        sql: `SELECT providerId, COUNT(*) as count FROM products WHERE isActive = 1 AND providerId IN (${placeholders}) GROUP BY providerId`,
         args: supplierIds,
       })
       for (const row of productsResult.rows as any[]) {
         productCounts[row.providerId] = row.count
+      }
+
+      const inactiveResult = await db.execute({
+        sql: `SELECT providerId, COUNT(*) as count FROM products WHERE isActive = 0 AND providerId IN (${placeholders}) GROUP BY providerId`,
+        args: supplierIds,
+      })
+      for (const row of inactiveResult.rows as any[]) {
+        inactiveCounts[row.providerId] = row.count
       }
     }
 
     const enrichedSuppliers = suppliers.map(s => ({
       ...stripSupplierCredentials(s),
       productCount: productCounts[s.id] || 0,
+      inactiveCount: inactiveCounts[s.id] || 0,
     }))
 
     return NextResponse.json({
