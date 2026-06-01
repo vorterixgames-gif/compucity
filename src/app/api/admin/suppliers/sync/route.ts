@@ -587,110 +587,63 @@ async function syncInvid(supplier: any): Promise<SyncResult> {
 }
 
 /**
- * Find the matching closing bracket for a JSON structure.
- * Uses a depth counter that respects string literals and escape sequences.
- * Returns the index of the matching close bracket, or -1 if not found.
+ * Strip PHP notices/warnings/errors from Air Intra API response text.
+ * Air Intra's PHP server injects HTML-formatted PHP notices like:
+ *   <br /> <b>Notice</b>: Undefined property: stdClass::$estado in /path/file.php on line 54
+ * These can appear BEFORE, AFTER, or INSIDE the JSON array (between product objects).
+ * This function removes them while preserving the actual JSON data.
  */
-function findJsonEnd(text: string, startChar: '{' | '['): number {
-  const openChar = startChar
-  const closeChar = startChar === '{' ? '}' : ']'
-  let depth = 0
-  let inString = false
-  let escape = false
+function stripPhpNotices(text: string): string {
+  let cleaned = text
+    // Remove complete PHP notice/warning/error blocks (HTML format with <b> tags)
+    // Pattern: optional <br />, then <b>Type</b>: message in /path/file.php on line NNN
+    .replace(/(?:<br\s*\/?>\s*)?<b>(?:Notice|Warning|Fatal error|Parse error|Deprecated)<\/b>:\s*.*?on line \d+\s*/gis, '')
+    // Remove plain-text PHP notices (without HTML tags)
+    .replace(/(?:^|\n)\s*(?:Notice|Warning|Fatal error|Parse error|Deprecated):\s*.*?on line \d+\s*/gis, '')
+    // Remove any remaining standalone <br /> tags
+    .replace(/<br\s*\/?>\s*/gi, '')
+    // Remove leftover <b> or </b> tags
+    .replace(/<\/?b>/gi, '')
+    // Fix trailing commas before ] or } (can happen after removing notices)
+    .replace(/,\s*([}\]])/g, '$1')
 
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]
-
-    if (escape) {
-      escape = false
-      continue
-    }
-
-    if (ch === '\\') {
-      if (inString) escape = true
-      continue
-    }
-
-    if (ch === '"') {
-      inString = !inString
-      continue
-    }
-
-    if (inString) continue
-
-    if (ch === openChar) {
-      depth++
-    } else if (ch === closeChar) {
-      depth--
-      if (depth === 0) return i
-    }
-  }
-
-  return -1
+  return cleaned.trim()
 }
 
 /**
  * Safely parse JSON from Air Intra API response.
  * Handles cases where the API returns:
- * - PHP notices/warnings prepended BEFORE the JSON (common Air Intra bug)
- * - PHP notices/warnings appended AFTER the JSON
+ * - PHP notices/warnings BEFORE, AFTER, or INSIDE the JSON array
  * - HTML error pages instead of JSON
  * - Proper API error objects with error_id
  */
 async function safeParseAirIntraResponse(res: Response): Promise<{ data: any; error: string | null }> {
-  const text = await res.text()
+  const rawText = await res.text()
 
-  // Air Intra's API often outputs PHP notices like:
-  //   <br /> <b>Notice</b>: Undefined property: stdClass::$estado in ...
-  // These can appear BEFORE and/or AFTER the actual JSON data.
-  // Strategy: Find the start of JSON, then use bracket matching to find the end.
+  // Step 1: Strip PHP notices from the entire response
+  const text = stripPhpNotices(rawText)
 
-  // Step 1: Find the first occurrence of { or [ which marks the start of JSON
+  // Step 2: Find the start of JSON ({ or [)
   let jsonStart = -1
-  let startChar: '{' | '[' = '{'
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]
     if (ch === '{' || ch === '[') {
       jsonStart = i
-      startChar = ch as '{' | '['
       break
     }
   }
 
   if (jsonStart === -1) {
-    // No JSON found at all - this is a pure HTML error page
-    const cleanText = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 200)
+    const cleanText = text.substring(0, 300)
     return { data: null, error: `La API no devolvió datos JSON. ${cleanText || 'Respuesta vacía'}` }
   }
 
-  // If there's garbage before the JSON, log it for debugging
-  if (jsonStart > 0) {
-    const garbage = text.substring(0, jsonStart).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
-    console.log(`[Air Intra] Stripped ${jsonStart} chars of PHP notices before JSON: ${garbage.substring(0, 150)}`)
-  }
+  const jsonText = text.substring(jsonStart)
 
-  // Step 2: Find the matching close bracket using depth counter
-  const jsonFromStart = text.substring(jsonStart)
-  const jsonEnd = findJsonEnd(jsonFromStart, startChar)
-
-  let cleanJson: string
-  if (jsonEnd >= 0) {
-    cleanJson = jsonFromStart.substring(0, jsonEnd + 1)
-    if (jsonEnd + 1 < jsonFromStart.length) {
-      const afterGarbage = jsonFromStart.substring(jsonEnd + 1).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
-      if (afterGarbage) {
-        console.log(`[Air Intra] Stripped PHP notices after JSON: ${afterGarbage.substring(0, 100)}`)
-      }
-    }
-  } else {
-    // Couldn't find matching bracket, try parsing the whole thing
-    cleanJson = jsonFromStart
-  }
-
-  // Step 3: Parse the clean JSON
+  // Step 3: Try direct parse first
   try {
-    const data = JSON.parse(cleanJson)
-    // Check for API-level errors (Air Intra returns error_id in JSON)
+    const data = JSON.parse(jsonText)
+    // Check for API-level errors
     if (data && typeof data === 'object' && !Array.isArray(data) && data.error_id) {
       if (data.error_id === 401) {
         return { data: null, error: `Token expirado o inválido. ${data.error_detail || ''}` }
@@ -701,9 +654,47 @@ async function safeParseAirIntraResponse(res: Response): Promise<{ data: any; er
       return { data: null, error: `Error API Air Intra (${data.error_id}): ${data.error_name || ''} - ${data.error_detail || ''}` }
     }
     return { data, error: null }
-  } catch (e: any) {
-    const preview = cleanJson.substring(0, 150)
-    return { data: null, error: `No se pudo interpretar la respuesta JSON de la API (${cleanJson.length} chars). Preview: ${preview}` }
+  } catch (firstError: any) {
+    console.log(`[Air Intra] First JSON parse failed (${jsonText.length} chars): ${firstError.message}`)
+  }
+
+  // Step 4: If direct parse failed, try more aggressive cleanup
+  let aggressiveClean = jsonText
+    // Remove any remaining HTML tags
+    .replace(/<[^>]*>/g, '')
+    // Fix double commas (,,) that can appear after removing notices
+    .replace(/,\s*,/g, ',')
+    // Fix missing commas between objects: }{ should be },{
+    .replace(/}\s*{/g, '},{')
+    // Fix trailing commas before ] or }
+    .replace(/,\s*([}\]])/g, '$1')
+
+  try {
+    const data = JSON.parse(aggressiveClean)
+    if (data && typeof data === 'object' && !Array.isArray(data) && data.error_id) {
+      if (data.error_id === 401) {
+        return { data: null, error: `Token expirado o inválido. ${data.error_detail || ''}` }
+      }
+      if (data.error_id === 403) {
+        return { data: null, error: `Demasiadas solicitudes. ${data.error_detail || ''}` }
+      }
+      return { data: null, error: `Error API Air Intra (${data.error_id}): ${data.error_name || ''}` }
+    }
+    console.log('[Air Intra] Aggressive cleanup parse succeeded')
+    return { data, error: null }
+  } catch (secondError: any) {
+    console.log(`[Air Intra] Aggressive cleanup parse also failed: ${secondError.message}`)
+
+    // Try to find the error position for debugging
+    const posMatch = secondError.message.match(/position\s+(\d+)/i)
+    if (posMatch) {
+      const pos = parseInt(posMatch[1])
+      const context = aggressiveClean.substring(Math.max(0, pos - 80), pos + 80)
+      return { data: null, error: `Error JSON en posición ${pos}. Contexto: ...${context}...` }
+    }
+
+    const preview = aggressiveClean.substring(0, 200)
+    return { data: null, error: `No se pudo interpretar la respuesta JSON (${aggressiveClean.length} chars). Preview: ${preview}` }
   }
 }
 
