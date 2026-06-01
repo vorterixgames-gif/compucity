@@ -313,7 +313,7 @@ export default function ArmaTuPCPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6 overflow-x-hidden">
+      <div className="max-w-7xl mx-auto px-4 py-6 pb-32 lg:pb-6 overflow-x-hidden">
         <div className="flex flex-col lg:flex-row gap-6 items-start">
           {/* ============================================ */}
           {/* Left: Stepper + Product Selection */}
@@ -657,8 +657,8 @@ export default function ArmaTuPCPage() {
               )}
             </div>
 
-            {/* Navigation */}
-            <div className="flex items-center justify-between mt-4">
+            {/* Desktop Navigation */}
+            <div className="hidden lg:flex items-center justify-between mt-4">
               <Button
                 variant="outline"
                 onClick={goPrev}
@@ -690,9 +690,9 @@ export default function ArmaTuPCPage() {
               )}
             </div>
 
-            {/* Skip optional */}
+            {/* Desktop Skip optional */}
             {!currentSlot.required && currentStep < SLOTS.length - 1 && (
-              <div className="text-center mt-3">
+              <div className="hidden lg:block text-center mt-3">
                 <button
                   onClick={goNext}
                   className="text-sm text-gray-400 hover:text-gray-600 transition"
@@ -701,17 +701,6 @@ export default function ArmaTuPCPage() {
                 </button>
               </div>
             )}
-
-            {/* Mobile: Ver resumen button */}
-            <div className="lg:hidden mt-3">
-              <Button
-                onClick={() => setShowMobileSummary(true)}
-                className="w-full bg-compucity-green hover:bg-compucity-green-dark gap-2 py-3 text-base"
-              >
-                <ShoppingCart className="w-5 h-5" />
-                Ver Tu PC a medida
-              </Button>
-            </div>
           </div>
 
           {/* ============================================ */}
@@ -870,6 +859,64 @@ export default function ArmaTuPCPage() {
             </div>
           </div>
         </div>
+
+        {/* ============================================ */}
+        {/* Mobile Sticky Bottom Bar */}
+        {/* ============================================ */}
+        {!showMobileSummary && (
+          <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_12px_rgba(0,0,0,0.1)] z-50 safe-area-bottom">
+            {/* Ver Tu PC a medida */}
+            <div className="px-3 pt-2">
+              <Button
+                onClick={() => setShowMobileSummary(true)}
+                className="w-full bg-compucity-green hover:bg-compucity-green-dark gap-2 py-2.5 text-sm"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                Ver Tu PC a medida{completedCount > 0 ? ` (${completedCount})` : ''}
+              </Button>
+            </div>
+            {/* Navigation row */}
+            <div className="flex items-center gap-2 px-3 py-2">
+              <Button
+                variant="outline"
+                onClick={goPrev}
+                disabled={currentStep === 0}
+                className="gap-1 flex-1 h-9 text-xs"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                Anterior
+              </Button>
+              {!currentSlot.required && currentStep < SLOTS.length - 1 && (
+                <Button
+                  variant="ghost"
+                  onClick={goNext}
+                  className="text-xs text-gray-400 h-9"
+                >
+                  Saltar →
+                </Button>
+              )}
+              {currentStep < SLOTS.length - 1 ? (
+                <Button onClick={goNext} className="bg-compucity-green hover:bg-compucity-green-dark gap-1 flex-1 h-9 text-xs">
+                  Siguiente
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => {
+                    if (completedRequired) {
+                      window.open(buildWhatsAppUrl(), '_blank')
+                    }
+                  }}
+                  className="bg-green-600 hover:bg-green-700 gap-1 flex-1 h-9 text-xs"
+                  disabled={!completedRequired}
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  WhatsApp
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
