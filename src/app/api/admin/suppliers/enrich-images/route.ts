@@ -95,12 +95,11 @@ export async function POST(request: Request) {
         }
 
         // Try to find an image URL from search results
-        // Look for URLs from known retailers/manufacturers that typically have product images
         let imageUrl: string | null = null
 
-        // First, try to get image from manufacturer/retailer pages
+        // Preferred domains that typically have good product images
         const preferredDomains = [
-          'asus.com', 'logitech.com', 'corsair.com', 'razer.com', 'msi.com',
+          'asus.com', 'rog.asus.com', 'logitech.com', 'corsair.com', 'razer.com', 'msi.com',
           'gigabyte.com', 'lenovo.com', 'hp.com', 'dell.com', 'samsung.com',
           'lg.com', 'benq.com', 'viewsonic.com', 'acer.com', 'apc.com',
           'kingston.com', 'wd.com', 'seagate.com', 'crucial.com', 'adata.com',
@@ -113,25 +112,23 @@ export async function POST(request: Request) {
 
         for (const result of searchResults as any[]) {
           const url = result.url || ''
-          const snippet = result.snippet || ''
           const hostName = result.host_name || ''
 
           // Check if this is from a preferred domain
           const isPreferred = preferredDomains.some(d => hostName.includes(d))
 
           if (isPreferred && !imageUrl) {
-            // Try to extract an image URL from this page
-            // For now, we'll use the web reader to get the page content
             try {
-              const pageContent = await zai.functions.invoke('web_reader', {
+              const pageResult = await zai.functions.invoke('page_reader', {
                 url: url,
               })
 
-              if (pageContent && pageContent.html) {
-                // Extract the first product image from the HTML
+              const html = pageResult?.data?.html || pageResult?.html || ''
+
+              if (html) {
                 // Look for og:image meta tag first (most reliable)
-                const ogImageMatch = pageContent.html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i)
-                  || pageContent.html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i)
+                const ogImageMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i)
+                  || html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i)
 
                 if (ogImageMatch && ogImageMatch[1]) {
                   imageUrl = ogImageMatch[1]
@@ -139,14 +136,13 @@ export async function POST(request: Request) {
                   break
                 }
 
-                // Fallback: look for large product images in img tags
-                const imgMatches = pageContent.html.match(/<img[^>]*src=["']([^"']+)["'][^>]*>/gi)
+                // Fallback: look for product images in img tags
+                const imgMatches = html.match(/<img[^>]*src=["']([^"']+)["'][^>]*>/gi)
                 if (imgMatches) {
                   for (const imgTag of imgMatches) {
                     const srcMatch = imgTag.match(/src=["']([^"']+)["']/i)
                     if (srcMatch && srcMatch[1]) {
                       const src = srcMatch[1]
-                      // Skip tiny icons, logos, and common non-product images
                       if (
                         src.includes('product') ||
                         src.includes('item') ||
@@ -154,7 +150,6 @@ export async function POST(request: Request) {
                         src.includes('zoom') ||
                         (src.includes('.jpg') && !src.includes('icon') && !src.includes('logo') && !src.includes('banner'))
                       ) {
-                        // Make URL absolute if needed
                         if (src.startsWith('//')) {
                           imageUrl = 'https:' + src
                         } else if (src.startsWith('/')) {
@@ -179,19 +174,21 @@ export async function POST(request: Request) {
           }
         }
 
-        // If no image found from preferred domains, try MercadoLibre results
+        // If no image found from preferred domains, try retail sites
         if (!imageUrl) {
           for (const result of searchResults as any[]) {
             const url = result.url || ''
             if (url.includes('mercadolibre') || url.includes('amazon') || url.includes('newegg')) {
               try {
-                const pageContent = await zai.functions.invoke('web_reader', {
+                const pageResult = await zai.functions.invoke('page_reader', {
                   url: url,
                 })
 
-                if (pageContent && pageContent.html) {
-                  const ogImageMatch = pageContent.html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i)
-                    || pageContent.html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i)
+                const html = pageResult?.data?.html || pageResult?.html || ''
+
+                if (html) {
+                  const ogImageMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i)
+                    || html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i)
 
                   if (ogImageMatch && ogImageMatch[1]) {
                     imageUrl = ogImageMatch[1]
