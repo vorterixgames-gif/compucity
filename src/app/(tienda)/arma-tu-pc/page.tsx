@@ -336,7 +336,7 @@ export default function ArmaTuPCPage() {
           {/* ============================================ */}
           {/* Left: Stepper + Product Selection */}
           {/* ============================================ */}
-          <div className="flex-1 min-w-0 w-full">
+          <div className="flex-1 min-w-0 w-full order-2 lg:order-1">
             {/* Step Indicator - Horizontal on desktop, progress on mobile */}
             <div className="bg-white rounded-xl border p-4 mb-6 overflow-x-auto">
               <div className="flex items-center gap-1">
@@ -747,7 +747,7 @@ export default function ArmaTuPCPage() {
           {/* ============================================ */}
           {/* Right: Summary Sidebar */}
           {/* ============================================ */}
-          <div className="w-full lg:w-80 shrink-0">
+          <div className="w-full lg:w-80 shrink-0 order-1 lg:order-2">
             <div className="bg-white rounded-xl border lg:sticky lg:top-24">
               {/* Summary Header */}
               <div className="p-5 border-b">
