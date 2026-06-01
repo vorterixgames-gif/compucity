@@ -126,7 +126,7 @@ export async function GET(request: NextRequest) {
           if (catRows.length === 0) return { ...s, count: 0 }
 
           const countResult = await db.execute({
-            sql: 'SELECT COUNT(*) as total FROM products WHERE categoryId = ? AND isActive = 1',
+            sql: 'SELECT COUNT(*) as total FROM products WHERE categoryId = ? AND isActive = 1 AND stock > 0',
             args: [catRows[0].id],
           })
           return { ...s, count: (countResult.rows[0] as any).total }

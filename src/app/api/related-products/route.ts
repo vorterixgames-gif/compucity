@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
       // Fetch products from the same category, excluding the current product
       result = await db.execute({
         sql: `SELECT * FROM products
-              WHERE categoryId = ? AND id != ? AND isActive = 1
+              WHERE categoryId = ? AND id != ? AND isActive = 1 AND stock > 0
               ORDER BY createdAt DESC
               LIMIT 4`,
         args: [categoryId, productId],
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       // No category: return latest active products excluding the current one
       result = await db.execute({
         sql: `SELECT * FROM products
-              WHERE id != ? AND isActive = 1
+              WHERE id != ? AND isActive = 1 AND stock > 0
               ORDER BY createdAt DESC
               LIMIT 4`,
         args: [productId],
