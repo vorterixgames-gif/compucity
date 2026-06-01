@@ -28,7 +28,7 @@ export default async function HomePage() {
     [featured, allProducts, gamerPCs, monitorProducts, notebookProducts] = await Promise.all([
       getFeaturedProducts(),
       getAllActiveProducts(),
-      getTopProductsByCategorySlug('gamer-pc', 4),
+      getTopProductsByCategorySlug('pc-armadas', 4),
       getTopProductsByCategorySlug('monitores', 4),
       getTopProductsByCategorySlug('notebooks', 12),
     ])
@@ -102,7 +102,7 @@ export default async function HomePage() {
                 <div className="w-1 h-8 bg-compucity-green-500 rounded-full" />
                 <h2 className="text-2xl md:text-3xl font-bold text-compucity-green-900">PC Armadas</h2>
               </div>
-              <Link href="/categoria/gamer-pc" className="inline-flex items-center gap-1 text-sm text-compucity-green-600 hover:text-compucity-green-800 font-semibold group transition">
+              <Link href="/categoria/pc-armadas" className="inline-flex items-center gap-1 text-sm text-compucity-green-600 hover:text-compucity-green-800 font-semibold group transition">
                 Ver todas <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </div>
