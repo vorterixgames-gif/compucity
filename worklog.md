@@ -82,3 +82,57 @@ Stage Summary:
 - Category distribution: memorias-ram (592), cables-y-adaptadores (433), mouse (389), gabinetes (315), discos-ssd (254), refrigeracion (206), auriculares (199), placas-de-video (182), fuentes (157), microprocesadores (143), teclados (125), placas-de-red (111), parlantes (93), joysticks (59), discos-hdd (58), motherboards (29), webcams (24), mousepads (16), microfonos (15), pastas-termicas (3)
 - Store now shows only relevant products (peripherals + components + cables)
 - Pushed to GitHub: enrich route + queries.ts sorting fix
+---
+Task ID: 1
+Agent: main
+Task: Delete inactive products and fix provider panel counts
+
+Work Log:
+- Deleted 4,131 inactive products from database (batch of 200 each)
+- Air Intra went from 4,837 to 1,755 products in the DB
+- Updated suppliers API route to count only active products (productCount)
+- Added inactiveCount to supplier response for display purposes
+- All 3 providers now show correct active product counts:
+  - Air Intra: 1,755 active
+  - Elit: 958 active
+  - Invid Computers: 689 active
+
+Stage Summary:
+- 4,131 inactive products removed from DB
+- Provider panel now shows active product counts only
+- Data: Air Intra 1,755, Elit 958, Invid 689, Total 3,403
+
+---
+Task ID: 2
+Agent: main
+Task: Create improved image enrichment system with WebP compression
+
+Work Log:
+- Rewrote /api/admin/suppliers/enrich-images/route.ts
+- New approach: search web → download image → convert to WebP → store in product_images table → reference as /api/image/UUID
+- WebP conversion: max 800px width, quality 75, effort 6
+- Added size validation (min 80x80px, max 5MB source)
+- Added rate limit handling (429 errors → wait 30s and retry)
+- Created standalone script: scripts/enrich-images.mjs for batch processing
+- Tested with 10 products: images average 15KB in WebP format
+- Stored in product_images table (total 0.44MB for 18 images)
+
+Stage Summary:
+- Image enrichment pipeline working end-to-end
+- WebP images avg 15KB (vs typical 200KB+ JPEG)
+- 10 Air Intra products enriched so far, 1,063 remaining
+- Script available: node scripts/enrich-images.mjs [batchSize] [delayMs]
+- Pushed to GitHub, auto-deploy triggered
+
+---
+Task ID: 3
+Agent: main
+Task: Push changes to GitHub for auto-deploy
+
+Work Log:
+- Resolved merge conflicts in enrich/route.ts and queries.ts
+- Committed and pushed all changes
+- Deploy triggered on Vercel
+
+Stage Summary:
+- All changes deployed to production
