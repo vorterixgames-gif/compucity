@@ -588,21 +588,46 @@ async function syncInvid(supplier: any): Promise<SyncResult> {
 
 /**
  * Safely parse JSON from Air Intra API response.
- * Handles cases where the API returns HTML/PHP error pages instead of JSON.
+ * Handles cases where the API returns:
+ * - PHP notices/warnings prepended before the JSON (common Air Intra bug)
+ * - HTML error pages instead of JSON
+ * - Proper API error objects with error_id
  */
 async function safeParseAirIntraResponse(res: Response): Promise<{ data: any; error: string | null }> {
-  const contentType = res.headers.get('content-type') || ''
   const text = await res.text()
 
-  // Check if response is HTML (PHP error page)
-  if (contentType.includes('text/html') || text.trim().startsWith('<') || text.includes('<br')) {
-    // Extract a clean error message from the HTML
-    const cleanText = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 200)
-    return { data: null, error: `La API devolvió una página de error HTML en lugar de JSON. Puede deberse a solicitudes muy frecuentes. Espere 5 minutos e intente nuevamente. Detalle: ${cleanText}` }
+  // Strategy: Try to extract JSON from the response, even if PHP notices are prepended.
+  // Air Intra's API often outputs PHP notices like:
+  //   <br /> <b>Notice</b>: Undefined property: stdClass::$estado in ...
+  // before the actual JSON data. We need to find the start of the JSON.
+
+  // Step 1: Strip PHP notices/warnings/html that may be prepended
+  // Find the first occurrence of { or [ which marks the start of JSON
+  let jsonStart = -1
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (ch === '{' || ch === '[') {
+      jsonStart = i
+      break
+    }
   }
 
+  if (jsonStart === -1) {
+    // No JSON found at all - this is a pure HTML error page
+    const cleanText = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 200)
+    return { data: null, error: `La API no devolvió datos JSON. ${cleanText || 'Respuesta vacía'}` }
+  }
+
+  // If there's garbage before the JSON, log it for debugging
+  if (jsonStart > 0) {
+    const garbage = text.substring(0, jsonStart).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+    console.log(`[Air Intra] Stripped ${jsonStart} chars of PHP notices before JSON: ${garbage.substring(0, 150)}`)
+  }
+
+  const jsonText = text.substring(jsonStart)
+
   try {
-    const data = JSON.parse(text)
+    const data = JSON.parse(jsonText)
     // Check for API-level errors (Air Intra returns error_id in JSON)
     if (data && typeof data === 'object' && !Array.isArray(data) && data.error_id) {
       if (data.error_id === 401) {
@@ -615,7 +640,31 @@ async function safeParseAirIntraResponse(res: Response): Promise<{ data: any; er
     }
     return { data, error: null }
   } catch (e: any) {
-    return { data: null, error: `No se pudo interpretar la respuesta de la API: ${e.message}` }
+    // JSON parse failed even after stripping PHP notices
+    // Try to find the end of the JSON (last } or ])
+    const lastBrace = jsonText.lastIndexOf('}')
+    const lastBracket = jsonText.lastIndexOf(']')
+    const lastJson = Math.max(lastBrace, lastBracket)
+    if (lastJson > 0) {
+      try {
+        const trimmedJson = jsonText.substring(0, lastJson + 1)
+        const data = JSON.parse(trimmedJson)
+        if (data && typeof data === 'object' && !Array.isArray(data) && data.error_id) {
+          if (data.error_id === 401) {
+            return { data: null, error: `Token expirado o inválido. ${data.error_detail || ''}` }
+          }
+          if (data.error_id === 403) {
+            return { data: null, error: `Demasiadas solicitudes. La API de Air Intra requiere esperar 5 minutos entre ciclos de consulta. ${data.error_detail || ''}` }
+          }
+          return { data: null, error: `Error API Air Intra (${data.error_id}): ${data.error_name || ''} - ${data.error_detail || ''}` }
+        }
+        return { data, error: null }
+      } catch {
+        // Second parse also failed
+      }
+    }
+    const preview = jsonText.substring(0, 100)
+    return { data: null, error: `No se pudo interpretar la respuesta JSON de la API. Preview: ${preview}` }
   }
 }
 
