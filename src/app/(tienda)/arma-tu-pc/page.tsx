@@ -120,6 +120,7 @@ export default function ArmaTuPCPage() {
   const [slotsWithCounts, setSlotsWithCounts] = useState<ComponentSlot[]>([])
   const [showIncompatible, setShowIncompatible] = useState(false)
   const [activeFilters, setActiveFilters] = useState<CompatibilityFilters>({})
+  const [showSummary, setShowSummary] = useState(false)
 
   const currentSlot = SLOTS[currentStep]
   const selectedForCurrentSlot = selectedComponents.find(c => c.slot === currentSlot.slot)
@@ -336,7 +337,7 @@ export default function ArmaTuPCPage() {
           {/* ============================================ */}
           {/* Left: Stepper + Product Selection */}
           {/* ============================================ */}
-          <div className="flex-1 min-w-0 w-full order-2 lg:order-1">
+          <div className={`flex-1 min-w-0 w-full order-2 lg:order-1 ${showSummary ? 'hidden lg:block' : ''}`}>
             {/* Step Indicator - Horizontal on desktop, progress on mobile */}
             <div className="bg-white rounded-xl border p-4 mb-6 overflow-x-auto">
               <div className="flex items-center gap-1">
@@ -746,13 +747,25 @@ export default function ArmaTuPCPage() {
 
           {/* ============================================ */}
           {/* Right: Summary Sidebar */}
+          {/* Hidden on mobile unless showSummary, always visible on lg */}
           {/* ============================================ */}
-          <div className="w-full lg:w-80 shrink-0 order-1 lg:order-2">
+          <div className={`w-full lg:w-80 shrink-0 order-1 lg:order-2 ${showSummary ? '' : 'hidden lg:block'}`}>
             <div className="bg-white rounded-xl border lg:sticky lg:top-24">
               {/* Summary Header */}
               <div className="p-5 border-b">
-                <h3 className="font-bold text-gray-900 mb-1">Tu PC a medida</h3>
-                <p className="text-sm text-gray-500">{completedCount} de {SLOTS.length} componentes</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-gray-900 mb-1">Tu PC a medida</h3>
+                    <p className="text-sm text-gray-500">{completedCount} de {SLOTS.length} componentes</p>
+                  </div>
+                  <button
+                    onClick={() => setShowSummary(false)}
+                    className="lg:hidden flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                    Volver
+                  </button>
+                </div>
               </div>
 
               {/* Compatibility Status */}
@@ -898,6 +911,19 @@ export default function ArmaTuPCPage() {
           </div>
         </div>
       </div>
+
+      {/* Floating "Ver mi PC" button - mobile only */}
+      {!showSummary && (
+        <div className="fixed bottom-4 left-4 right-4 lg:hidden z-50">
+          <button
+            onClick={() => setShowSummary(true)}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-compucity-green text-white font-semibold text-sm shadow-lg hover:bg-compucity-green-dark transition"
+          >
+            <ShoppingCart className="w-4 h-4" />
+            Ver mi PC ({completedCount}/{SLOTS.length})
+          </button>
+        </div>
+      )}
     </div>
   )
 }
