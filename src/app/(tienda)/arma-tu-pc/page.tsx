@@ -658,7 +658,7 @@ export default function ArmaTuPCPage() {
             </div>
 
             {/* Navigation */}
-            <div className="flex items-center justify-between mt-6">
+            <div className="flex items-center justify-between mt-4">
               <Button
                 variant="outline"
                 onClick={goPrev}
@@ -703,7 +703,7 @@ export default function ArmaTuPCPage() {
             )}
 
             {/* Mobile: Ver resumen button */}
-            <div className="lg:hidden mt-6">
+            <div className="lg:hidden mt-3">
               <Button
                 onClick={() => setShowMobileSummary(true)}
                 className="w-full bg-compucity-green hover:bg-compucity-green-dark gap-2 py-3 text-base"
