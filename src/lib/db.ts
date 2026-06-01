@@ -158,7 +158,31 @@ export async function ensureMigrations() {
     console.warn('[migration] Could not create subcategories:', e)
   }
 
-  // 7. Ensure supplier_category_mappings table exists
+  // 7. Add markup column to products (individual product markup, null = use global)
+  try {
+    await db.execute({ sql: 'SELECT markup FROM products LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({ sql: 'ALTER TABLE products ADD COLUMN markup INTEGER' })
+      console.log('[migration] Added markup column to products')
+    } catch (e) {
+      console.warn('[migration] Could not add markup column:', e)
+    }
+  }
+
+  // 8. Add cashDiscount column to products (individual product cash discount, null = use global)
+  try {
+    await db.execute({ sql: 'SELECT cashDiscount FROM products LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({ sql: 'ALTER TABLE products ADD COLUMN cashDiscount INTEGER' })
+      console.log('[migration] Added cashDiscount column to products')
+    } catch (e) {
+      console.warn('[migration] Could not add cashDiscount column:', e)
+    }
+  }
+
+  // 9. Ensure supplier_category_mappings table exists
   try {
     await db.execute({ sql: 'SELECT id FROM supplier_category_mappings LIMIT 1', args: [] })
   } catch {

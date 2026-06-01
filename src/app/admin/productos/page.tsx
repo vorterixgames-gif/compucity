@@ -81,8 +81,12 @@ interface Product {
   providerSku: string | null
   categoryId: string | null
   categoryName: string | null
+  markup: number | null
+  cashDiscount: number | null
   _calculated?: boolean
   _dollarRate?: number
+  _effectiveMarkup?: number
+  _effectiveCashDiscount?: number
   createdAt: string
   updatedAt: string
 }
@@ -102,6 +106,8 @@ interface ProductForm {
   providerId: string
   providerSku: string
   categoryId: string
+  markup: string       // individual product markup (empty = use global)
+  cashDiscount: string  // individual product cash discount (empty = use global)
 }
 
 interface DollarConfig {
@@ -126,6 +132,8 @@ const emptyForm: ProductForm = {
   providerId: '',
   providerSku: '',
   categoryId: '',
+  markup: '',
+  cashDiscount: '',
 }
 
 function formatPrice(price: number): string {
@@ -225,12 +233,15 @@ export default function AdminProductos() {
     }
   }, [])
 
-  // Calculate prices when costPrice changes
+  // Calculate prices when costPrice, markup, or cashDiscount changes
   useEffect(() => {
     const costUsd = Number(form.costPrice)
     if (costUsd > 0 && dollarConfig) {
-      const listPrice = Math.ceil(costUsd * dollarConfig.rate * (1 + dollarConfig.markup / 100))
-      const cashPrice = Math.ceil(costUsd * dollarConfig.rate * (1 + (dollarConfig.markup - dollarConfig.cashDiscount) / 100))
+      // Use individual markup/discount if set, otherwise use global
+      const effectiveMarkup = form.markup !== '' ? Number(form.markup) : dollarConfig.markup
+      const effectiveCashDiscount = form.cashDiscount !== '' ? Number(form.cashDiscount) : dollarConfig.cashDiscount
+      const listPrice = Math.ceil(costUsd * dollarConfig.rate * (1 + effectiveMarkup / 100))
+      const cashPrice = Math.ceil(costUsd * dollarConfig.rate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100))
       setCalculatedListPrice(listPrice)
       setCalculatedCashPrice(cashPrice)
       // Auto-fill the price fields
@@ -243,7 +254,7 @@ export default function AdminProductos() {
       setCalculatedListPrice(null)
       setCalculatedCashPrice(null)
     }
-  }, [form.costPrice, dollarConfig])
+  }, [form.costPrice, form.markup, form.cashDiscount, dollarConfig])
 
   const filteredProducts = products.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -285,6 +296,8 @@ export default function AdminProductos() {
       providerId: product.providerId || '',
       providerSku: product.providerSku || '',
       categoryId: product.categoryId || '',
+      markup: product.markup != null ? String(product.markup) : '',
+      cashDiscount: product.cashDiscount != null ? String(product.cashDiscount) : '',
     })
     setFormError('')
     fetchDollarConfig()
@@ -344,6 +357,8 @@ export default function AdminProductos() {
         providerId: form.providerId.trim() || null,
         providerSku: form.providerSku.trim() || null,
         categoryId: form.categoryId || null,
+        markup: form.markup !== '' ? Number(form.markup) : null,
+        cashDiscount: form.cashDiscount !== '' ? Number(form.cashDiscount) : null,
       }
 
       const res = await fetch('/api/admin/products', {
@@ -472,6 +487,12 @@ export default function AdminProductos() {
                             {product._calculated && (
                               <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-compucity-green-50 text-compucity-green">Auto</Badge>
                             )}
+                            {(product as any)._effectiveMarkup != null && (product as any)._effectiveMarkup !== dollarConfig?.markup && (
+                              <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-blue-50 text-blue-600" title={`Margen: ${(product as any)._effectiveMarkup}%`}>M</Badge>
+                            )}
+                            {(product as any)._effectiveCashDiscount != null && (product as any)._effectiveCashDiscount !== dollarConfig?.cashDiscount && (
+                              <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-amber-50 text-amber-600" title={`Desc: ${(product as any)._effectiveCashDiscount}%`}>D</Badge>
+                            )}
                           </div>
                         ) : (
                           <span className="text-gray-400">—</span>
@@ -596,6 +617,50 @@ export default function AdminProductos() {
                 </p>
               </div>
 
+              {/* Individual Markup & Discount */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="markup" className="flex items-center gap-1">
+                    <Calculator className="w-4 h-4 text-blue-600" />
+                    Margen individual (%)
+                  </Label>
+                  <Input
+                    id="markup"
+                    type="number"
+                    step="1"
+                    min="0"
+                    max="200"
+                    value={form.markup}
+                    onChange={(e) => updateForm('markup', e.target.value)}
+                    placeholder={dollarConfig ? `Global: ${dollarConfig.markup}%` : 'Ej: 30'}
+                    className="bg-white"
+                  />
+                  <p className="text-xs text-gray-400">
+                    Dejar vacío para usar el margen global ({dollarConfig?.markup ?? 30}%)
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cashDiscount" className="flex items-center gap-1">
+                    <Calculator className="w-4 h-4 text-amber-600" />
+                    Descuento efectivo individual (%)
+                  </Label>
+                  <Input
+                    id="cashDiscount"
+                    type="number"
+                    step="1"
+                    min="0"
+                    max="100"
+                    value={form.cashDiscount}
+                    onChange={(e) => updateForm('cashDiscount', e.target.value)}
+                    placeholder={dollarConfig ? `Global: ${dollarConfig.cashDiscount}%` : 'Ej: 10'}
+                    className="bg-white"
+                  />
+                  <p className="text-xs text-gray-400">
+                    Dejar vacío para usar el descuento global ({dollarConfig?.cashDiscount ?? 10}%)
+                  </p>
+                </div>
+              </div>
+
               {/* Calculated prices preview */}
               {hasCostPrice && dollarConfig && (
                 <div className="bg-compucity-green-50 border border-compucity-green-100 rounded-lg p-3 space-y-2">
@@ -610,16 +675,28 @@ export default function AdminProductos() {
                     </div>
                     <div>
                       <p className="text-compucity-green">Margen de ganancia</p>
-                      <p className="font-bold text-compucity-green-dark">{dollarConfig.markup}%</p>
+                      <p className="font-bold text-compucity-green-dark">
+                        {form.markup !== '' ? form.markup : dollarConfig.markup}%
+                        {form.markup !== '' && <span className="text-xs font-normal text-blue-600 ml-1">(individual)</span>}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-compucity-green">Descuento efectivo</p>
+                      <p className="font-bold text-compucity-green-dark">
+                        {form.cashDiscount !== '' ? form.cashDiscount : dollarConfig.cashDiscount}%
+                        {form.cashDiscount !== '' && <span className="text-xs font-normal text-amber-600 ml-1">(individual)</span>}
+                      </p>
                     </div>
                   </div>
                   <div className="border-t border-compucity-green-100 pt-2 space-y-1 text-sm">
                     <p className="text-gray-600">
-                      USD {Number(form.costPrice).toFixed(2)} × ${dollarConfig.rate.toLocaleString('es-AR')} × (1 + {dollarConfig.markup}%) = 
+                      USD {Number(form.costPrice).toFixed(2)} × ${dollarConfig.rate.toLocaleString('es-AR')} × (1 + {form.markup !== '' ? form.markup : dollarConfig.markup}%) = 
                       <strong className="text-gray-900"> {formatPrice(calculatedListPrice!)}</strong> <span className="text-gray-500">(lista)</span>
                     </p>
                     <p className="text-gray-600">
-                      USD {Number(form.costPrice).toFixed(2)} × ${dollarConfig.rate.toLocaleString('es-AR')} × (1 + {dollarConfig.markup}% - {dollarConfig.cashDiscount}%) = 
+                      USD {Number(form.costPrice).toFixed(2)} × ${dollarConfig.rate.toLocaleString('es-AR')} × (1 + {form.markup !== '' ? form.markup : dollarConfig.markup}% - {form.cashDiscount !== '' ? form.cashDiscount : dollarConfig.cashDiscount}%) = 
                       <strong className="text-green-700"> {formatPrice(calculatedCashPrice!)}</strong> <span className="text-gray-500">(efectivo)</span>
                     </p>
                   </div>

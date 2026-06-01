@@ -272,3 +272,34 @@ Stage Summary:
   - fuentes: 187, gabinetes: 216, refrigeracion: 211, pastas-termicas: 1
 - No code changes needed - only DB category updates
 - Vercel auto-deploy not triggered (no code push needed)
+
+---
+Task ID: 10
+Agent: main
+Task: Add individual markup and cash discount per product (in addition to global)
+
+Work Log:
+- Analyzed current pricing system: global markup (30%) and cash discount (10%) in store_config
+- All products with costPrice > 0 auto-calculate prices using global values
+- Added `markup` and `cashDiscount` columns to products table (nullable INTEGER, null = use global)
+- Updated Prisma schema with new fields
+- Added migrations in db.ts (ensureMigrations) for ALTER TABLE
+- Updated calculateProductPrices() in dollar.ts to check product-level markup/discount first
+- Updated ALL API routes that calculate prices:
+  - /api/admin/products (GET, POST, PUT)
+  - /api/pc-builder (GET) - also fixed cash price formula bug
+  - /api/admin/export/products (GET)
+  - /api/products (uses calculateProductPrices, already handled)
+  - /api/related-products (uses calculateProductPrices, already handled)
+  - queries.ts (uses calculateProductPrices, already handled)
+- Updated admin product form with individual markup/discount fields
+- Added visual indicators (M/D badges) in product list for products with individual values
+- Updated price calculation preview to show effective markup/discount with "individual" label
+- Fixed bug in pc-builder: cash price was using `listPrice * (1 - cashDiscount/100)` instead of correct formula
+
+Stage Summary:
+- Products can now have individual markup and cash discount values
+- If left empty (null), global values are used as fallback
+- All price calculations across the app respect per-product values
+- PC builder cash price formula bug fixed (was inconsistent with other routes)
+- Build successful, no TypeScript errors in modified files

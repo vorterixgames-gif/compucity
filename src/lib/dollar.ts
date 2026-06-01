@@ -158,8 +158,13 @@ export async function calculatePrices(costUsd: number): Promise<CalculatedPrices
 }
 
 // Calculate product prices for display
-export function calculateProductPrices(product: any, dollarRate: number, markup: number, cashDiscount: number) {
+// If the product has individual markup/cashDiscount, use those; otherwise fall back to global values
+export function calculateProductPrices(product: any, dollarRate: number, globalMarkup: number, globalCashDiscount: number) {
   if (product.costPrice && Number(product.costPrice) > 0) {
+    // Use product-level markup/discount if set, otherwise use global
+    const markup = product.markup != null ? Number(product.markup) : globalMarkup
+    const cashDiscount = product.cashDiscount != null ? Number(product.cashDiscount) : globalCashDiscount
+
     const listPrice = Math.ceil(Number(product.costPrice) * dollarRate * (1 + markup / 100))
     const cashPrice = Math.ceil(Number(product.costPrice) * dollarRate * (1 + (markup - cashDiscount) / 100))
     return {
@@ -168,6 +173,8 @@ export function calculateProductPrices(product: any, dollarRate: number, markup:
       comparePrice: cashPrice,
       _calculated: true,
       _costUsd: Number(product.costPrice),
+      _effectiveMarkup: markup,
+      _effectiveCashDiscount: cashDiscount,
     }
   }
   return { ...product, _calculated: false }

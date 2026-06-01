@@ -17,7 +17,7 @@ export async function GET() {
     const cashDiscount = await getStoreConfigNumber('cash_discount', 10)
 
     const result = await db.execute(
-      `SELECT p.name, p.sku, p.costPrice, p.price, p.comparePrice, p.stock, p.isActive, p.isFeatured, p.providerId, p.providerSku, c.name as categoryName
+      `SELECT p.name, p.sku, p.costPrice, p.price, p.comparePrice, p.stock, p.isActive, p.isFeatured, p.providerId, p.providerSku, p.markup, p.cashDiscount, c.name as categoryName
        FROM products p 
        LEFT JOIN categories c ON p.categoryId = c.id 
        ORDER BY p.createdAt DESC`
@@ -47,8 +47,11 @@ export async function GET() {
 
       // Auto-calculate from USD cost if costPrice > 0 (same logic as admin products API)
       if (p.costPrice && Number(p.costPrice) > 0) {
-        listPrice = Math.ceil(Number(p.costPrice) * dollar.rate * (1 + markup / 100))
-        cashPrice = Math.ceil(Number(p.costPrice) * dollar.rate * (1 + (markup - cashDiscount) / 100))
+        // Use product-level markup/discount if set, otherwise use global
+        const effectiveMarkup = p.markup != null ? Number(p.markup) : markup
+        const effectiveCashDiscount = p.cashDiscount != null ? Number(p.cashDiscount) : cashDiscount
+        listPrice = Math.ceil(Number(p.costPrice) * dollar.rate * (1 + effectiveMarkup / 100))
+        cashPrice = Math.ceil(Number(p.costPrice) * dollar.rate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100))
       }
 
       return [

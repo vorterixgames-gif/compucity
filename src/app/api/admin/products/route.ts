@@ -49,15 +49,20 @@ export async function GET() {
     // Calculate prices based on dollar for products that have costPrice (USD)
     const products = (result.rows as any[]).map(p => {
       if (p.costPrice && p.costPrice > 0) {
+        // Use product-level markup/discount if set, otherwise fall back to global
+        const effectiveMarkup = p.markup != null ? Number(p.markup) : markup
+        const effectiveCashDiscount = p.cashDiscount != null ? Number(p.cashDiscount) : cashDiscount
         // Auto-calculate from USD cost
-        const calculatedListPrice = Math.ceil(p.costPrice * dollar.rate * (1 + markup / 100))
-        const calculatedCashPrice = Math.ceil(p.costPrice * dollar.rate * (1 + (markup - cashDiscount) / 100))
+        const calculatedListPrice = Math.ceil(p.costPrice * dollar.rate * (1 + effectiveMarkup / 100))
+        const calculatedCashPrice = Math.ceil(p.costPrice * dollar.rate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100))
         return {
           ...p,
           price: calculatedListPrice,
           comparePrice: calculatedCashPrice,
           _calculated: true,
           _dollarRate: dollar.rate,
+          _effectiveMarkup: effectiveMarkup,
+          _effectiveCashDiscount: effectiveCashDiscount,
         }
       }
       // Manual pricing (no USD cost set)
@@ -86,6 +91,7 @@ export async function POST(request: NextRequest) {
     const {
       name, description, price, comparePrice, costPrice, sku, stock,
       isActive, isFeatured, images, specs, providerId, providerSku, categoryId,
+      markup, cashDiscount,
     } = body
 
     console.log('[products POST] Received images:', images, 'type:', typeof images)
@@ -132,11 +138,14 @@ export async function POST(request: NextRequest) {
     if (hasCostPrice) {
       // Auto-calculate from USD cost + dollar rate + markup
       const dollar = await fetchDollarRate()
-      const markup = await getConfig('markup', 30)
-      const cashDiscount = await getConfig('cash_discount', 10)
+      const globalMarkup = await getConfig('markup', 30)
+      const globalCashDiscount = await getConfig('cash_discount', 10)
+      // Use product-level values if provided, otherwise use global
+      const effectiveMarkup = markup != null && markup !== '' ? Number(markup) : globalMarkup
+      const effectiveCashDiscount = cashDiscount != null && cashDiscount !== '' ? Number(cashDiscount) : globalCashDiscount
 
-      finalPrice = Math.ceil(Number(costPrice) * dollar.rate * (1 + markup / 100))
-      finalComparePrice = Math.ceil(Number(costPrice) * dollar.rate * (1 + (markup - cashDiscount) / 100))
+      finalPrice = Math.ceil(Number(costPrice) * dollar.rate * (1 + effectiveMarkup / 100))
+      finalComparePrice = Math.ceil(Number(costPrice) * dollar.rate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100))
     } else {
       // Manual pricing
       finalPrice = Number(price)
@@ -144,12 +153,15 @@ export async function POST(request: NextRequest) {
     }
 
     await db.execute({
-      sql: `INSERT INTO products (id, name, slug, description, price, comparePrice, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, createdAt, updatedAt) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT INTO products (id, name, slug, description, price, comparePrice, costPrice, markup, cashDiscount, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, createdAt, updatedAt) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id, name, finalSlug, description || null,
         finalPrice, finalComparePrice,
-        hasCostPrice ? Number(costPrice) : null, sku || null,
+        hasCostPrice ? Number(costPrice) : null,
+        markup != null && markup !== '' ? Number(markup) : null,
+        cashDiscount != null && cashDiscount !== '' ? Number(cashDiscount) : null,
+        sku || null,
         stock !== undefined ? Number(stock) : 0,
         isActive !== undefined ? (isActive ? 1 : 0) : 1,
         isFeatured !== undefined ? (isFeatured ? 1 : 0) : 0,
@@ -173,7 +185,8 @@ export async function PUT(request: NextRequest) {
 
     const body = await request.json()
     const { id, name, description, price, comparePrice, costPrice, sku, stock,
-      isActive, isFeatured, images, specs, providerId, providerSku, categoryId } = body
+      isActive, isFeatured, images, specs, providerId, providerSku, categoryId,
+      markup, cashDiscount } = body
 
     if (!id) {
       return NextResponse.json({ error: 'ID es requerido' }, { status: 400 })
@@ -189,11 +202,14 @@ export async function PUT(request: NextRequest) {
     if (hasCostPrice) {
       // Auto-calculate from USD cost + dollar rate + markup
       const dollar = await fetchDollarRate()
-      const markup = await getConfig('markup', 30)
-      const cashDiscount = await getConfig('cash_discount', 10)
+      const globalMarkup = await getConfig('markup', 30)
+      const globalCashDiscount = await getConfig('cash_discount', 10)
+      // Use product-level values if provided in this request, otherwise use global
+      const effectiveMarkup = markup != null && markup !== '' ? Number(markup) : globalMarkup
+      const effectiveCashDiscount = cashDiscount != null && cashDiscount !== '' ? Number(cashDiscount) : globalCashDiscount
 
-      finalPrice = Math.ceil(Number(costPrice) * dollar.rate * (1 + markup / 100))
-      finalComparePrice = Math.ceil(Number(costPrice) * dollar.rate * (1 + (markup - cashDiscount) / 100))
+      finalPrice = Math.ceil(Number(costPrice) * dollar.rate * (1 + effectiveMarkup / 100))
+      finalComparePrice = Math.ceil(Number(costPrice) * dollar.rate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100))
     }
 
     const fields: string[] = []
@@ -213,6 +229,8 @@ export async function PUT(request: NextRequest) {
     if (providerId !== undefined) { fields.push('providerId = ?'); values.push(providerId) }
     if (providerSku !== undefined) { fields.push('providerSku = ?'); values.push(providerSku) }
     if (categoryId !== undefined) { fields.push('categoryId = ?'); values.push(categoryId) }
+    if (markup !== undefined) { fields.push('markup = ?'); values.push(markup != null && markup !== '' ? Number(markup) : null) }
+    if (cashDiscount !== undefined) { fields.push('cashDiscount = ?'); values.push(cashDiscount != null && cashDiscount !== '' ? Number(cashDiscount) : null) }
 
     if (fields.length === 0) {
       return NextResponse.json({ error: 'No hay campos para actualizar' }, { status: 400 })

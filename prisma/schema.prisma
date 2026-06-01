@@ -40,6 +40,8 @@ model Product {
   price        Float
   comparePrice Float?    // precio de lista (tachado)
   costPrice    Float?    // costo del proveedor
+  markup       Int?      // margen de ganancia individual (null = usar global)
+  cashDiscount Int?      // descuento efectivo individual (null = usar global)
   sku          String?   @unique
   stock        Int       @default(0)
   isActive     Boolean   @default(true)
