@@ -587,27 +587,72 @@ async function syncInvid(supplier: any): Promise<SyncResult> {
 }
 
 /**
+ * Find the matching closing bracket for a JSON structure.
+ * Uses a depth counter that respects string literals and escape sequences.
+ * Returns the index of the matching close bracket, or -1 if not found.
+ */
+function findJsonEnd(text: string, startChar: '{' | '['): number {
+  const openChar = startChar
+  const closeChar = startChar === '{' ? '}' : ']'
+  let depth = 0
+  let inString = false
+  let escape = false
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+
+    if (escape) {
+      escape = false
+      continue
+    }
+
+    if (ch === '\\') {
+      if (inString) escape = true
+      continue
+    }
+
+    if (ch === '"') {
+      inString = !inString
+      continue
+    }
+
+    if (inString) continue
+
+    if (ch === openChar) {
+      depth++
+    } else if (ch === closeChar) {
+      depth--
+      if (depth === 0) return i
+    }
+  }
+
+  return -1
+}
+
+/**
  * Safely parse JSON from Air Intra API response.
  * Handles cases where the API returns:
- * - PHP notices/warnings prepended before the JSON (common Air Intra bug)
+ * - PHP notices/warnings prepended BEFORE the JSON (common Air Intra bug)
+ * - PHP notices/warnings appended AFTER the JSON
  * - HTML error pages instead of JSON
  * - Proper API error objects with error_id
  */
 async function safeParseAirIntraResponse(res: Response): Promise<{ data: any; error: string | null }> {
   const text = await res.text()
 
-  // Strategy: Try to extract JSON from the response, even if PHP notices are prepended.
   // Air Intra's API often outputs PHP notices like:
   //   <br /> <b>Notice</b>: Undefined property: stdClass::$estado in ...
-  // before the actual JSON data. We need to find the start of the JSON.
+  // These can appear BEFORE and/or AFTER the actual JSON data.
+  // Strategy: Find the start of JSON, then use bracket matching to find the end.
 
-  // Step 1: Strip PHP notices/warnings/html that may be prepended
-  // Find the first occurrence of { or [ which marks the start of JSON
+  // Step 1: Find the first occurrence of { or [ which marks the start of JSON
   let jsonStart = -1
+  let startChar: '{' | '[' = '{'
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]
     if (ch === '{' || ch === '[') {
       jsonStart = i
+      startChar = ch as '{' | '['
       break
     }
   }
@@ -624,10 +669,27 @@ async function safeParseAirIntraResponse(res: Response): Promise<{ data: any; er
     console.log(`[Air Intra] Stripped ${jsonStart} chars of PHP notices before JSON: ${garbage.substring(0, 150)}`)
   }
 
-  const jsonText = text.substring(jsonStart)
+  // Step 2: Find the matching close bracket using depth counter
+  const jsonFromStart = text.substring(jsonStart)
+  const jsonEnd = findJsonEnd(jsonFromStart, startChar)
 
+  let cleanJson: string
+  if (jsonEnd >= 0) {
+    cleanJson = jsonFromStart.substring(0, jsonEnd + 1)
+    if (jsonEnd + 1 < jsonFromStart.length) {
+      const afterGarbage = jsonFromStart.substring(jsonEnd + 1).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+      if (afterGarbage) {
+        console.log(`[Air Intra] Stripped PHP notices after JSON: ${afterGarbage.substring(0, 100)}`)
+      }
+    }
+  } else {
+    // Couldn't find matching bracket, try parsing the whole thing
+    cleanJson = jsonFromStart
+  }
+
+  // Step 3: Parse the clean JSON
   try {
-    const data = JSON.parse(jsonText)
+    const data = JSON.parse(cleanJson)
     // Check for API-level errors (Air Intra returns error_id in JSON)
     if (data && typeof data === 'object' && !Array.isArray(data) && data.error_id) {
       if (data.error_id === 401) {
@@ -640,31 +702,8 @@ async function safeParseAirIntraResponse(res: Response): Promise<{ data: any; er
     }
     return { data, error: null }
   } catch (e: any) {
-    // JSON parse failed even after stripping PHP notices
-    // Try to find the end of the JSON (last } or ])
-    const lastBrace = jsonText.lastIndexOf('}')
-    const lastBracket = jsonText.lastIndexOf(']')
-    const lastJson = Math.max(lastBrace, lastBracket)
-    if (lastJson > 0) {
-      try {
-        const trimmedJson = jsonText.substring(0, lastJson + 1)
-        const data = JSON.parse(trimmedJson)
-        if (data && typeof data === 'object' && !Array.isArray(data) && data.error_id) {
-          if (data.error_id === 401) {
-            return { data: null, error: `Token expirado o inválido. ${data.error_detail || ''}` }
-          }
-          if (data.error_id === 403) {
-            return { data: null, error: `Demasiadas solicitudes. La API de Air Intra requiere esperar 5 minutos entre ciclos de consulta. ${data.error_detail || ''}` }
-          }
-          return { data: null, error: `Error API Air Intra (${data.error_id}): ${data.error_name || ''} - ${data.error_detail || ''}` }
-        }
-        return { data, error: null }
-      } catch {
-        // Second parse also failed
-      }
-    }
-    const preview = jsonText.substring(0, 100)
-    return { data: null, error: `No se pudo interpretar la respuesta JSON de la API. Preview: ${preview}` }
+    const preview = cleanJson.substring(0, 150)
+    return { data: null, error: `No se pudo interpretar la respuesta JSON de la API (${cleanJson.length} chars). Preview: ${preview}` }
   }
 }
 
