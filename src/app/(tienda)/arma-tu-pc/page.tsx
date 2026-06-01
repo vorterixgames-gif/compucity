@@ -314,7 +314,7 @@ export default function ArmaTuPCPage() {
   const filterBanner = getFilterBanner()
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
       {/* Header */}
       <div className="bg-gradient-to-r from-gray-900 to-gray-800 text-white">
         <div className="max-w-7xl mx-auto px-4 py-8">
@@ -338,7 +338,7 @@ export default function ArmaTuPCPage() {
           {/* ============================================ */}
           <div className="flex-1 min-w-0">
             {/* Step Indicator - Horizontal on desktop, progress on mobile */}
-            <div className="bg-white rounded-xl border p-4 mb-6 overflow-x-auto">
+            <div className="bg-white rounded-xl border p-4 mb-6 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-4">
               <div className="flex items-center gap-1">
                 {SLOTS.map((slot, idx) => {
                   const Icon = slot.icon
@@ -555,7 +555,7 @@ export default function ArmaTuPCPage() {
                               ))}
                             </div>
                           )}
-                          <div className="flex items-center gap-3">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                             <span className="text-xs text-gray-400">Lista: {formatPrice(product.price)}</span>
                             {product.comparePrice && product.comparePrice < product.price && (
                               <span className="text-sm font-bold text-green-600">
@@ -665,7 +665,7 @@ export default function ArmaTuPCPage() {
                                       ))}
                                     </div>
                                   )}
-                                  <div className="flex items-center gap-3">
+                                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                                     <span className="text-xs text-gray-400">Lista: {formatPrice(product.price)}</span>
                                     {product.comparePrice && product.comparePrice < product.price && (
                                       <span className="text-sm font-bold text-gray-500">
