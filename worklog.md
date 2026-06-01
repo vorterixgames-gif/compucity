@@ -239,3 +239,36 @@ Stage Summary:
 - PROJECT_STATUS.md fully updated with current state, pushed to GitHub
 - No code changes to production - documentation-only update
 - Production site unaffected
+
+---
+Task ID: 9
+Agent: main
+Task: Fix category mis-categorization in Arma tu PC builder categories
+
+Work Log:
+- User reported products showing in wrong categories in Arma tu PC (screenshot of mothers section)
+- Queried ALL PC builder categories for mis-categorized products
+- Found and fixed MOTHERBOARDS: 14 products deactivated (laptop boards, old RAM, repair parts), 2 recategorized (USB-C adapter → cables, GT210 GPU → placas-de-video)
+- Found and fixed GABINETES: major cleanup
+  - 15 monitors deactivated (Air Intra monitors not in allowed categories)
+  - 21 power supplies moved to fuentes
+  - 8 coolers/AIOs moved to refrigeracion
+  - 2 network adapters moved to placas-de-red
+  - 1 LED strip moved to cables-y-adaptadores
+  - 1 keyboard moved to teclados
+  - 1 thermal paste moved to pastas-termicas
+  - 2 VESA mounts moved to soportes-y-brazos
+  - 10 rack/networking items deactivated (Gabitel, organizers, rack rails)
+- Fixed REFRIGERACION: 9 Corsair iCUE LINK cables/connectors moved to cables-y-adaptadores
+- All other PC builder categories verified clean (microprocesadores, discos-ssd, discos-hdd, placas-de-video)
+- 41 SODIMM RAM still in memorias-ram (handled by compatibility system as incompatible)
+
+Stage Summary:
+- Air Intra: 1,493 active (down from 1,532 - monitors + rack items + old parts deactivated)
+- Total active: 4,189 products
+- PC builder categories now clean:
+  - microprocesadores: 140, motherboards: 309, memorias-ram: 284
+  - placas-de-video: 173, discos-ssd: 168, discos-hdd: 40
+  - fuentes: 187, gabinetes: 216, refrigeracion: 211, pastas-termicas: 1
+- No code changes needed - only DB category updates
+- Vercel auto-deploy not triggered (no code push needed)
