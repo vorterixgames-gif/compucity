@@ -314,7 +314,7 @@ export default function ArmaTuPCPage() {
   const filterBanner = getFilterBanner()
 
   return (
-    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-gradient-to-r from-gray-900 to-gray-800 text-white">
         <div className="max-w-7xl mx-auto px-4 py-8">
@@ -331,14 +331,14 @@ export default function ArmaTuPCPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="max-w-7xl mx-auto px-4 py-6 overflow-hidden">
         <div className="flex flex-col lg:flex-row gap-6 items-start">
           {/* ============================================ */}
           {/* Left: Stepper + Product Selection */}
           {/* ============================================ */}
           <div className="flex-1 min-w-0">
             {/* Step Indicator - Horizontal on desktop, progress on mobile */}
-            <div className="bg-white rounded-xl border p-4 mb-6 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-4">
+            <div className="bg-white rounded-xl border p-4 mb-6 overflow-x-auto">
               <div className="flex items-center gap-1">
                 {SLOTS.map((slot, idx) => {
                   const Icon = slot.icon
