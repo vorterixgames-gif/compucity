@@ -190,3 +190,29 @@ Stage Summary:
 - Total active: 4,358 products
 - Active without images: 1,586 (next task: load images in WebP)
 - Air Intra sync now has built-in category filter for future syncs
+
+---
+Task ID: 7
+Agent: main
+Task: Load product images (WebP format) for Air Intra products
+
+Work Log:
+- Analyzed image situation: 1,584 Air Intra products without images, Elit has 1,517 with WebP, Invid has 1,191 with images
+- Elit only 2 products missing images, Invid 0 missing - both already have images from their APIs
+- Air Intra API `articulos` endpoint does NOT return images (syp endpoint only has price/stock)
+- Air Intra web catalog is a JS SPA, can't scrape directly
+- Created cross-provider image matching strategy: match Air Intra products to Elit/Invid by brand + model tokens
+- Built inverted index matching system with brand+model scoring (brand match = 4pts, model token match = 1pt)
+- Added PUT endpoint to /api/admin/suppliers/enrich-images for cross-provider copy (no auth required from admin panel)
+- Added batch-images.mjs script for web search based image enrichment (z-ai-web-dev-sdk)
+- Rate limited by z-ai-web-dev-sdk (429 errors) - web search approach needs cooldown between calls
+- Cross-provider approach works: can match ~300 products by brand+model keywords
+- Remaining ~1,100 products need web search or manual image upload
+
+Stage Summary:
+- 144 images stored in product_images table (from previous enrichment runs)
+- 2,896 active products have images, 1,462 still without
+- Cross-provider endpoint deployed (PUT /api/admin/suppliers/enrich-images with batchSize param)
+- Air Intra: 1,647 active products (108 deactivated: placas-de-red networking)
+- Elit: 1,519 active (2 missing images), Invid: 1,191 active (0 missing images)
+- Next step: Run cross-provider copy in batches from admin panel, then web search for remaining
