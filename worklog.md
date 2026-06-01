@@ -59,3 +59,26 @@ Stage Summary:
 - compucity-turso-backup-2026-05-27T02-08-30-850Z.sql (492 KB) - SQL schema + data
 - compucity-project-backup-2026-05-27_02-08.tar.gz (30 MB) - Full project code
 - compucity-public-backup-2026-05-27_02-08.tar.gz (634 KB) - Public assets
+
+---
+Task ID: 5
+Agent: main
+Task: Enrich product data - assign categories and deactivate non-relevant products
+
+Work Log:
+- Investigated 2,265 uncategorized products (all from Air Intra) - the syp endpoint doesn't return category info
+- Found 4,820 products without images (99.9% from Air Intra)
+- Discovered monitor ASUS "32 ASUS PG32UCDP-J Rog Swift OLED Gaming" has correct category and image (5.9MB PNG) but was buried in sort order due to null createdAt
+- Fixed createdAt sorting in queries.ts using COALESCE(createdAt, updatedAt) DESC
+- Created /api/admin/enrich route with keyword-based category assignment
+- Owner confirmed store only sells: peripherals (mouse, teclados, parlantes, joysticks) + PC components + cables
+- Ran comprehensive enrichment:
+  - Assigned categories to 401 products using keyword matching
+  - Deactivated 3,545 products outside allowed categories (TVs, printers, notebooks, cellphones, etc)
+  - Fixed 7,533 null createdAt dates
+- Final result: 3,403 active products, 2,441 visible in store (all peripherals/components/cables)
+
+Stage Summary:
+- Category distribution: memorias-ram (592), cables-y-adaptadores (433), mouse (389), gabinetes (315), discos-ssd (254), refrigeracion (206), auriculares (199), placas-de-video (182), fuentes (157), microprocesadores (143), teclados (125), placas-de-red (111), parlantes (93), joysticks (59), discos-hdd (58), motherboards (29), webcams (24), mousepads (16), microfonos (15), pastas-termicas (3)
+- Store now shows only relevant products (peripherals + components + cables)
+- Pushed to GitHub: enrich route + queries.ts sorting fix
