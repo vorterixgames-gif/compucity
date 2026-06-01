@@ -313,26 +313,12 @@ export default function ArmaTuPCPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* Mobile toggle CSS - reliable across all Tailwind versions */}
-        <style>{`
-          [data-mobile-hidden="true"] {
-            display: none !important;
-          }
-          @media (min-width: 1024px) {
-            [data-mobile-hidden="true"] {
-              display: block !important;
-            }
-            [data-mobile-hidden="true"].flex-1 {
-              display: block !important;
-            }
-          }
-        `}</style>
+      <div className="max-w-7xl mx-auto px-4 py-6 overflow-x-hidden">
         <div className="flex flex-col lg:flex-row gap-6 items-start">
           {/* ============================================ */}
           {/* Left: Stepper + Product Selection */}
           {/* ============================================ */}
-          <div className="flex-1 min-w-0" data-mobile-hidden={showMobileSummary || undefined}>
+          <div className={`flex-1 min-w-0 max-w-full ${showMobileSummary ? 'hidden lg:block' : ''}`}>
             {/* Step Indicator - Horizontal on desktop, progress on mobile */}
             <div className="bg-white rounded-xl border p-4 mb-6 overflow-x-auto">
               <div className="flex items-center gap-1 min-w-max">
@@ -731,7 +717,7 @@ export default function ArmaTuPCPage() {
           {/* ============================================ */}
           {/* Right: Summary Sidebar */}
           {/* ============================================ */}
-          <div className="w-full lg:w-80 shrink-0" data-mobile-hidden={!showMobileSummary || undefined}>
+          <div className={`w-full lg:w-80 shrink-0 ${!showMobileSummary ? 'hidden lg:block' : ''}`}>
             <div className="bg-white rounded-xl border lg:sticky lg:top-24">
               {/* Summary Header */}
               <div className="p-5 border-b">
