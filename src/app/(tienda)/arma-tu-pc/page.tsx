@@ -331,12 +331,12 @@ export default function ArmaTuPCPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6 overflow-hidden">
+      <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="flex flex-col lg:flex-row gap-6 items-start">
           {/* ============================================ */}
           {/* Left: Stepper + Product Selection */}
           {/* ============================================ */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 w-full">
             {/* Step Indicator - Horizontal on desktop, progress on mobile */}
             <div className="bg-white rounded-xl border p-4 mb-6 overflow-x-auto">
               <div className="flex items-center gap-1">
@@ -354,7 +354,7 @@ export default function ArmaTuPCPage() {
                     <button
                       key={slot.slot}
                       onClick={() => setCurrentStep(idx)}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition whitespace-nowrap ${
+                      className={`flex items-center gap-1 px-2 py-1.5 sm:px-3 sm:py-2 sm:gap-1.5 rounded-lg text-xs font-medium transition whitespace-nowrap ${
                         isCurrent
                           ? 'bg-compucity-green text-white shadow-md'
                           : isSelected
@@ -485,19 +485,19 @@ export default function ArmaTuPCPage() {
                       <button
                         key={product.id}
                         onClick={() => selectProduct(product)}
-                        className={`w-full text-left bg-white rounded-xl border p-4 flex items-start gap-4 transition hover:shadow-md ${
+                        className={`w-full text-left bg-white rounded-xl border p-3 sm:p-4 flex items-start gap-3 sm:gap-4 transition hover:shadow-md ${
                           isSelected
                             ? 'border-compucity-green bg-compucity-green-50/50 ring-2 ring-compucity-green-100'
                             : 'border-gray-200 hover:border-compucity-green-100'
                         }`}
                       >
                         {/* Image */}
-                        <div className="w-16 h-16 rounded-lg bg-gray-100 overflow-hidden shrink-0">
+                        <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-lg bg-gray-100 overflow-hidden shrink-0">
                           {image ? (
                             <img src={image} alt={product.name} className="w-full h-full object-cover" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-gray-300">
-                              <Cpu className="w-6 h-6" />
+                              <Cpu className="w-5 h-5 sm:w-6 sm:h-6" />
                             </div>
                           )}
                         </div>
@@ -574,12 +574,12 @@ export default function ArmaTuPCPage() {
                         {/* Selection indicator */}
                         <div className="shrink-0 mt-1">
                           {isSelected ? (
-                            <div className="w-8 h-8 rounded-full bg-compucity-green flex items-center justify-center">
-                              <Check className="w-4 h-4 text-white" />
+                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-compucity-green flex items-center justify-center">
+                              <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                             </div>
                           ) : (
-                            <div className="w-8 h-8 rounded-full border-2 border-gray-200 flex items-center justify-center group-hover:border-compucity-cyan-light transition">
-                              <Plus className="w-4 h-4 text-gray-300" />
+                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 border-gray-200 flex items-center justify-center group-hover:border-compucity-cyan-light transition">
+                              <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-300" />
                             </div>
                           )}
                         </div>
@@ -629,19 +629,19 @@ export default function ArmaTuPCPage() {
                               <button
                                 key={product.id}
                                 onClick={() => selectProduct(product)}
-                                className={`w-full text-left bg-white rounded-xl border p-4 flex items-start gap-4 transition hover:shadow-md opacity-60 hover:opacity-80 ${
+                                className={`w-full text-left bg-white rounded-xl border p-3 sm:p-4 flex items-start gap-3 sm:gap-4 transition hover:shadow-md opacity-60 hover:opacity-80 ${
                                   isSelected
                                     ? 'border-amber-400 bg-amber-50/50'
                                     : 'border-amber-200 hover:border-amber-300'
                                 }`}
                               >
                                 {/* Image */}
-                                <div className="w-16 h-16 rounded-lg bg-gray-100 overflow-hidden shrink-0">
+                                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-lg bg-gray-100 overflow-hidden shrink-0">
                                   {image ? (
                                     <img src={image} alt={product.name} className="w-full h-full object-cover grayscale" />
                                   ) : (
                                     <div className="w-full h-full flex items-center justify-center text-gray-300">
-                                      <Cpu className="w-6 h-6" />
+                                      <Cpu className="w-5 h-5 sm:w-6 sm:h-6" />
                                     </div>
                                   )}
                                 </div>
@@ -802,7 +802,7 @@ export default function ArmaTuPCPage() {
                           <p className="text-xs text-green-700 font-medium">{slot.label}</p>
                           <p className="text-xs text-green-900 truncate">{selected.product.name}</p>
                         </div>
-                        <span className="text-xs font-medium text-green-700 whitespace-nowrap">
+                        <span className="text-xs font-medium text-green-700 shrink-0">
                           {formatPrice(selected.product.comparePrice || selected.product.price)}
                         </span>
                       </div>
