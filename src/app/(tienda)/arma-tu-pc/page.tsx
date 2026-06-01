@@ -313,12 +313,12 @@ export default function ArmaTuPCPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6 overflow-hidden">
+      <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="flex flex-col lg:flex-row gap-6 items-start">
           {/* ============================================ */}
           {/* Left: Stepper + Product Selection */}
           {/* ============================================ */}
-          <div className={`flex-1 ${showMobileSummary ? 'hidden lg:block' : ''}`}>
+          <div className={`flex-1 min-w-0 ${showMobileSummary ? 'hidden lg:block' : ''}`}>
             {/* Step Indicator - Horizontal on desktop, progress on mobile */}
             <div className="bg-white rounded-xl border p-4 mb-6 overflow-x-auto">
               <div className="flex items-center gap-1 min-w-max">
