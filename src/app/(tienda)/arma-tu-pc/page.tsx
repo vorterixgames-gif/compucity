@@ -24,6 +24,7 @@ import {
   AlertTriangle,
   ShieldCheck,
   Info,
+  Minus,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -67,23 +68,24 @@ interface BuilderProduct {
 interface SelectedComponent {
   slot: string
   product: BuilderProduct
+  quantity: number
 }
 
 // ============================================
 // Slot Definitions
 // ============================================
 
-const SLOTS: { slot: string; label: string; categorySlug: string; icon: React.ElementType; required: boolean }[] = [
-  { slot: 'processor', label: 'Microprocesador', categorySlug: 'microprocesadores', icon: Cpu, required: true },
-  { slot: 'motherboard', label: 'Motherboard', categorySlug: 'motherboards', icon: CircuitBoard, required: true },
-  { slot: 'ram', label: 'Memoria RAM', categorySlug: 'memorias-ram', icon: Zap, required: true },
-  { slot: 'gpu', label: 'Placa de Video', categorySlug: 'placas-de-video', icon: Monitor, required: false },
-  { slot: 'ssd', label: 'Disco SSD', categorySlug: 'discos-ssd', icon: HardDrive, required: true },
-  { slot: 'hdd', label: 'Disco HDD', categorySlug: 'discos-hdd', icon: HardDrive, required: false },
-  { slot: 'psu', label: 'Fuente', categorySlug: 'fuentes', icon: Zap, required: true },
-  { slot: 'case', label: 'Gabinete', categorySlug: 'gabinetes', icon: Box, required: true },
-  { slot: 'cooling', label: 'Refrigeración', categorySlug: 'refrigeracion', icon: Wind, required: false },
-  { slot: 'thermal', label: 'Pasta Térmica', categorySlug: 'pastas-termicas', icon: Droplets, required: false },
+const SLOTS: { slot: string; label: string; categorySlug: string; icon: React.ElementType; required: boolean; maxQty: number }[] = [
+  { slot: 'processor', label: 'Microprocesador', categorySlug: 'microprocesadores', icon: Cpu, required: true, maxQty: 1 },
+  { slot: 'motherboard', label: 'Motherboard', categorySlug: 'motherboards', icon: CircuitBoard, required: true, maxQty: 1 },
+  { slot: 'ram', label: 'Memoria RAM', categorySlug: 'memorias-ram', icon: Zap, required: true, maxQty: 4 },
+  { slot: 'gpu', label: 'Placa de Video', categorySlug: 'placas-de-video', icon: Monitor, required: false, maxQty: 1 },
+  { slot: 'ssd', label: 'Disco SSD', categorySlug: 'discos-ssd', icon: HardDrive, required: true, maxQty: 4 },
+  { slot: 'hdd', label: 'Disco HDD', categorySlug: 'discos-hdd', icon: HardDrive, required: false, maxQty: 2 },
+  { slot: 'psu', label: 'Fuente', categorySlug: 'fuentes', icon: Zap, required: true, maxQty: 1 },
+  { slot: 'case', label: 'Gabinete', categorySlug: 'gabinetes', icon: Box, required: true, maxQty: 1 },
+  { slot: 'cooling', label: 'Refrigeración', categorySlug: 'refrigeracion', icon: Wind, required: false, maxQty: 1 },
+  { slot: 'thermal', label: 'Pasta Térmica', categorySlug: 'pastas-termicas', icon: Droplets, required: false, maxQty: 1 },
 ]
 
 // ============================================
@@ -215,16 +217,28 @@ export default function ArmaTuPCPage() {
   const selectProduct = (product: BuilderProduct) => {
     setSelectedComponents(prev => {
       const filtered = prev.filter(c => c.slot !== currentSlot.slot)
-      return [...filtered, { slot: currentSlot.slot, product }]
+      return [...filtered, { slot: currentSlot.slot, product, quantity: 1 }]
     })
+  }
+
+  const updateQuantity = (slot: string, delta: number) => {
+    setSelectedComponents(prev =>
+      prev.map(c => {
+        if (c.slot !== slot) return c
+        const slotDef = SLOTS.find(s => s.slot === slot)
+        const maxQty = slotDef?.maxQty || 1
+        const newQty = Math.max(1, Math.min(maxQty, c.quantity + delta))
+        return { ...c, quantity: newQty }
+      })
+    )
   }
 
   const removeProduct = (slot: string) => {
     setSelectedComponents(prev => prev.filter(c => c.slot !== slot))
   }
 
-  const totalPrice = selectedComponents.reduce((sum, c) => sum + (c.product.comparePrice || c.product.price), 0)
-  const totalListPrice = selectedComponents.reduce((sum, c) => sum + c.product.price, 0)
+  const totalPrice = selectedComponents.reduce((sum, c) => sum + (c.product.comparePrice || c.product.price) * c.quantity, 0)
+  const totalListPrice = selectedComponents.reduce((sum, c) => sum + c.product.price * c.quantity, 0)
   const completedRequired = SLOTS.filter(s => s.required).every(s => selectedComponents.some(c => c.slot === s.slot))
   const completedCount = selectedComponents.length
 
@@ -257,8 +271,13 @@ export default function ArmaTuPCPage() {
     let msg = '🔧 *Quiero armar una PC a medida!*\n\n'
     selectedComponents.forEach(c => {
       const slotLabel = SLOTS.find(s => s.slot === c.slot)?.label || c.slot
-      const price = c.product.comparePrice || c.product.price
-      msg += `*${slotLabel}:* ${c.product.name} - ${formatPrice(price)}\n`
+      const unitPrice = c.product.comparePrice || c.product.price
+      const totalPrice = unitPrice * c.quantity
+      if (c.quantity > 1) {
+        msg += `*${slotLabel}:* ${c.quantity}x ${c.product.name} - ${formatPrice(unitPrice)} c/u = ${formatPrice(totalPrice)}\n`
+      } else {
+        msg += `*${slotLabel}:* ${c.product.name} - ${formatPrice(unitPrice)}\n`
+      }
     })
     msg += `\n💰 *Total en efectivo:* ${formatPrice(totalPrice)}\n`
     msg += `📋 *Total de lista:* ${formatPrice(totalListPrice)}\n\n`
@@ -397,10 +416,37 @@ export default function ArmaTuPCPage() {
                   <Check className="h-5 w-5 text-green-600 shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-green-900 truncate">{selectedForCurrentSlot.product.name}</p>
-                    <p className="text-xs text-green-700">
-                      Efectivo: {formatPrice(selectedForCurrentSlot.product.comparePrice || selectedForCurrentSlot.product.price)}
-                    </p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-xs text-green-700">
+                        Efectivo: {formatPrice((selectedForCurrentSlot.product.comparePrice || selectedForCurrentSlot.product.price) * selectedForCurrentSlot.quantity)}
+                        {selectedForCurrentSlot.quantity > 1 && (
+                          <span className="text-green-500 ml-1">
+                            ({selectedForCurrentSlot.quantity}x {formatPrice(selectedForCurrentSlot.product.comparePrice || selectedForCurrentSlot.product.price)} c/u)
+                          </span>
+                        )}
+                      </p>
+                    </div>
                   </div>
+                  {/* Quantity selector for slots that allow multiple */}
+                  {currentSlot.maxQty > 1 && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); updateQuantity(currentSlot.slot, -1) }}
+                        className="w-7 h-7 rounded-md bg-white border border-green-300 flex items-center justify-center text-green-700 hover:bg-green-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                        disabled={selectedForCurrentSlot.quantity <= 1}
+                      >
+                        <Minus className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="w-7 text-center text-sm font-bold text-green-800">{selectedForCurrentSlot.quantity}</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); updateQuantity(currentSlot.slot, 1) }}
+                        className="w-7 h-7 rounded-md bg-white border border-green-300 flex items-center justify-center text-green-700 hover:bg-green-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                        disabled={selectedForCurrentSlot.quantity >= currentSlot.maxQty}
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -759,15 +805,20 @@ export default function ArmaTuPCPage() {
                   const Icon = slot.icon
 
                   if (selected) {
+                    const unitPrice = selected.product.comparePrice || selected.product.price
+                    const lineTotal = unitPrice * selected.quantity
                     return (
                       <div key={slot.slot} className="flex items-center gap-2 p-2 bg-green-50 rounded-lg">
                         <Icon className="w-4 h-4 text-green-600 shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs text-green-700 font-medium">{slot.label}</p>
+                          <p className="text-xs text-green-700 font-medium">
+                            {slot.label}
+                            {selected.quantity > 1 && <span className="ml-1 text-green-500">({selected.quantity}u)</span>}
+                          </p>
                           <p className="text-xs text-green-900 truncate">{selected.product.name}</p>
                         </div>
                         <span className="text-xs font-medium text-green-700 whitespace-nowrap">
-                          {formatPrice(selected.product.comparePrice || selected.product.price)}
+                          {formatPrice(lineTotal)}
                         </span>
                       </div>
                     )
