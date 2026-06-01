@@ -216,3 +216,26 @@ Stage Summary:
 - Air Intra: 1,647 active products (108 deactivated: placas-de-red networking)
 - Elit: 1,519 active (2 missing images), Invid: 1,191 active (0 missing images)
 - Next step: Run cross-provider copy in batches from admin panel, then web search for remaining
+
+---
+Task ID: 8
+Agent: main
+Task: Full backup + update PROJECT_STATUS.md (2026-06-02)
+
+Work Log:
+- Created full project code backup: compucity-backup-2026-06-02.tar.gz (443MB, excluding node_modules/.next/compucity-repo)
+- Created database JSON backup: compucity-db-2026-06-02.json (8MB, 11 tables)
+- Queried Turso DB for current stats: 4,228 active products, 2,871 with images, 1,357 without
+- Verified provider breakdown: Air Intra 1,532 active, Elit 1,508, Invid 1,187
+- Checked categorization issues: no "Extension M.2 Universal" found in active products (already handled), ~40 SODIMM RAM in memorias-ram (handled by compatibility system)
+- Updated PROJECT_STATUS.md with comprehensive project documentation
+- Removed sensitive credentials from PROJECT_STATUS.md before pushing to GitHub (PAT token, DB credentials, API keys)
+- Pushed to GitHub main branch successfully
+
+Stage Summary:
+- Backups saved to /home/z/my-project/download/backups/
+  - compucity-backup-2026-06-02.tar.gz (443MB)
+  - compucity-db-2026-06-02.json (8MB, 4,466 products, 66 categories, 3 suppliers)
+- PROJECT_STATUS.md fully updated with current state, pushed to GitHub
+- No code changes to production - documentation-only update
+- Production site unaffected
