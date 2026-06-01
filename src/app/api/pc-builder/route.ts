@@ -15,17 +15,7 @@ async function getConfig(key: string, defaultValue: number): Promise<number> {
   const rows = result.rows as any[]
   if (rows.length > 0) {
     try {
-      const raw = rows[0].value
-      try {
-        const parsed = JSON.parse(raw)
-        if (typeof parsed === 'object' && parsed !== null && 'value' in parsed) {
-          return Number(parsed.value) || defaultValue
-        }
-        if (typeof parsed === 'number') return parsed || defaultValue
-      } catch {
-        // Not valid JSON, treat as plain string number
-      }
-      return Number(raw) || defaultValue
+      return Number(JSON.parse(rows[0].value).value) || defaultValue
     } catch {
       return defaultValue
     }
@@ -86,7 +76,7 @@ export async function GET(request: NextRequest) {
       const products = (result.rows as any[]).map(p => {
         if (p.costPrice && p.costPrice > 0) {
           const listPrice = Math.ceil(p.costPrice * dollar.rate * (1 + markup / 100))
-          const cashPrice = Math.ceil(p.costPrice * dollar.rate * (1 + (markup - cashDiscount) / 100))
+          const cashPrice = Math.ceil(listPrice * (1 - cashDiscount / 100))
           return { ...p, price: listPrice, comparePrice: cashPrice, _calculated: true }
         }
         return { ...p, _calculated: false }
@@ -97,12 +87,10 @@ export async function GET(request: NextRequest) {
       const socketParam = request.nextUrl.searchParams.get('socket')
       const ddrParam = request.nextUrl.searchParams.get('ddr')
       const minWattageParam = request.nextUrl.searchParams.get('minWattage')
-      const cpuTdpParam = request.nextUrl.searchParams.get('cpuTdp')
 
       if (socketParam) filters.socket = socketParam
       if (ddrParam) filters.ddr = ddrParam
       if (minWattageParam) filters.minWattage = parseInt(minWattageParam)
-      if (cpuTdpParam) filters.cpuTdp = parseInt(cpuTdpParam)
 
       // Apply compatibility filters and enrich products with compat info
       const enrichedProducts = applyCompatibilityFilters(products, slot, filters)
