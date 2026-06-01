@@ -528,9 +528,7 @@ export default function ArmaTuPCPage() {
                             {!product.comparePrice && (
                               <span className="text-sm font-bold text-gray-900">{formatPrice(product.price)}</span>
                             )}
-                            {product.stock <= 0 && (
-                              <span className="text-xs text-red-500 font-medium">Sin stock</span>
-                            )}
+
                           </div>
                         </div>
 

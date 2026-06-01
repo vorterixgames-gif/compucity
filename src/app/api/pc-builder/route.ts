@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
       const result = await db.execute({
         sql: `SELECT p.id, p.name, p.slug, p.price, p.comparePrice, p.costPrice, p.images, p.stock, p.specs
               FROM products p
-              WHERE p.categoryId = ? AND p.isActive = 1
+              WHERE p.categoryId = ? AND p.isActive = 1 AND p.stock > 0
               ORDER BY p.price ASC`,
         args: [categoryId],
       })
