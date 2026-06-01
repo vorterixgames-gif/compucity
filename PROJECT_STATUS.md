@@ -153,6 +153,7 @@ public/images/logo-compucity-icon.png     — Logo recortado
 - `/home/z/my-project/src/app/arma-tu-pc/page.tsx.backup` — Backup del page.tsx
 
 ## 📝 Historial de Cambios
+- **2026-06-01:** Filtro global de stock — Productos sin stock (`stock <= 0`) no se muestran en toda la tienda: home, categorías, buscador, productos relacionados, Arma tu PC (productos + contador). Queries afectadas: `getAllActiveProducts`, `getFeaturedProducts`, `getProductsByCategory`, `searchProducts`, `getTopProductsByCategorySlug`, related-products API, pc-builder count. No se filtraron: detalle de producto individual (SEO), endpoint por ID (favoritos), todas las queries de admin
 - **2026-06-01:** Arma tu PC — Mobile sticky bottom bar con "Ver Tu PC a medida" + navegación siempre visible. Reemplazo de data-mobile-hidden CSS hack por clases Tailwind condicionales (hidden lg:block). Fix overflow-x en contenedor. Corrección de filtros de categorías en DB (productos mal asignados). Sistema de compatibilidad funcional (socket, DDR, wattage)
 - **2026-05-27:** Login de clientes + datos de envío — Sistema completo de autenticación (login/registro/perfil editable), provincia en checkout, shippingDetails como campo propio (JSON), tracking URLs, dropdown de usuario en navbar, perfil editable desde Mis Pedidos, migración DB para columna nueva
 - **2026-05-27:** Rediseño del Hero — de sección estática a carrusel full-width con 4 slides (inspirado en análisis de competencia: Gaming City, Mexx, FullH4rd, CompraGamer, Venex)

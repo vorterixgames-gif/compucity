@@ -595,22 +595,35 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
     const { slugToId, idToParentId, parentSlugToChildSlugs } = await buildCategoryLookup()
     const supplierMappings = await buildSupplierMappingLookup(supplier.id)
 
-    // Step 1: Authenticate
-    const authRes = await fetch(`${baseUrl}/?q=login&user=${encodeURIComponent(supplier.apiUsername)}&pass=${encodeURIComponent(supplier.apiPassword)}`)
+    // Step 1: Get token - use permanent token if available, otherwise login
+    let token = supplier.apiToken || null
+    let exchangeRate = 0
 
-    if (!authRes.ok) {
-      result.message = `Error de autenticación Air Intra: ${authRes.status}`
-      return result
+    if (!token) {
+      // No permanent token, need to login
+      const authRes = await fetch(`${baseUrl}/?q=login&user=${encodeURIComponent(supplier.apiUsername)}&pass=${encodeURIComponent(supplier.apiPassword)}`)
+
+      if (!authRes.ok) {
+        result.message = `Error de autenticación Air Intra: ${authRes.status}`
+        return result
+      }
+
+      const authData = await authRes.json()
+      if (!authData.token) {
+        result.message = `Air Intra: ${authData.error_detail || 'No se recibió token'}`
+        return result
+      }
+
+      token = authData.token
+      exchangeRate = parseFloat(authData.cotiza || '0')
+
+      // Air Intra requires 5 minutes between API requests
+      // Wait after login before fetching products
+      console.log('[Air Intra] Login OK, waiting 310s before first product fetch (API rate limit)...')
+      await new Promise(resolve => setTimeout(resolve, 310000))
+    } else {
+      console.log('[Air Intra] Using permanent token, fetching products directly (no login delay needed)')
     }
-
-    const authData = await authRes.json()
-    if (!authData.token) {
-      result.message = `Air Intra: ${authData.error_detail || 'No se recibió token'}`
-      return result
-    }
-
-    const token = authData.token
-    const exchangeRate = parseFloat(authData.cotiza || '0')
 
     // Step 2: Fetch all products using syp (stock & price) endpoint
     let page = 0
@@ -744,6 +757,10 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
       page++
       if (products.length < pageSize) {
         hasMore = false
+      } else {
+        // Wait 310s between pages (Air Intra rate limit: 5 min between requests)
+        console.log(`[Air Intra] Page ${page - 1} done, waiting 310s before page ${page}...`)
+        await new Promise(resolve => setTimeout(resolve, 310000))
       }
     }
 
