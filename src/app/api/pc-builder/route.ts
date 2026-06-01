@@ -37,6 +37,24 @@ const COMPONENT_SLOTS: { slot: string; label: string; categorySlug: string }[] =
   { slot: 'thermal', label: 'Pasta Térmica', categorySlug: 'pastas-termicas' },
 ]
 
+// Name patterns to EXCLUDE from the PC builder (non-consumer/non-relevant products)
+const BUILDER_EXCLUDE_PATTERNS: Record<string, string[]> = {
+  ssd: ['EXTERNO', 'EXTERNA', 'PORTABLE', 'XS1000', 'SXS1000', 'SHIELD', 'SC750', 'DUAL', 'DELL', 'TARJETA DE MEMORIA', 'EXTENSION', 'DISK P/', 'MIRRORING', 'THINKSYSTEM', 'NAS', 'CONSOLA', 'P/SERVER', 'DVR/NVR'],
+  hdd: ['EXTERNO', 'EXTERNA', 'PORTABLE', 'DELL', 'LENOVO', 'VIDEO RECORDER', 'KIT ', 'SPONGE', 'BAHIA', 'COLOCACION'],
+  ram: ['SIMM', 'P/DELL SERVER', 'P/HP SERVER', 'P/LENOVO SERVER', 'MOTHER', 'MB '],
+  gpu: ['DELL P2', 'DELL E2', 'HP Z', 'MONITOR'],
+  psu: ['MAENI', 'PERFORMANCE 12V', 'PERFORMANCE 9V', 'PERFORMANCE CARGA', '5V ', 'DE ALIMENTACION', 'DE EPL', 'REDUNDANTE', 'AUXILIAR', 'ATX P3', 'LENOVO', 'ENCHUFE', 'HP FUENTE REDUNDANTE', 'HP RPS', 'HPX311'],
+  cooling: ['PRINTER', 'DELL', 'AIO 24', 'HP SMART'],
+  case: ['HP X421', 'FUENTE DE ALIMENTACI'],
+}
+
+function isExcludedFromBuilder(slot: string, name: string): boolean {
+  const patterns = BUILDER_EXCLUDE_PATTERNS[slot]
+  if (!patterns) return false
+  const upper = name.toUpperCase()
+  return patterns.some(p => upper.includes(p.toUpperCase()))
+}
+
 export async function GET(request: NextRequest) {
   try {
     const slot = request.nextUrl.searchParams.get('slot')
@@ -80,7 +98,7 @@ export async function GET(request: NextRequest) {
           return { ...p, price: listPrice, comparePrice: cashPrice, _calculated: true }
         }
         return { ...p, _calculated: false }
-      })
+      }).filter(p => !isExcludedFromBuilder(slot, p.name))
 
       // Parse compatibility filters from query params
       const filters: CompatibilityFilters = {}
