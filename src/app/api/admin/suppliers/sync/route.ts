@@ -586,46 +586,93 @@ async function syncInvid(supplier: any): Promise<SyncResult> {
   return result
 }
 
+/**
+ * Safely parse JSON from Air Intra API response.
+ * Handles cases where the API returns HTML/PHP error pages instead of JSON.
+ */
+async function safeParseAirIntraResponse(res: Response): Promise<{ data: any; error: string | null }> {
+  const contentType = res.headers.get('content-type') || ''
+  const text = await res.text()
+
+  // Check if response is HTML (PHP error page)
+  if (contentType.includes('text/html') || text.trim().startsWith('<') || text.includes('<br')) {
+    // Extract a clean error message from the HTML
+    const cleanText = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 200)
+    return { data: null, error: `La API devolvió una página de error HTML en lugar de JSON. Puede deberse a solicitudes muy frecuentes. Espere 5 minutos e intente nuevamente. Detalle: ${cleanText}` }
+  }
+
+  try {
+    const data = JSON.parse(text)
+    // Check for API-level errors (Air Intra returns error_id in JSON)
+    if (data && typeof data === 'object' && !Array.isArray(data) && data.error_id) {
+      if (data.error_id === 401) {
+        return { data: null, error: `Token expirado o inválido. ${data.error_detail || ''}` }
+      }
+      if (data.error_id === 403) {
+        return { data: null, error: `Demasiadas solicitudes. La API de Air Intra requiere esperar 5 minutos entre ciclos de consulta. ${data.error_detail || ''}` }
+      }
+      return { data: null, error: `Error API Air Intra (${data.error_id}): ${data.error_name || ''} - ${data.error_detail || ''}` }
+    }
+    return { data, error: null }
+  } catch (e: any) {
+    return { data: null, error: `No se pudo interpretar la respuesta de la API: ${e.message}` }
+  }
+}
+
 async function syncAirIntra(supplier: any): Promise<SyncResult> {
   const baseUrl = supplier.apiBaseUrl || 'https://api.air-intra.com/v2'
   const result: SyncResult = { ok: false, total: 0, created: 0, updated: 0, skipped: 0, errors: 0, message: '' }
 
   try {
+    // Check if we synced recently (Air Intra has a 5-min rate limit between cycles)
+    if (supplier.lastSyncAt) {
+      const lastSync = new Date(supplier.lastSyncAt).getTime()
+      const elapsed = Date.now() - lastSync
+      const minInterval = 5 * 60 * 1000 // 5 minutes
+      if (elapsed < minInterval) {
+        const waitSeconds = Math.ceil((minInterval - elapsed) / 1000)
+        result.message = `Debe esperar ${waitSeconds} segundos antes de sincronizar nuevamente (la API de Air Intra tiene un límite de 5 minutos entre solicitudes).`
+        return result
+      }
+    }
+
     // Build category lookups
     const { slugToId, idToParentId, parentSlugToChildSlugs } = await buildCategoryLookup()
     const supplierMappings = await buildSupplierMappingLookup(supplier.id)
 
-    // Step 1: Get token - use permanent token if available, otherwise login
-    let token = supplier.apiToken || null
-    let exchangeRate = 0
+    // Step 1: Login to get a fresh token
+    console.log('[Air Intra] Logging in...')
+    const authRes = await fetch(`${baseUrl}/?q=login&user=${encodeURIComponent(supplier.apiUsername)}&pass=${encodeURIComponent(supplier.apiPassword)}`)
 
-    if (!token) {
-      // No permanent token, need to login
-      const authRes = await fetch(`${baseUrl}/?q=login&user=${encodeURIComponent(supplier.apiUsername)}&pass=${encodeURIComponent(supplier.apiPassword)}`)
-
-      if (!authRes.ok) {
-        result.message = `Error de autenticación Air Intra: ${authRes.status}`
-        return result
-      }
-
-      const authData = await authRes.json()
-      if (!authData.token) {
-        result.message = `Air Intra: ${authData.error_detail || 'No se recibió token'}`
-        return result
-      }
-
-      token = authData.token
-      exchangeRate = parseFloat(authData.cotiza || '0')
-
-      // Air Intra requires 5 minutes between API requests
-      // Wait after login before fetching products
-      console.log('[Air Intra] Login OK, waiting 310s before first product fetch (API rate limit)...')
-      await new Promise(resolve => setTimeout(resolve, 310000))
-    } else {
-      console.log('[Air Intra] Using permanent token, fetching products directly (no login delay needed)')
+    if (!authRes.ok) {
+      result.message = `Error de autenticación Air Intra: ${authRes.status}`
+      return result
     }
 
-    // Step 2: Fetch all products using syp (stock & price) endpoint
+    const { data: authData, error: authError } = await safeParseAirIntraResponse(authRes)
+    if (authError || !authData?.token) {
+      result.message = authError || 'No se recibió token de Air Intra'
+      return result
+    }
+
+    const token = authData.token
+    const exchangeRate = parseFloat(authData.cotiza || '0')
+    console.log(`[Air Intra] Login OK. Cotización: ${exchangeRate}`)
+
+    // Step 2: Determine if this is an initial sync or an update
+    // If we already have products from this provider, use syp (stock & price only)
+    // If no products yet, use articulos (full data) for the first sync
+    const existingCount = await db.execute({
+      sql: 'SELECT COUNT(*) as cnt FROM products WHERE providerId = ?',
+      args: [supplier.id],
+    })
+    const hasExistingProducts = ((existingCount.rows as any[])[0]?.cnt || 0) > 0
+    const endpoint = hasExistingProducts ? 'syp' : 'articulos'
+    console.log(`[Air Intra] Using endpoint: ${endpoint} (${hasExistingProducts ? 'actualización' : 'sincronización inicial'})`)
+
+    // Step 3: Fetch products page by page
+    // Per Air Intra docs: pages can be fetched sequentially without delay.
+    // The 5-minute wait is only between COMPLETE download cycles, not between pages.
     let page = 0
     const pageSize = 500
     let hasMore = true
@@ -636,7 +683,8 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
     let errors = 0
 
     while (hasMore) {
-      const productsRes = await fetch(`${baseUrl}/?q=syp&page=${page}`, {
+      console.log(`[Air Intra] Fetching page ${page}...`)
+      const productsRes = await fetch(`${baseUrl}/?q=${endpoint}&page=${page}`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -646,7 +694,8 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
       })
 
       if (!productsRes.ok) {
-        result.message = `Error fetching products from Air Intra: ${productsRes.status}`
+        const errText = await productsRes.text().catch(() => '')
+        result.message = `Error HTTP ${productsRes.status} al obtener productos de Air Intra (página ${page}). ${errText.substring(0, 200)}`
         result.total = totalFetched
         result.created = created
         result.updated = updated
@@ -655,7 +704,17 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
         return result
       }
 
-      const products = await productsRes.json()
+      const { data: products, error: parseError } = await safeParseAirIntraResponse(productsRes)
+
+      if (parseError) {
+        result.message = parseError
+        result.total = totalFetched
+        result.created = created
+        result.updated = updated
+        result.skipped = skipped
+        result.errors = errors + 1
+        return result
+      }
 
       if (!Array.isArray(products) || products.length === 0) {
         hasMore = false
@@ -665,13 +724,14 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
       for (const product of products) {
         totalFetched++
         try {
+          // Handle both articulos and syp response formats
           const price = parseFloat(product.precio || '0')
           if (price <= 0) {
             skipped++
             continue
           }
 
-          const providerSku = product.codigo || ''
+          const providerSku = product.codigo || product.codiart || ''
           const costPrice = price
           const supplierCategory = getAirIntraSupplierCategory(product)
 
@@ -679,12 +739,15 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
           const markup = supplier.markup || 30
           const sellingPrice = costPrice * (1 + markup / 100)
 
-          // Check total available stock
+          // Check total available stock across warehouses
           const totalStock = (product.air?.disponible || 0) +
             (product.lug?.disponible || 0) +
             (product.ros?.disponible || 0) +
             (product.cba?.disponible || 0) +
-            (product.mza?.disponible || 0)
+            (product.mza?.disponible || 0) +
+            (product.stock_disponible || 0)
+
+          const productName = product.descrip || product.descripcion || product.titulo || ''
 
           const existing = await db.execute({
             sql: 'SELECT id FROM products WHERE providerId = ? AND providerSku = ?',
@@ -694,7 +757,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
           const existingRows = existing.rows as any[]
 
           const { categoryId } = mapProductToCategory(
-            product.descrip || '',
+            productName,
             supplierCategory,
             supplierMappings,
             slugToId,
@@ -713,32 +776,45 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
             })
             updated++
           } else {
-            if (!product.descrip) {
+            if (!productName) {
               skipped++
               continue
             }
 
             const newId = crypto.randomUUID()
-            const formattedName = formatProductName(product.descrip)
+            const formattedName = formatProductName(productName)
             const slug = generateSlug(formattedName)
 
+            // Build specs from available data
             const specs: Record<string, string> = {}
             if (product.garantia) specs['Garantía'] = product.garantia
             if (product.moneda) specs['Moneda'] = product.moneda
+            if (product.marca) specs['Marca'] = product.marca
+            if (product.rubro) specs['Rubro'] = product.rubro
+            if (product.peso) specs['Peso'] = `${product.peso} kg`
+
+            // Get images from articulos endpoint (full data)
+            const images = product.imagenes && Array.isArray(product.imagenes) && product.imagenes.length > 0
+              ? JSON.stringify(product.imagenes)
+              : (product.imagen ? JSON.stringify([product.imagen]) : '[]')
+
+            const description = product.descripcion || product.descrip_larga || ''
 
             await db.execute({
               sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
-                    VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
               args: [
                 newId,
                 formattedName,
                 slug,
+                description,
                 sellingPrice,
                 costPrice,
                 providerSku,
                 totalStock,
                 1,
                 0,
+                images,
                 JSON.stringify(specs),
                 supplier.id,
                 providerSku,
@@ -754,14 +830,12 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
         }
       }
 
+      console.log(`[Air Intra] Page ${page} processed: ${products.length} items`)
       page++
       if (products.length < pageSize) {
         hasMore = false
-      } else {
-        // Wait 310s between pages (Air Intra rate limit: 5 min between requests)
-        console.log(`[Air Intra] Page ${page - 1} done, waiting 310s before page ${page}...`)
-        await new Promise(resolve => setTimeout(resolve, 310000))
       }
+      // NO delay between pages - Air Intra docs confirm pagination is immediate
     }
 
     const syncNow2 = new Date().toISOString()
