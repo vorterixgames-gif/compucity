@@ -158,3 +158,35 @@ Stage Summary:
 - Invid Computers: 1,191 products (ALL categories including notebooks, routers, switches, etc.) ✅
 - Total: 4,466 active products, 3,213 visible in store
 - Enrichment route now safe: will never deactivate Elit/Invid products
+
+---
+Task ID: 6
+Agent: main
+Task: Add PC Armadas category + fix Air Intra-only filtering + recategorize miscategorized PCs
+
+Work Log:
+- User clarified: only Air Intra should filter to periféricos/componentes. Added PC Armadas as allowed category.
+- Added PC Armadas keywords to CATEGORY_KEYWORD_MAP in both enrich and sync routes (PC GAMER, PC LENOVO, PC KELYX, SIST., BAREBONE)
+- Added category corrections for Mini PCs/complete PCs mis-categorized as components (discos-ssd, memorias-ram, microprocesadores, fuentes)
+- Deactivated 108 Air Intra "placas-de-red" products (SFP modules, Aruba, HP networking equipment)
+- Recategorized 33 PC products from wrong categories to PC Armadas subcategories:
+  - 4 Mini PCs from microprocesadores → mini-pc
+  - 6 Mini PCs from memorias-ram → mini-pc
+  - 7 Mini PCs from discos-ssd → mini-pc
+  - 5 PCs Lenovo from discos-ssd → oficina-pc
+  - 1 Sist. Kelyx from discos-ssd → oficina-pc
+  - 7 PC Gamer from fuentes → gamer-pc
+  - 3 Desktops from switches → oficina-pc
+- Added Air Intra-only category filter in sync route: only periféricos, componentes-de-pc, cables-y-adaptadores, and pc-armadas allowed
+- Fixed homepage PC Armadas section: changed from gamer-pc to pc-armadas parent category for broader results
+- Fixed "Ver todas" link to point to /categoria/pc-armadas
+- Pushed all changes to GitHub, Vercel auto-deploy triggered
+
+Stage Summary:
+- Air Intra: 1,647 active (108 deactivated: placas-de-red networking equipment)
+- Elit: 1,519 active (ALL categories kept)
+- Invid Computers: 1,191 active (ALL categories kept)
+- PC Armadas now has 53 products: 24 Mini PC, 22 Oficina, 7 Gamer
+- Total active: 4,358 products
+- Active without images: 1,586 (next task: load images in WebP)
+- Air Intra sync now has built-in category filter for future syncs
