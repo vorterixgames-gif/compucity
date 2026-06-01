@@ -698,6 +698,83 @@ async function safeParseAirIntraResponse(res: Response): Promise<{ data: any; er
   }
 }
 
+/**
+ * Parse a potentially corrupted Air Intra JSON array by extracting individual
+ * product objects using regex. This is the ultimate fallback when the entire
+ * JSON array can't be parsed due to PHP notices injected between/inside objects.
+ * Returns an array of successfully parsed product objects.
+ */
+function extractProductsFromCorruptedJson(text: string): any[] {
+  const products: any[] = []
+
+  // Find all top-level JSON objects in the text
+  // We look for patterns like {"codigo": ...} which are product objects
+  // We track brace depth to find complete objects
+  let i = 0
+  while (i < text.length) {
+    // Find the start of a JSON object
+    if (text[i] !== '{') {
+      i++
+      continue
+    }
+
+    // Try to parse a complete object starting at position i
+    let depth = 0
+    let inStr = false
+    let esc = false
+    let objEnd = -1
+
+    for (let j = i; j < text.length; j++) {
+      const ch = text[j]
+
+      if (esc) {
+        esc = false
+        continue
+      }
+      if (ch === '\\' && inStr) {
+        esc = true
+        continue
+      }
+      if (ch === '"') {
+        inStr = !inStr
+        continue
+      }
+      if (inStr) continue
+
+      if (ch === '{') depth++
+      else if (ch === '}') {
+        depth--
+        if (depth === 0) {
+          objEnd = j
+          break
+        }
+      }
+    }
+
+    if (objEnd === -1) {
+      i++
+      continue
+    }
+
+    const objText = text.substring(i, objEnd + 1)
+
+    // Quick check: skip objects that are clearly not products
+    // (e.g., error objects, impuesto_iva fragments, etc.)
+    if (objText.includes('"codigo"') || objText.includes('"codiart"')) {
+      try {
+        const obj = JSON.parse(objText)
+        products.push(obj)
+      } catch {
+        // Object itself is corrupted, skip it
+      }
+    }
+
+    i = objEnd + 1
+  }
+
+  return products
+}
+
 async function syncAirIntra(supplier: any): Promise<SyncResult> {
   const baseUrl = supplier.apiBaseUrl || 'https://api.air-intra.com/v2'
   const result: SyncResult = { ok: false, total: 0, created: 0, updated: 0, skipped: 0, errors: 0, message: '' }
@@ -738,16 +815,11 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
     const exchangeRate = parseFloat(authData.cotiza || '0')
     console.log(`[Air Intra] Login OK. Cotización: ${exchangeRate}`)
 
-    // Step 2: Determine if this is an initial sync or an update
-    // If we already have products from this provider, use syp (stock & price only)
-    // If no products yet, use articulos (full data) for the first sync
-    const existingCount = await db.execute({
-      sql: 'SELECT COUNT(*) as cnt FROM products WHERE providerId = ?',
-      args: [supplier.id],
-    })
-    const hasExistingProducts = ((existingCount.rows as any[])[0]?.cnt || 0) > 0
-    const endpoint = hasExistingProducts ? 'syp' : 'articulos'
-    console.log(`[Air Intra] Using endpoint: ${endpoint} (${hasExistingProducts ? 'actualización' : 'sincronización inicial'})`)
+    // Step 2: Always use syp endpoint (Stock & Price)
+    // The articulos endpoint has complex nested objects and PHP notices that corrupt the JSON.
+    // syp returns simpler, flatter objects that are easier to parse.
+    const endpoint = 'syp'
+    console.log(`[Air Intra] Using endpoint: ${endpoint}`)
 
     // Step 3: Fetch products page by page
     // Per Air Intra docs: pages can be fetched sequentially without delay.
@@ -783,27 +855,48 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
         return result
       }
 
-      const { data: products, error: parseError } = await safeParseAirIntraResponse(productsRes)
+      // Get raw text first (we need it for fallback), then try standard parse
+      let products: any[] | null = null
+      const rawResponseText = await productsRes.text()
+      const { data: parsedProducts, error: parseError } = await (async () => {
+        // Create a new Response from the cached text for our parser
+        const fakeRes = new Response(rawResponseText, {
+          headers: productsRes.headers,
+          status: productsRes.status,
+        })
+        return safeParseAirIntraResponse(fakeRes)
+      })()
 
       if (parseError) {
-        result.message = parseError
-        result.total = totalFetched
-        result.created = created
-        result.updated = updated
-        result.skipped = skipped
-        result.errors = errors + 1
-        return result
-      }
+        console.log(`[Air Intra] Standard parse failed: ${parseError}. Trying object extraction...`)
 
-      if (!Array.isArray(products) || products.length === 0) {
-        hasMore = false
-        break
+        // Fallback: extract individual product objects from the corrupted response
+        if (rawResponseText) {
+          const cleanedText = stripPhpNotices(rawResponseText)
+          products = extractProductsFromCorruptedJson(cleanedText)
+          console.log(`[Air Intra] Extracted ${products.length} products from corrupted response`)
+        }
+
+        if (!products || products.length === 0) {
+          result.message = parseError
+          result.total = totalFetched
+          result.created = created
+          result.updated = updated
+          result.skipped = skipped
+          result.errors = errors + 1
+          return result
+        }
+      } else {
+        if (!Array.isArray(parsedProducts) || parsedProducts.length === 0) {
+          hasMore = false
+          break
+        }
+        products = parsedProducts
       }
 
       for (const product of products) {
         totalFetched++
         try {
-          // Handle both articulos and syp response formats
           const price = parseFloat(product.precio || '0')
           if (price <= 0) {
             skipped++
@@ -864,36 +957,26 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
             const formattedName = formatProductName(productName)
             const slug = generateSlug(formattedName)
 
-            // Build specs from available data
+            // Build specs from syp data (limited fields)
             const specs: Record<string, string> = {}
             if (product.garantia) specs['Garantía'] = product.garantia
             if (product.moneda) specs['Moneda'] = product.moneda
             if (product.marca) specs['Marca'] = product.marca
             if (product.rubro) specs['Rubro'] = product.rubro
-            if (product.peso) specs['Peso'] = `${product.peso} kg`
-
-            // Get images from articulos endpoint (full data)
-            const images = product.imagenes && Array.isArray(product.imagenes) && product.imagenes.length > 0
-              ? JSON.stringify(product.imagenes)
-              : (product.imagen ? JSON.stringify([product.imagen]) : '[]')
-
-            const description = product.descripcion || product.descrip_larga || ''
 
             await db.execute({
               sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
               args: [
                 newId,
                 formattedName,
                 slug,
-                description,
                 sellingPrice,
                 costPrice,
                 providerSku,
                 totalStock,
                 1,
                 0,
-                images,
                 JSON.stringify(specs),
                 supplier.id,
                 providerSku,
