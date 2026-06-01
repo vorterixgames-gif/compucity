@@ -369,7 +369,8 @@ export default function AdminProductos() {
 
       const data = await res.json()
       if (!data.ok) {
-        setFormError(data.error || 'Error al guardar')
+        const errorMsg = data.detail ? `${data.error}: ${data.detail}` : (data.error || 'Error al guardar')
+        setFormError(errorMsg)
         return
       }
 

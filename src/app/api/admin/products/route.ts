@@ -194,22 +194,65 @@ export async function PUT(request: NextRequest) {
 
     const now = new Date().toISOString()
 
-    // Calculate prices
+    // Determine if we need to recalculate prices
+    // Recalculate when: costPrice is set OR markup/cashDiscount changed on a product with costPrice
     const hasCostPrice = costPrice && Number(costPrice) > 0
+    const markupChanged = markup !== undefined
+    const discountChanged = cashDiscount !== undefined
+    const needRecalc = hasCostPrice || markupChanged || discountChanged
+
     let finalPrice: number | undefined = price !== undefined ? Number(price) : undefined
     let finalComparePrice: number | null | undefined = comparePrice !== undefined ? (comparePrice ? Number(comparePrice) : null) : undefined
 
-    if (hasCostPrice) {
-      // Auto-calculate from USD cost + dollar rate + markup
-      const dollar = await fetchDollarRate()
-      const globalMarkup = await getConfig('markup', 30)
-      const globalCashDiscount = await getConfig('cash_discount', 10)
-      // Use product-level values if provided in this request, otherwise use global
-      const effectiveMarkup = markup != null && markup !== '' ? Number(markup) : globalMarkup
-      const effectiveCashDiscount = cashDiscount != null && cashDiscount !== '' ? Number(cashDiscount) : globalCashDiscount
+    if (needRecalc) {
+      // Get the product's current costPrice if not provided in this request
+      let effectiveCostPrice = hasCostPrice ? Number(costPrice) : 0
+      
+      if (!hasCostPrice && (markupChanged || discountChanged)) {
+        // Fetch current costPrice from DB since it wasn't sent
+        const currentProduct = await db.execute({
+          sql: 'SELECT costPrice, markup, cashDiscount FROM products WHERE id = ?',
+          args: [id],
+        })
+        const rows = currentProduct.rows as any[]
+        if (rows.length > 0 && rows[0].costPrice && Number(rows[0].costPrice) > 0) {
+          effectiveCostPrice = Number(rows[0].costPrice)
+        }
+      }
 
-      finalPrice = Math.ceil(Number(costPrice) * dollar.rate * (1 + effectiveMarkup / 100))
-      finalComparePrice = Math.ceil(Number(costPrice) * dollar.rate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100))
+      if (effectiveCostPrice > 0) {
+        // Auto-calculate from USD cost + dollar rate + markup
+        const dollar = await fetchDollarRate()
+        const globalMarkup = await getConfig('markup', 30)
+        const globalCashDiscount = await getConfig('cash_discount', 10)
+
+        // Determine effective markup: use product-level if provided, otherwise use existing or global
+        let effectiveMarkup = globalMarkup
+        if (markup != null && markup !== '') {
+          effectiveMarkup = Number(markup)
+        } else if (markup === null || markup === '') {
+          // User cleared the individual markup, use global
+          effectiveMarkup = globalMarkup
+        } else if (markup === undefined) {
+          // markup not sent in request - check if product has individual value
+          if (hasCostPrice) {
+            // New costPrice being set, use global unless markup was provided
+            effectiveMarkup = globalMarkup
+          }
+          // Otherwise keep current behavior
+        }
+
+        let effectiveCashDiscount = globalCashDiscount
+        if (cashDiscount != null && cashDiscount !== '') {
+          effectiveCashDiscount = Number(cashDiscount)
+        } else if (cashDiscount === null || cashDiscount === '') {
+          effectiveCashDiscount = globalCashDiscount
+        }
+
+        const dollarRate = dollar?.rate || 1415
+        finalPrice = Math.ceil(effectiveCostPrice * dollarRate * (1 + effectiveMarkup / 100))
+        finalComparePrice = Math.ceil(effectiveCostPrice * dollarRate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100))
+      }
     }
 
     const fields: string[] = []
@@ -240,15 +283,17 @@ export async function PUT(request: NextRequest) {
     values.push(now)
     values.push(id)
 
+    console.log('[products PUT] Updating product', id, 'fields:', fields.join(', '))
     await db.execute({
       sql: `UPDATE products SET ${fields.join(', ')} WHERE id = ?`,
       args: values,
     })
 
     return NextResponse.json({ ok: true })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Update product error:', error)
-    return NextResponse.json({ error: 'Error del servidor' }, { status: 500 })
+    const errorMessage = error?.message || 'Error del servidor'
+    return NextResponse.json({ error: 'Error del servidor', detail: errorMessage }, { status: 500 })
   }
 }
 
