@@ -419,3 +419,145 @@ export async function POST(request: Request) {
     )
   }
 }
+
+// ============================================
+// CROSS-PROVIDER IMAGE COPY
+// Copies images from Elit/Invid to matching Air Intra products
+// using brand + model keyword matching
+// ============================================
+
+function extractBrandAndModelTerms(name: string): { brand: string; tokens: string[] } {
+  const upper = name.toUpperCase()
+  const brands = ['LOGITECH', 'CORSAIR', 'RAZER', 'HYPERX', 'KINGSTON', 'COOLER MASTER', 'ASUS ROG', 'ASUS TUF', 'ASUS', 'MSI', 'GIGABYTE', 'LENOVO', 'HP', 'DELL', 'TP-LINK', 'GENIUS', 'SAMSUNG', 'SEAGATE', 'ADATA', 'CRUCIAL', 'BE QUIET', 'THERMALTAKE', 'NZXT', 'STEELSERIES', 'REDRAGON', 'NOCTUA', 'DEEPCOOL', 'GAMEMAX', 'KLIPXTREME', 'VERBATIM', 'SANDISK', 'INTEL', 'AMD']
+  let brand = ''
+  for (const b of brands) { if (upper.includes(b)) { brand = b; break } }
+
+  const tokens: string[] = []
+  const patterns = [
+    /(RTX\s?\d{4})/gi, /(GTX\s?\d{4})/gi,
+    /(R[3579]\s?\d{3,4}[XG]?)/gi, /(I[3579][- ]?\d{4,5}[KF]?)/gi,
+    /(B\d{3}|H\d{3}|Z\d{3}|X\d{3})/gi,
+    /(DDR[45])/gi, /(\d+GB)/gi, /(\d+TB)/gi, /(\d+MBPS)/gi,
+    /(GX-\d+|HS-\d+|G-\d+)/gi, /(NX-\d+)/gi, /(WN\d{4})/gi,
+    /(G923|G29|F710)/gi, /(K\d{3,4})/gi,
+    /(NVME|M\.2|SATA)/gi,
+  ]
+  for (const p of patterns) {
+    const m = upper.match(p)
+    if (m) m.forEach(t => tokens.push(t.toUpperCase().replace(/\s+/g, '')))
+  }
+
+  return { brand, tokens }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+    await ensureImageTable()
+    const body = await request.json().catch(() => ({}))
+    const batchSize = Math.min(Math.max(body.batchSize || 20, 1), 50)
+
+    // Step 1: Get Air Intra products needing images (in stock, with category)
+    const airIntra = await db.execute({
+      sql: `SELECT id, name FROM products
+            WHERE providerId = 'air-intra-1780331633566'
+              AND (images = '[]' OR images IS NULL OR images = '')
+              AND isActive = 1 AND stock > 0 AND categoryId IS NOT NULL
+            ORDER BY price DESC LIMIT ?`,
+      args: [batchSize],
+    })
+
+    if (airIntra.rows.length === 0) {
+      return NextResponse.json({ ok: true, enriched: 0, message: 'Todos los productos tienen imágenes' })
+    }
+
+    // Step 2: Build inverted index from Elit/Invid
+    const withImages = await db.execute({
+      sql: `SELECT p.name, p.images FROM products p
+            JOIN suppliers s ON p.providerId = s.id
+            WHERE s.name IN ('Elit', 'Invid Computers')
+              AND p.images != '[]' AND p.images IS NOT NULL AND p.isActive = 1`,
+    })
+
+    // token -> [{ url, brand, name }]
+    const invertedIndex = new Map<string, { url: string; brand: string; name: string }[]>()
+
+    for (const row of withImages.rows as any[]) {
+      const images = JSON.parse(row.images || '[]')
+      if (images.length === 0) continue
+      const { brand, tokens } = extractBrandAndModelTerms(row.name)
+      for (const token of tokens) {
+        if (!invertedIndex.has(token)) invertedIndex.set(token, [])
+        invertedIndex.get(token)!.push({ url: images[0], brand, name: row.name })
+      }
+    }
+
+    // Step 3: Match and process
+    let enriched = 0
+    let noMatch = 0
+    let failed = 0
+
+    for (const ai of airIntra.rows as any[]) {
+      const { brand: aiBrand, tokens: aiTokens } = extractBrandAndModelTerms(ai.name)
+      if (aiTokens.length === 0) { noMatch++; continue }
+
+      // Find best match
+      const candidateScores = new Map<string, { score: number; url: string; brand: string }>()
+      for (const token of aiTokens) {
+        const candidates = invertedIndex.get(token)
+        if (!candidates) continue
+        for (const c of candidates) {
+          const key = c.url
+          const prev = candidateScores.get(key) || { score: 0, url: c.url, brand: c.brand }
+          prev.score += (c.brand === aiBrand && aiBrand) ? 4 : 1
+          candidateScores.set(key, prev)
+        }
+      }
+
+      // Get best candidate (score >= 2)
+      let bestMatch: { url: string; brand: string; score: number } | null = null
+      for (const c of candidateScores.values()) {
+        if (c.score >= 2 && (!bestMatch || c.score > bestMatch.score)) bestMatch = c
+      }
+
+      if (!bestMatch) { noMatch++; continue }
+
+      // Download and convert
+      const imageData = await downloadAndConvertToWebp(bestMatch.url)
+      if (!imageData) { failed++; continue }
+
+      // Store
+      const imageId = crypto.randomUUID()
+      await db.execute({
+        sql: `INSERT INTO product_images (id, data, size, width, height, createdAt) VALUES (?, ?, ?, ?, ?, datetime('now'))`,
+        args: [imageId, imageData.data, imageData.size, imageData.width, imageData.height],
+      })
+      await db.execute({
+        sql: `UPDATE products SET images = ?, updatedAt = datetime('now') WHERE id = ?`,
+        args: [JSON.stringify([`/api/image/${imageId}`]), ai.id],
+      })
+
+      enriched++
+    }
+
+    // Count remaining
+    const remaining = await db.execute({
+      sql: `SELECT COUNT(*) as c FROM products WHERE providerId = 'air-intra-1780331633566' AND (images = '[]' OR images IS NULL OR images = '') AND isActive = 1`,
+    })
+
+    return NextResponse.json({
+      ok: true,
+      enriched,
+      noMatch,
+      failed,
+      remaining: (remaining.rows[0] as any).c,
+      message: `Cross-copy: ${enriched} enriquecidos, ${noMatch} sin match, ${failed} fallidos. Quedan ${(remaining.rows[0] as any).c} sin imagen.`,
+    })
+
+  } catch (error: any) {
+    console.error('[enrich-images] Cross-copy error:', error)
+    return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
+  }
+}
