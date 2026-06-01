@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-02
+**Ultima actualizacion:** 2026-06-02 (sesion 2)
 
 ---
 
@@ -17,7 +17,7 @@
 - **Base de datos:** Turso (libSQL) + Prisma ORM (solo schema, raw SQL en runtime)
 - **Auth:** Custom HMAC cookie auth (admin_token + customer_token)
 - **Estado:** Zustand + React Query
-- **Deploy:** GitHub push a main → Vercel auto-deploy
+- **Deploy:** GitHub push a main -> Vercel auto-deploy
 
 ### Credenciales y Accesos
 - **GitHub:** https://github.com/vorterixgames-gif/compucity
@@ -35,13 +35,14 @@
 - **Elit:** MANTIENE TODOS sus productos (notebooks, impresion, toners, UPS, etc.)
 - **Invid Computers:** MANTIENE TODOS sus productos (notebooks, routers, switches, etc.)
 
-### Estado actual de productos (2026-06-02)
-| Proveedor | Activos | Total | Con imagen | Sin imagen |
-|-----------|---------|-------|------------|------------|
-| Air Intra | 1,532 | 1,755 | ~195 | ~1,337 |
-| Elit | 1,508 | 1,519 | ~1,506 | ~2 |
-| Invid Computers | 1,187 | 1,191 | ~1,187 | ~4 |
-| **Total** | **4,228** | **4,466** | **2,871** | **1,357** |
+### Estado actual de productos (2026-06-02 sesion 2)
+| Proveedor | Activos | Total | Con imagen | Sin imagen | Con costPrice |
+|-----------|---------|-------|------------|------------|---------------|
+| Air Intra | 1,493 | 1,755 | 189 | 1,304 | 1,755 |
+| Elit | 1,508 | 1,519 | 1,517 | 2 | 1,519 |
+| Invid Computers | 1,187 | 1,191 | 1,191 | 0 | 1,191 |
+| Manual | 1 | 1 | 1 | 0 | 1 |
+| **Total** | **4,189** | **4,466** | **2,898** | **1,306** | **4,466** |
 
 ---
 
@@ -83,10 +84,38 @@
 ### Slides
 | # | Badge | Titulo | CTA Principal | CTA Secundario | Imagen |
 |---|-------|--------|---------------|----------------|--------|
-| 1 | Arma tu PC | Arma tu PC **gamer** | Comenzar a armar → `/arma-tu-pc` | Ver componentes → `/categoria/componentes` | `hero-slide-pc-builder.png` |
-| 2 | Notebooks | Notebooks y **laptops** | Ver notebooks → `/categoria/notebooks` | Ver todas las marcas → `/categoria/todos` | `hero-slide-notebooks.png` |
-| 3 | Componentes | Placas de video y **componentes** | Ver componentes → `/categoria/componentes` | Ver productos → `/categoria/todos` | `hero-slide-components.png` |
-| 4 | Perifericos | Perifericos **gaming** | Ver perifericos → `/categoria/perifericos` | Ver todo → `/categoria/todos` | `hero-slide-perifericos.png` |
+| 1 | Arma tu PC | Arma tu PC **gamer** | Comenzar a armar -> `/arma-tu-pc` | Ver componentes -> `/categoria/componentes` | `hero-slide-pc-builder.png` |
+| 2 | Notebooks | Notebooks y **laptops** | Ver notebooks -> `/categoria/notebooks` | Ver todas las marcas -> `/categoria/todos` | `hero-slide-notebooks.png` |
+| 3 | Componentes | Placas de video y **componentes** | Ver componentes -> `/categoria/componentes` | Ver productos -> `/categoria/todos` | `hero-slide-components.png` |
+| 4 | Perifericos | Perifericos **gaming** | Ver perifericos -> `/categoria/perifericos` | Ver todo -> `/categoria/todos` | `hero-slide-perifericos.png` |
+
+---
+
+## Sistema de Precios (Global + Individual)
+
+### Configuracion Global
+- **Markup (margen de ganancia):** 15% (store_config: markup = 15)
+- **Descuento efectivo:** 0% (store_config: cash_discount = 0)
+- **Fuente dolar:** Banco Nacion (dolar_api)
+- **Panel admin:** `/admin/configuracion` - Permite cambiar dolar, markup, descuento global
+
+### Markup y Descuento Individual por Producto (NUEVO)
+- Cada producto puede tener su propio **markup** y **cashDiscount** (campos nullable en la DB)
+- Si el producto tiene valor individual, se usa ese; si es NULL, se usa el global
+- **Interfaz admin:** Campos "Margen individual (%)" y "Descuento efectivo individual (%)" en el formulario de productos
+- **Indicadores visuales:** Badges "M" (markup) y "D" (descuento) en la tabla de productos
+- **Vista previa:** El calculo automatico muestra si se estan usando valores individuales con etiqueta "(individual)"
+
+### Formulas de Precio
+```
+Precio de lista  = costoUSD x cotizacionDolar x (1 + markup/100)
+Precio efectivo  = costoUSD x cotizacionDolar x (1 + (markup - cashDiscount)/100)
+```
+Donde markup y cashDiscount son los del producto (si tiene) o los globales (si no).
+
+### Productos con markup/descuento individual
+- Actualmente 0 productos usan valores individuales (feature recien implementado)
+- Todos los productos usan el markup global de 15% y descuento de 0%
 
 ---
 
@@ -138,8 +167,22 @@
 | cooling | Refrigeracion | refrigeracion | No | 1 |
 | thermal | Pasta Termica | pastas-termicas | No | 1 |
 
+### Categorias en DB (productos con stock, 2026-06-02)
+| Categoria | Productos |
+|-----------|-----------|
+| Memorias RAM | 239 |
+| Motherboards | 239 |
+| Gabinetes | 192 |
+| Refrigeracion | 164 |
+| Fuentes | 146 |
+| Discos SSD | 138 |
+| Placas de Video | 124 |
+| Microprocesadores | 110 |
+| Discos HDD | 26 |
+| Pastas Termicas | 1 |
+
 ### Sistema de Compatibilidad
-- Filtrado automatico por socket (CPU → Mother), DDR (Mother → RAM), wattaje (GPU → PSU)
+- Filtrado automatico por socket (CPU -> Mother), DDR (Mother -> RAM), wattaje (GPU -> PSU)
 - Badges de compatibilidad: ShieldCheck + socket/DDR/wattage en cada producto
 - Productos incompatibles: Se muestran aparte con razon de incompatibilidad, toggle para verlos
 - Banner de filtro activo: Indica cuando se esta filtrando por compatibilidad
@@ -162,13 +205,6 @@
 - Navegacion inline debajo de la lista de productos
 - Resumen siempre visible con compatibilidad, precios y WhatsApp
 
-### Categorias en DB (Turso)
-- microprocesadores, motherboards, memorias-ram, placas-de-video, discos-ssd, discos-hdd, fuentes, gabinetes, refrigeracion, pastas-termicas
-
-### Problemas conocidos de categorizacion
-- **SODIMM en memorias-ram:** Hay ~40 memorias SODIMM (notebook) en la categoria memorias-ram. El sistema de compatibilidad las marca como incompatibles, pero estan visibles. Se podrian mover a una subcategoria "memorias-notebook" o filtrar del PC builder.
-- **"Extension M.2 Universal":** El usuario reporto que este producto aparecia en discos-ssd pero NO es un disco (es un adaptador/extension). Actualmente no aparece en la busqueda de productos activos - puede haber sido desactivado o movido en sesion anterior.
-
 ---
 
 ## PC Armadas (`/categoria/pc-armadas`)
@@ -183,29 +219,34 @@
 
 ## Categorias del Sitio (66 total)
 
-### Con productos activos (top 20):
+### Con productos activos (top 25):
 | Slug | Nombre | Productos |
 |------|--------|-----------|
+| cables-y-adaptadores | Cables y Adaptadores | 393 |
 | mouse | Mouse | 384 |
-| cables-y-adaptadores | Cables y Adaptadores | 382 |
-| motherboards | Motherboards | 325 |
+| motherboards | Motherboards | 309 |
 | toners-y-cartuchos | Toners y Cartuchos | 303 |
 | memorias-ram | Memorias RAM | 284 |
-| gabinetes | Gabinetes | 277 |
-| refrigeracion | Refrigeracion | 212 |
+| gabinetes | Gabinetes | 216 |
+| refrigeracion | Refrigeracion | 211 |
 | auriculares | Auriculares | 207 |
-| placas-de-video | Placas de Video | 172 |
+| fuentes | Fuentes | 187 |
+| placas-de-video | Placas de Video | 173 |
 | discos-ssd | Discos SSD | 168 |
-| fuentes | Fuentes | 166 |
 | microprocesadores | Microprocesadores | 140 |
-| teclados | Teclados | 139 |
+| teclados | Teclados | 140 |
 | parlantes | Parlantes | 101 |
 | pendrives | Pendrives | 62 |
 | joysticks | Joysticks | 62 |
-| placas-de-red | Placas de Red | 59 |
+| placas-de-red | Placas de Red | 61 |
 | impresion | Impresion | 58 |
 | oficina | Oficina | 42 |
 | routers-wifi | Routers WiFi | 42 |
+| gamer | Gamer | 41 |
+| discos-hdd | Discos HDD | 40 |
+| discos-externos | Discos Externos | 38 |
+| micro-sd | Micro SD | 36 |
+| ups | UPS | 31 |
 
 ---
 
@@ -225,6 +266,7 @@ src/app/checkout/page.tsx                 — Checkout con provincia + shippingD
 src/app/mis-pedidos/page.tsx              — Login/Registro/Dashboard de pedidos + perfil editable
 src/app/(tienda)/arma-tu-pc/page.tsx      — Arma tu PC (mobile sticky bar + compatibilidad + cantidades)
 src/app/api/pc-builder/route.ts           — API de productos por slot + filtros compatibilidad
+src/app/admin/productos/page.tsx          — Admin productos (CRUD + markup/descuento individual)
 src/lib/compatibility.ts                  — Logica de compatibilidad (socket, DDR, wattage)
 src/components/ui-custom/HeroSection.tsx   — Hero Carrusel (4 slides, autoplay)
 src/components/ui-custom/CompucityLogo.tsx — Logo componente
@@ -233,11 +275,13 @@ src/components/layout/Footer.tsx          — Footer con logo lg whiteText
 src/components/layout/WhatsAppButton.tsx  — Boton flotante
 src/lib/customer-auth.ts                  — Auth de clientes (login, registro, perfil, updateCustomer)
 src/lib/admin-auth.ts                     — Auth de admin (compartido: hash, verify, sign)
-src/lib/db.ts                             — Conexion Turso DB
-src/lib/queries.ts                        — Queries SQL (con filtro de stock)
-src/lib/dollar.ts                         — Cotizacion del dolar
+src/lib/db.ts                             — Conexion Turso DB + migraciones automaticas
+src/lib/queries.ts                        — Queries SQL (con filtro de stock + markup individual)
+src/lib/dollar.ts                         — Cotizacion del dolar + calculateProductPrices (con markup individual)
 src/lib/format-product.ts                 — Formateo de productos
 src/app/api/admin/enrich/route.ts         — Enrichment de categorias (Air Intra only filter)
+src/app/api/admin/products/route.ts       — CRUD productos (soporta markup/cashDiscount individual)
+src/app/api/admin/export/products/route.ts — Export CSV (respeta markup individual)
 src/app/api/admin/suppliers/sync/route.ts — Sync Air Intra (con filtro de categorias)
 src/app/api/admin/suppliers/enrich-images/route.ts — Enriquecimiento de imagenes (WebP)
 src/app/api/products/route.ts             — API publica de productos
@@ -253,16 +297,16 @@ public/images/logo-compucity-icon.png     — Logo recortado
 
 ## Panel Admin (`/admin`)
 - **Dashboard:** Stats (productos, pedidos, clientes, categorias, proveedores)
-- **Productos:** CRUD completo, filtro por proveedor/categoria/estado
+- **Productos:** CRUD completo, markup/descuento individual por producto, filtro por proveedor/categoria/estado
 - **Categorias:** Arbol de categorias con mapeos de proveedores
 - **Proveedores:** 3 proveedores, sync manual, conteo de productos activos
 - **Pedidos:** Lista de pedidos, gestion de estados
 - **Clientes:** Lista con busqueda, detalle expandible
-- **Configuracion:** Cotizacion del dolar, config de la tienda
+- **Configuracion:** Cotizacion del dolar, markup global, descuento global, config de la tienda
 
 ### APIs Admin
 - `POST /api/admin/auth/login` / `check` / `logout`
-- `GET/POST/PUT/DELETE /api/admin/products`
+- `GET/POST/PUT/DELETE /api/admin/products` (soporta markup/cashDiscount individual)
 - `GET/POST /api/admin/categories`
 - `GET/POST /api/admin/suppliers`
 - `POST /api/admin/suppliers/sync` - Sync Air Intra
@@ -284,15 +328,16 @@ public/images/logo-compucity-icon.png     — Logo recortado
 ---
 
 ## Imagenes de Productos
-- **Total con imagen:** 2,871 (68%)
-- **Total sin imagen:** 1,357 (32%)
-- **Air Intra:** ~1,337 sin imagen (el API syp no devuelve imagenes)
-- **Elit:** ~2 sin imagen (ya tienen WebP del API)
-- **Invid:** ~4 sin imagen (ya tienen imagenes del API)
+- **Total con imagen:** 2,898 (69%)
+- **Total sin imagen:** 1,306 (31%)
+- **Air Intra:** 1,304 sin imagen (el API syp no devuelve imagenes)
+- **Elit:** 2 sin imagen (ya tienen WebP del API)
+- **Invid:** 0 sin imagen (ya tienen imagenes del API)
 - **Formato:** WebP (max 800px, calidad 75) almacenadas en tabla `product_images`
 - **Endpoint:** `/api/image/[id]` - Sirve imagenes desde product_images
 - **Cross-provider matching:** Sistema para copiar imagenes entre proveedores por brand+model
 - **Scripts:** `scripts/enrich-images.mjs`, `scripts/batch-images.mjs`, `scripts/cross-provider-images.mjs`
+- **product_images:** 144 imagenes, 2.9 MB total
 
 ---
 
@@ -302,22 +347,29 @@ public/images/logo-compucity-icon.png     — Logo recortado
 
 ### Schema Products
 ```
-id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE, 
+id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE,
 description TEXT, price REAL NOT NULL, comparePrice REAL, costPrice REAL,
+markup INTEGER, cashDiscount INTEGER,
 sku TEXT UNIQUE, stock INTEGER DEFAULT 0, isActive INTEGER DEFAULT 1,
 isFeatured INTEGER DEFAULT 0, images TEXT, specs TEXT,
 providerId TEXT, providerSku TEXT, categoryId TEXT,
-createdAt TEXT, updatedAt TEXT, supplierCategory TEXT, duplicateOfId TEXT
+supplierCategory TEXT, duplicateOfId TEXT,
+createdAt TEXT, updatedAt TEXT
 ```
+
+### Nuevos campos (2026-06-02)
+- `markup INTEGER` - Margen de ganancia individual (NULL = usar global de 15%)
+- `cashDiscount INTEGER` - Descuento efectivo individual (NULL = usar global de 0%)
 
 ---
 
 ## Backups
 | Fecha | Archivo | Tamano | Contenido |
 |-------|---------|--------|-----------|
-| 2026-06-02 | `compucity-backup-2026-06-02.tar.gz` | 443MB | Codigo completo (sin node_modules/.next) |
-| 2026-06-02 | `compucity-db-2026-06-02.json` | 8MB | Base de datos completa (11 tablas, JSON) |
-| 2026-06-01 | `compucity-backup-2026-06-01.tar.gz` | 85MB | Backup anterior |
+| 2026-06-02 (s2) | `compucity-backup-2026-06-02b.tar.gz` | 417MB | Codigo completo (sin node_modules/.next) |
+| 2026-06-02 (s2) | `compucity-db-2026-06-02b.json` | 8.2MB | Base de datos completa (11 tablas, 4,787 filas) |
+| 2026-06-02 | `compucity-backup-2026-06-02.tar.gz` | 443MB | Backup anterior |
+| 2026-06-02 | `compucity-db-2026-06-02.json` | 8MB | DB anterior |
 | 2026-05-27 | `compucity-backup-2026-05-27_04-35.tar.gz` | 13MB | Backup inicial |
 
 Todos los backups en `/home/z/my-project/download/backups/`
@@ -327,23 +379,24 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ## Tareas Pendientes
 
 ### Alta Prioridad
-1. **Revisar categorizacion en Arma tu PC:** Verificar que todos los productos en las categorias del PC builder esten correctamente categorizados (especialmente discos-ssd, memorias-ram)
+1. **Cargar imagenes faltantes:** ~1,306 productos sin imagen (mayormente Air Intra). Usar cross-provider matching + web search
 2. **SODIMM en memorias-ram:** ~40 memorias SODIMM (notebook) aparecen en la categoria memorias-ram del PC builder. El sistema las marca como incompatibles, pero seria mejor moverlas a una subcategoria separada o filtrarlas del PC builder
-3. **Cargar imagenes faltantes:** ~1,357 productos sin imagen (mayormente Air Intra). Usar cross-provider matching + web search
 
 ### Media Prioridad
-4. **Recuperacion de contrasena por email:** El endpoint `/api/customer/forgot-password` existe pero necesita configuracion de servicio de email (Resend)
-5. **3 productos faltantes:** Verificar que productos especificos faltan en el catalogo
-6. **Verificar compatibilidad en Arma tu PC:** Testing exhaustivo del sistema de compatibilidad
+3. **Recuperacion de contrasena por email:** El endpoint `/api/customer/forgot-password` existe pero necesita configuracion de servicio de email (Resend)
+4. **Verificar compatibilidad en Arma tu PC:** Testing exhaustivo del sistema de compatibilidad
+5. **Configurar markup/descuento individual:** Empezar a usar el feature nuevo en productos que lo necesiten
 
 ### Baja Prioridad
-7. **Optimizar imagenes:** Los thumbnails del catalogo podrian usar tamano reducido
-8. **SEO:** Meta tags, sitemap dinamico, structured data
+6. **Optimizar imagenes:** Los thumbnails del catalogo podrian usar tamano reducido
+7. **SEO:** Meta tags, sitemap dinamico, structured data
 
 ---
 
 ## Historial de Cambios
-- **2026-06-02:** Backup completo (codigo 443MB + DB 8MB). Actualizacion de PROJECT_STATUS.md con estado completo del proyecto
+- **2026-06-02 (s2):** Markup y descuento individual por producto - Cada producto puede tener su propio markup y cashDiscount (si es NULL, usa el global). Bug corregido en pc-builder (formula cash price). Badges M/D en tabla de admin. Migracion ejecutada en Turso (columnas markup, cashDiscount). Backup completo (codigo 417MB + DB 8.2MB)
+- **2026-06-02:** Limpieza de categorias en Arma tu PC - Motherboards: 14 productos desactivados + 2 recategorizados. Gabinetes: limpieza masiva (15 monitores desactivados, 21 fuentes movidas, 8 coolers movidos, etc.). Refrigeracion: 9 cables iCUE movidos a cables. PC builder categorias limpias. Backup completo
+- **2026-06-02:** Backup completo (codigo 443MB + DB 8MB). Actualizacion de PROJECT_STATUS.md
 - **2026-06-01:** Selector de cantidades en Arma tu PC - RAM (1-4), SSD (1-4), HDD (1-2). Precios se multiplican automaticamente. WhatsApp muestra "2x Producto - $precio c/u = $total"
 - **2026-06-01:** PC Armadas - Categoria agregada con 53 productos (24 mini-pc, 22 oficina-pc, 7 gamer-pc). 33 PCs movidas de categorias incorrectas. 108 productos networking Air Intra desactivados. Homepage muestra seccion PC Armadas
 - **2026-06-01:** Filtro global de stock - Productos sin stock no se muestran en toda la tienda
