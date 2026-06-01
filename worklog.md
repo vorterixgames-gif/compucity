@@ -136,3 +136,25 @@ Work Log:
 
 Stage Summary:
 - All changes deployed to production
+
+---
+Task ID: 1
+Agent: main
+Task: Fix enrichment route to only filter Air Intra products, restore Elit/Invid products
+
+Work Log:
+- Identified that the enrichment script was incorrectly deactivating ALL products (including Elit and Invid) that didn't match periféricos/componentes keywords
+- The user clarified: ONLY Air Intra should be filtered to periféricos/componentes/cables. Elit and Invid keep ALL their products.
+- Renamed ALLOWED_SLUGS to AIR_INTRA_ALLOWED_SLUGS for clarity
+- Modified enrich route to only query Air Intra products (by providerId) for deactivation
+- Updated supplier API to return both productCount (active) and totalProductCount (total)
+- Re-synced Elit from API: recovered 10 new products, now 1,519 total (notebooks, printers, toners, etc.)
+- Re-synced Invid Computers from API: recovered 502 new products, now 1,191 total (notebooks, routers, switches, etc.)
+- Pushed changes to GitHub, auto-deploy triggered
+
+Stage Summary:
+- Air Intra: 1,755 products (periféricos/componentes/cables only) ✅
+- Elit: 1,519 products (ALL categories including notebooks, impresión, toners, UPS, etc.) ✅
+- Invid Computers: 1,191 products (ALL categories including notebooks, routers, switches, etc.) ✅
+- Total: 4,466 active products, 3,213 visible in store
+- Enrichment route now safe: will never deactivate Elit/Invid products
