@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
       const result = await db.execute({
         sql: `SELECT p.id, p.name, p.slug, p.price, p.comparePrice, p.costPrice, p.images, p.stock, p.specs
               FROM products p
-              WHERE p.categoryId = ? AND p.isActive = 1 AND p.stock > 0
+              WHERE p.categoryId = ? AND p.isActive = 1 AND p.stock > 0 AND p.categoryId IS NOT NULL
               ORDER BY p.price ASC`,
         args: [categoryId],
       })
@@ -126,7 +126,7 @@ export async function GET(request: NextRequest) {
           if (catRows.length === 0) return { ...s, count: 0 }
 
           const countResult = await db.execute({
-            sql: 'SELECT COUNT(*) as total FROM products WHERE categoryId = ? AND isActive = 1 AND stock > 0',
+            sql: 'SELECT COUNT(*) as total FROM products WHERE categoryId = ? AND isActive = 1 AND stock > 0 AND categoryId IS NOT NULL',
             args: [catRows[0].id],
           })
           return { ...s, count: (countResult.rows[0] as any).total }
