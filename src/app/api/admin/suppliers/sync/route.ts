@@ -84,6 +84,8 @@ const SUBCATEGORY_RULES: { parentSlug: string; rules: { keywords: string[]; subc
 // Category keyword mapping: keyword patterns -> store category SLUG
 // Used as fallback when no explicit supplier category mapping exists
 const CATEGORY_KEYWORD_MAP: { keywords: string[]; categorySlug: string; name: string }[] = [
+  // PC Armadas — MUST be before component entries so complete PCs aren't mis-categorized
+  { keywords: ['PC GAMER','PC LENOVO','PC KELYX','SIST. KELYX','SIST.','COMPUTADORA','BAREBONE'], categorySlug: 'pc-armadas', name: 'PC Armadas' },
   // Auriculares
   { keywords: ['AURICULAR','HEADSET','HEADPHONE','JBL TOUR','JBL QUANTUM'], categorySlug: 'auriculares', name: 'Auriculares' },
   // Mouse
@@ -289,6 +291,48 @@ function mapProductToCategory(
       nameKeyword: 'BASE NOTEBOOK',
       targetSlug: 'bases',
       sourceSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'],
+    },
+    {
+      // Mini PCs / Barebones mis-categorized as components
+      nameKeyword: 'MINI PC',
+      targetSlug: 'pc-armadas',
+      sourceSlugs: ['microprocesadores', 'memorias-ram', 'discos-ssd', 'fuentes'],
+    },
+    {
+      // Barebones mis-categorized as components
+      nameKeyword: 'BAREBONE',
+      targetSlug: 'pc-armadas',
+      sourceSlugs: ['microprocesadores', 'memorias-ram', 'discos-ssd', 'fuentes'],
+    },
+    {
+      // Complete PCs (Lenovo Neo, Kelyx) mis-categorized as components
+      nameKeyword: 'PC LENOVO',
+      targetSlug: 'pc-armadas',
+      sourceSlugs: ['discos-ssd', 'memorias-ram', 'microprocesadores', 'fuentes', 'gabinetes'],
+    },
+    {
+      // Kelyx PCs mis-categorized as components
+      nameKeyword: 'PC KELYX',
+      targetSlug: 'pc-armadas',
+      sourceSlugs: ['discos-ssd', 'memorias-ram', 'microprocesadores', 'fuentes', 'gabinetes'],
+    },
+    {
+      // Sist. Kelyx mis-categorized as components
+      nameKeyword: 'SIST.',
+      targetSlug: 'pc-armadas',
+      sourceSlugs: ['discos-ssd', 'memorias-ram', 'microprocesadores', 'fuentes', 'gabinetes'],
+    },
+    {
+      // PC Gamer mis-categorized as fuentes (e.g. "PC Gamer Raptor con Fuente")
+      nameKeyword: 'PC GAMER',
+      targetSlug: 'pc-armadas',
+      sourceSlugs: ['fuentes', 'gabinetes'],
+    },
+    {
+      // Desktop PCs mis-categorized
+      nameKeyword: 'DESKTOP',
+      targetSlug: 'pc-armadas',
+      sourceSlugs: ['switches', 'discos-ssd'],
     },
   ]
 
@@ -937,6 +981,32 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
             parentSlugToChildSlugs
           )
 
+          // ==========================================
+          // Air Intra category filter:
+          // Only allow periféricos, componentes de PC, cables y adaptadores, and PC armadas.
+          // Products in non-allowed categories are set isActive = 0.
+          // ==========================================
+          const AIR_INTRA_ALLOWED_PARENTS = new Set(['perifericos', 'componentes-de-pc', 'pc-armadas'])
+          const AIR_INTRA_ALLOWED_SUBCATEGORIES = new Set(['cables-y-adaptadores'])
+          let airIntraIsActive = 1
+          if (categoryId) {
+            // Check if the category is a child of an allowed parent
+            const catSlug = Object.entries(slugToId).find(([_, id]) => id === categoryId)?.[0]
+            const catParentId = idToParentId[categoryId]
+            const catParentSlug = catParentId ? Object.entries(slugToId).find(([_, id]) => id === catParentId)?.[0] : null
+
+            const isAllowedParent = AIR_INTRA_ALLOWED_PARENTS.has(catSlug || '')
+            const isAllowedSubcategory = AIR_INTRA_ALLOWED_SUBCATEGORIES.has(catSlug || '')
+            const isChildOfAllowedParent = catParentSlug ? AIR_INTRA_ALLOWED_PARENTS.has(catParentSlug) : false
+
+            if (!isAllowedParent && !isAllowedSubcategory && !isChildOfAllowedParent) {
+              airIntraIsActive = 0
+            }
+          } else {
+            // No category matched — also deactivate for Air Intra
+            airIntraIsActive = 0
+          }
+
           if (existingRows.length > 0) {
             await db.execute({
               sql: `UPDATE products SET
@@ -975,7 +1045,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
                 costPrice,
                 providerSku,
                 totalStock,
-                1,
+                airIntraIsActive,
                 0,
                 JSON.stringify(specs),
                 supplier.id,

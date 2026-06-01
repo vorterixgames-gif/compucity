@@ -5,6 +5,8 @@ import { db } from '@/lib/db'
 // CATEGORY KEYWORD MAP — Order matters, first match wins
 // ============================================
 const CATEGORY_KEYWORD_MAP: [string, string[]][] = [
+  // PC Armadas — MUST be before component entries so complete PCs aren't mis-categorized
+  ['pc-armadas', ['PC GAMER', 'PC LENOVO', 'PC KELYX', 'SIST. KELYX', 'SIST.', 'COMPUTADORA', 'BAREBONE']],
   ['auriculares', ['AURICULAR', 'HEADSET', 'HEADPHONE', 'JBL TOUR', 'JBL QUANTUM']],
   ['mouse', ['MOUSE']],
   ['teclados', ['TECLADO', 'KEYBOARD']],
@@ -87,6 +89,17 @@ function applyCategoryCorrections(nameUpper: string, matchedSlug: string): strin
   if (['placas-de-video', 'memorias-ram', 'discos-ssd'].includes(matchedSlug) && nameUpper.includes('NOTEBOOK')) return 'notebooks'
   // Notebook bases mis-categorized as notebooks
   if (['notebooks'].includes(matchedSlug) && nameUpper.includes('BASE NOTEBOOK')) return 'bases'
+  // Mini PCs / Complete PCs mis-categorized as components
+  if (nameUpper.includes('MINI PC') || nameUpper.includes('BAREBONE')) {
+    if (['microprocesadores', 'memorias-ram', 'discos-ssd', 'fuentes'].includes(matchedSlug)) return 'pc-armadas'
+  }
+  // Complete PCs (Lenovo Neo, Kelyx) mis-categorized as components
+  if ((nameUpper.includes('PC LENOVO') || nameUpper.includes('PC KELYX') || nameUpper.includes('SIST.')) &&
+      ['discos-ssd', 'memorias-ram', 'microprocesadores', 'fuentes', 'gabinetes'].includes(matchedSlug)) return 'pc-armadas'
+  // PC Gamer mis-categorized as fuentes (e.g. "PC Gamer Raptor con Fuente")
+  if (nameUpper.includes('PC GAMER') && ['fuentes', 'gabinetes'].includes(matchedSlug)) return 'pc-armadas'
+  // Desktop PCs mis-categorized
+  if (nameUpper.includes('DESKTOP') && ['switches', 'discos-ssd'].includes(matchedSlug)) return 'pc-armadas'
   return matchedSlug
 }
 
