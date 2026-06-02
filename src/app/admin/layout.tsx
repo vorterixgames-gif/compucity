@@ -157,7 +157,7 @@ export default function AdminLayout({
   return (
     <div className="min-h-screen flex bg-gray-50">
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 bg-gray-900">
+      <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 bg-gray-900 z-30">
         <SidebarContent currentPath={pathname} />
       </aside>
 
@@ -173,7 +173,7 @@ export default function AdminLayout({
       </Sheet>
 
       {/* Main Content */}
-      <div className="lg:pl-64 flex-1 flex flex-col min-h-screen">
+      <div className="lg:pl-64 flex-1 flex flex-col min-h-screen overflow-x-hidden">
         {/* Top Bar */}
         <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 lg:px-6 py-3">
           <div className="flex items-center justify-between">
