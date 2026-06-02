@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-02 (sesion 5)
+**Ultima actualizacion:** 2026-06-02 (sesion 6)
 
 ---
 
@@ -409,6 +409,7 @@ createdAt TEXT, updatedAt TEXT
 ## Backups
 | Fecha | Archivo | Tamano | Contenido |
 |-------|---------|--------|----------|
+| 2026-06-02 (s6) | `compucity-backup-2026-06-02s6.tar.gz` | 246MB | Codigo completo + propuesta IVA + investigacion Andreani |
 | 2026-06-02 (s5) | `compucity-backup-2026-06-02s5.tar.gz` | 42MB | Codigo completo con prioridad imagenes + recategorizacion |
 | 2026-06-02 (s5) | `compucity-db-2026-06-02s5.json` | 8.4MB | Base de datos completa (11 tablas, 4,787 filas) |
 | 2026-06-02 (s4) | `compucity-backup-2026-06-02s4.tar.gz` | 42MB | Codigo completo con fix de busqueda |
@@ -424,24 +425,57 @@ Todos los backups en `/home/z/my-project/download/backups/`
 
 ---
 
+## Envio - Andreani (Investigacion sesion 6)
+- **Estado:** Implementado pero INACTIVO - las credenciales estan incompletas
+- **Codigo:** `src/lib/andreani.ts` - Login JWT, cotizacion domicilio/sucursal - FUNCIONA
+- **API shipping:** `src/app/api/shipping/route.ts` - Intenta Andreani -> Correo Argentino -> fallback tablas
+- **Credenciales en DB (store_config):**
+  - `andreani_user` ✅ SET
+  - `andreani_password` ✅ SET
+  - `andreani_codigoCliente` ❌ VACIO
+  - `andreani_contratoDomicilio` ❌ VACIO
+- **`hasAndreaniCredentials()`:** Requiere los 4 campos para habilitar llamadas a Andreani
+- **Fallback actual:** Tablas de precios estimados por provincia (sin API real)
+- **Accion necesaria:** El dueño debe obtener de Andreani: codigoCliente + contratoDomicilio (contrato de envio a domicilio) y cargarlos en el panel admin
+
+---
+
+## IVA - Pendiente de implementacion (sesion 6)
+- **Situacion actual:** Los precios NO incluyen IVA. El calculo es: `costPrice (USD) x dollarRate x (1 + markup/100)`
+- **Requisito:** Algunos productos tienen IVA 10.5% y otros 21%
+- **Opciones propuestas:**
+  - **A (Recomendada):** Campo `ivaRate` por producto (default 21%), override individual
+  - **B:** IVA por categoria (menos flexible)
+  - **C:** Hibrida (IVA por categoria + override por producto)
+- **Preguntas pendientes para el dueño:**
+  1. Los precios de costo (costPrice) ya incluyen IVA o son sin IVA?
+  2. Mostrar precios con IVA incluido (B2C) o desglosado?
+  3. Cuantos productos tendrian 10.5%? Son pocos o muchos?
+- **Estado:** EN ESPERA de confirmacion del dueño
+
+---
+
 ## Tareas Pendientes
 
 ### Alta Prioridad
-1. **Cargar imagenes faltantes:** ~1,306 productos sin imagen (mayormente Air Intra). Usar cross-provider matching + web search
-2. **SODIMM en memorias-ram:** ~40 memorias SODIMM (notebook) aparecen en la categoria memorias-ram del PC builder. El sistema las marca como incompatibles, pero seria mejor moverlas a una subcategoria separada o filtrarlas del PC builder
+1. **IVA diferenciado:** Implementar campo ivaRate (10.5% / 21%) una vez confirmado por el dueño
+2. **Credenciales Andreani:** El dueño debe proporcionar codigoCliente + contratoDomicilio
+3. **Cargar imagenes faltantes:** ~1,306 productos sin imagen (mayormente Air Intra). Usar cross-provider matching + web search
+4. **SODIMM en memorias-ram:** ~40 memorias SODIMM (notebook) aparecen en la categoria memorias-ram del PC builder. El sistema las marca como incompatibles, pero seria mejor moverlas a una subcategoria separada o filtrarlas del PC builder
 
 ### Media Prioridad
-3. **Recuperacion de contrasena por email:** El endpoint `/api/customer/forgot-password` existe pero necesita configuracion de servicio de email (Resend)
-4. **Verificar compatibilidad en Arma tu PC:** Testing exhaustivo del sistema de compatibilidad
-5. **Configurar markup/descuento individual:** Empezar a usar el feature nuevo en productos que lo necesiten
+5. **Recuperacion de contrasena por email:** El endpoint `/api/customer/forgot-password` existe pero necesita configuracion de servicio de email (Resend)
+6. **Verificar compatibilidad en Arma tu PC:** Testing exhaustivo del sistema de compatibilidad
+7. **Configurar markup/descuento individual:** Empezar a usar el feature nuevo en productos que lo necesiten
 
 ### Baja Prioridad
-6. **Optimizar imagenes:** Los thumbnails del catalogo podrian usar tamano reducido
-7. **SEO:** Meta tags, sitemap dinamico, structured data
+8. **Optimizar imagenes:** Los thumbnails del catalogo podrian usar tamano reducido
+9. **SEO:** Meta tags, sitemap dinamico, structured data
 
 ---
 
 ## Historial de Cambios
+- **2026-06-02 (s6):** Investigacion Andreani (credenciales incompletas, falta codigoCliente + contratoDomicilio). Propuesta de implementacion IVA diferenciado (10.5% / 21%) - 3 opciones presentadas, en espera de confirmacion del dueño. Backup codigo 246MB
 - **2026-06-02 (s5):** Prioridad global de imagenes - Productos con foto aparecen primero en todo el sitio (home, categorias, busqueda, PC Builder, relacionados). Recategorizacion: 7 PC Gamer Raptor (gabinete+fuente) movidas a gabinetes, 4 Gabinete Raptor de joysticks a gabinetes, 3 Switches TP-Link de oficina-pc a switches. Homepage PC Armadas: mezcla balanceada por subcategoria (round-robin). Backup completo (codigo 42MB + DB 8.4MB)
 - **2026-06-02 (s4):** Fix de busqueda de productos - El boton "Buscar en todos los productos" ahora muestra los resultados correctos. Causa: parametro q se extraia pero no se usaba. Solucion: searchProducts(q) cuando hay query. Mejoras: orden por relevancia, titulo dinamico, link limpiar busqueda. Push a GitHub exitoso
 - **2026-06-02 (s3):** Fix PERMANENTE de categorizacion en PC Builder - 3 capas de defensa: (1) Whitelist BUILDER_INCLUDE_PATTERNS que valida nombre de producto en runtime, (2) CATEGORY_KEYWORD_MAP reordenado con productos completos antes de componentes, (3) Validacion post-sync automatica mejorada. Bug corregido: markup/cashDiscount faltantes en SELECT de pc-builder. Eliminadas rutas duplicadas (recuperar-contrasena, resetear-contrasena). Instalado paquete resend. Backup completo (codigo 35MB + DB 8.3MB)
