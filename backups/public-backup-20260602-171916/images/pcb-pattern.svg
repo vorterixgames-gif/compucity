@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300">
+  <defs>
+    <pattern id="pcb-pattern" x="0" y="0" width="300" height="300" patternUnits="userSpaceOnUse">
+      <!-- Horizontal traces -->
+      <line x1="0" y1="30" x2="90" y2="30" stroke="white" stroke-width="1.2" opacity="0.08"/>
+      <line x1="120" y1="30" x2="180" y2="30" stroke="white" stroke-width="0.8" opacity="0.06"/>
+      <line x1="0" y1="70" x2="50" y2="70" stroke="white" stroke-width="1" opacity="0.07"/>
+      <line x1="80" y1="70" x2="200" y2="70" stroke="white" stroke-width="1.2" opacity="0.09"/>
+      <line x1="230" y1="70" x2="300" y2="70" stroke="white" stroke-width="0.8" opacity="0.06"/>
+      <line x1="0" y1="110" x2="130" y2="110" stroke="white" stroke-width="1" opacity="0.07"/>
+      <line x1="160" y1="110" x2="250" y2="110" stroke="white" stroke-width="1.2" opacity="0.08"/>
+      <line x1="270" y1="110" x2="300" y2="110" stroke="white" stroke-width="0.8" opacity="0.05"/>
+      <line x1="0" y1="150" x2="70" y2="150" stroke="white" stroke-width="1.2" opacity="0.08"/>
+      <line x1="100" y1="150" x2="220" y2="150" stroke="white" stroke-width="1" opacity="0.06"/>
+      <line x1="250" y1="150" x2="300" y2="150" stroke="white" stroke-width="1.2" opacity="0.07"/>
+      <line x1="0" y1="190" x2="110" y2="190" stroke="white" stroke-width="0.8" opacity="0.06"/>
+      <line x1="140" y1="190" x2="230" y2="190" stroke="white" stroke-width="1.2" opacity="0.09"/>
+      <line x1="260" y1="190" x2="300" y2="190" stroke="white" stroke-width="1" opacity="0.07"/>
+      <line x1="0" y1="230" x2="60" y2="230" stroke="white" stroke-width="1.2" opacity="0.07"/>
+      <line x1="90" y1="230" x2="200" y2="230" stroke="white" stroke-width="0.8" opacity="0.06"/>
+      <line x1="230" y1="230" x2="300" y2="230" stroke="white" stroke-width="1" opacity="0.08"/>
+      <line x1="0" y1="270" x2="140" y2="270" stroke="white" stroke-width="1" opacity="0.07"/>
+      <line x1="170" y1="270" x2="260" y2="270" stroke="white" stroke-width="1.2" opacity="0.08"/>
+      <line x1="280" y1="270" x2="300" y2="270" stroke="white" stroke-width="0.8" opacity="0.05"/>
+
+      <!-- Vertical traces -->
+      <line x1="30" y1="0" x2="30" y2="70" stroke="white" stroke-width="1" opacity="0.07"/>
+      <line x1="30" y1="90" x2="30" y2="190" stroke="white" stroke-width="1.2" opacity="0.08"/>
+      <line x1="30" y1="210" x2="30" y2="300" stroke="white" stroke-width="0.8" opacity="0.06"/>
+      <line x1="70" y1="0" x2="70" y2="50" stroke="white" stroke-width="1.2" opacity="0.06"/>
+      <line x1="70" y1="70" x2="70" y2="150" stroke="white" stroke-width="1" opacity="0.08"/>
+      <line x1="70" y1="170" x2="70" y2="270" stroke="white" stroke-width="0.8" opacity="0.07"/>
+      <line x1="110" y1="0" x2="110" y2="110" stroke="white" stroke-width="1" opacity="0.07"/>
+      <line x1="110" y1="130" x2="110" y2="230" stroke="white" stroke-width="1.2" opacity="0.06"/>
+      <line x1="110" y1="250" x2="110" y2="300" stroke="white" stroke-width="0.8" opacity="0.08"/>
+      <line x1="150" y1="0" x2="150" y2="70" stroke="white" stroke-width="0.8" opacity="0.06"/>
+      <line x1="150" y1="90" x2="150" y2="190" stroke="white" stroke-width="1.2" opacity="0.07"/>
+      <line x1="150" y1="210" x2="150" y2="300" stroke="white" stroke-width="1" opacity="0.08"/>
+      <line x1="190" y1="0" x2="190" y2="110" stroke="white" stroke-width="1.2" opacity="0.08"/>
+      <line x1="190" y1="130" x2="190" y2="230" stroke="white" stroke-width="1" opacity="0.06"/>
+      <line x1="190" y1="250" x2="190" y2="300" stroke="white" stroke-width="0.8" opacity="0.07"/>
+      <line x1="230" y1="0" x2="230" y2="50" stroke="white" stroke-width="1" opacity="0.07"/>
+      <line x1="230" y1="70" x2="230" y2="150" stroke="white" stroke-width="0.8" opacity="0.08"/>
+      <line x1="230" y1="170" x2="230" y2="270" stroke="white" stroke-width="1.2" opacity="0.06"/>
+      <line x1="270" y1="0" x2="270" y2="90" stroke="white" stroke-width="1.2" opacity="0.07"/>
+      <line x1="270" y1="110" x2="270" y2="230" stroke="white" stroke-width="1" opacity="0.08"/>
+      <line x1="270" y1="250" x2="270" y2="300" stroke="white" stroke-width="0.8" opacity="0.06"/>
+
+      <!-- 90-degree turns (L-shapes) -->
+      <polyline points="90,30 90,70 80,70" fill="none" stroke="white" stroke-width="1.2" opacity="0.07"/>
+      <polyline points="180,30 180,50 200,50" fill="none" stroke="white" stroke-width="0.8" opacity="0.06"/>
+      <polyline points="130,110 130,130 160,130" fill="none" stroke="white" stroke-width="1" opacity="0.07"/>
+      <polyline points="220,70 220,90 250,90" fill="none" stroke="white" stroke-width="1.2" opacity="0.06"/>
+      <polyline points="100,150 100,170 140,170" fill="none" stroke="white" stroke-width="1.2" opacity="0.08"/>
+      <polyline points="250,150 250,190 260,190" fill="none" stroke="white" stroke-width="1" opacity="0.06"/>
+      <polyline points="60,230 60,210 90,210" fill="none" stroke="white" stroke-width="1.2" opacity="0.07"/>
+      <polyline points="200,230 200,250 230,250" fill="none" stroke="white" stroke-width="0.8" opacity="0.06"/>
+      <polyline points="140,270 140,290 170,290" fill="none" stroke="white" stroke-width="1" opacity="0.07"/>
+
+      <!-- Via holes (circles at intersections) -->
+      <circle cx="90" cy="30" r="3" fill="none" stroke="white" stroke-width="0.8" opacity="0.10"/>
+      <circle cx="90" cy="30" r="1.2" fill="white" opacity="0.08"/>
+      <circle cx="200" cy="70" r="3" fill="none" stroke="white" stroke-width="0.8" opacity="0.09"/>
+      <circle cx="200" cy="70" r="1.2" fill="white" opacity="0.07"/>
+      <circle cx="130" cy="110" r="3" fill="none" stroke="white" stroke-width="0.8" opacity="0.10"/>
+      <circle cx="130" cy="110" r="1.2" fill="white" opacity="0.08"/>
+      <circle cx="220" cy="150" r="3" fill="none" stroke="white" stroke-width="0.8" opacity="0.09"/>
+      <circle cx="220" cy="150" r="1.2" fill="white" opacity="0.07"/>
+      <circle cx="100" cy="190" r="3" fill="none" stroke="white" stroke-width="0.8" opacity="0.08"/>
+      <circle cx="100" cy="190" r="1.2" fill="white" opacity="0.07"/>
+      <circle cx="260" cy="230" r="3" fill="none" stroke="white" stroke-width="0.8" opacity="0.10"/>
+      <circle cx="260" cy="230" r="1.2" fill="white" opacity="0.08"/>
+      <circle cx="170" cy="270" r="3" fill="none" stroke="white" stroke-width="0.8" opacity="0.09"/>
+      <circle cx="170" cy="270" r="1.2" fill="white" opacity="0.07"/>
+      <circle cx="50" cy="150" r="3" fill="none" stroke="white" stroke-width="0.8" opacity="0.08"/>
+      <circle cx="50" cy="150" r="1.2" fill="white" opacity="0.06"/>
+      <circle cx="250" cy="90" r="3" fill="none" stroke="white" stroke-width="0.8" opacity="0.09"/>
+      <circle cx="250" cy="90" r="1.2" fill="white" opacity="0.07"/>
+      <circle cx="160" cy="170" r="3" fill="none" stroke="white" stroke-width="0.8" opacity="0.08"/>
+      <circle cx="160" cy="170" r="1.2" fill="white" opacity="0.06"/>
+
+      <!-- Small IC/Component pads -->
+      <rect x="145" y="45" width="10" height="6" rx="1" fill="none" stroke="white" stroke-width="0.6" opacity="0.07"/>
+      <rect x="85" y="145" width="12" height="8" rx="1" fill="none" stroke="white" stroke-width="0.6" opacity="0.06"/>
+      <rect x="245" y="205" width="10" height="6" rx="1" fill="none" stroke="white" stroke-width="0.6" opacity="0.07"/>
+      <rect x="35" y="245" width="8" height="10" rx="1" fill="none" stroke="white" stroke-width="0.6" opacity="0.06"/>
+      <rect x="195" y="95" width="12" height="8" rx="1" fill="none" stroke="white" stroke-width="0.6" opacity="0.07"/>
+      <rect x="55" y="95" width="10" height="6" rx="1" fill="none" stroke="white" stroke-width="0.6" opacity="0.05"/>
+
+      <!-- Diagonal traces (45 degrees for PCB realism) -->
+      <polyline points="50,70 60,60 60,30" fill="none" stroke="white" stroke-width="0.8" opacity="0.06"/>
+      <polyline points="160,110 170,100 200,100" fill="none" stroke="white" stroke-width="1" opacity="0.07"/>
+      <polyline points="240,150 250,140 280,140" fill="none" stroke="white" stroke-width="0.8" opacity="0.06"/>
+      <polyline points="80,230 90,220 120,220" fill="none" stroke="white" stroke-width="1" opacity="0.07"/>
+      <polyline points="210,270 220,260 260,260" fill="none" stroke="white" stroke-width="0.8" opacity="0.06"/>
+    </pattern>
+  </defs>
+  <rect width="300" height="300" fill="url(#pcb-pattern)" />
+</svg>
