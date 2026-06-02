@@ -210,18 +210,64 @@ export async function getTopProductsByCategorySlug(slug: string, limit = 8): Pro
 
   const categoryId = catRows[0].id
   const subResult = await db.execute({
-    sql: 'SELECT id FROM categories WHERE parentId = ? AND enabled = 1',
+    sql: 'SELECT id, slug FROM categories WHERE parentId = ? AND enabled = 1',
     args: [categoryId],
   })
-  const subIds = (subResult.rows as any[]).map(r => r.id)
+  const subcats = subResult.rows as any[]
+  const subIds = subcats.map(r => r.id)
   const allIds = [categoryId, ...subIds]
   const placeholders = allIds.map(() => '?').join(',')
 
+  // If there are subcategories, pick products evenly from each (with images first)
+  // This ensures variety (e.g., gamer-pc, oficina-pc, mini-pc all represented)
+  if (subcats.length >= 2 && limit <= 8) {
+    const perSubcat = Math.ceil(limit / subcats.length)
+    const productPromises = subcats.map(sub =>
+      db.execute({
+        sql: `SELECT p.* FROM products p
+              WHERE p.categoryId = ? AND p.isActive = 1 AND p.stock > 0
+              ORDER BY CASE WHEN p.images IS NOT NULL AND p.images != '[]' THEN 0 ELSE 1 END, p.price DESC LIMIT ?`,
+        args: [sub.id, perSubcat],
+      })
+    )
+
+    const [results, dollar, markup, cashDiscount] = await Promise.all([
+      Promise.all(productPromises),
+      fetchDollarRate(),
+      getStoreConfigNumber('markup', 30),
+      getStoreConfigNumber('cash_discount', 10),
+    ])
+
+    // Interleave: take 1 from each subcat in round-robin, prioritizing those with images
+    const pools = results.map(r => (r.rows as any[]))
+    const selected: any[] = []
+    const usedIds = new Set<string>()
+    let round = 0
+
+    while (selected.length < limit && round < 20) {
+      for (const pool of pools) {
+        if (selected.length >= limit) break
+        // Find next unused product in this pool
+        const product = pool.find(p => !usedIds.has(p.id))
+        if (product) {
+          usedIds.add(product.id)
+          selected.push(product)
+        }
+      }
+      round++
+    }
+
+    return selected.map(p =>
+      calculateProductPrices(p, dollar.rate, markup, cashDiscount)
+    ) as Product[]
+  }
+
+  // Fallback: single category, just sort by images first then price
   const [result, dollar, markup, cashDiscount] = await Promise.all([
     db.execute({
       sql: `SELECT p.* FROM products p
             WHERE p.categoryId IN (${placeholders}) AND p.isActive = 1 AND p.stock > 0
-            ORDER BY p.price DESC LIMIT ?`,
+            ORDER BY CASE WHEN p.images IS NOT NULL AND p.images != '[]' THEN 0 ELSE 1 END, p.price DESC LIMIT ?`,
       args: [...allIds, limit],
     }),
     fetchDollarRate(),
