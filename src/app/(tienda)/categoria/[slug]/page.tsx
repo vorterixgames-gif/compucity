@@ -126,6 +126,9 @@ export default async function CategoryPage({ params, searchParams }: Props) {
             images: p.images,
             stock: p.stock,
             createdAt: p.createdAt,
+            salePrice: (p as any).salePrice ?? null,
+            saleStart: (p as any).saleStart ?? null,
+            saleEnd: (p as any).saleEnd ?? null,
           }))}
           subcategories={subcategories}
           currentCategory={currentCategory ? { id: currentCategory.id, name: currentCategory.name, slug: currentCategory.slug } : null}

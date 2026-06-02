@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     const {
       name, description, price, comparePrice, costPrice, sku, stock,
       isActive, isFeatured, images, specs, providerId, providerSku, categoryId,
-      markup, cashDiscount, ivaRate,
+      markup, cashDiscount, ivaRate, salePrice, saleStart, saleEnd,
     } = body
 
     console.log('[products POST] Received images:', images, 'type:', typeof images)
@@ -164,8 +164,8 @@ export async function POST(request: NextRequest) {
     }
 
     await db.execute({
-      sql: `INSERT INTO products (id, name, slug, description, price, comparePrice, costPrice, markup, cashDiscount, ivaRate, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, createdAt, updatedAt) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT INTO products (id, name, slug, description, price, comparePrice, costPrice, markup, cashDiscount, ivaRate, salePrice, saleStart, saleEnd, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, createdAt, updatedAt) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id, name, finalSlug, description || null,
         finalPrice, finalComparePrice,
@@ -173,6 +173,9 @@ export async function POST(request: NextRequest) {
         markup != null && markup !== '' ? Number(markup) : null,
         cashDiscount != null && cashDiscount !== '' ? Number(cashDiscount) : null,
         ivaRate != null && ivaRate !== '' ? Number(ivaRate) : 10.5,
+        salePrice ? Number(salePrice) : null,
+        saleStart || null,
+        saleEnd || null,
         sku || null,
         stock !== undefined ? Number(stock) : 0,
         isActive !== undefined ? (isActive ? 1 : 0) : 1,
@@ -198,7 +201,7 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
     const { id, name, description, price, comparePrice, costPrice, sku, stock,
       isActive, isFeatured, images, specs, providerId, providerSku, categoryId,
-      markup, cashDiscount, ivaRate } = body
+      markup, cashDiscount, ivaRate, salePrice, saleStart, saleEnd } = body
 
     if (!id) {
       return NextResponse.json({ error: 'ID es requerido' }, { status: 400 })
@@ -300,6 +303,9 @@ export async function PUT(request: NextRequest) {
       const safeIva = (isNaN(parsedIva) || ![10.5, 21].includes(parsedIva)) ? 10.5 : parsedIva
       fields.push('ivaRate = ?'); values.push(safeIva)
     }
+    if (salePrice !== undefined) { fields.push('salePrice = ?'); values.push(salePrice ? Number(salePrice) : null) }
+    if (saleStart !== undefined) { fields.push('saleStart = ?'); values.push(saleStart || null) }
+    if (saleEnd !== undefined) { fields.push('saleEnd = ?'); values.push(saleEnd || null) }
 
     if (fields.length === 0) {
       return NextResponse.json({ error: 'No hay campos para actualizar' }, { status: 400 })

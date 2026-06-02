@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useCart } from '@/store/cart'
-import { Truck, MapPin, MessageCircle, User, Phone, Mail, FileText, Package, Loader2, ChevronRight, ArrowLeft, LogIn, X, Eye, EyeOff, UserPlus, CheckCircle } from 'lucide-react'
+import { Truck, MapPin, MessageCircle, User, Phone, Mail, FileText, Package, Loader2, ChevronRight, ArrowLeft, LogIn, X, Eye, EyeOff, UserPlus, CheckCircle, Tag } from 'lucide-react'
 import Link from 'next/link'
 
 interface LoggedInCustomer {
@@ -28,7 +28,7 @@ interface ShippingQuote {
 }
 
 export default function CheckoutPage() {
-  const { items, totalPrice, clearCart } = useCart()
+  const { items, totalPrice, clearCart, appliedCoupon, couponDiscount } = useCart()
   const [step, setStep] = useState<'data' | 'shipping'>('data')
   const [loggedInCustomer, setLoggedInCustomer] = useState<LoggedInCustomer | null>(null)
   const [customerData, setCustomerData] = useState({
@@ -80,7 +80,8 @@ export default function CheckoutPage() {
     new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n)
 
   const shippingCost = selectedQuote?.price || 0
-  const grandTotal = totalPrice() + shippingCost
+  const subtotal = totalPrice()
+  const grandTotal = subtotal - couponDiscount + shippingCost
 
   // Calcular envío cuando cambia el CP o el método
   useEffect(() => {
@@ -159,7 +160,10 @@ export default function CheckoutPage() {
     items.forEach((item, i) => {
       message += `   ${i + 1}. ${item.name} x${item.quantity} - ${formatPrice(item.price * item.quantity)}\n`
     })
-    message += `\n💰 *Subtotal: ${formatPrice(totalPrice())}*\n`
+    message += `\n💰 *Subtotal: ${formatPrice(subtotal)}*\n`
+    if (appliedCoupon && couponDiscount > 0) {
+      message += `🏷️ *Cupón ${appliedCoupon.code}: -${formatPrice(couponDiscount)}*\n`
+    }
     if (shippingCost > 0) {
       message += `📦 *Envío: ${formatPrice(shippingCost)}*\n`
     }
@@ -293,6 +297,8 @@ export default function CheckoutPage() {
             ? JSON.stringify({ carrier: selectedQuote.carrier, carrierName: selectedQuote.carrierName, service: selectedQuote.service, serviceName: selectedQuote.serviceName, price: selectedQuote.price, estimatedDays: selectedQuote.estimatedDays, description: selectedQuote.description })
             : JSON.stringify({ method: 'retiro', description: 'Retiro en local - La Falda, Córdoba' }),
           notes: customerData.notes,
+          couponCode: appliedCoupon?.code || null,
+          couponDiscount: couponDiscount > 0 ? couponDiscount : null,
           items: items.map(item => ({
             productId: item.id,
             name: item.name,
@@ -796,8 +802,17 @@ export default function CheckoutPage() {
           <div className="border-t mt-3 pt-3 space-y-1">
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Subtotal</span>
-              <span>{formatPrice(totalPrice())}</span>
+              <span>{formatPrice(subtotal)}</span>
             </div>
+            {appliedCoupon && couponDiscount > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-green-600 flex items-center gap-1">
+                  <Tag className="w-3 h-3" />
+                  Cupón {appliedCoupon.code}
+                </span>
+                <span className="text-green-600">-{formatPrice(couponDiscount)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Envío</span>
               {shippingMethod === 'retiro' ? (

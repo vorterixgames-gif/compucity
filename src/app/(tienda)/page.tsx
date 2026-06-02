@@ -2,8 +2,9 @@ import CategoryIcons from '@/components/layout/CategoryIcons'
 import BrandLogos from '@/components/layout/BrandLogos'
 import ProductCard from '@/components/ui-custom/ProductCard'
 import HeroSection from '@/components/ui-custom/HeroSection'
+import PromoBanner from '@/components/ui-custom/PromoBanner'
 import { getFeaturedProducts, getAllActiveProducts, getTopProductsByCategorySlug } from '@/lib/queries'
-import { ensureMigrations } from '@/lib/db'
+import { ensureMigrations, db } from '@/lib/db'
 import Link from 'next/link'
 import { Truck, Shield, MessageCircle, Headphones, ArrowRight, Cpu } from 'lucide-react'
 
@@ -12,6 +13,18 @@ export const dynamic = 'force-dynamic'
 function safeParseFirstImage(images: string | null): string | null {
   if (!images) return null
   try { return JSON.parse(images)[0] } catch { return null }
+}
+
+async function getActiveBanners() {
+  try {
+    const result = await db.execute({
+      sql: 'SELECT * FROM banners WHERE isActive = 1 ORDER BY "order" ASC, createdAt DESC',
+      args: [],
+    })
+    return result.rows as any[]
+  } catch {
+    return []
+  }
 }
 
 export default async function HomePage() {
@@ -23,14 +36,16 @@ export default async function HomePage() {
   let gamerPCs: any[] = []
   let monitorProducts: any[] = []
   let notebookProducts: any[] = []
+  let banners: any[] = []
 
   try {
-    [featured, allProducts, gamerPCs, monitorProducts, notebookProducts] = await Promise.all([
+    [featured, allProducts, gamerPCs, monitorProducts, notebookProducts, banners] = await Promise.all([
       getFeaturedProducts(),
       getAllActiveProducts(),
       getTopProductsByCategorySlug('pc-armadas', 4),
       getTopProductsByCategorySlug('monitores', 4),
       getTopProductsByCategorySlug('notebooks', 12),
+      getActiveBanners(),
     ])
     // Pick 4 notebooks with brand/line variety (avoid 4 identical Legion)
     if (notebookProducts.length > 4) {
@@ -55,9 +70,23 @@ export default async function HomePage() {
   return (
     <div>
       {/* ==========================================
+          TOP BANNERS (above hero)
+          ========================================== */}
+      {banners.filter((b: any) => b.position === 'top' && b.isActive === 1).length > 0 && (
+        <PromoBanner banners={banners.filter((b: any) => b.position === 'top' && b.isActive === 1)} />
+      )}
+
+      {/* ==========================================
           HERO - Carrusel Full-Width
           ========================================== */}
       <HeroSection />
+
+      {/* ==========================================
+          BELOW-HERO BANNERS
+          ========================================== */}
+      {banners.filter((b: any) => b.position === 'below-hero' && b.isActive === 1).length > 0 && (
+        <PromoBanner banners={banners.filter((b: any) => b.position === 'below-hero' && b.isActive === 1)} />
+      )}
 
       {/* ==========================================
           BENEFITS BAR
@@ -108,7 +137,7 @@ export default async function HomePage() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
               {gamerPCs.map((product) => (
-                <ProductCard key={product.id} id={product.id} name={product.name} slug={product.slug} price={product.price} comparePrice={product.comparePrice} image={safeParseFirstImage(product.images)} stock={product.stock} />
+                <ProductCard key={product.id} id={product.id} name={product.name} slug={product.slug} price={product.price} comparePrice={product.comparePrice} image={safeParseFirstImage(product.images)} stock={product.stock} salePrice={product.salePrice} saleStart={product.saleStart} saleEnd={product.saleEnd} />
               ))}
             </div>
           </div>
@@ -132,7 +161,7 @@ export default async function HomePage() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
               {monitorProducts.map((product) => (
-                <ProductCard key={product.id} id={product.id} name={product.name} slug={product.slug} price={product.price} comparePrice={product.comparePrice} image={safeParseFirstImage(product.images)} stock={product.stock} />
+                <ProductCard key={product.id} id={product.id} name={product.name} slug={product.slug} price={product.price} comparePrice={product.comparePrice} image={safeParseFirstImage(product.images)} stock={product.stock} salePrice={product.salePrice} saleStart={product.saleStart} saleEnd={product.saleEnd} />
               ))}
             </div>
           </div>
@@ -156,7 +185,7 @@ export default async function HomePage() {
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
               {notebookProducts.map((product) => (
-                <ProductCard key={product.id} id={product.id} name={product.name} slug={product.slug} price={product.price} comparePrice={product.comparePrice} image={safeParseFirstImage(product.images)} stock={product.stock} />
+                <ProductCard key={product.id} id={product.id} name={product.name} slug={product.slug} price={product.price} comparePrice={product.comparePrice} image={safeParseFirstImage(product.images)} stock={product.stock} salePrice={product.salePrice} saleStart={product.saleStart} saleEnd={product.saleEnd} />
               ))}
             </div>
           </div>

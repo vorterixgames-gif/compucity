@@ -19,6 +19,9 @@ interface ProductItem {
   images: string
   stock: number
   createdAt?: string
+  salePrice?: number | null
+  saleStart?: string | null
+  saleEnd?: string | null
 }
 
 interface Props {
@@ -329,6 +332,9 @@ export default function CategoryProducts({
               comparePrice={product.comparePrice}
               image={product.images ? JSON.parse(product.images)[0] : null}
               stock={product.stock}
+              salePrice={product.salePrice}
+              saleStart={product.saleStart}
+              saleEnd={product.saleEnd}
             />
           ))}
         </div>

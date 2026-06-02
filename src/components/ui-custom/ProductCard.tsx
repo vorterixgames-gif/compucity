@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { ShoppingCart, Heart } from 'lucide-react'
 import { useCart } from '@/store/cart'
 import { useWishlist } from '@/store/wishlist'
+import { getActiveSale } from '@/lib/pricing'
 
 interface ProductCardProps {
   id: string
@@ -15,22 +16,32 @@ interface ProductCardProps {
   stock?: number
   isFeatured?: boolean
   isNew?: boolean
+  salePrice?: number | null
+  saleStart?: string | null
+  saleEnd?: string | null
 }
 
-export default function ProductCard({ id, name, slug, price, comparePrice, image, stock, isFeatured, isNew }: ProductCardProps) {
+export default function ProductCard({ id, name, slug, price, comparePrice, image, stock, isFeatured, isNew, salePrice, saleStart, saleEnd }: ProductCardProps) {
   const addItem = useCart((s) => s.addItem)
   const toggleItem = useWishlist((s) => s.toggleItem)
   const isInWishlist = useWishlist((s) => s.isInWishlist(id))
   const imageUrl = image || '/placeholder-product.png'
-  const hasDiscount = comparePrice && comparePrice < price
+
+  // Check if there's an active sale
+  const activeSale = getActiveSale({ price, comparePrice, salePrice, saleStart, saleEnd })
+  const isOnSale = activeSale !== null && activeSale < price
+  const hasCashDiscount = comparePrice && comparePrice < price && !isOnSale
 
   const formatPrice = (n: number) =>
     new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n)
 
+  // Determine cart price: sale price > cash price > list price
+  const cartPrice = isOnSale ? activeSale : (comparePrice && comparePrice < price ? comparePrice : price)
+
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    addItem({ id, name, price: comparePrice || price, image: imageUrl, slug })
+    addItem({ id, name, price: cartPrice, image: imageUrl, slug })
   }
 
   const handleToggleWishlist = (e: React.MouseEvent) => {
@@ -40,13 +51,15 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
   }
 
   // Badge logic
-  const showOfferBadge = false // Efectivo badge moved to price area
   const showFeaturedBadge = isFeatured
   const showLastUnitsBadge = stock !== undefined && stock > 0 && stock <= 3
   const showOutOfStock = stock !== undefined && stock <= 0
 
   // Stock indicator logic
   const showStockIndicator = stock !== undefined && stock > 0
+
+  // Calculate discount percentage for sale
+  const saleDiscountPercent = isOnSale ? Math.round((1 - activeSale! / price) * 100) : 0
 
   return (
     <Link
@@ -66,12 +79,12 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
 
         {/* Badges - stacked vertically top-left */}
         <div className="absolute top-2 left-2 flex flex-col gap-1">
-          {showOfferBadge && (
-            <div className="bg-compucity-green-800 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-sm">
-              EFECTIVO
+          {isOnSale && (
+            <div className="bg-green-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-sm">
+              OFERTA -{saleDiscountPercent}%
             </div>
           )}
-          {showFeaturedBadge && (
+          {showFeaturedBadge && !isOnSale && (
             <div className="bg-compucity-green-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-sm">
               DESTACADO
             </div>
@@ -117,7 +130,15 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
           {name}
         </h3>
         <div className="mt-auto space-y-0.5">
-          {hasDiscount ? (
+          {isOnSale ? (
+            <>
+              <div className="flex items-center gap-2">
+                <p className="text-lg font-extrabold text-green-600">{formatPrice(activeSale!)}</p>
+                <span className="bg-green-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">OFERTA</span>
+              </div>
+              <p className="text-xs text-gray-400 line-through">Lista: {formatPrice(price)}</p>
+            </>
+          ) : hasCashDiscount ? (
             <div className="flex items-center gap-2">
               <p className="text-lg font-extrabold text-compucity-green-700">{formatPrice(comparePrice!)}</p>
               <span className="bg-compucity-green-800 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">EFECTIVO</span>
@@ -125,7 +146,7 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
           ) : (
             <p className="text-lg font-extrabold text-compucity-green-800">{formatPrice(price)}</p>
           )}
-          {hasDiscount && (
+          {!isOnSale && hasCashDiscount && (
             <p className="text-xs text-gray-400">Lista: {formatPrice(price)}</p>
           )}
 

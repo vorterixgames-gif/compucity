@@ -12,9 +12,18 @@ export interface CartItem {
   slug: string
 }
 
+export interface AppliedCoupon {
+  code: string
+  discountType: 'percentage' | 'fixed'
+  discountValue: number
+  description?: string
+}
+
 interface CartStore {
   items: CartItem[]
   lastAdded: string | null
+  appliedCoupon: AppliedCoupon | null
+  couponDiscount: number
   addItem: (item: Omit<CartItem, 'quantity'>) => void
   removeItem: (id: string) => void
   updateQuantity: (id: string, quantity: number) => void
@@ -22,6 +31,8 @@ interface CartStore {
   totalItems: () => number
   totalPrice: () => number
   setLastAdded: (id: string | null) => void
+  applyCoupon: (coupon: AppliedCoupon, discountAmount: number) => void
+  removeCoupon: () => void
 }
 
 export const useCart = create<CartStore>()(
@@ -29,6 +40,8 @@ export const useCart = create<CartStore>()(
     (set, get) => ({
       items: [],
       lastAdded: null,
+      appliedCoupon: null,
+      couponDiscount: 0,
       setLastAdded: (id: string | null) => set({ lastAdded: id }),
       addItem: (item) => {
         const items = get().items
@@ -49,11 +62,22 @@ export const useCart = create<CartStore>()(
         }, 600)
       },
       removeItem: (id) => {
-        set({ items: get().items.filter((i) => i.id !== id) })
+        const newItems = get().items.filter((i) => i.id !== id)
+        // If cart is empty after removal, also remove coupon
+        if (newItems.length === 0) {
+          set({ items: newItems, appliedCoupon: null, couponDiscount: 0 })
+        } else {
+          set({ items: newItems })
+        }
       },
       updateQuantity: (id, quantity) => {
         if (quantity <= 0) {
-          set({ items: get().items.filter((i) => i.id !== id) })
+          const newItems = get().items.filter((i) => i.id !== id)
+          if (newItems.length === 0) {
+            set({ items: newItems, appliedCoupon: null, couponDiscount: 0 })
+          } else {
+            set({ items: newItems })
+          }
         } else {
           set({
             items: get().items.map((i) =>
@@ -62,9 +86,11 @@ export const useCart = create<CartStore>()(
           })
         }
       },
-      clearCart: () => set({ items: [] }),
+      clearCart: () => set({ items: [], appliedCoupon: null, couponDiscount: 0 }),
       totalItems: () => get().items.reduce((sum, i) => sum + i.quantity, 0),
       totalPrice: () => get().items.reduce((sum, i) => sum + i.price * i.quantity, 0),
+      applyCoupon: (coupon, discountAmount) => set({ appliedCoupon: coupon, couponDiscount: discountAmount }),
+      removeCoupon: () => set({ appliedCoupon: null, couponDiscount: 0 }),
     }),
     { name: 'compucity-cart' }
   )

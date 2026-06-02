@@ -50,6 +50,9 @@ export async function GET(request: NextRequest) {
         comparePrice: calculated.comparePrice,
         image: images[0] || null,
         stock: calculated.stock,
+        salePrice: calculated.salePrice ?? null,
+        saleStart: calculated.saleStart ?? null,
+        saleEnd: calculated.saleEnd ?? null,
       }
     })
 

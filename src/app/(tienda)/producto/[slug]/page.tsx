@@ -5,6 +5,7 @@ import ProductGallery from '@/components/ui-custom/ProductGallery'
 import Breadcrumbs from '@/components/ui-custom/Breadcrumbs'
 import ProductTabs from '@/components/ui-custom/ProductTabs'
 import RelatedProducts from '@/components/ui-custom/RelatedProducts'
+import { getActiveSale } from '@/lib/pricing'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -51,17 +52,41 @@ export default async function ProductPage({ params }: Props) {
 
           {/* Price */}
           <div className="mb-6">
-            {product.comparePrice && product.comparePrice < product.price ? (
-              <div className="flex items-center gap-2">
-                <p className="text-3xl font-bold text-green-600">{formatPrice(product.comparePrice)}</p>
-                <span className="bg-compucity-green-800 text-white text-xs font-bold px-2 py-0.5 rounded">EFECTIVO</span>
-              </div>
-            ) : (
-              <p className="text-3xl font-bold text-gray-900">{formatPrice(product.price)}</p>
-            )}
-            {product.comparePrice && product.comparePrice < product.price && (
-              <p className="text-sm text-gray-400 mt-1">Precio de lista: {formatPrice(product.price)}</p>
-            )}
+            {(() => {
+              const activeSale = getActiveSale(product as any)
+              const isOnSale = activeSale !== null && activeSale < product.price
+              const hasCashDiscount = product.comparePrice && product.comparePrice < product.price && !isOnSale
+
+              if (isOnSale) {
+                const discountPercent = Math.round((1 - activeSale! / product.price) * 100)
+                return (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <p className="text-3xl font-bold text-green-600">{formatPrice(activeSale!)}</p>
+                      <span className="bg-green-600 text-white text-xs font-bold px-2 py-0.5 rounded">OFERTA -{discountPercent}%</span>
+                    </div>
+                    <p className="text-sm text-gray-400 mt-1 line-through">Precio de lista: {formatPrice(product.price)}</p>
+                    {product.comparePrice && product.comparePrice < product.price && (
+                      <p className="text-sm text-gray-500 mt-0.5">Precio en efectivo: {formatPrice(product.comparePrice)}</p>
+                    )}
+                  </>
+                )
+              }
+
+              if (hasCashDiscount) {
+                return (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <p className="text-3xl font-bold text-green-600">{formatPrice(product.comparePrice!)}</p>
+                      <span className="bg-compucity-green-800 text-white text-xs font-bold px-2 py-0.5 rounded">EFECTIVO</span>
+                    </div>
+                    <p className="text-sm text-gray-400 mt-1">Precio de lista: {formatPrice(product.price)}</p>
+                  </>
+                )
+              }
+
+              return <p className="text-3xl font-bold text-gray-900">{formatPrice(product.price)}</p>
+            })()}
             <p className="text-sm text-gray-500 mt-1">Hacé tu pedido por WhatsApp</p>
           </div>
 
@@ -83,6 +108,9 @@ export default async function ProductPage({ params }: Props) {
             comparePrice: product.comparePrice,
             image: images[0] || null,
             stock: product.stock,
+            salePrice: (product as any).salePrice ?? null,
+            saleStart: (product as any).saleStart ?? null,
+            saleEnd: (product as any).saleEnd ?? null,
           }} />
 
           {/* Tabs: Description, Specs, Shipping */}

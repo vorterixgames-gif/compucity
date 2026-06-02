@@ -15,6 +15,7 @@ import {
   LogOut,
   Menu,
   Monitor,
+  Tag,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
@@ -23,6 +24,7 @@ import { Separator } from '@/components/ui/separator'
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/productos', label: 'Productos', icon: Package },
+  { href: '/admin/promociones', label: 'Promociones', icon: Tag },
   { href: '/admin/categorias', label: 'Categorías', icon: FolderOpen },
   { href: '/admin/pedidos', label: 'Pedidos', icon: ShoppingCart },
   { href: '/admin/clientes', label: 'Clientes', icon: Users },

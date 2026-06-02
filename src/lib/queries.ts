@@ -70,6 +70,9 @@ export interface Product {
   providerSku: string | null
   categoryId: string | null
   ivaRate: number | null
+  salePrice: number | null
+  saleStart: string | null
+  saleEnd: string | null
   createdAt: string
   updatedAt: string
   // Joined

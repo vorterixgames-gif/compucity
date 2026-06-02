@@ -13,6 +13,9 @@ interface FavProduct {
   comparePrice: number | null
   images: string
   stock: number
+  salePrice?: number | null
+  saleStart?: string | null
+  saleEnd?: string | null
 }
 
 export default function FavoritosPage() {
@@ -114,6 +117,9 @@ export default function FavoritosPage() {
             comparePrice={product.comparePrice}
             image={product.images ? JSON.parse(product.images)[0] : null}
             stock={product.stock}
+            salePrice={product.salePrice}
+            saleStart={product.saleStart}
+            saleEnd={product.saleEnd}
           />
         ))}
       </div>

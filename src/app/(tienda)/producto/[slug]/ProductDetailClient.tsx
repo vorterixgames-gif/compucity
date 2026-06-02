@@ -3,6 +3,7 @@
 import { useCart } from '@/store/cart'
 import { useWishlist } from '@/store/wishlist'
 import { ShoppingCart, MessageCircle, Heart } from 'lucide-react'
+import { getCartPrice } from '@/lib/pricing'
 
 interface Props {
   product: {
@@ -13,6 +14,9 @@ interface Props {
     comparePrice?: number | null
     image: string | null
     stock: number
+    salePrice?: number | null
+    saleStart?: string | null
+    saleEnd?: string | null
   }
 }
 
@@ -20,9 +24,7 @@ export default function ProductDetailClient({ product }: Props) {
   const addItem = useCart((s) => s.addItem)
   const toggleItem = useWishlist((s) => s.toggleItem)
   const isInWishlist = useWishlist((s) => s.isInWishlist(product.id))
-  const effectivePrice = (product.comparePrice && product.comparePrice < product.price) 
-    ? product.comparePrice 
-    : product.price
+  const effectivePrice = getCartPrice(product)
 
   const handleAddToCart = () => {
     addItem({

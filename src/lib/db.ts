@@ -215,4 +215,97 @@ export async function ensureMigrations() {
       console.warn('[migration] Could not add ivaRate column:', e)
     }
   }
+
+  // 11. Add salePrice column to products
+  try {
+    await db.execute({ sql: 'SELECT salePrice FROM products LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({ sql: 'ALTER TABLE products ADD COLUMN salePrice REAL' })
+      console.log('[migration] Added salePrice column to products')
+    } catch (e) {
+      console.warn('[migration] Could not add salePrice column:', e)
+    }
+  }
+
+  // 12. Add saleStart column to products
+  try {
+    await db.execute({ sql: 'SELECT saleStart FROM products LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({ sql: 'ALTER TABLE products ADD COLUMN saleStart TEXT' })
+      console.log('[migration] Added saleStart column to products')
+    } catch (e) {
+      console.warn('[migration] Could not add saleStart column:', e)
+    }
+  }
+
+  // 13. Add saleEnd column to products
+  try {
+    await db.execute({ sql: 'SELECT saleEnd FROM products LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({ sql: 'ALTER TABLE products ADD COLUMN saleEnd TEXT' })
+      console.log('[migration] Added saleEnd column to products')
+    } catch (e) {
+      console.warn('[migration] Could not add saleEnd column:', e)
+    }
+  }
+
+  // 14. Ensure coupons table exists
+  try {
+    await db.execute({ sql: 'SELECT id FROM coupons LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({
+        sql: `CREATE TABLE IF NOT EXISTS coupons (
+          id TEXT PRIMARY KEY,
+          code TEXT NOT NULL UNIQUE,
+          description TEXT,
+          discountType TEXT NOT NULL DEFAULT 'percentage',
+          discountValue REAL NOT NULL,
+          minPurchase REAL DEFAULT 0,
+          maxUses INTEGER DEFAULT 0,
+          usedCount INTEGER DEFAULT 0,
+          validFrom TEXT,
+          validUntil TEXT,
+          isActive INTEGER DEFAULT 1,
+          createdAt TEXT DEFAULT (datetime('now')),
+          updatedAt TEXT DEFAULT (datetime('now'))
+        )`,
+        args: [],
+      })
+      console.log('[migration] Created coupons table')
+    } catch (e) {
+      console.warn('[migration] Could not create coupons table:', e)
+    }
+  }
+
+  // 15. Ensure banners table exists
+  try {
+    await db.execute({ sql: 'SELECT id FROM banners LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({
+        sql: `CREATE TABLE IF NOT EXISTS banners (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          subtitle TEXT,
+          buttonText TEXT,
+          buttonLink TEXT,
+          bgColor TEXT DEFAULT '#3A8B68',
+          textColor TEXT DEFAULT '#FFFFFF',
+          position TEXT DEFAULT 'top',
+          isActive INTEGER DEFAULT 1,
+          "order" INTEGER DEFAULT 0,
+          createdAt TEXT DEFAULT (datetime('now')),
+          updatedAt TEXT DEFAULT (datetime('now'))
+        )`,
+        args: [],
+      })
+      console.log('[migration] Created banners table')
+    } catch (e) {
+      console.warn('[migration] Could not create banners table:', e)
+    }
+  }
 }

@@ -210,6 +210,9 @@ export function calculateProductPrices(product: any, dollarRate: number, globalM
       ...product,
       price: listPrice,
       comparePrice: cashPrice,
+      salePrice: product.salePrice != null ? Number(product.salePrice) : null,
+      saleStart: product.saleStart || null,
+      saleEnd: product.saleEnd || null,
       _calculated: true,
       _costUsd: Number(product.costPrice),
       _effectiveMarkup: markup,
@@ -217,5 +220,11 @@ export function calculateProductPrices(product: any, dollarRate: number, globalM
       _effectiveIvaRate: ivaRate,
     }
   }
-  return { ...product, _calculated: false }
+  return {
+    ...product,
+    salePrice: product.salePrice != null ? Number(product.salePrice) : null,
+    saleStart: product.saleStart || null,
+    saleEnd: product.saleEnd || null,
+    _calculated: false,
+  }
 }

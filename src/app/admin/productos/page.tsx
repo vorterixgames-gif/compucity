@@ -76,6 +76,9 @@ interface Product {
   markup: number | null
   cashDiscount: number | null
   ivaRate: number | null
+  salePrice: number | null
+  saleStart: string | null
+  saleEnd: string | null
   _calculated?: boolean
   _dollarRate?: number
   _effectiveMarkup?: number
@@ -103,6 +106,9 @@ interface ProductForm {
   markup: string       // individual product markup (empty = use global)
   cashDiscount: string  // individual product cash discount (empty = use global)
   ivaRate: string       // IVA percentage (default 10.5)
+  salePrice: string     // promotional price (empty = no sale)
+  saleStart: string     // sale start date (ISO)
+  saleEnd: string       // sale end date (ISO)
 }
 
 interface DollarConfig {
@@ -130,6 +136,9 @@ const emptyForm: ProductForm = {
   markup: '',
   cashDiscount: '',
   ivaRate: '10.5',
+  salePrice: '',
+  saleStart: '',
+  saleEnd: '',
 }
 
 function formatPrice(price: number): string {
@@ -297,6 +306,9 @@ export default function AdminProductos() {
       markup: product.markup != null ? String(product.markup) : '',
       cashDiscount: product.cashDiscount != null ? String(product.cashDiscount) : '',
       ivaRate: product.ivaRate != null ? String(product.ivaRate) : '10.5',
+      salePrice: product.salePrice != null ? String(product.salePrice) : '',
+      saleStart: product.saleStart ? product.saleStart.slice(0, 10) : '',
+      saleEnd: product.saleEnd ? product.saleEnd.slice(0, 10) : '',
     })
     setFormError('')
     fetchDollarConfig()
@@ -359,6 +371,9 @@ export default function AdminProductos() {
         markup: form.markup !== '' ? Number(form.markup) : null,
         cashDiscount: form.cashDiscount !== '' ? Number(form.cashDiscount) : null,
         ivaRate: form.ivaRate !== '' ? Number(form.ivaRate) : 10.5,
+        salePrice: form.salePrice ? Number(form.salePrice) : null,
+        saleStart: form.saleStart || null,
+        saleEnd: form.saleEnd || null,
       }
 
       const res = await fetch('/api/admin/products', {
@@ -482,6 +497,14 @@ export default function AdminProductos() {
                           {product.sku && (
                             <span className="text-xs text-gray-400 font-mono ml-2">{product.sku}</span>
                           )}
+                          {product.salePrice && product.salePrice > 0 && (() => {
+                            const now = new Date()
+                            const startOk = !product.saleStart || now >= new Date(product.saleStart)
+                            const endOk = !product.saleEnd || now <= new Date(product.saleEnd + 'T23:59:59')
+                            return startOk && endOk ? (
+                              <Badge className="ml-2 text-[10px] px-1.5 py-0 bg-orange-100 text-orange-700 border-orange-200 border">EN OFERTA</Badge>
+                            ) : null
+                          })()}
                         </div>
                       </td>
                       <td className="p-2 align-middle">
@@ -807,6 +830,75 @@ export default function AdminProductos() {
                   </div>
                 </div>
               )}
+
+              {/* === PRECIO PROMOCIONAL (Sale Price) === */}
+              <div className="border-t pt-4 mt-4">
+                <details className="group">
+                  <summary className="flex items-center gap-2 text-sm font-semibold text-orange-600 cursor-pointer select-none">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" /></svg>
+                    Precio Promocional
+                    <svg className="w-3.5 h-3.5 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  </summary>
+                  <div className="mt-3 space-y-3">
+                    <p className="text-xs text-gray-500">
+                      Si configurás un precio promocional con fecha, se mostrará como oferta en la tienda durante ese período.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="salePrice" className="flex items-center gap-1">
+                          <span className="text-orange-600">Precio oferta (ARS)</span>
+                        </Label>
+                        <Input
+                          id="salePrice"
+                          type="number"
+                          step="0.01"
+                          value={form.salePrice}
+                          onChange={(e) => updateForm('salePrice', e.target.value)}
+                          placeholder="Ej: 299999"
+                          className="bg-white"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="saleStart">Inicio de oferta</Label>
+                        <Input
+                          id="saleStart"
+                          type="date"
+                          value={form.saleStart}
+                          onChange={(e) => updateForm('saleStart', e.target.value)}
+                          className="bg-white"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="saleEnd">Fin de oferta</Label>
+                        <Input
+                          id="saleEnd"
+                          type="date"
+                          value={form.saleEnd}
+                          onChange={(e) => updateForm('saleEnd', e.target.value)}
+                          className="bg-white"
+                        />
+                      </div>
+                    </div>
+                    {form.salePrice && Number(form.salePrice) > 0 && (
+                      <div className="p-2 bg-orange-50 border border-orange-200 rounded-lg text-sm text-orange-700">
+                        <strong>Oferta activa:</strong> El precio de {formatPrice(Number(form.salePrice))} se mostrará como precio principal
+                        {form.saleStart && form.saleEnd && (
+                          <> del {new Date(form.saleStart).toLocaleDateString('es-AR')} al {new Date(form.saleEnd).toLocaleDateString('es-AR')}</>
+                        )}
+                        {form.saleStart && !form.saleEnd && (
+                          <> desde el {new Date(form.saleStart).toLocaleDateString('es-AR')}</>
+                        )}
+                        {!form.saleStart && form.saleEnd && (
+                          <> hasta el {new Date(form.saleEnd).toLocaleDateString('es-AR')}</>
+                        )}
+                        {!form.saleStart && !form.saleEnd && (
+                          <> permanentemente (sin fechas configuradas)</>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </details>
+              </div>
             </div>
 
             <div className="space-y-2">

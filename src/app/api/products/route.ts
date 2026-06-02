@@ -37,6 +37,9 @@ export async function GET(request: NextRequest) {
         comparePrice: product.comparePrice,
         images: product.images,
         stock: product.stock,
+        salePrice: product.salePrice ?? null,
+        saleStart: product.saleStart ?? null,
+        saleEnd: product.saleEnd ?? null,
       },
     })
   } catch (error) {
