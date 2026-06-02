@@ -491,20 +491,26 @@ export default function AdminProductos() {
                       </td>
                       <td className="p-2 align-middle text-right">
                         {product.costPrice && product.costPrice > 0 ? (
-                          <div className="flex items-center justify-end gap-1">
-                            <DollarSign className="w-3 h-3 text-compucity-green shrink-0" />
-                            <span className="font-medium text-compucity-green">{Number(product.costPrice).toFixed(2)}</span>
-                            {product._calculated && (
-                              <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-compucity-green-50 text-compucity-green shrink-0">A</Badge>
-                            )}
-                            {(product as any)._effectiveMarkup != null && (product as any)._effectiveMarkup !== dollarConfig?.markup && (
-                              <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-blue-50 text-blue-600 shrink-0" title={`Margen: ${(product as any)._effectiveMarkup}%`}>M</Badge>
-                            )}
-                            {(product as any)._effectiveCashDiscount != null && (product as any)._effectiveCashDiscount !== dollarConfig?.cashDiscount && (
-                              <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-amber-50 text-amber-600 shrink-0" title={`Desc: ${(product as any)._effectiveCashDiscount}%`}>D</Badge>
-                            )}
-                            {(product as any)._effectiveIvaRate != null && (product as any)._effectiveIvaRate !== 10.5 && (
-                              <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-purple-50 text-purple-600 shrink-0" title={`IVA: ${(product as any)._effectiveIvaRate}%`}>I</Badge>
+                          <div>
+                            <div className="flex items-center justify-end gap-1">
+                              <DollarSign className="w-3 h-3 text-compucity-green shrink-0" />
+                              <span className="font-medium text-compucity-green">{Number(product.costPrice).toFixed(2)}</span>
+                            </div>
+                            {(product._calculated || (product as any)._effectiveMarkup != null || (product as any)._effectiveCashDiscount != null || (product as any)._effectiveIvaRate != null) && (
+                              <div className="flex items-center justify-end gap-0.5 mt-0.5">
+                                {product._calculated && (
+                                  <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-compucity-green-50 text-compucity-green shrink-0">A</Badge>
+                                )}
+                                {(product as any)._effectiveMarkup != null && (product as any)._effectiveMarkup !== dollarConfig?.markup && (
+                                  <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-blue-50 text-blue-600 shrink-0" title={`Margen: ${(product as any)._effectiveMarkup}%`}>M</Badge>
+                                )}
+                                {(product as any)._effectiveCashDiscount != null && (product as any)._effectiveCashDiscount !== dollarConfig?.cashDiscount && (
+                                  <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-amber-50 text-amber-600 shrink-0" title={`Desc: ${(product as any)._effectiveCashDiscount}%`}>D</Badge>
+                                )}
+                                {(product as any)._effectiveIvaRate != null && (product as any)._effectiveIvaRate !== 10.5 && (
+                                  <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-purple-50 text-purple-600 shrink-0" title={`IVA: ${(product as any)._effectiveIvaRate}%`}>I</Badge>
+                                )}
+                              </div>
                             )}
                           </div>
                         ) : (
