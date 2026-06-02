@@ -128,8 +128,10 @@ export async function getStoreConfigNumber(key: string, defaultValue: number): P
 }
 
 // Calculate prices based on dollar rate
-// costPrice (USD) × dollarRate × (1 + markup/100) × (1 + ivaRate/100) = precio de lista (IVA incluido)
-// Base × (1 + markup/100 - cashDiscount/100) × (1 + ivaRate/100) = precio en efectivo (IVA incluido)
+// costPrice (USD sin IVA) × (1 + ivaRate/100) = precio USD con IVA
+// precio USD con IVA × (1 + markup/100) = precio USD con markup
+// precio USD con markup × dollarRate = precio de lista en ARS (IVA incluido)
+// Para efectivo: se aplica (1 + (markup - cashDiscount)/100) en lugar de (1 + markup/100)
 export interface CalculatedPrices {
   dollarRate: number
   dollarSource: string
@@ -145,8 +147,8 @@ export async function calculatePrices(costUsd: number): Promise<CalculatedPrices
   const cashDiscount = await getStoreConfigNumber('cash_discount', 10)
 
   const ivaRate = await getStoreConfigNumber('default_iva_rate', 10.5)
-  const listPrice = Math.ceil(costUsd * dollar.rate * (1 + markup / 100) * (1 + ivaRate / 100))
-  const cashPrice = Math.ceil(costUsd * dollar.rate * (1 + (markup - cashDiscount) / 100) * (1 + ivaRate / 100))
+  const listPrice = Math.ceil(costUsd * (1 + ivaRate / 100) * (1 + markup / 100) * dollar.rate)
+  const cashPrice = Math.ceil(costUsd * (1 + ivaRate / 100) * (1 + (markup - cashDiscount) / 100) * dollar.rate)
 
   return {
     dollarRate: dollar.rate,
@@ -195,8 +197,8 @@ export function calculateProductPrices(product: any, dollarRate: number, globalM
       return { ...product, _calculated: false, _priceError: 'Dollar rate invalid' }
     }
 
-    const listPrice = Math.ceil(Number(product.costPrice) * dollarRate * (1 + markup / 100) * (1 + ivaRate / 100))
-    const cashPrice = Math.ceil(Number(product.costPrice) * dollarRate * (1 + (markup - cashDiscount) / 100) * (1 + ivaRate / 100))
+    const listPrice = Math.ceil(Number(product.costPrice) * (1 + ivaRate / 100) * (1 + markup / 100) * dollarRate)
+    const cashPrice = Math.ceil(Number(product.costPrice) * (1 + ivaRate / 100) * (1 + (markup - cashDiscount) / 100) * dollarRate)
 
     // SAFEGUARD: Prices must be positive
     if (listPrice <= 0 || cashPrice <= 0) {

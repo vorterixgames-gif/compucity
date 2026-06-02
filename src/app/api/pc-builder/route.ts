@@ -145,8 +145,9 @@ export async function GET(request: NextRequest) {
           const effectiveMarkup = p.markup != null ? Number(p.markup) : markup
           const effectiveCashDiscount = p.cashDiscount != null ? Number(p.cashDiscount) : cashDiscount
           const effectiveIvaRate = p.ivaRate != null ? Number(p.ivaRate) : 10.5
-          const listPrice = Math.ceil(p.costPrice * dollar.rate * (1 + effectiveMarkup / 100) * (1 + effectiveIvaRate / 100))
-          const cashPrice = Math.ceil(p.costPrice * dollar.rate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * (1 + effectiveIvaRate / 100))
+          // costUSD × (1+IVA) × (1+markup) × dollarRate
+          const listPrice = Math.ceil(p.costPrice * (1 + effectiveIvaRate / 100) * (1 + effectiveMarkup / 100) * dollar.rate)
+          const cashPrice = Math.ceil(p.costPrice * (1 + effectiveIvaRate / 100) * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * dollar.rate)
           return { ...p, price: listPrice, comparePrice: cashPrice, _calculated: true }
         }
         return { ...p, _calculated: false }

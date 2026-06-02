@@ -54,8 +54,9 @@ export async function GET() {
         const effectiveCashDiscount = p.cashDiscount != null ? Number(p.cashDiscount) : cashDiscount
         const effectiveIvaRate = p.ivaRate != null ? Number(p.ivaRate) : 10.5
         // Auto-calculate from USD cost
-        const calculatedListPrice = Math.ceil(p.costPrice * dollar.rate * (1 + effectiveMarkup / 100) * (1 + effectiveIvaRate / 100))
-        const calculatedCashPrice = Math.ceil(p.costPrice * dollar.rate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * (1 + effectiveIvaRate / 100))
+        // costUSD × (1+IVA) × (1+markup) × dollarRate
+        const calculatedListPrice = Math.ceil(p.costPrice * (1 + effectiveIvaRate / 100) * (1 + effectiveMarkup / 100) * dollar.rate)
+        const calculatedCashPrice = Math.ceil(p.costPrice * (1 + effectiveIvaRate / 100) * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * dollar.rate)
         return {
           ...p,
           price: calculatedListPrice,
@@ -153,8 +154,9 @@ export async function POST(request: NextRequest) {
         effectiveIvaRate = 10.5
       }
 
-      finalPrice = Math.ceil(Number(costPrice) * dollar.rate * (1 + effectiveMarkup / 100) * (1 + effectiveIvaRate / 100))
-      finalComparePrice = Math.ceil(Number(costPrice) * dollar.rate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * (1 + effectiveIvaRate / 100))
+      // costUSD × (1+IVA) × (1+markup) × dollarRate
+      finalPrice = Math.ceil(Number(costPrice) * (1 + effectiveIvaRate / 100) * (1 + effectiveMarkup / 100) * dollar.rate)
+      finalComparePrice = Math.ceil(Number(costPrice) * (1 + effectiveIvaRate / 100) * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * dollar.rate)
     } else {
       // Manual pricing
       finalPrice = Number(price)

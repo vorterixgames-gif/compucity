@@ -24,8 +24,9 @@ export async function GET() {
       },
       ejemplo: {
         costoUsd: 100,
-        precioLista: Math.ceil(100 * dollar.rate * (1 + markup / 100)),
-        precioEfectivo: Math.ceil(100 * dollar.rate * (1 + (markup - cashDiscount) / 100)),
+        precioLista: Math.ceil(100 * (1 + 10.5 / 100) * (1 + markup / 100) * dollar.rate),
+        precioEfectivo: Math.ceil(100 * (1 + 10.5 / 100) * (1 + (markup - cashDiscount) / 100) * dollar.rate),
+        nota: 'Fórmula: costUSD × (1+IVA) × (1+markup) × dollarRate',
       },
     })
   } catch (error) {

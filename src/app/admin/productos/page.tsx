@@ -237,8 +237,9 @@ export default function AdminProductos() {
       const effectiveMarkup = form.markup !== '' ? Number(form.markup) : dollarConfig.markup
       const effectiveCashDiscount = form.cashDiscount !== '' ? Number(form.cashDiscount) : dollarConfig.cashDiscount
       const effectiveIvaRate = form.ivaRate !== '' ? Number(form.ivaRate) : 10.5
-      const listPrice = Math.ceil(costUsd * dollarConfig.rate * (1 + effectiveMarkup / 100) * (1 + effectiveIvaRate / 100))
-      const cashPrice = Math.ceil(costUsd * dollarConfig.rate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * (1 + effectiveIvaRate / 100))
+      // costUSD × (1+IVA) × (1+markup) × dollarRate
+      const listPrice = Math.ceil(costUsd * (1 + effectiveIvaRate / 100) * (1 + effectiveMarkup / 100) * dollarConfig.rate)
+      const cashPrice = Math.ceil(costUsd * (1 + effectiveIvaRate / 100) * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * dollarConfig.rate)
       setCalculatedListPrice(listPrice)
       setCalculatedCashPrice(cashPrice)
       // Auto-fill the price fields
@@ -720,11 +721,11 @@ export default function AdminProductos() {
                   </div>
                   <div className="border-t border-compucity-green-100 pt-2 space-y-1 text-sm">
                     <p className="text-gray-600">
-                      USD {Number(form.costPrice).toFixed(2)} × ${dollarConfig.rate.toLocaleString('es-AR')} × (1 + {form.markup !== '' ? form.markup : dollarConfig.markup}%) × (1 + {form.ivaRate || '10.5'}%) = 
+                      USD {Number(form.costPrice).toFixed(2)} × (1 + {form.ivaRate || '10.5'}%) × (1 + {form.markup !== '' ? form.markup : dollarConfig.markup}%) × ${dollarConfig.rate.toLocaleString('es-AR')} = 
                       <strong className="text-gray-900"> {formatPrice(calculatedListPrice!)}</strong> <span className="text-gray-500">(lista c/IVA)</span>
                     </p>
                     <p className="text-gray-600">
-                      USD {Number(form.costPrice).toFixed(2)} × ${dollarConfig.rate.toLocaleString('es-AR')} × (1 + {form.markup !== '' ? form.markup : dollarConfig.markup}% - {form.cashDiscount !== '' ? form.cashDiscount : dollarConfig.cashDiscount}%) × (1 + {form.ivaRate || '10.5'}%) = 
+                      USD {Number(form.costPrice).toFixed(2)} × (1 + {form.ivaRate || '10.5'}%) × (1 + {form.markup !== '' ? form.markup : dollarConfig.markup}% - {form.cashDiscount !== '' ? form.cashDiscount : dollarConfig.cashDiscount}%) × ${dollarConfig.rate.toLocaleString('es-AR')} = 
                       <strong className="text-green-700"> {formatPrice(calculatedCashPrice!)}</strong> <span className="text-gray-500">(efectivo c/IVA)</span>
                     </p>
                   </div>
