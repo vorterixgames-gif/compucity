@@ -449,7 +449,7 @@ export default function AdminProductos() {
       </div>
 
       {/* Products Table */}
-      <div className="w-full" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div className="admin-table-scroll">
         <Card>
           <CardContent className="p-0">
             {filteredProducts.length === 0 ? (
