@@ -20,7 +20,6 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -449,8 +448,8 @@ export default function AdminProductos() {
       </div>
 
       {/* Products Table */}
-      <Card style={{ overflow: 'hidden' }}>
-        <CardContent className="p-0 admin-scroll-visible" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div className="rounded-xl border bg-card text-card-foreground shadow-sm">
+        <div className="admin-table-wrapper">
           {filteredProducts.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               <Package className="w-12 h-12 mx-auto mb-2 opacity-30" />
@@ -559,8 +558,8 @@ export default function AdminProductos() {
                 </TableBody>
               </Table>
           )}
-          </CardContent>
-        </Card>
+        </div>
+      </div>
 
       {/* Product Form Dialog */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>

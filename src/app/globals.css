@@ -304,34 +304,27 @@ a, button {
 
 /* ==========================================
    Admin Table Scroll Fix
-   Force horizontal scroll on admin tables
    ========================================== */
 
-/* Constrain the admin content area to viewport width on desktop */
-#admin-main-content {
-  max-width: 100vw;
-  overflow: hidden;
+/* Make the admin table scroll container work properly */
+.admin-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #8CC0A8 #EFF5F2;
 }
 
-/* Make scrollbar always visible on admin table */
-.admin-scroll-visible {
-  overflow-x: auto !important;
-  scrollbar-width: thin !important;
-  scrollbar-color: #8CC0A8 #EFF5F2 !important;
-}
-
-.admin-scroll-visible::-webkit-scrollbar {
-  width: 8px;
+.admin-table-wrapper::-webkit-scrollbar {
   height: 8px;
 }
 
-.admin-scroll-visible::-webkit-scrollbar-track {
+.admin-table-wrapper::-webkit-scrollbar-track {
   background: #EFF5F2;
   border-radius: 4px;
 }
 
-.admin-scroll-visible::-webkit-scrollbar-thumb {
+.admin-table-wrapper::-webkit-scrollbar-thumb {
   background: #8CC0A8;
   border-radius: 4px;
-  min-width: 30px;
 }
