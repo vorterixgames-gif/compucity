@@ -160,15 +160,50 @@ export async function calculatePrices(costUsd: number): Promise<CalculatedPrices
 
 // Calculate product prices for display (IVA incluido)
 // If the product has individual markup/cashDiscount/ivaRate, use those; otherwise fall back to global values
+// SAFEGUARDS: validates all inputs to prevent pricing errors that could cost the business money
+const VALID_IVA_RATES = [10.5, 21] // Only allowed IVA percentages
+const SAFE_DEFAULT_IVA = 10.5       // Fallback if ivaRate is invalid/missing
+const MIN_DOLLAR_RATE = 100          // Minimum reasonable dollar rate (safety net)
+const MAX_MARKUP = 500               // Maximum markup percentage allowed
+
 export function calculateProductPrices(product: any, dollarRate: number, globalMarkup: number, globalCashDiscount: number) {
   if (product.costPrice && Number(product.costPrice) > 0) {
     // Use product-level markup/discount/iva if set, otherwise use global/defaults
-    const markup = product.markup != null ? Number(product.markup) : globalMarkup
+    let markup = product.markup != null ? Number(product.markup) : globalMarkup
     const cashDiscount = product.cashDiscount != null ? Number(product.cashDiscount) : globalCashDiscount
-    const ivaRate = product.ivaRate != null ? Number(product.ivaRate) : 10.5
+    let ivaRate = product.ivaRate != null ? Number(product.ivaRate) : SAFE_DEFAULT_IVA
+
+    // SAFEGUARD: Validate IVA rate - must be 10.5 or 21, never 0 or invalid
+    if (isNaN(ivaRate) || !VALID_IVA_RATES.includes(ivaRate)) {
+      console.warn(`[PRICE SAFETY] Invalid ivaRate ${product.ivaRate} for product "${product.name}" (${product.id}), falling back to ${SAFE_DEFAULT_IVA}%`)
+      ivaRate = SAFE_DEFAULT_IVA
+    }
+
+    // SAFEGUARD: Validate markup - prevent accidentally selling at loss
+    if (isNaN(markup) || markup < 0) {
+      console.warn(`[PRICE SAFETY] Invalid markup ${markup} for product "${product.name}" (${product.id}), falling back to global ${globalMarkup}%`)
+      markup = globalMarkup
+    }
+    if (markup > MAX_MARKUP) {
+      console.warn(`[PRICE SAFETY] Suspicious markup ${markup}% for product "${product.name}" (${product.id}), capping at ${MAX_MARKUP}%`)
+      markup = MAX_MARKUP
+    }
+
+    // SAFEGUARD: Validate dollar rate - prevent broken prices if API fails
+    if (isNaN(dollarRate) || dollarRate < MIN_DOLLAR_RATE) {
+      console.error(`[PRICE SAFETY] Invalid dollar rate ${dollarRate}, skipping calculation for "${product.name}" (${product.id})`)
+      return { ...product, _calculated: false, _priceError: 'Dollar rate invalid' }
+    }
 
     const listPrice = Math.ceil(Number(product.costPrice) * dollarRate * (1 + markup / 100) * (1 + ivaRate / 100))
     const cashPrice = Math.ceil(Number(product.costPrice) * dollarRate * (1 + (markup - cashDiscount) / 100) * (1 + ivaRate / 100))
+
+    // SAFEGUARD: Prices must be positive
+    if (listPrice <= 0 || cashPrice <= 0) {
+      console.error(`[PRICE SAFETY] Calculated price is <= 0 for "${product.name}" (${product.id}): list=${listPrice}, cash=${cashPrice}`)
+      return { ...product, _calculated: false, _priceError: 'Price calculation resulted in <= 0' }
+    }
+
     return {
       ...product,
       price: listPrice,

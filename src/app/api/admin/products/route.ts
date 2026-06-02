@@ -145,7 +145,13 @@ export async function POST(request: NextRequest) {
       // Use product-level values if provided, otherwise use global
       const effectiveMarkup = markup != null && markup !== '' ? Number(markup) : globalMarkup
       const effectiveCashDiscount = cashDiscount != null && cashDiscount !== '' ? Number(cashDiscount) : globalCashDiscount
-      const effectiveIvaRate = ivaRate != null && ivaRate !== '' ? Number(ivaRate) : 10.5
+      let effectiveIvaRate = ivaRate != null && ivaRate !== '' ? Number(ivaRate) : 10.5
+
+      // SAFEGUARD: Only allow valid IVA rates (10.5 or 21)
+      if (isNaN(effectiveIvaRate) || ![10.5, 21].includes(effectiveIvaRate)) {
+        console.warn(`[PRICE SAFETY] Invalid ivaRate ${ivaRate} for new product, defaulting to 10.5%`)
+        effectiveIvaRate = 10.5
+      }
 
       finalPrice = Math.ceil(Number(costPrice) * dollar.rate * (1 + effectiveMarkup / 100) * (1 + effectiveIvaRate / 100))
       finalComparePrice = Math.ceil(Number(costPrice) * dollar.rate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * (1 + effectiveIvaRate / 100))
@@ -254,7 +260,14 @@ export async function PUT(request: NextRequest) {
         }
 
         const dollarRate = dollar?.rate || 1415
-        const effectiveIvaRate = ivaRate != null && ivaRate !== '' ? Number(ivaRate) : 10.5
+        let effectiveIvaRate = ivaRate != null && ivaRate !== '' ? Number(ivaRate) : 10.5
+
+        // SAFEGUARD: Only allow valid IVA rates (10.5 or 21)
+        if (isNaN(effectiveIvaRate) || ![10.5, 21].includes(effectiveIvaRate)) {
+          console.warn(`[PRICE SAFETY] Invalid ivaRate ${ivaRate} for product ${id}, defaulting to 10.5%`)
+          effectiveIvaRate = 10.5
+        }
+
         finalPrice = Math.ceil(effectiveCostPrice * dollarRate * (1 + effectiveMarkup / 100) * (1 + effectiveIvaRate / 100))
         finalComparePrice = Math.ceil(effectiveCostPrice * dollarRate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * (1 + effectiveIvaRate / 100))
       }
@@ -279,7 +292,12 @@ export async function PUT(request: NextRequest) {
     if (categoryId !== undefined) { fields.push('categoryId = ?'); values.push(categoryId) }
     if (markup !== undefined) { fields.push('markup = ?'); values.push(markup != null && markup !== '' ? Number(markup) : null) }
     if (cashDiscount !== undefined) { fields.push('cashDiscount = ?'); values.push(cashDiscount != null && cashDiscount !== '' ? Number(cashDiscount) : null) }
-    if (ivaRate !== undefined) { fields.push('ivaRate = ?'); values.push(ivaRate != null && ivaRate !== '' ? Number(ivaRate) : 10.5) }
+    if (ivaRate !== undefined) {
+      const parsedIva = ivaRate != null && ivaRate !== '' ? Number(ivaRate) : 10.5
+      // SAFEGUARD: Only store valid IVA rates in the database
+      const safeIva = (isNaN(parsedIva) || ![10.5, 21].includes(parsedIva)) ? 10.5 : parsedIva
+      fields.push('ivaRate = ?'); values.push(safeIva)
+    }
 
     if (fields.length === 0) {
       return NextResponse.json({ error: 'No hay campos para actualizar' }, { status: 400 })
