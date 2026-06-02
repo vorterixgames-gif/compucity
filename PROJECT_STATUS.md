@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-02 (sesion 4)
+**Ultima actualizacion:** 2026-06-02 (sesion 5)
 
 ---
 
@@ -229,11 +229,12 @@ El problema recurrente tenia 3 causas encadenadas:
 
 ## PC Armadas (`/categoria/pc-armadas`)
 - **Categoria padre:** pc-armadas
-- **Subcategorias:** mini-pc (24), oficina-pc (22), gamer-pc (7) = 53 productos total
-- **Homepage:** Seccion "PC Armadas" que muestra productos de pc-armadas parent
-- **Keywords de deteccion:** PC GAMER, PC LENOVO, PC KELYX, SIST., BAREBONE
-- **Correcciones aplicadas:** 33 PCs movidas de categorias incorrectas (microprocesadores, memorias-ram, discos-ssd, fuentes, switches) a subcategorias de pc-armadas
+- **Subcategorias:** mini-pc (19), oficina-pc (20), gamer-pc (0), diseno-pc (0) = 39 productos total
+- **Homepage:** Seccion "PC Armadas" con mezcla balanceada por subcategoria (round-robin), productos con foto primero
+- **Keywords de deteccion:** PC LENOVO, PC KELYX, SIST., BAREBONE
+- **Correcciones sesion 5:** 7 "PC Gamer Raptor" (eran gabinete+fuente, no PCs completas) movidas de gamer-pc a gabinetes. 4 Gabinete Raptor movidas de joysticks a gabinetes. 3 Switches TP-Link movidas de oficina-pc a switches
 - **Air Intra:** 108 productos de networking (placas-de-red: SFP, Aruba, HP) desactivados
+- **Nota:** La subcategoria gamer-pc esta vacia hasta que se consigan PCs gamer reales de los proveedores
 
 ---
 
@@ -274,6 +275,16 @@ El problema recurrente tenia 3 causas encadenadas:
 - Productos sin stock (`stock <= 0`) NO se muestran en toda la tienda: home, categorias, buscador, productos relacionados, Arma tu PC
 - Queries afectadas: `getAllActiveProducts`, `getFeaturedProducts`, `getProductsByCategory`, `searchProducts`, `getTopProductsByCategorySlug`, related-products API, pc-builder count
 - **No se filtraron:** detalle de producto individual (SEO), endpoint por ID (favoritos), todas las queries de admin
+
+---
+
+## Prioridad Global de Imagenes (sesion 5)
+- **Regla:** Los productos CON imagen aparecen primero en TODAS las listas del sitio
+- **Queries afectadas:** `getAllActiveProducts`, `getFeaturedProducts`, `getProductsByCategory`, `searchProducts`, `getTopProductsByCategorySlug`, PC Builder API, Related Products API
+- **SQL:** `ORDER BY CASE WHEN images IS NOT NULL AND images != '[]' THEN 0 ELSE 1 END, ...`
+- **Busqueda:** Prioridad es: 1ro con imagen, 2do coincidencia en nombre, 3ro fecha
+- **PC Armadas Homepage:** Mezcla balanceada por subcategoria (round-robin interleave) para que se vean gamer-pc, oficina-pc y mini-pc
+- **PC Builder:** Componentes con foto aparecen primero dentro de cada slot
 
 ---
 
@@ -398,7 +409,9 @@ createdAt TEXT, updatedAt TEXT
 ## Backups
 | Fecha | Archivo | Tamano | Contenido |
 |-------|---------|--------|----------|
-| 2026-06-02 (s4) | `compucity-backup-2026-06-02s4.tar.gz` | - | Codigo completo con fix de busqueda |
+| 2026-06-02 (s5) | `compucity-backup-2026-06-02s5.tar.gz` | 42MB | Codigo completo con prioridad imagenes + recategorizacion |
+| 2026-06-02 (s5) | `compucity-db-2026-06-02s5.json` | 8.4MB | Base de datos completa (11 tablas, 4,787 filas) |
+| 2026-06-02 (s4) | `compucity-backup-2026-06-02s4.tar.gz` | 42MB | Codigo completo con fix de busqueda |
 | 2026-06-02 (s3) | `compucity-backup-2026-06-02s3.tar.gz` | 35MB | Codigo completo con fix permanente de categorizacion |
 | 2026-06-02 (s3) | `compucity-db-2026-06-02s3.json` | 8.3MB | Base de datos completa (11 tablas, 4,787 filas) |
 | 2026-06-02 (s2) | `compucity-backup-2026-06-02b.tar.gz` | 417MB | Codigo completo (sin node_modules/.next) |
@@ -429,6 +442,7 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ---
 
 ## Historial de Cambios
+- **2026-06-02 (s5):** Prioridad global de imagenes - Productos con foto aparecen primero en todo el sitio (home, categorias, busqueda, PC Builder, relacionados). Recategorizacion: 7 PC Gamer Raptor (gabinete+fuente) movidas a gabinetes, 4 Gabinete Raptor de joysticks a gabinetes, 3 Switches TP-Link de oficina-pc a switches. Homepage PC Armadas: mezcla balanceada por subcategoria (round-robin). Backup completo (codigo 42MB + DB 8.4MB)
 - **2026-06-02 (s4):** Fix de busqueda de productos - El boton "Buscar en todos los productos" ahora muestra los resultados correctos. Causa: parametro q se extraia pero no se usaba. Solucion: searchProducts(q) cuando hay query. Mejoras: orden por relevancia, titulo dinamico, link limpiar busqueda. Push a GitHub exitoso
 - **2026-06-02 (s3):** Fix PERMANENTE de categorizacion en PC Builder - 3 capas de defensa: (1) Whitelist BUILDER_INCLUDE_PATTERNS que valida nombre de producto en runtime, (2) CATEGORY_KEYWORD_MAP reordenado con productos completos antes de componentes, (3) Validacion post-sync automatica mejorada. Bug corregido: markup/cashDiscount faltantes en SELECT de pc-builder. Eliminadas rutas duplicadas (recuperar-contrasena, resetear-contrasena). Instalado paquete resend. Backup completo (codigo 35MB + DB 8.3MB)
 - **2026-06-02 (s2):** Markup y descuento individual por producto - Cada producto puede tener su propio markup y cashDiscount (si es NULL, usa el global). Bug corregido en pc-builder (formula cash price). Badges M/D en tabla de admin. Migracion ejecutada en Turso (columnas markup, cashDiscount). Backup completo (codigo 417MB + DB 8.2MB)
