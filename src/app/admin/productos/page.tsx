@@ -449,16 +449,15 @@ export default function AdminProductos() {
       </div>
 
       {/* Products Table */}
-      <div className="admin-table-scroll">
-        <Card>
-          <CardContent className="p-0">
-            {filteredProducts.length === 0 ? (
-              <div className="text-center py-12 text-gray-400">
-                <Package className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                <p>No hay productos{search ? ' que coincidan con la búsqueda' : ''}</p>
-              </div>
-            ) : (
-              <Table>
+      <Card style={{ overflow: 'hidden' }}>
+        <CardContent className="p-0" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          {filteredProducts.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              <Package className="w-12 h-12 mx-auto mb-2 opacity-30" />
+              <p>No hay productos{search ? ' que coincidan con la búsqueda' : ''}</p>
+            </div>
+          ) : (
+              <Table style={{ minWidth: '900px' }}>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nombre</TableHead>
@@ -562,7 +561,6 @@ export default function AdminProductos() {
           )}
           </CardContent>
         </Card>
-      </div>
 
       {/* Product Form Dialog */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
