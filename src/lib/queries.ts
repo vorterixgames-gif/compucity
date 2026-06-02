@@ -81,7 +81,7 @@ export interface Product {
 export async function getAllActiveProducts(limit = 50): Promise<Product[]> {
   const [result, dollar, markup, cashDiscount] = await Promise.all([
     db.execute({
-      sql: 'SELECT * FROM products WHERE isActive = 1 AND stock > 0 ORDER BY COALESCE(createdAt, updatedAt) DESC LIMIT ?',
+      sql: "SELECT * FROM products WHERE isActive = 1 AND stock > 0 ORDER BY CASE WHEN images IS NOT NULL AND images != '[]' THEN 0 ELSE 1 END, COALESCE(createdAt, updatedAt) DESC LIMIT ?",
       args: [limit],
     }),
     fetchDollarRate(),
@@ -96,7 +96,7 @@ export async function getAllActiveProducts(limit = 50): Promise<Product[]> {
 
 export async function getFeaturedProducts(): Promise<Product[]> {
   const [result, dollar, markup, cashDiscount] = await Promise.all([
-    db.execute("SELECT * FROM products WHERE isFeatured = 1 AND isActive = 1 AND stock > 0 ORDER BY COALESCE(createdAt, updatedAt) DESC LIMIT 8"),
+    db.execute("SELECT * FROM products WHERE isFeatured = 1 AND isActive = 1 AND stock > 0 ORDER BY CASE WHEN images IS NOT NULL AND images != '[]' THEN 0 ELSE 1 END, COALESCE(createdAt, updatedAt) DESC LIMIT 8"),
     fetchDollarRate(),
     getStoreConfigNumber('markup', 30),
     getStoreConfigNumber('cash_discount', 10),
@@ -136,7 +136,7 @@ export async function getProductsByCategory(slug: string): Promise<Product[]> {
     db.execute({
       sql: `SELECT p.* FROM products p
             WHERE p.categoryId IN (${placeholders}) AND p.isActive = 1 AND p.stock > 0
-            ORDER BY COALESCE(p.createdAt, p.updatedAt) DESC`,
+            ORDER BY CASE WHEN p.images IS NOT NULL AND p.images != '[]' THEN 0 ELSE 1 END, COALESCE(p.createdAt, p.updatedAt) DESC`,
       args: allIds,
     }),
     fetchDollarRate(),
@@ -185,7 +185,7 @@ export async function searchProducts(query: string, limit = 20): Promise<Product
       sql: `SELECT * FROM products
             WHERE isActive = 1 AND stock > 0
             AND (name LIKE ? OR description LIKE ? OR sku LIKE ?)
-            ORDER BY CASE WHEN name LIKE ? THEN 0 ELSE 1 END, COALESCE(createdAt, updatedAt) DESC
+            ORDER BY CASE WHEN images IS NOT NULL AND images != '[]' THEN 0 ELSE 1 END, CASE WHEN name LIKE ? THEN 0 ELSE 1 END, COALESCE(createdAt, updatedAt) DESC
             LIMIT ?`,
       args: [searchTerm, searchTerm, searchTerm, searchTerm, limit],
     }),

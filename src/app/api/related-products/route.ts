@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       result = await db.execute({
         sql: `SELECT * FROM products
               WHERE categoryId = ? AND id != ? AND isActive = 1 AND stock > 0 AND categoryId IS NOT NULL
-              ORDER BY createdAt DESC
+              ORDER BY CASE WHEN images IS NOT NULL AND images != '[]' THEN 0 ELSE 1 END, createdAt DESC
               LIMIT 4`,
         args: [categoryId, productId],
       })
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
       result = await db.execute({
         sql: `SELECT * FROM products
               WHERE id != ? AND isActive = 1 AND stock > 0 AND categoryId IS NOT NULL
-              ORDER BY createdAt DESC
+              ORDER BY CASE WHEN images IS NOT NULL AND images != '[]' THEN 0 ELSE 1 END, createdAt DESC
               LIMIT 4`,
         args: [productId],
       })

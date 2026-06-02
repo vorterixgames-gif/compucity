@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
         sql: `SELECT p.id, p.name, p.slug, p.price, p.comparePrice, p.costPrice, p.markup, p.cashDiscount, p.images, p.stock, p.specs
               FROM products p
               WHERE p.categoryId = ? AND p.isActive = 1 AND p.stock > 0 AND p.categoryId IS NOT NULL
-              ORDER BY p.price ASC`,
+              ORDER BY CASE WHEN p.images IS NOT NULL AND p.images != '[]' THEN 0 ELSE 1 END, p.price ASC`,
         args: [categoryId],
       })
 
