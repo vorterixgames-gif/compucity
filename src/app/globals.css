@@ -312,3 +312,26 @@ a, button {
   max-width: 100vw;
   overflow: hidden;
 }
+
+/* Make scrollbar always visible on admin table */
+.admin-scroll-visible {
+  overflow-x: auto !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #8CC0A8 #EFF5F2 !important;
+}
+
+.admin-scroll-visible::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.admin-scroll-visible::-webkit-scrollbar-track {
+  background: #EFF5F2;
+  border-radius: 4px;
+}
+
+.admin-scroll-visible::-webkit-scrollbar-thumb {
+  background: #8CC0A8;
+  border-radius: 4px;
+  min-width: 30px;
+}
