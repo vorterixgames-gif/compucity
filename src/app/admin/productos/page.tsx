@@ -83,10 +83,12 @@ interface Product {
   categoryName: string | null
   markup: number | null
   cashDiscount: number | null
+  ivaRate: number | null
   _calculated?: boolean
   _dollarRate?: number
   _effectiveMarkup?: number
   _effectiveCashDiscount?: number
+  _effectiveIvaRate?: number
   createdAt: string
   updatedAt: string
 }
@@ -108,6 +110,7 @@ interface ProductForm {
   categoryId: string
   markup: string       // individual product markup (empty = use global)
   cashDiscount: string  // individual product cash discount (empty = use global)
+  ivaRate: string       // IVA percentage (default 10.5)
 }
 
 interface DollarConfig {
@@ -134,6 +137,7 @@ const emptyForm: ProductForm = {
   categoryId: '',
   markup: '',
   cashDiscount: '',
+  ivaRate: '10.5',
 }
 
 function formatPrice(price: number): string {
@@ -233,15 +237,16 @@ export default function AdminProductos() {
     }
   }, [])
 
-  // Calculate prices when costPrice, markup, or cashDiscount changes
+  // Calculate prices when costPrice, markup, cashDiscount, or ivaRate changes
   useEffect(() => {
     const costUsd = Number(form.costPrice)
     if (costUsd > 0 && dollarConfig) {
       // Use individual markup/discount if set, otherwise use global
       const effectiveMarkup = form.markup !== '' ? Number(form.markup) : dollarConfig.markup
       const effectiveCashDiscount = form.cashDiscount !== '' ? Number(form.cashDiscount) : dollarConfig.cashDiscount
-      const listPrice = Math.ceil(costUsd * dollarConfig.rate * (1 + effectiveMarkup / 100))
-      const cashPrice = Math.ceil(costUsd * dollarConfig.rate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100))
+      const effectiveIvaRate = form.ivaRate !== '' ? Number(form.ivaRate) : 10.5
+      const listPrice = Math.ceil(costUsd * dollarConfig.rate * (1 + effectiveMarkup / 100) * (1 + effectiveIvaRate / 100))
+      const cashPrice = Math.ceil(costUsd * dollarConfig.rate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * (1 + effectiveIvaRate / 100))
       setCalculatedListPrice(listPrice)
       setCalculatedCashPrice(cashPrice)
       // Auto-fill the price fields
@@ -254,7 +259,7 @@ export default function AdminProductos() {
       setCalculatedListPrice(null)
       setCalculatedCashPrice(null)
     }
-  }, [form.costPrice, form.markup, form.cashDiscount, dollarConfig])
+  }, [form.costPrice, form.markup, form.cashDiscount, form.ivaRate, dollarConfig])
 
   const filteredProducts = products.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -298,6 +303,7 @@ export default function AdminProductos() {
       categoryId: product.categoryId || '',
       markup: product.markup != null ? String(product.markup) : '',
       cashDiscount: product.cashDiscount != null ? String(product.cashDiscount) : '',
+      ivaRate: product.ivaRate != null ? String(product.ivaRate) : '10.5',
     })
     setFormError('')
     fetchDollarConfig()
@@ -359,6 +365,7 @@ export default function AdminProductos() {
         categoryId: form.categoryId || null,
         markup: form.markup !== '' ? Number(form.markup) : null,
         cashDiscount: form.cashDiscount !== '' ? Number(form.cashDiscount) : null,
+        ivaRate: form.ivaRate !== '' ? Number(form.ivaRate) : 10.5,
       }
 
       const res = await fetch('/api/admin/products', {
@@ -493,6 +500,9 @@ export default function AdminProductos() {
                             )}
                             {(product as any)._effectiveCashDiscount != null && (product as any)._effectiveCashDiscount !== dollarConfig?.cashDiscount && (
                               <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-amber-50 text-amber-600" title={`Desc: ${(product as any)._effectiveCashDiscount}%`}>D</Badge>
+                            )}
+                            {(product as any)._effectiveIvaRate != null && (product as any)._effectiveIvaRate !== 10.5 && (
+                              <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-purple-50 text-purple-600" title={`IVA: ${(product as any)._effectiveIvaRate}%`}>I</Badge>
                             )}
                           </div>
                         ) : (
@@ -660,6 +670,27 @@ export default function AdminProductos() {
                     Dejar vacío para usar el descuento global ({dollarConfig?.cashDiscount ?? 10}%)
                   </p>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ivaRate" className="flex items-center gap-1">
+                    <Calculator className="w-4 h-4 text-purple-600" />
+                    IVA (%)
+                  </Label>
+                  <Select
+                    value={form.ivaRate || '10.5'}
+                    onValueChange={(value) => updateForm('ivaRate', value)}
+                  >
+                    <SelectTrigger className="bg-white">
+                      <SelectValue placeholder="Seleccionar IVA" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10.5">10,5%</SelectItem>
+                      <SelectItem value="21">21%</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-400">
+                    Default 10,5%. Cambiar a 21% si corresponde.
+                  </p>
+                </div>
               </div>
 
               {/* Calculated prices preview */}
@@ -690,15 +721,21 @@ export default function AdminProductos() {
                         {form.cashDiscount !== '' && <span className="text-xs font-normal text-amber-600 ml-1">(individual)</span>}
                       </p>
                     </div>
+                    <div>
+                      <p className="text-compucity-green">IVA</p>
+                      <p className="font-bold text-compucity-green-dark">
+                        {form.ivaRate || '10.5'}%
+                      </p>
+                    </div>
                   </div>
                   <div className="border-t border-compucity-green-100 pt-2 space-y-1 text-sm">
                     <p className="text-gray-600">
-                      USD {Number(form.costPrice).toFixed(2)} × ${dollarConfig.rate.toLocaleString('es-AR')} × (1 + {form.markup !== '' ? form.markup : dollarConfig.markup}%) = 
-                      <strong className="text-gray-900"> {formatPrice(calculatedListPrice!)}</strong> <span className="text-gray-500">(lista)</span>
+                      USD {Number(form.costPrice).toFixed(2)} × ${dollarConfig.rate.toLocaleString('es-AR')} × (1 + {form.markup !== '' ? form.markup : dollarConfig.markup}%) × (1 + {form.ivaRate || '10.5'}%) = 
+                      <strong className="text-gray-900"> {formatPrice(calculatedListPrice!)}</strong> <span className="text-gray-500">(lista c/IVA)</span>
                     </p>
                     <p className="text-gray-600">
-                      USD {Number(form.costPrice).toFixed(2)} × ${dollarConfig.rate.toLocaleString('es-AR')} × (1 + {form.markup !== '' ? form.markup : dollarConfig.markup}% - {form.cashDiscount !== '' ? form.cashDiscount : dollarConfig.cashDiscount}%) = 
-                      <strong className="text-green-700"> {formatPrice(calculatedCashPrice!)}</strong> <span className="text-gray-500">(efectivo)</span>
+                      USD {Number(form.costPrice).toFixed(2)} × ${dollarConfig.rate.toLocaleString('es-AR')} × (1 + {form.markup !== '' ? form.markup : dollarConfig.markup}% - {form.cashDiscount !== '' ? form.cashDiscount : dollarConfig.cashDiscount}%) × (1 + {form.ivaRate || '10.5'}%) = 
+                      <strong className="text-green-700"> {formatPrice(calculatedCashPrice!)}</strong> <span className="text-gray-500">(efectivo c/IVA)</span>
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-3 mt-2">

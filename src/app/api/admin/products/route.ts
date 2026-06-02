@@ -52,9 +52,10 @@ export async function GET() {
         // Use product-level markup/discount if set, otherwise fall back to global
         const effectiveMarkup = p.markup != null ? Number(p.markup) : markup
         const effectiveCashDiscount = p.cashDiscount != null ? Number(p.cashDiscount) : cashDiscount
+        const effectiveIvaRate = p.ivaRate != null ? Number(p.ivaRate) : 10.5
         // Auto-calculate from USD cost
-        const calculatedListPrice = Math.ceil(p.costPrice * dollar.rate * (1 + effectiveMarkup / 100))
-        const calculatedCashPrice = Math.ceil(p.costPrice * dollar.rate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100))
+        const calculatedListPrice = Math.ceil(p.costPrice * dollar.rate * (1 + effectiveMarkup / 100) * (1 + effectiveIvaRate / 100))
+        const calculatedCashPrice = Math.ceil(p.costPrice * dollar.rate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * (1 + effectiveIvaRate / 100))
         return {
           ...p,
           price: calculatedListPrice,
@@ -63,6 +64,7 @@ export async function GET() {
           _dollarRate: dollar.rate,
           _effectiveMarkup: effectiveMarkup,
           _effectiveCashDiscount: effectiveCashDiscount,
+          _effectiveIvaRate: effectiveIvaRate,
         }
       }
       // Manual pricing (no USD cost set)
@@ -91,7 +93,7 @@ export async function POST(request: NextRequest) {
     const {
       name, description, price, comparePrice, costPrice, sku, stock,
       isActive, isFeatured, images, specs, providerId, providerSku, categoryId,
-      markup, cashDiscount,
+      markup, cashDiscount, ivaRate,
     } = body
 
     console.log('[products POST] Received images:', images, 'type:', typeof images)
@@ -143,9 +145,10 @@ export async function POST(request: NextRequest) {
       // Use product-level values if provided, otherwise use global
       const effectiveMarkup = markup != null && markup !== '' ? Number(markup) : globalMarkup
       const effectiveCashDiscount = cashDiscount != null && cashDiscount !== '' ? Number(cashDiscount) : globalCashDiscount
+      const effectiveIvaRate = ivaRate != null && ivaRate !== '' ? Number(ivaRate) : 10.5
 
-      finalPrice = Math.ceil(Number(costPrice) * dollar.rate * (1 + effectiveMarkup / 100))
-      finalComparePrice = Math.ceil(Number(costPrice) * dollar.rate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100))
+      finalPrice = Math.ceil(Number(costPrice) * dollar.rate * (1 + effectiveMarkup / 100) * (1 + effectiveIvaRate / 100))
+      finalComparePrice = Math.ceil(Number(costPrice) * dollar.rate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * (1 + effectiveIvaRate / 100))
     } else {
       // Manual pricing
       finalPrice = Number(price)
@@ -153,14 +156,15 @@ export async function POST(request: NextRequest) {
     }
 
     await db.execute({
-      sql: `INSERT INTO products (id, name, slug, description, price, comparePrice, costPrice, markup, cashDiscount, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, createdAt, updatedAt) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT INTO products (id, name, slug, description, price, comparePrice, costPrice, markup, cashDiscount, ivaRate, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, createdAt, updatedAt) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id, name, finalSlug, description || null,
         finalPrice, finalComparePrice,
         hasCostPrice ? Number(costPrice) : null,
         markup != null && markup !== '' ? Number(markup) : null,
         cashDiscount != null && cashDiscount !== '' ? Number(cashDiscount) : null,
+        ivaRate != null && ivaRate !== '' ? Number(ivaRate) : 10.5,
         sku || null,
         stock !== undefined ? Number(stock) : 0,
         isActive !== undefined ? (isActive ? 1 : 0) : 1,
@@ -186,7 +190,7 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
     const { id, name, description, price, comparePrice, costPrice, sku, stock,
       isActive, isFeatured, images, specs, providerId, providerSku, categoryId,
-      markup, cashDiscount } = body
+      markup, cashDiscount, ivaRate } = body
 
     if (!id) {
       return NextResponse.json({ error: 'ID es requerido' }, { status: 400 })
@@ -250,8 +254,9 @@ export async function PUT(request: NextRequest) {
         }
 
         const dollarRate = dollar?.rate || 1415
-        finalPrice = Math.ceil(effectiveCostPrice * dollarRate * (1 + effectiveMarkup / 100))
-        finalComparePrice = Math.ceil(effectiveCostPrice * dollarRate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100))
+        const effectiveIvaRate = ivaRate != null && ivaRate !== '' ? Number(ivaRate) : 10.5
+        finalPrice = Math.ceil(effectiveCostPrice * dollarRate * (1 + effectiveMarkup / 100) * (1 + effectiveIvaRate / 100))
+        finalComparePrice = Math.ceil(effectiveCostPrice * dollarRate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * (1 + effectiveIvaRate / 100))
       }
     }
 
@@ -274,6 +279,7 @@ export async function PUT(request: NextRequest) {
     if (categoryId !== undefined) { fields.push('categoryId = ?'); values.push(categoryId) }
     if (markup !== undefined) { fields.push('markup = ?'); values.push(markup != null && markup !== '' ? Number(markup) : null) }
     if (cashDiscount !== undefined) { fields.push('cashDiscount = ?'); values.push(cashDiscount != null && cashDiscount !== '' ? Number(cashDiscount) : null) }
+    if (ivaRate !== undefined) { fields.push('ivaRate = ?'); values.push(ivaRate != null && ivaRate !== '' ? Number(ivaRate) : 10.5) }
 
     if (fields.length === 0) {
       return NextResponse.json({ error: 'No hay campos para actualizar' }, { status: 400 })

@@ -203,4 +203,16 @@ export async function ensureMigrations() {
       console.warn('[migration] Could not create supplier_category_mappings table:', e)
     }
   }
+
+  // 10. Add ivaRate column to products (IVA percentage, default 10.5)
+  try {
+    await db.execute({ sql: 'SELECT ivaRate FROM products LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({ sql: 'ALTER TABLE products ADD COLUMN ivaRate REAL DEFAULT 10.5' })
+      console.log('[migration] Added ivaRate column to products (default 10.5%)')
+    } catch (e) {
+      console.warn('[migration] Could not add ivaRate column:', e)
+    }
+  }
 }

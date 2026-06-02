@@ -128,8 +128,8 @@ export async function getStoreConfigNumber(key: string, defaultValue: number): P
 }
 
 // Calculate prices based on dollar rate
-// costPrice (USD) × dollarRate × (1 + markup/100) = precio de lista
-// Base × (1 + markup/100 - cashDiscount/100) = precio en efectivo
+// costPrice (USD) × dollarRate × (1 + markup/100) × (1 + ivaRate/100) = precio de lista (IVA incluido)
+// Base × (1 + markup/100 - cashDiscount/100) × (1 + ivaRate/100) = precio en efectivo (IVA incluido)
 export interface CalculatedPrices {
   dollarRate: number
   dollarSource: string
@@ -144,8 +144,9 @@ export async function calculatePrices(costUsd: number): Promise<CalculatedPrices
   const markup = await getStoreConfigNumber('markup', 30)
   const cashDiscount = await getStoreConfigNumber('cash_discount', 10)
 
-  const listPrice = Math.ceil(costUsd * dollar.rate * (1 + markup / 100))
-  const cashPrice = Math.ceil(costUsd * dollar.rate * (1 + (markup - cashDiscount) / 100))
+  const ivaRate = await getStoreConfigNumber('default_iva_rate', 10.5)
+  const listPrice = Math.ceil(costUsd * dollar.rate * (1 + markup / 100) * (1 + ivaRate / 100))
+  const cashPrice = Math.ceil(costUsd * dollar.rate * (1 + (markup - cashDiscount) / 100) * (1 + ivaRate / 100))
 
   return {
     dollarRate: dollar.rate,
@@ -157,16 +158,17 @@ export async function calculatePrices(costUsd: number): Promise<CalculatedPrices
   }
 }
 
-// Calculate product prices for display
-// If the product has individual markup/cashDiscount, use those; otherwise fall back to global values
+// Calculate product prices for display (IVA incluido)
+// If the product has individual markup/cashDiscount/ivaRate, use those; otherwise fall back to global values
 export function calculateProductPrices(product: any, dollarRate: number, globalMarkup: number, globalCashDiscount: number) {
   if (product.costPrice && Number(product.costPrice) > 0) {
-    // Use product-level markup/discount if set, otherwise use global
+    // Use product-level markup/discount/iva if set, otherwise use global/defaults
     const markup = product.markup != null ? Number(product.markup) : globalMarkup
     const cashDiscount = product.cashDiscount != null ? Number(product.cashDiscount) : globalCashDiscount
+    const ivaRate = product.ivaRate != null ? Number(product.ivaRate) : 10.5
 
-    const listPrice = Math.ceil(Number(product.costPrice) * dollarRate * (1 + markup / 100))
-    const cashPrice = Math.ceil(Number(product.costPrice) * dollarRate * (1 + (markup - cashDiscount) / 100))
+    const listPrice = Math.ceil(Number(product.costPrice) * dollarRate * (1 + markup / 100) * (1 + ivaRate / 100))
+    const cashPrice = Math.ceil(Number(product.costPrice) * dollarRate * (1 + (markup - cashDiscount) / 100) * (1 + ivaRate / 100))
     return {
       ...product,
       price: listPrice,
@@ -175,6 +177,7 @@ export function calculateProductPrices(product: any, dollarRate: number, globalM
       _costUsd: Number(product.costPrice),
       _effectiveMarkup: markup,
       _effectiveCashDiscount: cashDiscount,
+      _effectiveIvaRate: ivaRate,
     }
   }
   return { ...product, _calculated: false }

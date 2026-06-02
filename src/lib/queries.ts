@@ -69,6 +69,7 @@ export interface Product {
   providerId: string | null
   providerSku: string | null
   categoryId: string | null
+  ivaRate: number | null
   createdAt: string
   updatedAt: string
   // Joined

@@ -50,8 +50,9 @@ export async function GET() {
         // Use product-level markup/discount if set, otherwise use global
         const effectiveMarkup = p.markup != null ? Number(p.markup) : markup
         const effectiveCashDiscount = p.cashDiscount != null ? Number(p.cashDiscount) : cashDiscount
-        listPrice = Math.ceil(Number(p.costPrice) * dollar.rate * (1 + effectiveMarkup / 100))
-        cashPrice = Math.ceil(Number(p.costPrice) * dollar.rate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100))
+        const effectiveIvaRate = p.ivaRate != null ? Number(p.ivaRate) : 10.5
+        listPrice = Math.ceil(Number(p.costPrice) * dollar.rate * (1 + effectiveMarkup / 100) * (1 + effectiveIvaRate / 100))
+        cashPrice = Math.ceil(Number(p.costPrice) * dollar.rate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * (1 + effectiveIvaRate / 100))
       }
 
       return [

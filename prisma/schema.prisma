@@ -42,6 +42,7 @@ model Product {
   costPrice    Float?    // costo del proveedor
   markup       Int?      // margen de ganancia individual (null = usar global)
   cashDiscount Int?      // descuento efectivo individual (null = usar global)
+  ivaRate      Float     @default(10.5) // porcentaje de IVA (10.5 o 21)
   sku          String?   @unique
   stock        Int       @default(0)
   isActive     Boolean   @default(true)
