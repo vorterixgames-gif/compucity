@@ -182,7 +182,7 @@ export default function AdminPromociones() {
           onClick={() => setActiveTab('banners')}
           className={`px-4 py-2 text-sm font-medium rounded-md transition ${activeTab === 'banners' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
         >
-          <Image className="w-4 h-4 inline mr-1.5" />
+          <ImageIcon className="w-4 h-4 inline mr-1.5" />
           Banners
         </button>
       </div>
@@ -676,7 +676,7 @@ function BannersTab() {
 
       {banners.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
-          <Image className="w-12 h-12 mx-auto mb-2 opacity-30" />
+          <ImageIcon className="w-12 h-12 mx-auto mb-2 opacity-30" />
           <p>No hay banners creados</p>
         </div>
       ) : (

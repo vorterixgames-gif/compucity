@@ -332,4 +332,16 @@ export async function ensureMigrations() {
       console.warn('[migration] Could not add couponDiscount:', e)
     }
   }
+
+  // 18. Add imageUrl column to banners
+  try {
+    await db.execute({ sql: 'SELECT imageUrl FROM banners LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({ sql: 'ALTER TABLE banners ADD COLUMN imageUrl TEXT' })
+      console.log('[migration] Added imageUrl column to banners')
+    } catch (e) {
+      console.warn('[migration] Could not add imageUrl to banners:', e)
+    }
+  }
 }
