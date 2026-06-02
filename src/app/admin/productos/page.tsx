@@ -442,7 +442,7 @@ export default function AdminProductos() {
       </div>
 
       {/* Products Table */}
-      <div className="rounded-xl border shadow-sm bg-card text-card-foreground">
+      <div className="rounded-xl border shadow-sm bg-card text-card-foreground overflow-hidden">
         <div className="admin-table-wrapper">
           {filteredProducts.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
@@ -450,61 +450,71 @@ export default function AdminProductos() {
               <p>No hay productos{search ? ' que coincidan con la búsqueda' : ''}</p>
             </div>
           ) : (
-              <table className="w-full caption-bottom text-sm" style={{ minWidth: '900px' }}>
-                <thead className="[&_tr]:border-b">
-                  <tr className="hover:bg-muted/50 border-b transition-colors">
-                    <th className="text-foreground h-10 px-2 text-left align-middle font-medium whitespace-nowrap sticky-col-left">Nombre</th>
-                    <th className="text-foreground h-10 px-2 text-left align-middle font-medium whitespace-nowrap">Categoría</th>
-                    <th className="text-foreground h-10 px-2 text-right align-middle font-medium whitespace-nowrap">Costo USD</th>
-                    <th className="text-foreground h-10 px-2 text-right align-middle font-medium whitespace-nowrap">Precio Lista</th>
-                    <th className="text-foreground h-10 px-2 text-right align-middle font-medium whitespace-nowrap">Efectivo</th>
-                    <th className="text-foreground h-10 px-2 text-center align-middle font-medium whitespace-nowrap">Stock</th>
-                    <th className="text-foreground h-10 px-2 text-center align-middle font-medium whitespace-nowrap">Activo</th>
-                    <th className="text-foreground h-10 px-2 text-right align-middle font-medium whitespace-nowrap sticky-col-right">Acciones</th>
+              <table className="w-full text-sm admin-fixed-table">
+                <colgroup>
+                  <col style={{ width: '28%' }} />
+                  <col style={{ width: '13%' }} />
+                  <col style={{ width: '11%' }} />
+                  <col style={{ width: '14%' }} />
+                  <col style={{ width: '13%' }} />
+                  <col style={{ width: '7%' }} />
+                  <col style={{ width: '6%' }} />
+                  <col style={{ width: '8%' }} />
+                </colgroup>
+                <thead>
+                  <tr className="border-b bg-gray-50/80">
+                    <th className="h-10 px-2 text-left align-middle font-medium text-gray-600">Nombre</th>
+                    <th className="h-10 px-2 text-left align-middle font-medium text-gray-600">Categoría</th>
+                    <th className="h-10 px-2 text-right align-middle font-medium text-gray-600">Costo USD</th>
+                    <th className="h-10 px-2 text-right align-middle font-medium text-gray-600">Precio Lista</th>
+                    <th className="h-10 px-2 text-right align-middle font-medium text-gray-600">Efectivo</th>
+                    <th className="h-10 px-2 text-center align-middle font-medium text-gray-600">Stock</th>
+                    <th className="h-10 px-2 text-center align-middle font-medium text-gray-600">Activo</th>
+                    <th className="h-10 px-2 text-center align-middle font-medium text-gray-600">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="[&_tr:last-child]:border-0">
+                <tbody>
                   {filteredProducts.map((product, index) => (
                     <tr key={product.id} className={`hover:bg-muted/50 border-b transition-colors ${index % 2 === 1 ? 'bg-gray-50/50' : ''}`}>
-                      <td className="p-2 align-middle whitespace-nowrap sticky-col-left">
-                        <div>
-                          <div className="font-medium text-gray-900">{product.name}</div>
+                      <td className="p-2 align-middle">
+                        <div className="truncate" title={product.name}>
+                          <span className="font-medium text-gray-900">{product.name}</span>
                           {product.sku && (
-                            <div className="text-xs text-gray-400 font-mono">{product.sku}</div>
+                            <span className="text-xs text-gray-400 font-mono ml-2">{product.sku}</span>
                           )}
                         </div>
                       </td>
-                      <td className="p-2 align-middle whitespace-nowrap">
-                        <span className="text-sm text-gray-600">
+                      <td className="p-2 align-middle">
+                        <div className="truncate text-sm text-gray-600" title={product.categoryName || ''}>
                           {product.categoryName || '—'}
-                        </span>
+                        </div>
                       </td>
-                      <td className="p-2 align-middle whitespace-nowrap text-right">
+                      <td className="p-2 align-middle text-right">
                         {product.costPrice && product.costPrice > 0 ? (
                           <div className="flex items-center justify-end gap-1">
-                            <DollarSign className="w-3 h-3 text-compucity-green" />
+                            <DollarSign className="w-3 h-3 text-compucity-green shrink-0" />
                             <span className="font-medium text-compucity-green">{Number(product.costPrice).toFixed(2)}</span>
                             {product._calculated && (
-                              <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-compucity-green-50 text-compucity-green">Auto</Badge>
+                              <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-compucity-green-50 text-compucity-green shrink-0">A</Badge>
                             )}
                             {(product as any)._effectiveMarkup != null && (product as any)._effectiveMarkup !== dollarConfig?.markup && (
-                              <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-blue-50 text-blue-600" title={`Margen: ${(product as any)._effectiveMarkup}%`}>M</Badge>
+                              <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-blue-50 text-blue-600 shrink-0" title={`Margen: ${(product as any)._effectiveMarkup}%`}>M</Badge>
                             )}
                             {(product as any)._effectiveCashDiscount != null && (product as any)._effectiveCashDiscount !== dollarConfig?.cashDiscount && (
-                              <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-amber-50 text-amber-600" title={`Desc: ${(product as any)._effectiveCashDiscount}%`}>D</Badge>
+                              <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-amber-50 text-amber-600 shrink-0" title={`Desc: ${(product as any)._effectiveCashDiscount}%`}>D</Badge>
                             )}
                             {(product as any)._effectiveIvaRate != null && (product as any)._effectiveIvaRate !== 10.5 && (
-                              <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-purple-50 text-purple-600" title={`IVA: ${(product as any)._effectiveIvaRate}%`}>I</Badge>
+                              <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-purple-50 text-purple-600 shrink-0" title={`IVA: ${(product as any)._effectiveIvaRate}%`}>I</Badge>
                             )}
                           </div>
                         ) : (
                           <span className="text-gray-400">—</span>
                         )}
                       </td>
-                      <td className="p-2 align-middle whitespace-nowrap text-right">
+                      <td className="p-2 align-middle text-right">
                         <div className="font-medium text-gray-900">{formatPrice(product.price)}</div>
                       </td>
-                      <td className="p-2 align-middle whitespace-nowrap text-right">
+                      <td className="p-2 align-middle text-right">
                         {product.comparePrice ? (
                           <div className="text-sm text-green-600 font-medium">
                             {formatPrice(product.comparePrice)}
@@ -513,7 +523,7 @@ export default function AdminProductos() {
                           <span className="text-gray-400">—</span>
                         )}
                       </td>
-                      <td className="p-2 align-middle whitespace-nowrap text-center">
+                      <td className="p-2 align-middle text-center">
                         <Badge
                           variant="secondary"
                           className={product.stock > 5 ? 'bg-green-100 text-green-800' : product.stock > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}
@@ -521,29 +531,30 @@ export default function AdminProductos() {
                           {product.stock}
                         </Badge>
                       </td>
-                      <td className="p-2 align-middle whitespace-nowrap text-center">
+                      <td className="p-2 align-middle text-center">
                         <Badge variant="secondary" className={product.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}>
                           {product.isActive ? 'Sí' : 'No'}
                         </Badge>
                       </td>
-                      <td className="p-2 align-middle whitespace-nowrap text-right sticky-col-right">
-                        <div className="flex items-center justify-end gap-1">
+                      <td className="p-2 align-middle text-center">
+                        <div className="flex items-center justify-center gap-0.5">
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => handleEdit(product)}
                             title="Editar"
+                            className="h-7 w-7"
                           >
-                            <Pencil className="w-4 h-4" />
+                            <Pencil className="w-3.5 h-3.5" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
                             onClick={() => handleDelete(product.id)}
                             title="Eliminar"
-                            className="text-red-500 hover:text-red-700"
+                            className="text-red-500 hover:text-red-700 h-7 w-7"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </Button>
                         </div>
                       </td>
