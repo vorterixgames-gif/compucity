@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react'
 import {
-  Plus, Pencil, Trash2, Loader2, Tag, Image, ChevronUp, ChevronDown, Eye, EyeOff,
+  Plus, Pencil, Trash2, Loader2, Tag, ChevronUp, ChevronDown, Eye, EyeOff, ImageIcon, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -62,6 +62,7 @@ interface Banner {
   buttonLink: string | null
   bgColor: string
   textColor: string
+  imageUrl: string | null
   position: string
   isActive: number
   order: number
@@ -88,6 +89,7 @@ interface BannerForm {
   buttonLink: string
   bgColor: string
   textColor: string
+  imageUrl: string
   position: string
   isActive: boolean
   order: string
@@ -112,9 +114,45 @@ const emptyBannerForm: BannerForm = {
   buttonLink: '',
   bgColor: '#3A8B68',
   textColor: '#FFFFFF',
+  imageUrl: '',
   position: 'top',
   isActive: true,
   order: '0',
+}
+
+// Helper: compress image before upload
+async function compressImageForBanner(file: File, maxWidth = 1600, quality = 0.85): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      let { width, height } = img
+      if (width > maxWidth) {
+        height = Math.round((height * maxWidth) / width)
+        width = maxWidth
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { reject(new Error('Canvas error')); return }
+      ctx.drawImage(img, 0, 0, width, height)
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.webp'), { type: 'image/webp' }))
+          } else {
+            reject(new Error('Compression error'))
+          }
+        },
+        'image/webp',
+        quality
+      )
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Load error')) }
+    img.src = url
+  })
 }
 
 // ============================================
@@ -527,6 +565,7 @@ function BannersTab() {
       buttonLink: banner.buttonLink || '',
       bgColor: banner.bgColor || '#3A8B68',
       textColor: banner.textColor || '#FFFFFF',
+      imageUrl: banner.imageUrl || '',
       position: banner.position || 'top',
       isActive: banner.isActive === 1,
       order: String(banner.order || 0),
@@ -549,6 +588,7 @@ function BannersTab() {
         buttonLink: form.buttonLink.trim() || null,
         bgColor: form.bgColor,
         textColor: form.textColor,
+        imageUrl: form.imageUrl.trim() || null,
         position: form.position,
         isActive: form.isActive,
         order: Number(form.order) || 0,
@@ -785,6 +825,57 @@ function BannersTab() {
               </div>
             </div>
 
+            {/* Background image */}
+            <div className="space-y-2 border rounded-lg p-3 bg-gray-50/50">
+              <Label className="text-sm font-semibold text-gray-700">Imagen de fondo (opcional)</Label>
+              <p className="text-xs text-gray-400">Si agregás una imagen, se muestra como fondo con una capa semitransparente del color elegido arriba.</p>
+              {form.imageUrl ? (
+                <div className="relative rounded-lg overflow-hidden border">
+                  <img src={form.imageUrl} alt="Fondo del banner" className="w-full h-24 object-cover" />
+                  <button
+                    onClick={() => updateForm('imageUrl', '')}
+                    className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center shadow"
+                    title="Quitar imagen"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <Input
+                    value={form.imageUrl}
+                    onChange={(e) => updateForm('imageUrl', e.target.value)}
+                    placeholder="URL de imagen o subí una..."
+                    className="flex-1"
+                  />
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md border border-gray-300 bg-white hover:bg-gray-50 transition shrink-0">
+                    <ImageIcon className="w-4 h-4 text-gray-500" />
+                    Subir
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        // Compress & upload
+                        const formData = new FormData()
+                        const compressed = await compressImageForBanner(file)
+                        formData.append('file', compressed)
+                        try {
+                          const res = await fetch('/api/admin/upload', { method: 'POST', body: formData })
+                          const data = await res.json()
+                          if (data.ok && data.url) {
+                            updateForm('imageUrl', data.url)
+                          }
+                        } catch {}
+                      }}
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+
             <div className="flex items-center gap-2">
               <Switch checked={form.isActive} onCheckedChange={(v) => updateForm('isActive', v)} />
               <Label>{form.isActive ? 'Activo' : 'Inactivo'}</Label>
@@ -794,21 +885,29 @@ function BannersTab() {
             <div className="border rounded-lg overflow-hidden">
               <p className="text-xs text-gray-500 px-3 py-1 bg-gray-50 border-b">Vista previa</p>
               <div
-                className="w-full py-3 px-4 text-center"
+                className="w-full py-3 px-4 text-center relative"
                 style={{ backgroundColor: form.bgColor || '#3A8B68' }}
               >
-                <h3 className="font-bold" style={{ color: form.textColor || '#FFFFFF' }}>{form.title || 'Título del banner'}</h3>
-                {form.subtitle && (
-                  <p className="text-sm opacity-90" style={{ color: form.textColor || '#FFFFFF' }}>{form.subtitle}</p>
+                {form.imageUrl && (
+                  <>
+                    <img src={form.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                    <div className="absolute inset-0" style={{ backgroundColor: form.bgColor || '#3A8B68', opacity: 0.7 }} />
+                  </>
                 )}
-                {form.buttonText && (
-                  <span
-                    className="inline-block mt-2 px-3 py-1 text-xs font-semibold rounded-full"
-                    style={{ backgroundColor: form.textColor || '#FFFFFF', color: form.bgColor || '#3A8B68' }}
-                  >
-                    {form.buttonText}
-                  </span>
-                )}
+                <div className="relative z-10">
+                  <h3 className="font-bold" style={{ color: form.textColor || '#FFFFFF' }}>{form.title || 'Título del banner'}</h3>
+                  {form.subtitle && (
+                    <p className="text-sm opacity-90" style={{ color: form.textColor || '#FFFFFF' }}>{form.subtitle}</p>
+                  )}
+                  {form.buttonText && (
+                    <span
+                      className="inline-block mt-2 px-3 py-1 text-xs font-semibold rounded-full"
+                      style={{ backgroundColor: form.textColor || '#FFFFFF', color: form.bgColor || '#3A8B68' }}
+                    >
+                      {form.buttonText}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>

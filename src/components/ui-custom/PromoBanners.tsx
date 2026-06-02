@@ -14,6 +14,7 @@ interface Banner {
   buttonLink: string | null
   bgColor: string
   textColor: string
+  imageUrl: string | null
   position: string
   isActive: number
   order: number
@@ -125,10 +126,23 @@ export default function PromoBanners({ position }: Props) {
             animate="center"
             exit="exit"
             transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="w-full py-3 px-4 text-center"
+            className="w-full py-4 md:py-6 px-4 text-center relative"
             style={{ backgroundColor: bgColor }}
           >
-            <div className="max-w-7xl mx-auto flex items-center justify-center gap-3 md:gap-5 flex-wrap">
+            {/* Background image */}
+            {banner.imageUrl && (
+              <>
+                <img
+                  src={banner.imageUrl}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover"
+                  aria-hidden="true"
+                />
+                <div className="absolute inset-0" style={{ backgroundColor: bgColor, opacity: 0.7 }} />
+              </>
+            )}
+
+            <div className="max-w-7xl mx-auto flex items-center justify-center gap-3 md:gap-5 flex-wrap relative z-10">
               {/* Text content */}
               <div className="min-w-0">
                 <h3

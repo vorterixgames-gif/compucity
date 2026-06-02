@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const {
       title, subtitle, buttonText, buttonLink,
-      bgColor, textColor, position, isActive, order,
+      bgColor, textColor, imageUrl, position, isActive, order,
     } = body
 
     if (!title) {
@@ -34,11 +34,11 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString()
 
     await db.execute({
-      sql: `INSERT INTO banners (id, title, subtitle, buttonText, buttonLink, bgColor, textColor, position, isActive, "order", createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT INTO banners (id, title, subtitle, buttonText, buttonLink, bgColor, textColor, imageUrl, position, isActive, "order", createdAt, updatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id, title, subtitle || null, buttonText || null, buttonLink || null,
-        bgColor || '#3A8B68', textColor || '#FFFFFF', position || 'top',
+        bgColor || '#3A8B68', textColor || '#FFFFFF', imageUrl || null, position || 'top',
         isActive !== false ? 1 : 0, order ? Number(order) : 0,
         now, now,
       ],
@@ -58,7 +58,7 @@ export async function PUT(request: NextRequest) {
 
     const body = await request.json()
     const { id, title, subtitle, buttonText, buttonLink,
-      bgColor, textColor, position, isActive, order } = body
+      bgColor, textColor, imageUrl, position, isActive, order } = body
 
     if (!id) {
       return NextResponse.json({ error: 'ID es requerido' }, { status: 400 })
@@ -73,6 +73,7 @@ export async function PUT(request: NextRequest) {
     if (buttonLink !== undefined) { fields.push('buttonLink = ?'); values.push(buttonLink || null) }
     if (bgColor !== undefined) { fields.push('bgColor = ?'); values.push(bgColor || '#3A8B68') }
     if (textColor !== undefined) { fields.push('textColor = ?'); values.push(textColor || '#FFFFFF') }
+    if (imageUrl !== undefined) { fields.push('imageUrl = ?'); values.push(imageUrl || null) }
     if (position !== undefined) { fields.push('position = ?'); values.push(position || 'top') }
     if (isActive !== undefined) { fields.push('isActive = ?'); values.push(isActive ? 1 : 0) }
     if (order !== undefined) { fields.push('"order" = ?'); values.push(Number(order) || 0) }
