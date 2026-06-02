@@ -306,12 +306,11 @@ a, button {
    Admin Table Scroll Fix
    Force horizontal scroll on admin tables
    ========================================== */
-@media (min-width: 1024px) {
-  /* Constrain the main content area to viewport width */
-  .lg\:pl-64 {
-    max-width: 100vw !important;
-    overflow: hidden !important;
-  }
+
+/* Constrain the admin content area to viewport width on desktop */
+#admin-main-content {
+  max-width: 100vw;
+  overflow: hidden;
 }
 
 /* Force the table container to scroll horizontally */
