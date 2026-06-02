@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-02 (sesion 2)
+**Ultima actualizacion:** 2026-06-02 (sesion 3)
 
 ---
 
@@ -35,7 +35,7 @@
 - **Elit:** MANTIENE TODOS sus productos (notebooks, impresion, toners, UPS, etc.)
 - **Invid Computers:** MANTIENE TODOS sus productos (notebooks, routers, switches, etc.)
 
-### Estado actual de productos (2026-06-02 sesion 2)
+### Estado actual de productos (2026-06-02 sesion 3)
 | Proveedor | Activos | Total | Con imagen | Sin imagen | Con costPrice |
 |-----------|---------|-------|------------|------------|---------------|
 | Air Intra | 1,493 | 1,755 | 189 | 1,304 | 1,755 |
@@ -166,6 +166,26 @@ Donde markup y cashDiscount son los del producto (si tiene) o los globales (si n
 | case | Gabinete | gabinetes | Si | 1 |
 | cooling | Refrigeracion | refrigeracion | No | 1 |
 | thermal | Pasta Termica | pastas-termicas | No | 1 |
+
+### Sistema de Filtrado de Productos (3 capas - FIX PERMANENTE)
+El PC Builder usa **3 capas de defensa** para garantizar que solo productos correctos aparezcan en cada slot:
+
+| Capa | Mecanismo | Descripcion |
+|------|-----------|-------------|
+| **1. Inclusion (Whitelist)** | `BUILDER_INCLUDE_PATTERNS` | Cada slot define que palabras clave DEBE tener el nombre del producto (ej: GPU requiere "RTX/GTX/RADEON"). Si no coincide con NINGUN patron, no aparece. **Es la defensa principal: funciona incluso si la categoria en la DB esta mal** |
+| **2. Exclusion (Blacklist)** | `BUILDER_EXCLUDE_PATTERNS` | Patrones que excluyen productos no deseados (notebooks en GPU, discos externos en SSD, etc.) |
+| **3. Compatibilidad** | `applyCompatibilityFilters` | Filtra por socket (CPU->Mother), DDR (Mother->RAM), wattaje (GPU->PSU) |
+
+### Por que se desordenaba antes (Causa raiz resuelta)
+El problema recurrente tenia 3 causas encadenadas:
+1. **Sync categorizaba mal**: El `CATEGORY_KEYWORD_MAP` chequeaba keywords de componentes (RTX, DDR, SSD) ANTES que productos completos (NOTEBOOK, PC ARMADAS). "NOTEBOOK RTX 4060" coincidia con "RTX" primero → placas-de-video
+2. **PC Builder no validaba nombres**: Solo usaba categoria de DB + blacklist chica. No verificaba que el producto realmente fuera lo que dice la categoria
+3. **Cada sync traia productos nuevos mal categorizados**: Aunque corrijas manualmente, la proxima sync "contaminaba" otra vez
+
+### Solucion permanente (implementada sesion 3)
+1. **Whitelist en PC Builder**: `BUILDER_INCLUDE_PATTERNS` - cada slot valida el nombre del producto en runtime
+2. **Keywords ordenadas en sync**: Productos completos (NOTEBOOK, PC ARMADAS) se chequean ANTES que componentes (RTX, DDR, SSD)
+3. **Validacion post-sync automatica**: Despues de cada sync, se corrigen automaticamente productos mal categorizados en TODAS las categorias del PC Builder
 
 ### Categorias en DB (productos con stock, 2026-06-02)
 | Categoria | Productos |
@@ -366,6 +386,8 @@ createdAt TEXT, updatedAt TEXT
 ## Backups
 | Fecha | Archivo | Tamano | Contenido |
 |-------|---------|--------|-----------|
+| 2026-06-02 (s3) | `compucity-backup-2026-06-02s3.tar.gz` | 35MB | Codigo completo con fix permanente de categorizacion |
+| 2026-06-02 (s3) | `compucity-db-2026-06-02s3.json` | 8.3MB | Base de datos completa (11 tablas, 4,787 filas) |
 | 2026-06-02 (s2) | `compucity-backup-2026-06-02b.tar.gz` | 417MB | Codigo completo (sin node_modules/.next) |
 | 2026-06-02 (s2) | `compucity-db-2026-06-02b.json` | 8.2MB | Base de datos completa (11 tablas, 4,787 filas) |
 | 2026-06-02 | `compucity-backup-2026-06-02.tar.gz` | 443MB | Backup anterior |
@@ -394,6 +416,7 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ---
 
 ## Historial de Cambios
+- **2026-06-02 (s3):** Fix PERMANENTE de categorizacion en PC Builder - 3 capas de defensa: (1) Whitelist BUILDER_INCLUDE_PATTERNS que valida nombre de producto en runtime, (2) CATEGORY_KEYWORD_MAP reordenado con productos completos antes de componentes, (3) Validacion post-sync automatica mejorada. Bug corregido: markup/cashDiscount faltantes en SELECT de pc-builder. Eliminadas rutas duplicadas (recuperar-contrasena, resetear-contrasena). Instalado paquete resend. Backup completo (codigo 35MB + DB 8.3MB)
 - **2026-06-02 (s2):** Markup y descuento individual por producto - Cada producto puede tener su propio markup y cashDiscount (si es NULL, usa el global). Bug corregido en pc-builder (formula cash price). Badges M/D en tabla de admin. Migracion ejecutada en Turso (columnas markup, cashDiscount). Backup completo (codigo 417MB + DB 8.2MB)
 - **2026-06-02:** Limpieza de categorias en Arma tu PC - Motherboards: 14 productos desactivados + 2 recategorizados. Gabinetes: limpieza masiva (15 monitores desactivados, 21 fuentes movidas, 8 coolers movidos, etc.). Refrigeracion: 9 cables iCUE movidos a cables. PC builder categorias limpias. Backup completo
 - **2026-06-02:** Backup completo (codigo 443MB + DB 8MB). Actualizacion de PROJECT_STATUS.md
