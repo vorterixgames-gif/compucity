@@ -79,11 +79,6 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
 
         {/* Badges - stacked vertically top-left */}
         <div className="absolute top-2 left-2 flex flex-col gap-1">
-          {isOnSale && (
-            <div className="bg-green-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-sm">
-              OFERTA -{saleDiscountPercent}%
-            </div>
-          )}
           {showFeaturedBadge && !isOnSale && (
             <div className="bg-compucity-green-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-sm">
               DESTACADO
@@ -101,20 +96,44 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
           )}
         </div>
 
-        {/* Wishlist heart button - top right */}
-        <button
-          onClick={handleToggleWishlist}
-          aria-label={isInWishlist ? 'Quitar de favoritos' : 'Agregar a favoritos'}
-          className="absolute top-2 right-2 h-7 w-7 flex items-center justify-center bg-white rounded-full shadow-md hover:shadow-lg transition-all duration-200 hover:scale-110 z-10"
-        >
-          <Heart
-            className={`h-4 w-4 transition-colors ${
-              isInWishlist
-                ? 'fill-red-500 text-red-500'
-                : 'text-gray-400 hover:text-red-400'
-            }`}
-          />
-        </button>
+        {/* OFERTA badge - top right */}
+        {isOnSale && (
+          <div className="absolute top-2 right-2 flex flex-col items-end gap-1.5 z-10">
+            <div className="bg-green-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-sm">
+              OFERTA -{saleDiscountPercent}%
+            </div>
+            <button
+              onClick={handleToggleWishlist}
+              aria-label={isInWishlist ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+              className="h-7 w-7 flex items-center justify-center bg-white rounded-full shadow-md hover:shadow-lg transition-all duration-200 hover:scale-110"
+            >
+              <Heart
+                className={`h-4 w-4 transition-colors ${
+                  isInWishlist
+                    ? 'fill-red-500 text-red-500'
+                    : 'text-gray-400 hover:text-red-400'
+                }`}
+              />
+            </button>
+          </div>
+        )}
+
+        {/* Wishlist heart button - top right (when not on sale) */}
+        {!isOnSale && (
+          <button
+            onClick={handleToggleWishlist}
+            aria-label={isInWishlist ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+            className="absolute top-2 right-2 h-7 w-7 flex items-center justify-center bg-white rounded-full shadow-md hover:shadow-lg transition-all duration-200 hover:scale-110 z-10"
+          >
+            <Heart
+              className={`h-4 w-4 transition-colors ${
+                isInWishlist
+                  ? 'fill-red-500 text-red-500'
+                  : 'text-gray-400 hover:text-red-400'
+              }`}
+            />
+          </button>
+        )}
 
         {/* Out of stock overlay */}
         {showOutOfStock && (

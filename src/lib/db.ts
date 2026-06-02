@@ -308,4 +308,28 @@ export async function ensureMigrations() {
       console.warn('[migration] Could not create banners table:', e)
     }
   }
+
+  // 16. Add couponCode column to orders
+  try {
+    await db.execute({ sql: 'SELECT couponCode FROM orders LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({ sql: 'ALTER TABLE orders ADD COLUMN couponCode TEXT' })
+      console.log('[migration] Added couponCode column to orders')
+    } catch (e) {
+      console.warn('[migration] Could not add couponCode:', e)
+    }
+  }
+
+  // 17. Add couponDiscount column to orders
+  try {
+    await db.execute({ sql: 'SELECT couponDiscount FROM orders LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({ sql: 'ALTER TABLE orders ADD COLUMN couponDiscount REAL DEFAULT 0' })
+      console.log('[migration] Added couponDiscount column to orders')
+    } catch (e) {
+      console.warn('[migration] Could not add couponDiscount:', e)
+    }
+  }
 }

@@ -2,29 +2,17 @@ import CategoryIcons from '@/components/layout/CategoryIcons'
 import BrandLogos from '@/components/layout/BrandLogos'
 import ProductCard from '@/components/ui-custom/ProductCard'
 import HeroSection from '@/components/ui-custom/HeroSection'
-import PromoBanner from '@/components/ui-custom/PromoBanner'
+import PromoBanners from '@/components/ui-custom/PromoBanners'
 import { getFeaturedProducts, getAllActiveProducts, getTopProductsByCategorySlug } from '@/lib/queries'
-import { ensureMigrations, db } from '@/lib/db'
+import { ensureMigrations } from '@/lib/db'
 import Link from 'next/link'
-import { Truck, Shield, MessageCircle, Headphones, ArrowRight, Cpu } from 'lucide-react'
+import { Truck, Shield, MessageCircle, Headphones, ArrowRight } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
 function safeParseFirstImage(images: string | null): string | null {
   if (!images) return null
   try { return JSON.parse(images)[0] } catch { return null }
-}
-
-async function getActiveBanners() {
-  try {
-    const result = await db.execute({
-      sql: 'SELECT * FROM banners WHERE isActive = 1 ORDER BY "order" ASC, createdAt DESC',
-      args: [],
-    })
-    return result.rows as any[]
-  } catch {
-    return []
-  }
 }
 
 export default async function HomePage() {
@@ -36,16 +24,14 @@ export default async function HomePage() {
   let gamerPCs: any[] = []
   let monitorProducts: any[] = []
   let notebookProducts: any[] = []
-  let banners: any[] = []
 
   try {
-    [featured, allProducts, gamerPCs, monitorProducts, notebookProducts, banners] = await Promise.all([
+    [featured, allProducts, gamerPCs, monitorProducts, notebookProducts] = await Promise.all([
       getFeaturedProducts(),
       getAllActiveProducts(),
       getTopProductsByCategorySlug('pc-armadas', 4),
       getTopProductsByCategorySlug('monitores', 4),
       getTopProductsByCategorySlug('notebooks', 12),
-      getActiveBanners(),
     ])
     // Pick 4 notebooks with brand/line variety (avoid 4 identical Legion)
     if (notebookProducts.length > 4) {
@@ -72,9 +58,7 @@ export default async function HomePage() {
       {/* ==========================================
           TOP BANNERS (above hero)
           ========================================== */}
-      {banners.filter((b: any) => b.position === 'top' && b.isActive === 1).length > 0 && (
-        <PromoBanner banners={banners.filter((b: any) => b.position === 'top' && b.isActive === 1)} />
-      )}
+      <PromoBanners position="top" />
 
       {/* ==========================================
           HERO - Carrusel Full-Width
@@ -84,9 +68,7 @@ export default async function HomePage() {
       {/* ==========================================
           BELOW-HERO BANNERS
           ========================================== */}
-      {banners.filter((b: any) => b.position === 'below-hero' && b.isActive === 1).length > 0 && (
-        <PromoBanner banners={banners.filter((b: any) => b.position === 'below-hero' && b.isActive === 1)} />
-      )}
+      <PromoBanners position="below-hero" />
 
       {/* ==========================================
           BENEFITS BAR

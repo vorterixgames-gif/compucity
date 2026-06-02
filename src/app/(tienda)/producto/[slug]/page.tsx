@@ -59,6 +59,10 @@ export default async function ProductPage({ params }: Props) {
 
               if (isOnSale) {
                 const discountPercent = Math.round((1 - activeSale! / product.price) * 100)
+                // Calculate cash price from sale price as base
+                const saleCashPrice = (product.comparePrice && product.comparePrice < product.price)
+                  ? Math.ceil(activeSale! * (product.comparePrice / product.price))
+                  : null
                 return (
                   <>
                     <div className="flex items-center gap-2">
@@ -66,8 +70,11 @@ export default async function ProductPage({ params }: Props) {
                       <span className="bg-green-600 text-white text-xs font-bold px-2 py-0.5 rounded">OFERTA -{discountPercent}%</span>
                     </div>
                     <p className="text-sm text-gray-400 mt-1 line-through">Precio de lista: {formatPrice(product.price)}</p>
-                    {product.comparePrice && product.comparePrice < product.price && (
-                      <p className="text-sm text-gray-500 mt-0.5">Precio en efectivo: {formatPrice(product.comparePrice)}</p>
+                    {saleCashPrice !== null && (
+                      <div className="mt-1 flex items-center gap-2">
+                        <p className="text-lg font-bold text-compucity-green-700">{formatPrice(saleCashPrice)}</p>
+                        <span className="bg-compucity-green-800 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">EFECTIVO</span>
+                      </div>
                     )}
                   </>
                 )

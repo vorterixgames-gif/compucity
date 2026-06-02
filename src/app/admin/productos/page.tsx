@@ -497,14 +497,6 @@ export default function AdminProductos() {
                           {product.sku && (
                             <span className="text-xs text-gray-400 font-mono ml-2">{product.sku}</span>
                           )}
-                          {product.salePrice && product.salePrice > 0 && (() => {
-                            const now = new Date()
-                            const startOk = !product.saleStart || now >= new Date(product.saleStart)
-                            const endOk = !product.saleEnd || now <= new Date(product.saleEnd + 'T23:59:59')
-                            return startOk && endOk ? (
-                              <Badge className="ml-2 text-[10px] px-1.5 py-0 bg-orange-100 text-orange-700 border-orange-200 border">EN OFERTA</Badge>
-                            ) : null
-                          })()}
                         </div>
                       </td>
                       <td className="p-2 align-middle">
@@ -541,7 +533,17 @@ export default function AdminProductos() {
                         )}
                       </td>
                       <td className="p-2 align-middle text-right">
-                        <div className="font-medium text-gray-900">{formatPrice(product.price)}</div>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span className="font-medium text-gray-900">{formatPrice(product.price)}</span>
+                          {product.salePrice && product.salePrice > 0 && (() => {
+                            const now = new Date()
+                            const startOk = !product.saleStart || now >= new Date(product.saleStart)
+                            const endOk = !product.saleEnd || now <= new Date(product.saleEnd + 'T23:59:59')
+                            return startOk && endOk ? (
+                              <Badge className="text-[10px] px-1.5 py-0 bg-orange-100 text-orange-700 border-orange-200 border">OFERTA</Badge>
+                            ) : null
+                          })()}
+                        </div>
                       </td>
                       <td className="p-2 align-middle text-right">
                         {product.comparePrice ? (
@@ -841,7 +843,7 @@ export default function AdminProductos() {
                   </summary>
                   <div className="mt-3 space-y-3">
                     <p className="text-xs text-gray-500">
-                      Si configurás un precio promocional con fecha, se mostrará como oferta en la tienda durante ese período.
+                      Si se configura un precio de oferta, se mostrará tachado el precio de lista y este precio como el vigente.
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div className="space-y-2">

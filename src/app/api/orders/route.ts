@@ -78,6 +78,8 @@ export async function POST(request: NextRequest) {
       shippingCost,
       // Shipping detail stored as JSON in notes if needed
       shippingDetails,
+      couponCode,
+      couponDiscount,
       notes,
       items,
       total,
@@ -134,8 +136,8 @@ export async function POST(request: NextRequest) {
         customerId,
         shippingAddress, shippingCity, shippingProvince, shippingZip,
         shippingMethod, shippingCost, shippingDetails,
-        status, paymentMethod, total, notes, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        status, paymentMethod, couponCode, couponDiscount, total, notes, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id,
         orderNumber,
@@ -153,6 +155,8 @@ export async function POST(request: NextRequest) {
         shippingDetails || null,
         'pendiente',
         'whatsapp',
+        couponCode || null,
+        couponDiscount || 0,
         total,
         notes || null,
         now,
@@ -174,6 +178,18 @@ export async function POST(request: NextRequest) {
         sql: `UPDATE products SET stock = stock - ?, updatedAt = ? WHERE id = ? AND stock > 0`,
         args: [item.quantity, now, item.productId],
       })
+    }
+
+    // ── Incrementar uso del cupón ──
+    if (couponCode) {
+      try {
+        await db.execute({
+          sql: `UPDATE coupons SET usedCount = usedCount + 1, updatedAt = ? WHERE UPPER(code) = ? AND isActive = 1`,
+          args: [now, couponCode.toUpperCase().trim()],
+        })
+      } catch (e) {
+        console.warn('[orders] Could not increment coupon usedCount:', e)
+      }
     }
 
     return NextResponse.json({

@@ -74,10 +74,27 @@ export function getDisplayPrices(product: ProductWithSale): {
 }
 
 /**
+ * Returns the effective cash price when a sale is active,
+ * applying the same cash discount ratio to the sale price.
+ * Returns null if no sale or no cash discount.
+ */
+export function getSaleCashPrice(product: ProductWithSale): number | null {
+  const salePrice = getActiveSale(product)
+  if (salePrice === null || salePrice >= product.price) return null
+  if (!product.comparePrice || product.comparePrice >= product.price) return null
+  return Math.ceil(salePrice * (product.comparePrice / product.price))
+}
+
+/**
  * Returns the effective price for the cart (considering sale and cash discount).
- * Priority: sale price > comparePrice (cash) > list price
+ * When a sale is active AND a cash discount exists, the cash discount applies
+ * on top of the sale price: salePrice * (comparePrice / price)
+ * Otherwise: sale price > comparePrice (cash) > list price
  */
 export function getCartPrice(product: ProductWithSale): number {
+  const saleCashPrice = getSaleCashPrice(product)
+  if (saleCashPrice !== null) return saleCashPrice
+
   const salePrice = getActiveSale(product)
   if (salePrice !== null && salePrice < product.price) {
     return salePrice

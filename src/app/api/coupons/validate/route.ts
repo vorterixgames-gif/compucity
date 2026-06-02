@@ -9,9 +9,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Datos inválidos' }, { status: 400 })
     }
 
-    // Find the coupon by code
+    // Find the coupon by code (case insensitive) and active status
     const result = await db.execute({
-      sql: 'SELECT * FROM coupons WHERE code = ?',
+      sql: 'SELECT * FROM coupons WHERE UPPER(code) = ? AND isActive = 1',
       args: [code.toUpperCase().trim()],
     })
 
@@ -21,11 +21,6 @@ export async function POST(request: NextRequest) {
     }
 
     const coupon = rows[0]
-
-    // Check if active
-    if (!coupon.isActive || coupon.isActive !== 1) {
-      return NextResponse.json({ ok: false, error: 'Este cupón no está activo' })
-    }
 
     // Check dates
     const now = new Date()
@@ -69,9 +64,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ok: true,
       coupon: {
+        id: coupon.id,
         code: coupon.code,
         discountType: coupon.discountType,
         discountValue: coupon.discountValue,
+        minPurchase: coupon.minPurchase,
         description: coupon.description,
       },
       discountAmount,
