@@ -315,6 +315,13 @@ a, button {
   scrollbar-color: #8CC0A8 #EFF5F2;
 }
 
+/* Ensure scrollbar is always visible on desktop */
+@media (min-width: 1024px) {
+  .admin-table-wrapper {
+    scrollbar-width: thin !important;
+  }
+}
+
 .admin-table-wrapper::-webkit-scrollbar {
   height: 8px;
 }
@@ -327,4 +334,9 @@ a, button {
 .admin-table-wrapper::-webkit-scrollbar-thumb {
   background: #8CC0A8;
   border-radius: 4px;
+  min-height: 30px;
+}
+
+.admin-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #3A8B68;
 }

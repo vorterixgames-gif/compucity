@@ -442,8 +442,8 @@ export default function AdminProductos() {
       </div>
 
       {/* Products Table */}
-      <div className="rounded-xl border shadow-sm bg-card text-card-foreground" style={{ minWidth: 0 }}>
-        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' }}>
+      <div className="rounded-xl border shadow-sm bg-card text-card-foreground overflow-hidden">
+        <div className="admin-table-wrapper">
           {filteredProducts.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               <Package className="w-12 h-12 mx-auto mb-2 opacity-30" />
