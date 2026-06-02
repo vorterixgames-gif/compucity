@@ -83,9 +83,26 @@ const SUBCATEGORY_RULES: { parentSlug: string; rules: { keywords: string[]; subc
 
 // Category keyword mapping: keyword patterns -> store category SLUG
 // Used as fallback when no explicit supplier category mapping exists
+// *** CRITICAL ORDERING: Complete products (PCs, Notebooks, Monitors) MUST come BEFORE ***
+// *** individual components (RTX, DDR, SSD) to prevent miscategorization.             ***
+// A "NOTEBOOK GAMER RTX 4060" should match NOTEBOOK first, not RTX (placas-de-video).
 const CATEGORY_KEYWORD_MAP: { keywords: string[]; categorySlug: string; name: string }[] = [
-  // PC Armadas — MUST be before component entries so complete PCs aren't mis-categorized
-  { keywords: ['PC GAMER','PC LENOVO','PC KELYX','SIST. KELYX','SIST.','COMPUTADORA','BAREBONE'], categorySlug: 'pc-armadas', name: 'PC Armadas' },
+  // ==========================================
+  // GROUP 1: COMPLETE PRODUCTS — MUST BE FIRST
+  // These match entire product types that contain component keywords in their names
+  // ==========================================
+  // PC Armadas — complete PCs that may contain RTX/DDR/SSD in name
+  { keywords: ['PC GAMER','PC LENOVO','PC KELYX','SIST. KELYX','SIST.','COMPUTADORA','BAREBONE','DESKTOP','ALL IN ONE','ALL-IN-ONE'], categorySlug: 'pc-armadas', name: 'PC Armadas' },
+  // Notebooks — contain RTX/DDR/SSD keywords but are NOT components
+  { keywords: ['NOTEBOOK','LAPTOP','PORTATIL'], categorySlug: 'notebooks', name: 'Notebooks' },
+  // Mini PC — complete PCs that may contain component keywords
+  { keywords: ['MINI PC','STICK PC','NUC','MELE','N100'], categorySlug: 'pc-armadas', name: 'Mini PC' },
+  // Monitores — may contain HDMI/VGA but are NOT cables
+  { keywords: ['MONITOR','ULTRAFINE','LED MONITOR'], categorySlug: 'monitores', name: 'Monitores' },
+
+  // ==========================================
+  // GROUP 2: PERIPHERALS & ACCESSORIES
+  // ==========================================
   // Auriculares
   { keywords: ['AURICULAR','HEADSET','HEADPHONE','JBL TOUR','JBL QUANTUM'], categorySlug: 'auriculares', name: 'Auriculares' },
   // Mouse
@@ -104,28 +121,37 @@ const CATEGORY_KEYWORD_MAP: { keywords: string[]; categorySlug: string; name: st
   { keywords: ['JOYSTICK','CONTROL ','GAMEPAD','CONTROLLER','GAME PAD','VOLANTE','G29','G923','F710'], categorySlug: 'joysticks', name: 'Joysticks' },
   // Kits Gamer
   { keywords: ['KIT GABINETE','KIT TECLADO','KIT GAMER'], categorySlug: 'kits-gamer', name: 'Kits Gamer' },
-  // Toners y Cartuchos
-  { keywords: ['CARTUCHO','TONER','INK CARTRIDGE','PRINT C','IMAGING DRUM','PRINHEAD','CART.','TINTA.','CART.NEGRO','CART.CYAN','CART.MAGENTA','CART.YELLOW','CART.AMARILLO','CART.LIGHT','BOTELLA DE TINTA','HP 935','HP 951','HP 126','HP 122'], categorySlug: 'toners-y-cartuchos', name: 'Toners y Cartuchos' },
   // Impresión
   { keywords: ['IMPRESORA','EPSON L','EPSON M','SMART TANK','LASERJET','DESKJET','OFFICEJET','PROYECTOR EPSON'], categorySlug: 'impresion', name: 'Impresión' },
-  // Memorias RAM
-  { keywords: ['MEMORIA DDR','DDR3','DDR4','DDR5','SODIMM','CORSAIR MEMORY'], categorySlug: 'memorias-ram', name: 'Memorias RAM' },
-  // Discos SSD
-  { keywords: ['SSD','NVME','M.2','GEN4','GEN3'], categorySlug: 'discos-ssd', name: 'Discos SSD' },
-  // Discos HDD
-  { keywords: ['DISCO RIGIDO','HDD','IRONWOLF','SKYHAWK','HD SEAGATE INTERNO','HD TOSHIBA INTERNO'], categorySlug: 'discos-hdd', name: 'Discos HDD' },
-  // Discos Externos
+  // Toners y Cartuchos
+  { keywords: ['CARTUCHO','TONER','INK CARTRIDGE','PRINT C','IMAGING DRUM','PRINHEAD','CART.','TINTA.','CART.NEGRO','CART.CYAN','CART.MAGENTA','CART.YELLOW','CART.AMARILLO','CART.LIGHT','BOTELLA DE TINTA','HP 935','HP 951','HP 126','HP 122'], categorySlug: 'toners-y-cartuchos', name: 'Toners y Cartuchos' },
+
+  // ==========================================
+  // GROUP 3: STORAGE (order matters: externos before internos)
+  // ==========================================
+  // Discos Externos — MUST be before SSD/HDD internals
   { keywords: ['DISCO EXTERNO','EXTERNAL','PORTABLE DRIVE','HD SEAGATE EXTERNO','HD TOSHIBA EXTERNO','CANVIO','EXPANSION BLACK'], categorySlug: 'discos-externos', name: 'Discos Externos' },
   // Pendrives
   { keywords: ['PENDRIVE','DATA TRAVELER','DATATRAVELER','FLASH DRIVE','PEN DRIVE'], categorySlug: 'pendrives', name: 'Pendrives' },
   // Micro SD
   { keywords: ['MICRO SD','MICROSD','SD CARD','MICRO MEMORY'], categorySlug: 'micro-sd', name: 'Micro SD' },
+
+  // ==========================================
+  // GROUP 4: INDIVIDUAL COMPONENTS (PC Builder categories)
+  // These come AFTER complete products to avoid miscategorization
+  // ==========================================
   // Microprocesadores
   { keywords: ['RYZEN','INTEL I3','INTEL I5','INTEL I7','INTEL I9','CORE I','PENTIUM','CORE ULTRA'], categorySlug: 'microprocesadores', name: 'Microprocesadores' },
   // Motherboards
   { keywords: ['MOTHER','H610','B760','H810','A520','A620','B650','B550','H510'], categorySlug: 'motherboards', name: 'Motherboards' },
-  // Placas de Video
+  // Memorias RAM
+  { keywords: ['MEMORIA DDR','DDR3','DDR4','DDR5','SODIMM','CORSAIR MEMORY'], categorySlug: 'memorias-ram', name: 'Memorias RAM' },
+  // Placas de Video — comes AFTER notebooks/PCs to prevent "NOTEBOOK RTX" → placas-de-video
   { keywords: ['RTX','GTX','RADEON RX','GEFORCE','GRAPHICS CARD','QUADRO RTX'], categorySlug: 'placas-de-video', name: 'Placas de Video' },
+  // Discos SSD
+  { keywords: ['SSD','NVME','M.2','GEN4','GEN3'], categorySlug: 'discos-ssd', name: 'Discos SSD' },
+  // Discos HDD
+  { keywords: ['DISCO RIGIDO','HDD','IRONWOLF','SKYHAWK','HD SEAGATE INTERNO','HD TOSHIBA INTERNO'], categorySlug: 'discos-hdd', name: 'Discos HDD' },
   // Fuentes
   { keywords: ['FUENTE','POWER SUPPLY','PSU'], categorySlug: 'fuentes', name: 'Fuentes' },
   // Gabinetes
@@ -134,17 +160,17 @@ const CATEGORY_KEYWORD_MAP: { keywords: string[]; categorySlug: string; name: st
   { keywords: ['COOLER','WATER COOL','LIQUID COOL','DISIPADOR','HEATSINK','SWAFAN','FAN COOLER','ICUE LINK','AIO '], categorySlug: 'refrigeracion', name: 'Refrigeración' },
   // Pastas Térmicas
   { keywords: ['PASTA TERMICA','THERMAL PASTE'], categorySlug: 'pastas-termicas', name: 'Pastas Térmicas' },
-  // Monitores
-  { keywords: ['MONITOR','ULTRAFINE','LED MONITOR'], categorySlug: 'monitores', name: 'Monitores' },
-  // Notebooks
-  { keywords: ['NOTEBOOK','LAPTOP','PORTATIL'], categorySlug: 'notebooks', name: 'Notebooks' },
+
+  // ==========================================
+  // GROUP 5: NETWORKING & MISC
+  // ==========================================
   // Routers WiFi
   { keywords: ['ARCHER','ROUTER','DECO','MESH WIFI','TL-WR','ROU WI'], categorySlug: 'routers-wifi', name: 'Routers WiFi' },
   // Switches
   { keywords: ['SWITCH'], categorySlug: 'switches', name: 'Switches' },
   // Placas de Red
   { keywords: ['P.REDW','EAP','CPE','SFP','TL-WN','PREDW','RANGE EXTENDER','TAPO C','CAMARA IP'], categorySlug: 'placas-de-red', name: 'Placas de Red' },
-  // Cables y Adaptadores
+  // Cables y Adaptadores — MUST be near the end; "CABLE" is very generic
   { keywords: ['CABLE','ADAPTADOR','FICHA RJ45','CONVERTER','ROLLO','UTP CAT','PROTECTOR KELYX','PROLONGADOR','HUB KELYX','HUB USB'], categorySlug: 'cables-y-adaptadores', name: 'Cables y Adaptadores' },
   // UPS / Estabilizadores
   { keywords: ['UPS','ESTABILIZADOR','NOBREAK','SURGE PROTECTION'], categorySlug: 'ups', name: 'UPS' },
@@ -156,8 +182,6 @@ const CATEGORY_KEYWORD_MAP: { keywords: string[]; categorySlug: string; name: st
   { keywords: ['SOPORTE','BRAZO','MOUNT','STAND'], categorySlug: 'soportes-y-brazos', name: 'Soportes y Brazos' },
   // Fundas/Mochilas
   { keywords: ['MOCHILA','FUNDA','BACKPACK'], categorySlug: 'fundas-mochilas', name: 'Fundas/Mochilas' },
-  // Mini PC
-  { keywords: ['MINI PC','STICK PC'], categorySlug: 'mini-pc', name: 'Mini PC' },
   // Bases
   { keywords: ['BASE CARGADORA','DOCK'], categorySlug: 'bases', name: 'Bases' },
   // Escritorios
@@ -333,6 +357,55 @@ function mapProductToCategory(
       nameKeyword: 'DESKTOP',
       targetSlug: 'pc-armadas',
       sourceSlugs: ['switches', 'discos-ssd'],
+    },
+    // === NEW CORRECTIONS: prevent future miscategorization in PC Builder slots ===
+    {
+      // VGA cables (e.g. "Vga 15PIN M/m", "Vga 15M/15M 1.4 Mts") in placas-de-video -> cables
+      nameKeyword: 'M/M',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['placas-de-video'],
+    },
+    {
+      // VGA cables with "Mts" (meters) in placas-de-video -> cables
+      nameKeyword: 'MTS',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['placas-de-video'],
+    },
+    {
+      // IP cameras in placas-de-video -> placas-de-red
+      nameKeyword: 'IP CAM',
+      targetSlug: 'placas-de-red',
+      sourceSlugs: ['placas-de-video'],
+    },
+    {
+      // Laptop motherboards (Mb + Vga) in placas-de-video -> motherboards
+      nameKeyword: 'MB',
+      targetSlug: 'motherboards',
+      sourceSlugs: ['placas-de-video'],
+    },
+    {
+      // HP Z workstations with RTX in placas-de-video -> pc-armadas
+      nameKeyword: 'HP Z',
+      targetSlug: 'pc-armadas',
+      sourceSlugs: ['placas-de-video', 'microprocesadores', 'memorias-ram', 'discos-ssd'],
+    },
+    {
+      // Dell workstations in placas-de-video -> pc-armadas
+      nameKeyword: 'DELL P',
+      targetSlug: 'pc-armadas',
+      sourceSlugs: ['placas-de-video', 'microprocesadores'],
+    },
+    {
+      // Laptop motherboard repuestos (P/ Repuesto) in component categories -> motherboards
+      nameKeyword: 'REPUESTO',
+      targetSlug: 'motherboards',
+      sourceSlugs: ['placas-de-video', 'microprocesadores', 'memorias-ram'],
+    },
+    {
+      // RMA products should not be in component categories
+      nameKeyword: '(RMA)',
+      targetSlug: 'motherboards',
+      sourceSlugs: ['placas-de-video', 'microprocesadores', 'memorias-ram'],
     },
   ]
 
@@ -1305,7 +1378,75 @@ export async function POST(request: Request) {
         }, { status: 400 })
     }
 
-    return NextResponse.json({ ok: syncResult.ok, ...syncResult })
+    // Run post-sync category validation to fix any miscategorized products
+    // IMPORTANT: This now runs on EVERY sync (not just when new products are created)
+    // because even existing products may have been categorized incorrectly by a previous sync
+    if (syncResult.ok) {
+      try {
+        console.log('[sync] Running post-sync category validation...')
+        const catResult = await db.execute('SELECT id, slug FROM categories')
+        const slugToId: Record<string, string> = {}
+        for (const row of catResult.rows as any[]) {
+          slugToId[row.slug] = row.id
+        }
+
+        // Comprehensive list of miscategorization fixes for PC Builder categories
+        // These patterns catch products that keyword-matching placed in the wrong category
+        const QUICK_FIXES: { namePattern: string; wrongSlug: string; correctSlug: string }[] = [
+          // === Placas de Video corrections ===
+          { namePattern: "name LIKE 'Vga %M/m%' OR name LIKE 'Vga %Mts%' OR name LIKE 'Vga %Pin%'", wrongSlug: 'placas-de-video', correctSlug: 'cables-y-adaptadores' },
+          { namePattern: "name LIKE 'Ip Cam%' OR name LIKE 'IP Cam%'", wrongSlug: 'placas-de-video', correctSlug: 'placas-de-red' },
+          { namePattern: "name LIKE 'HP Z%'", wrongSlug: 'placas-de-video', correctSlug: 'pc-armadas' },
+          { namePattern: "name LIKE 'DELL P%'", wrongSlug: 'placas-de-video', correctSlug: 'pc-armadas' },
+          { namePattern: "name LIKE '%NOTEBOOK%' OR name LIKE '%LAPTOP%'", wrongSlug: 'placas-de-video', correctSlug: 'notebooks' },
+          { namePattern: "name LIKE '%PC GAMER%' OR name LIKE '%PC LENOVO%' OR name LIKE '%PC KELYX%'", wrongSlug: 'placas-de-video', correctSlug: 'pc-armadas' },
+          { namePattern: "name LIKE '%MINI PC%' OR name LIKE '%BAREBONE%'", wrongSlug: 'placas-de-video', correctSlug: 'pc-armadas' },
+          { namePattern: "name LIKE '%REPUESTO%' OR name LIKE '%(RMA)%'", wrongSlug: 'placas-de-video', correctSlug: 'motherboards' },
+          { namePattern: "name LIKE '%CABLE%' OR name LIKE '%ADAPTADOR%'", wrongSlug: 'placas-de-video', correctSlug: 'cables-y-adaptadores' },
+          { namePattern: "name LIKE '%MONITOR%'", wrongSlug: 'placas-de-video', correctSlug: 'monitores' },
+          { namePattern: "name LIKE '%MB %' OR name LIKE '%MB+%'", wrongSlug: 'placas-de-video', correctSlug: 'motherboards' },
+          // === Microprocesadores corrections ===
+          { namePattern: "name LIKE '%NOTEBOOK%' OR name LIKE '%LAPTOP%'", wrongSlug: 'microprocesadores', correctSlug: 'notebooks' },
+          { namePattern: "name LIKE '%PC GAMER%' OR name LIKE '%PC LENOVO%' OR name LIKE '%SIST.%'", wrongSlug: 'microprocesadores', correctSlug: 'pc-armadas' },
+          { namePattern: "name LIKE '%MOTHER%'", wrongSlug: 'microprocesadores', correctSlug: 'motherboards' },
+          { namePattern: "name LIKE '%MINI PC%' OR name LIKE '%BAREBONE%'", wrongSlug: 'microprocesadores', correctSlug: 'pc-armadas' },
+          // === Memorias RAM corrections ===
+          { namePattern: "name LIKE '%NOTEBOOK%' OR name LIKE '%LAPTOP%'", wrongSlug: 'memorias-ram', correctSlug: 'notebooks' },
+          { namePattern: "name LIKE '%PC GAMER%' OR name LIKE '%PC LENOVO%'", wrongSlug: 'memorias-ram', correctSlug: 'pc-armadas' },
+          // === Discos SSD corrections ===
+          { namePattern: "name LIKE '%EXTERNO%' OR name LIKE '%EXTERNA%' OR name LIKE '%PORTABLE%'", wrongSlug: 'discos-ssd', correctSlug: 'discos-externos' },
+          { namePattern: "name LIKE '%NOTEBOOK%' OR name LIKE '%LAPTOP%'", wrongSlug: 'discos-ssd', correctSlug: 'notebooks' },
+          { namePattern: "name LIKE '%PC GAMER%' OR name LIKE '%PC LENOVO%'", wrongSlug: 'discos-ssd', correctSlug: 'pc-armadas' },
+          { namePattern: "name LIKE '%PENDRIVE%' OR name LIKE '%FLASH DRIVE%'", wrongSlug: 'discos-ssd', correctSlug: 'pendrives' },
+          // === Discos HDD corrections ===
+          { namePattern: "name LIKE '%EXTERNO%' OR name LIKE '%EXTERNA%' OR name LIKE '%PORTABLE%'", wrongSlug: 'discos-hdd', correctSlug: 'discos-externos' },
+          // === Fuentes corrections ===
+          { namePattern: "name LIKE '%PC GAMER%'", wrongSlug: 'fuentes', correctSlug: 'pc-armadas' },
+          // === Gabinetes corrections ===
+          { namePattern: "name LIKE '%PC GAMER%'", wrongSlug: 'gabinetes', correctSlug: 'pc-armadas' },
+        ]
+
+        let autoFixed = 0
+        for (const fix of QUICK_FIXES) {
+          const wrongCatId = slugToId[fix.wrongSlug]
+          const correctCatId = slugToId[fix.correctSlug]
+          if (!wrongCatId || !correctCatId) continue
+          const r = await db.execute({
+            sql: `UPDATE products SET categoryId = ?, categorySource = 'auto', updatedAt = datetime('now') WHERE categoryId = ? AND (${fix.namePattern}) AND (categorySource IS NULL OR categorySource != 'manual')`,
+            args: [correctCatId, wrongCatId],
+          })
+          autoFixed += (r.rowsAffected as number) || 0
+        }
+        if (autoFixed > 0) {
+          console.log(`[sync] Post-sync validation: auto-fixed ${autoFixed} miscategorized products`)
+          syncResult.message += ` | ${autoFixed} categorías corregidas automáticamente`
+        }
+      } catch (validationErr) {
+        console.warn('[sync] Post-sync validation failed (non-critical):', validationErr)
+      }
+    }
+
+    return NextResponse.json({ ...syncResult })
   } catch (error) {
     console.error('Error syncing supplier:', error)
     return NextResponse.json({ error: 'Error del servidor' }, { status: 500 })
