@@ -213,7 +213,7 @@ export default function AdminLayout({
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-4 lg:p-6 min-w-0 overflow-hidden">
+        <main className="flex-1 p-4 lg:p-6 min-w-0">
           {children}
         </main>
       </div>

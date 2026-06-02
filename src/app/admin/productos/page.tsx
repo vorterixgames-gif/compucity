@@ -449,17 +449,15 @@ export default function AdminProductos() {
       </div>
 
       {/* Products Table */}
-      <div style={{ maxWidth: '100%', overflow: 'hidden' }}>
-        <Card className="min-w-0">
-          <CardContent className="p-0 min-w-0" style={{ maxWidth: '100%', overflow: 'hidden' }}>
-            {filteredProducts.length === 0 ? (
-              <div className="text-center py-12 text-gray-400">
-                <Package className="w-12 h-12 mx-auto mb-2 opacity-30" />
-                <p>No hay productos{search ? ' que coincidan con la búsqueda' : ''}</p>
-              </div>
-            ) : (
-              <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
-                <Table>
+      <Card style={{ minWidth: 0, maxWidth: '100%' }}>
+        <CardContent className="p-0" style={{ minWidth: 0 }}>
+          {filteredProducts.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              <Package className="w-12 h-12 mx-auto mb-2 opacity-30" />
+              <p>No hay productos{search ? ' que coincidan con la búsqueda' : ''}</p>
+            </div>
+          ) : (
+              <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nombre</TableHead>
@@ -560,11 +558,9 @@ export default function AdminProductos() {
                   ))}
                 </TableBody>
               </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Product Form Dialog */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
