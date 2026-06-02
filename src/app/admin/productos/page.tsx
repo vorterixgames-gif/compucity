@@ -449,8 +449,8 @@ export default function AdminProductos() {
       </div>
 
       {/* Products Table */}
-      <Card className="overflow-hidden min-w-0">
-        <CardContent className="p-0 min-w-0 overflow-hidden">
+      <Card className="min-w-0">
+        <CardContent className="p-0 min-w-0">
         <div className="admin-table-wrapper">
           {filteredProducts.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
