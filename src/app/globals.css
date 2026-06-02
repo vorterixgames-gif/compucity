@@ -315,13 +315,6 @@ a, button {
   scrollbar-color: #8CC0A8 #EFF5F2;
 }
 
-/* Ensure scrollbar is always visible on desktop */
-@media (min-width: 1024px) {
-  .admin-table-wrapper {
-    scrollbar-width: thin !important;
-  }
-}
-
 .admin-table-wrapper::-webkit-scrollbar {
   height: 8px;
 }
@@ -339,4 +332,58 @@ a, button {
 
 .admin-table-wrapper::-webkit-scrollbar-thumb:hover {
   background: #3A8B68;
+}
+
+/* Sticky columns for admin products table */
+.sticky-col-left {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: inherit;
+}
+
+.sticky-col-right {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background: inherit;
+}
+
+/* Ensure sticky cells have solid background when scrolling */
+.admin-table-wrapper tr .sticky-col-left,
+.admin-table-wrapper tr .sticky-col-right {
+  background: white;
+}
+
+.admin-table-wrapper tr:nth-child(even) .sticky-col-left,
+.admin-table-wrapper tr:nth-child(even) .sticky-col-right {
+  background: #f9fafb;
+}
+
+.admin-table-wrapper tr:hover .sticky-col-left,
+.admin-table-wrapper tr:hover .sticky-col-right {
+  background: #f5f5f4;
+}
+
+/* Shadow indicators for sticky columns */
+.sticky-col-left::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: -6px;
+  bottom: 0;
+  width: 6px;
+  background: linear-gradient(to right, rgba(0,0,0,0.06), transparent);
+  pointer-events: none;
+}
+
+.sticky-col-right::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -6px;
+  bottom: 0;
+  width: 6px;
+  background: linear-gradient(to left, rgba(0,0,0,0.06), transparent);
+  pointer-events: none;
 }

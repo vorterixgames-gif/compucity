@@ -442,7 +442,7 @@ export default function AdminProductos() {
       </div>
 
       {/* Products Table */}
-      <div className="rounded-xl border shadow-sm bg-card text-card-foreground overflow-hidden">
+      <div className="rounded-xl border shadow-sm bg-card text-card-foreground">
         <div className="admin-table-wrapper">
           {filteredProducts.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
@@ -453,20 +453,20 @@ export default function AdminProductos() {
               <table className="w-full caption-bottom text-sm" style={{ minWidth: '900px' }}>
                 <thead className="[&_tr]:border-b">
                   <tr className="hover:bg-muted/50 border-b transition-colors">
-                    <th className="text-foreground h-10 px-2 text-left align-middle font-medium whitespace-nowrap">Nombre</th>
+                    <th className="text-foreground h-10 px-2 text-left align-middle font-medium whitespace-nowrap sticky-col-left">Nombre</th>
                     <th className="text-foreground h-10 px-2 text-left align-middle font-medium whitespace-nowrap">Categoría</th>
                     <th className="text-foreground h-10 px-2 text-right align-middle font-medium whitespace-nowrap">Costo USD</th>
                     <th className="text-foreground h-10 px-2 text-right align-middle font-medium whitespace-nowrap">Precio Lista</th>
                     <th className="text-foreground h-10 px-2 text-right align-middle font-medium whitespace-nowrap">Efectivo</th>
                     <th className="text-foreground h-10 px-2 text-center align-middle font-medium whitespace-nowrap">Stock</th>
                     <th className="text-foreground h-10 px-2 text-center align-middle font-medium whitespace-nowrap">Activo</th>
-                    <th className="text-foreground h-10 px-2 text-right align-middle font-medium whitespace-nowrap">Acciones</th>
+                    <th className="text-foreground h-10 px-2 text-right align-middle font-medium whitespace-nowrap sticky-col-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="[&_tr:last-child]:border-0">
                   {filteredProducts.map((product, index) => (
                     <tr key={product.id} className={`hover:bg-muted/50 border-b transition-colors ${index % 2 === 1 ? 'bg-gray-50/50' : ''}`}>
-                      <td className="p-2 align-middle whitespace-nowrap">
+                      <td className="p-2 align-middle whitespace-nowrap sticky-col-left">
                         <div>
                           <div className="font-medium text-gray-900">{product.name}</div>
                           {product.sku && (
@@ -526,7 +526,7 @@ export default function AdminProductos() {
                           {product.isActive ? 'Sí' : 'No'}
                         </Badge>
                       </td>
-                      <td className="p-2 align-middle whitespace-nowrap text-right">
+                      <td className="p-2 align-middle whitespace-nowrap text-right sticky-col-right">
                         <div className="flex items-center justify-end gap-1">
                           <Button
                             variant="ghost"
