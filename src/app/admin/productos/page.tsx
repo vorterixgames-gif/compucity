@@ -20,15 +20,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+// Card & Table components not used - using plain HTML to avoid flex layout issues with overflow scroll
 import {
   Dialog,
   DialogContent,
@@ -449,45 +441,44 @@ export default function AdminProductos() {
       </div>
 
       {/* Products Table */}
-      <Card className="min-w-0">
-        <CardContent className="p-0 min-w-0">
-        <div className="admin-table-wrapper">
+      <div className="rounded-xl border shadow-sm bg-card text-card-foreground" style={{ minWidth: 0 }}>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', width: '100%' }}>
           {filteredProducts.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               <Package className="w-12 h-12 mx-auto mb-2 opacity-30" />
               <p>No hay productos{search ? ' que coincidan con la búsqueda' : ''}</p>
             </div>
           ) : (
-              <Table style={{ minWidth: '900px' }}>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>Categoría</TableHead>
-                    <TableHead className="text-right">Costo USD</TableHead>
-                    <TableHead className="text-right">Precio Lista</TableHead>
-                    <TableHead className="text-right">Efectivo</TableHead>
-                    <TableHead className="text-center">Stock</TableHead>
-                    <TableHead className="text-center">Activo</TableHead>
-                    <TableHead className="text-right">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <table className="w-full caption-bottom text-sm" style={{ minWidth: '900px' }}>
+                <thead className="[&_tr]:border-b">
+                  <tr className="hover:bg-muted/50 border-b transition-colors">
+                    <th className="text-foreground h-10 px-2 text-left align-middle font-medium whitespace-nowrap">Nombre</th>
+                    <th className="text-foreground h-10 px-2 text-left align-middle font-medium whitespace-nowrap">Categoría</th>
+                    <th className="text-foreground h-10 px-2 text-right align-middle font-medium whitespace-nowrap">Costo USD</th>
+                    <th className="text-foreground h-10 px-2 text-right align-middle font-medium whitespace-nowrap">Precio Lista</th>
+                    <th className="text-foreground h-10 px-2 text-right align-middle font-medium whitespace-nowrap">Efectivo</th>
+                    <th className="text-foreground h-10 px-2 text-center align-middle font-medium whitespace-nowrap">Stock</th>
+                    <th className="text-foreground h-10 px-2 text-center align-middle font-medium whitespace-nowrap">Activo</th>
+                    <th className="text-foreground h-10 px-2 text-right align-middle font-medium whitespace-nowrap">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="[&_tr:last-child]:border-0">
                   {filteredProducts.map((product, index) => (
-                    <TableRow key={product.id} className={index % 2 === 1 ? 'bg-gray-50/50' : ''}>
-                      <TableCell>
+                    <tr key={product.id} className={`hover:bg-muted/50 border-b transition-colors ${index % 2 === 1 ? 'bg-gray-50/50' : ''}`}>
+                      <td className="p-2 align-middle whitespace-nowrap">
                         <div>
                           <div className="font-medium text-gray-900">{product.name}</div>
                           {product.sku && (
                             <div className="text-xs text-gray-400 font-mono">{product.sku}</div>
                           )}
                         </div>
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td className="p-2 align-middle whitespace-nowrap">
                         <span className="text-sm text-gray-600">
                           {product.categoryName || '—'}
                         </span>
-                      </TableCell>
-                      <TableCell className="text-right">
+                      </td>
+                      <td className="p-2 align-middle whitespace-nowrap text-right">
                         {product.costPrice && product.costPrice > 0 ? (
                           <div className="flex items-center justify-end gap-1">
                             <DollarSign className="w-3 h-3 text-compucity-green" />
@@ -508,11 +499,11 @@ export default function AdminProductos() {
                         ) : (
                           <span className="text-gray-400">—</span>
                         )}
-                      </TableCell>
-                      <TableCell className="text-right">
+                      </td>
+                      <td className="p-2 align-middle whitespace-nowrap text-right">
                         <div className="font-medium text-gray-900">{formatPrice(product.price)}</div>
-                      </TableCell>
-                      <TableCell className="text-right">
+                      </td>
+                      <td className="p-2 align-middle whitespace-nowrap text-right">
                         {product.comparePrice ? (
                           <div className="text-sm text-green-600 font-medium">
                             {formatPrice(product.comparePrice)}
@@ -520,21 +511,21 @@ export default function AdminProductos() {
                         ) : (
                           <span className="text-gray-400">—</span>
                         )}
-                      </TableCell>
-                      <TableCell className="text-center">
+                      </td>
+                      <td className="p-2 align-middle whitespace-nowrap text-center">
                         <Badge
                           variant="secondary"
                           className={product.stock > 5 ? 'bg-green-100 text-green-800' : product.stock > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}
                         >
                           {product.stock}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
+                      </td>
+                      <td className="p-2 align-middle whitespace-nowrap text-center">
                         <Badge variant="secondary" className={product.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}>
                           {product.isActive ? 'Sí' : 'No'}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
+                      </td>
+                      <td className="p-2 align-middle whitespace-nowrap text-right">
                         <div className="flex items-center justify-end gap-1">
                           <Button
                             variant="ghost"
@@ -554,15 +545,14 @@ export default function AdminProductos() {
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   ))}
-                </TableBody>
-              </Table>
+                </tbody>
+              </table>
           )}
         </div>
-        </CardContent>
-      </Card>
+      </div>
 
       {/* Product Form Dialog */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>

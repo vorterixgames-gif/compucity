@@ -173,7 +173,7 @@ export default function AdminLayout({
       </Sheet>
 
       {/* Main Content */}
-      <div id="admin-main-content" className="lg:pl-64 flex-1 flex flex-col min-h-screen min-w-0 overflow-x-hidden">
+      <div id="admin-main-content" className="lg:pl-64 flex-1 flex flex-col min-h-screen min-w-0">
         {/* Top Bar */}
         <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 lg:px-6 py-3">
           <div className="flex items-center justify-between">
@@ -213,7 +213,7 @@ export default function AdminLayout({
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-4 lg:p-6 min-w-0 overflow-x-hidden">
+        <main className="flex-1 p-4 lg:p-6 min-w-0">
           {children}
         </main>
       </div>
