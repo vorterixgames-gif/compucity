@@ -456,8 +456,15 @@ function CuponesTab() {
 // BANNERS TAB
 // ============================================
 
+interface CategoryOption {
+  id: string
+  name: string
+  slug: string
+}
+
 function BannersTab() {
   const [banners, setBanners] = useState<Banner[]>([])
+  const [categories, setCategories] = useState<CategoryOption[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [formOpen, setFormOpen] = useState(false)
@@ -466,6 +473,17 @@ function BannersTab() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [form, setForm] = useState<BannerForm>(emptyBannerForm)
   const [formError, setFormError] = useState('')
+
+  // Predefined link options
+  const linkOptions = [
+    { value: '', label: 'Sin link' },
+    { value: '/arma-tu-pc', label: '🎤 Armá tu PC' },
+    { value: '/categoria/ofertas', label: '🏷️ Ofertas' },
+    ...categories.map(c => ({
+      value: `/categoria/${c.slug}`,
+      label: `📁 ${c.name}`,
+    })),
+  ]
 
   const loadBanners = useCallback(async () => {
     try {
@@ -479,7 +497,19 @@ function BannersTab() {
     }
   }, [])
 
-  useEffect(() => { loadBanners() }, [loadBanners])
+  const loadCategories = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/categories')
+      const data = await res.json()
+      if (data.ok && data.categories) {
+        setCategories((data.categories as CategoryOption[]).filter(c => !c.slug.startsWith('_')))
+      }
+    } catch (error) {
+      console.error('Error loading categories:', error)
+    }
+  }, [])
+
+  useEffect(() => { loadBanners(); loadCategories() }, [loadBanners, loadCategories])
 
   const handleCreate = () => {
     setEditingId(null)
@@ -690,8 +720,24 @@ function BannersTab() {
                 <Input id="buttonText" value={form.buttonText} onChange={(e) => updateForm('buttonText', e.target.value)} placeholder="Ver ofertas" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="buttonLink">Link del botón</Label>
-                <Input id="buttonLink" value={form.buttonLink} onChange={(e) => updateForm('buttonLink', e.target.value)} placeholder="/categoria/ofertas" />
+                <Label htmlFor="buttonLink">Destino del botón</Label>
+                <Select value={form.buttonLink || '_none'} onValueChange={(v) => updateForm('buttonLink', v === '_none' ? '' : v)}>
+                  <SelectTrigger><SelectValue placeholder="Seleccionar destino" /></SelectTrigger>
+                  <SelectContent>
+                    {linkOptions.map(opt => (
+                      <SelectItem key={opt.value || '_none'} value={opt.value || '_none'}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-400 mt-1">O escribí un link personalizado:</p>
+                <Input
+                  value={form.buttonLink}
+                  onChange={(e) => updateForm('buttonLink', e.target.value)}
+                  placeholder="/categoria/ofertas"
+                  className="text-xs"
+                />
               </div>
             </div>
 
