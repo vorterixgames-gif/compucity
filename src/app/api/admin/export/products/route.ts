@@ -17,7 +17,7 @@ export async function GET() {
     const cashDiscount = await getStoreConfigNumber('cash_discount', 10)
 
     const result = await db.execute(
-      `SELECT p.name, p.sku, p.costPrice, p.price, p.comparePrice, p.stock, p.isActive, p.isFeatured, p.providerId, p.providerSku, p.markup, p.cashDiscount, c.name as categoryName
+      `SELECT p.name, p.sku, p.costPrice, p.price, p.comparePrice, p.stock, p.isActive, p.isFeatured, p.providerId, p.providerSku, p.markup, p.cashDiscount, p.ivaRate, c.name as categoryName
        FROM products p 
        LEFT JOIN categories c ON p.categoryId = c.id 
        ORDER BY p.createdAt DESC`
@@ -31,8 +31,9 @@ export async function GET() {
       'SKU',
       'Categoría',
       'Costo USD',
-      'Precio Lista',
-      'Precio Efectivo',
+      '% IVA',
+      'Precio Lista (IVA incl.)',
+      'Precio Efectivo (IVA incl.)',
       'Stock',
       'Activo',
       'Destacado',
@@ -44,15 +45,15 @@ export async function GET() {
     const rows = products.map(p => {
       let listPrice = Number(p.price) || 0
       let cashPrice = p.comparePrice ? Number(p.comparePrice) : 0
+      const ivaRate = p.ivaRate != null ? Number(p.ivaRate) : 10.5
 
       // Auto-calculate from USD cost if costPrice > 0 (same logic as admin products API)
       if (p.costPrice && Number(p.costPrice) > 0) {
-        // Use product-level markup/discount if set, otherwise use global
+        // Use product-level markup/discount/iva if set, otherwise use global/defaults
         const effectiveMarkup = p.markup != null ? Number(p.markup) : markup
         const effectiveCashDiscount = p.cashDiscount != null ? Number(p.cashDiscount) : cashDiscount
-        const effectiveIvaRate = p.ivaRate != null ? Number(p.ivaRate) : 10.5
-        listPrice = Math.ceil(Number(p.costPrice) * dollar.rate * (1 + effectiveMarkup / 100) * (1 + effectiveIvaRate / 100))
-        cashPrice = Math.ceil(Number(p.costPrice) * dollar.rate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * (1 + effectiveIvaRate / 100))
+        listPrice = Math.ceil(Number(p.costPrice) * dollar.rate * (1 + effectiveMarkup / 100) * (1 + ivaRate / 100))
+        cashPrice = Math.ceil(Number(p.costPrice) * dollar.rate * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * (1 + ivaRate / 100))
       }
 
       return [
@@ -60,6 +61,7 @@ export async function GET() {
         escapeCsv(String(p.sku || '')),
         escapeCsv(String(p.categoryName || '')),
         p.costPrice && Number(p.costPrice) > 0 ? Number(p.costPrice).toFixed(2) : '',
+        ivaRate + '%',
         listPrice > 0 ? String(listPrice) : '',
         cashPrice > 0 ? String(cashPrice) : '',
         String(p.stock ?? 0),
