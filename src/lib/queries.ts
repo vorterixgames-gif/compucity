@@ -178,15 +178,16 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
   } as Product
 }
 
-export async function searchProducts(query: string): Promise<Product[]> {
+export async function searchProducts(query: string, limit = 20): Promise<Product[]> {
   const searchTerm = `%${query}%`
   const [result, dollar, markup, cashDiscount] = await Promise.all([
     db.execute({
       sql: `SELECT * FROM products
             WHERE isActive = 1 AND stock > 0
             AND (name LIKE ? OR description LIKE ? OR sku LIKE ?)
-            LIMIT 20`,
-      args: [searchTerm, searchTerm, searchTerm],
+            ORDER BY CASE WHEN name LIKE ? THEN 0 ELSE 1 END, COALESCE(createdAt, updatedAt) DESC
+            LIMIT ?`,
+      args: [searchTerm, searchTerm, searchTerm, searchTerm, limit],
     }),
     fetchDollarRate(),
     getStoreConfigNumber('markup', 30),

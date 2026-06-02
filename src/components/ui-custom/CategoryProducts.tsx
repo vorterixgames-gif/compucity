@@ -28,6 +28,7 @@ interface Props {
   parentCategory: { id: string; name: string; slug: string } | null
   categorySlug: string
   categoryName: string
+  searchQuery: string | null
 }
 
 type SortOption = 'newest' | 'price-asc' | 'price-desc' | 'name-az'
@@ -54,6 +55,7 @@ export default function CategoryProducts({
   parentCategory,
   categorySlug,
   categoryName,
+  searchQuery,
 }: Props) {
   const [sort, setSort] = useState<SortOption>('newest')
   const [priceMin, setPriceMin] = useState('')
@@ -113,7 +115,18 @@ export default function CategoryProducts({
   return (
     <div className="flex-1">
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold text-gray-900">{categoryName}</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-gray-900">{categoryName}</h1>
+          {searchQuery && (
+            <a
+              href={`/categoria/${categorySlug}`}
+              className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-compucity-green transition"
+            >
+              <X className="h-3.5 w-3.5" />
+              Limpiar búsqueda
+            </a>
+          )}
+        </div>
         <span className="text-sm text-gray-500">
           {filteredAndSorted.length} producto{filteredAndSorted.length !== 1 ? 's' : ''}
           {hasActiveFilters && products.length !== filteredAndSorted.length && (

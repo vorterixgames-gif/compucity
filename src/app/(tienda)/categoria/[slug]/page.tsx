@@ -1,6 +1,6 @@
 import CategoryProducts from '@/components/ui-custom/CategoryProducts'
 import Breadcrumbs from '@/components/ui-custom/Breadcrumbs'
-import { getEnabledCategories, getProductsByCategory, getAllActiveProducts } from '@/lib/queries'
+import { getEnabledCategories, getProductsByCategory, getAllActiveProducts, searchProducts } from '@/lib/queries'
 import { db } from '@/lib/db'
 import { notFound } from 'next/navigation'
 
@@ -17,9 +17,17 @@ export default async function CategoryPage({ params, searchParams }: Props) {
 
   // Get only enabled categories for the storefront
   const categories = await getEnabledCategories()
-  const products = slug === 'todos'
-    ? await getAllActiveProducts()
-    : await getProductsByCategory(slug)
+
+  // Search or list products
+  let products
+  if (q) {
+    // When there's a search query, search across all products
+    products = await searchProducts(q, 200)
+  } else if (slug === 'todos') {
+    products = await getAllActiveProducts()
+  } else {
+    products = await getProductsByCategory(slug)
+  }
 
   // Find current category
   const currentCategory = categories.find(c => c.slug === slug)
@@ -28,9 +36,11 @@ export default async function CategoryPage({ params, searchParams }: Props) {
     notFound()
   }
 
-  const categoryName = slug === 'todos'
-    ? 'Todos los productos'
-    : currentCategory?.name ?? slug
+  const categoryName = q
+    ? `Resultados para "${q}"`
+    : slug === 'todos'
+      ? 'Todos los productos'
+      : currentCategory?.name ?? slug
 
   // Get subcategories for the current category (only enabled)
   let subcategories: { id: string; name: string; slug: string }[] = []
@@ -122,6 +132,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
           parentCategory={parentCategory}
           categorySlug={slug}
           categoryName={categoryName}
+          searchQuery={q ?? null}
         />
       </div>
     </div>
