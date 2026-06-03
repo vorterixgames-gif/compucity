@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-02 (sesion 6)
+**Ultima actualizacion:** 2026-06-03 (sesion 7)
 
 ---
 
@@ -10,6 +10,9 @@
 - **Ubicacion:** La Falda, Valle de Punilla, Cordoba, Argentina
 - **WhatsApp:** 3517656918
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
+- **URL produccion:** https://my-project-eight-liard-96.vercel.app/
+- **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
+- **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
 - **Framework:** Next.js 16 + TypeScript
@@ -18,11 +21,12 @@
 - **Auth:** Custom HMAC cookie auth (admin_token + customer_token)
 - **Estado:** Zustand + React Query
 - **Deploy:** GitHub push a main -> Vercel auto-deploy
+- **Runtime:** Bun
 
 ### Credenciales y Accesos
 - **GitHub:** https://github.com/vorterixgames-gif/compucity
 - **Turso DB URL:** Ver `.env` (DATABASE_URL + TURSO_AUTH_TOKEN)
-- **Admin Secret:** Ver `.env` (ADMIN_SECRET)
+- **Admin Secret:** Ver `.env` (ADMIN_SECRET = compucity_hmac_prod_2026_a8f3e1b9c7d2)
 - **Air Intra API:** Ver `.env` (credenciales del proveedor)
 - **Nota:** Todas las credenciales sensibles estan en `.env` (no commiteado al repo)
 
@@ -35,14 +39,14 @@
 - **Elit:** MANTIENE TODOS sus productos (notebooks, impresion, toners, UPS, etc.)
 - **Invid Computers:** MANTIENE TODOS sus productos (notebooks, routers, switches, etc.)
 
-### Estado actual de productos (2026-06-02 sesion 3)
+### Estado actual de productos (2026-06-03 sesion 7)
 | Proveedor | Activos | Total | Con imagen | Sin imagen | Con costPrice |
 |-----------|---------|-------|------------|------------|---------------|
-| Air Intra | 1,493 | 1,755 | 189 | 1,304 | 1,755 |
-| Elit | 1,508 | 1,519 | 1,517 | 2 | 1,519 |
+| Air Intra | 1,489 | 1,754 | 191 | 1,563 | 1,754 |
+| Elit | 1,506 | 1,518 | 1,516 | 2 | 1,518 |
 | Invid Computers | 1,187 | 1,191 | 1,191 | 0 | 1,191 |
 | Manual | 1 | 1 | 1 | 0 | 1 |
-| **Total** | **4,189** | **4,466** | **2,898** | **1,306** | **4,466** |
+| **Total** | **4,183** | **4,464** | **2,899** | **1,565** | **4,464** |
 
 ---
 
@@ -84,38 +88,72 @@
 ### Slides
 | # | Badge | Titulo | CTA Principal | CTA Secundario | Imagen |
 |---|-------|--------|---------------|----------------|--------|
-| 1 | Arma tu PC | Arma tu PC **gamer** | Comenzar a armar -> `/arma-tu-pc` | Ver componentes -> `/categoria/componentes` | `hero-slide-pc-builder.png` |
+| 1 | Arma tu PC | Arma tu PC | Comenzar a armar -> `/arma-tu-pc` | Ver componentes -> `/categoria/componentes` | `hero-slide-pc-builder.png` |
 | 2 | Notebooks | Notebooks y **laptops** | Ver notebooks -> `/categoria/notebooks` | Ver todas las marcas -> `/categoria/todos` | `hero-slide-notebooks.png` |
 | 3 | Componentes | Placas de video y **componentes** | Ver componentes -> `/categoria/componentes` | Ver productos -> `/categoria/todos` | `hero-slide-components.png` |
 | 4 | Perifericos | Perifericos **gaming** | Ver perifericos -> `/categoria/perifericos` | Ver todo -> `/categoria/todos` | `hero-slide-perifericos.png` |
 
 ---
 
-## Sistema de Precios (Global + Individual)
+## Sistema de Precios (Global + Individual + IVA)
 
 ### Configuracion Global
 - **Markup (margen de ganancia):** 15% (store_config: markup = 15)
 - **Descuento efectivo:** 0% (store_config: cash_discount = 0)
+- **IVA por defecto:** 10.5% (campo ivaRate en products, default 10.5)
 - **Fuente dolar:** Banco Nacion (dolar_api)
 - **Panel admin:** `/admin/configuracion` - Permite cambiar dolar, markup, descuento global
 
-### Markup y Descuento Individual por Producto (NUEVO)
+### Markup y Descuento Individual por Producto
 - Cada producto puede tener su propio **markup** y **cashDiscount** (campos nullable en la DB)
 - Si el producto tiene valor individual, se usa ese; si es NULL, se usa el global
 - **Interfaz admin:** Campos "Margen individual (%)" y "Descuento efectivo individual (%)" en el formulario de productos
 - **Indicadores visuales:** Badges "M" (markup) y "D" (descuento) en la tabla de productos
 - **Vista previa:** El calculo automatico muestra si se estan usando valores individuales con etiqueta "(individual)"
+- **Estado actual:** 2 productos con markup individual, 12 con cashDiscount individual
+
+### IVA Diferenciado (IMPLEMENTADO sesion 7)
+- **Campo:** `ivaRate REAL DEFAULT 10.5` en tabla products
+- **Distribucion actual:** 4,455 productos con IVA 10.5%, 9 productos con IVA 21%
+- **Interfaz admin:** Selector de IVA (10.5% / 21%) en el formulario de productos
+- **El dueño debe:** Cambiar manualmente a 21% los productos que correspondan (monitores, perifericos en general)
+
+### Precio de Oferta (salePrice)
+- **Campos:** `salePrice REAL`, `saleStart TEXT`, `saleEnd TEXT` en tabla products
+- **Logica:** Si salePrice > 0 y estamos dentro del rango de fechas, se muestra como precio de oferta
+- **Estado actual:** 1 producto con salePrice configurado
+- **Admin:** Se gestiona desde el formulario de productos o desde Promociones
 
 ### Formulas de Precio
 ```
-Precio de lista  = costoUSD x cotizacionDolar x (1 + markup/100)
-Precio efectivo  = costoUSD x cotizacionDolar x (1 + (markup - cashDiscount)/100)
+Precio de lista  = costUSD x (1 + ivaRate/100) x (1 + markup/100) x cotizacionDolar
+Precio efectivo  = costUSD x (1 + ivaRate/100) x (1 + (markup - cashDiscount)/100) x cotizacionDolar
+Precio oferta    = salePrice (si esta dentro del rango de fechas, reemplaza precio de lista)
 ```
-Donde markup y cashDiscount son los del producto (si tiene) o los globales (si no).
+Donde markup, cashDiscount e ivaRate son los del producto (si tiene) o los globales (si no).
 
-### Productos con markup/descuento individual
-- Actualmente 0 productos usan valores individuales (feature recien implementado)
-- Todos los productos usan el markup global de 15% y descuento de 0%
+---
+
+## Sistema de Promociones (`/admin/promociones`) (IMPLEMENTADO sesion 7)
+
+### Cupones de Descuento
+- **Componente:** `src/app/admin/promociones/page.tsx` (tab Cupones)
+- **API:** `src/app/api/admin/coupons/route.ts`
+- **Campos:** codigo, descripcion, tipo (porcentaje/monto fijo), valor, compra minima, usos maximos, vigencia (desde/hasta), estado activo/inactivo
+- **Tabla DB:** `coupons`
+- **Integracion checkout:** Los cupones se aplican en el checkout con descuento sobre el total
+- **Estado actual:** 0 cupones creados
+
+### Banners Promocionales
+- **Componente:** `src/app/admin/promociones/page.tsx` (tab Banners)
+- **API:** `src/app/api/admin/banners/route.ts`
+- **Campos:** titulo, subtitulo, texto del boton, link del boton (selector de categorias o URL custom), color de fondo, color de texto, imagen de fondo (con upload + compresion WebP), posicion (arriba/debajo del hero), orden, estado activo/inactivo
+- **Tabla DB:** `banners` (con columna `imageUrl`)
+- **Upload de imagenes:** `POST /api/admin/upload` - Comprime a WebP (max 1600px, calidad 85%) y guarda en `/public/uploads/`
+- **Vista previa:** Se muestra en tiempo real al crear/editar un banner en el admin
+- **Storefront:** Los banners activos se muestran arriba y debajo del hero en la homepage
+- **API publica:** `GET /api/banners` - Retorna banners activos ordenados por posicion y orden
+- **Estado actual:** 0 banners creados
 
 ---
 
@@ -178,7 +216,7 @@ El PC Builder usa **3 capas de defensa** para garantizar que solo productos corr
 
 ### Por que se desordenaba antes (Causa raiz resuelta)
 El problema recurrente tenia 3 causas encadenadas:
-1. **Sync categorizaba mal**: El `CATEGORY_KEYWORD_MAP` chequeaba keywords de componentes (RTX, DDR, SSD) ANTES que productos completos (NOTEBOOK, PC ARMADAS). "NOTEBOOK RTX 4060" coincidia con "RTX" primero → placas-de-video
+1. **Sync categorizaba mal**: El `CATEGORY_KEYWORD_MAP` chequeaba keywords de componentes (RTX, DDR, SSD) ANTES que productos completos (NOTEBOOK, PC ARMADAS). "NOTEBOOK RTX 4060" coincidia con "RTX" primero -> placas-de-video
 2. **PC Builder no validaba nombres**: Solo usaba categoria de DB + blacklist chica. No verificaba que el producto realmente fuera lo que dice la categoria
 3. **Cada sync traia productos nuevos mal categorizados**: Aunque corrijas manualmente, la proxima sync "contaminaba" otra vez
 
@@ -238,7 +276,7 @@ El problema recurrente tenia 3 causas encadenadas:
 
 ---
 
-## Categorias del Sitio (66 total)
+## Categorias del Sitio (63 total en DB)
 
 ### Con productos activos (top 25):
 | Slug | Nombre | Productos |
@@ -288,16 +326,53 @@ El problema recurrente tenia 3 causas encadenadas:
 
 ---
 
+## Admin Productos - Filtros y Ordenamiento (IMPLEMENTADO sesion 7)
+- **Filtros por columna:** Busqueda por nombre, filtro por proveedor, filtro por categoria, filtro por estado (activo/inactivo), filtro por IVA (10.5%/21%), filtro por stock (con/sin)
+- **Ordenamiento:** Click en encabezados de columna para ordenar asc/desc (nombre, costo USD, precio lista, stock, IVA, marca)
+- **Indicadores visuales:** Flechas de ordenamiento, badges de filtro activo, contador de resultados
+- **Limpiar filtros:** Boton para resetear todos los filtros y ordenamiento
+
+---
+
+## Protecciones contra Deploy de Versiones Viejas (IMPLEMENTADO sesion 7)
+
+### Problema que resolvio
+Se pusheo una version vieja del codigo que sobreescribio la version correcta en produccion. La causa raiz fue una carpeta `compucity-repo/` duplicada dentro del proyecto que apuntaba al mismo remote de GitHub.
+
+### Capa 1: Pre-push hook
+- **Archivo:** `githooks/pre-push` (configurado via `git config core.hooksPath githooks`)
+- **Funcion:** Antes de cada `git push`, verifica que el local no este atras del remoto
+- **Si el local esta atras:** Bloquea el push y muestra instrucciones para hacer `git pull --rebase origin main`
+- **Si hay divergencia:** Tambien bloquea y sugiere rebase
+
+### Capa 2: Script de deploy seguro
+- **Archivo:** `scripts/deploy.sh`
+- **Uso:** `bash scripts/deploy.sh "mensaje del commit"`
+- **Verificaciones:** Rama correcta, fetch remoto, comparar commits, verificar cambios pendientes, solo pushea si todo esta OK
+
+### Capa 3: Eliminacion del repo duplicado
+- **Accion:** Se elimino la carpeta `compucity-repo/` que causaba confusion
+- **Proteccion:** Se agrego `compucity-repo/` al `.gitignore` para prevenir recrearlo accidentalmente
+
+### Workflow recomendado
+1. Siempre hacer `git pull --rebase origin main` antes de trabajar
+2. Hacer cambios, probar localmente
+3. Usar `bash scripts/deploy.sh "feat: descripcion"` para pushear de forma segura
+4. Vercel se actualiza automaticamente con el push
+
+---
+
 ## Estructura Key Files
 ```
-src/app/page.tsx                          — Home (Hero Carrusel + PC Armadas + Productos)
+src/app/page.tsx                          — Home (Hero + Banners + PC Armadas + Productos)
 src/app/layout.tsx                        — Layout con favicon metadata
 src/app/globals.css                       — Variables CSS, paleta #3A8B68
-src/app/checkout/page.tsx                 — Checkout con provincia + shippingDetails JSON
+src/app/checkout/page.tsx                 — Checkout con provincia + shippingDetails JSON + cupones
 src/app/mis-pedidos/page.tsx              — Login/Registro/Dashboard de pedidos + perfil editable
 src/app/(tienda)/arma-tu-pc/page.tsx      — Arma tu PC (mobile sticky bar + compatibilidad + cantidades)
 src/app/api/pc-builder/route.ts           — API de productos por slot + filtros compatibilidad
-src/app/admin/productos/page.tsx          — Admin productos (CRUD + markup/descuento individual)
+src/app/admin/productos/page.tsx          — Admin productos (CRUD + filtros + ordenamiento + IVA + salePrice)
+src/app/admin/promociones/page.tsx        — Admin promociones (Cupones + Banners con imagen)
 src/lib/compatibility.ts                  — Logica de compatibilidad (socket, DDR, wattage)
 src/components/ui-custom/HeroSection.tsx   — Hero Carrusel (4 slides, autoplay)
 src/components/ui-custom/CompucityLogo.tsx — Logo componente
@@ -308,13 +383,19 @@ src/lib/customer-auth.ts                  — Auth de clientes (login, registro,
 src/lib/admin-auth.ts                     — Auth de admin (compartido: hash, verify, sign)
 src/lib/db.ts                             — Conexion Turso DB + migraciones automaticas
 src/lib/queries.ts                        — Queries SQL (con filtro de stock + markup individual)
-src/lib/dollar.ts                         — Cotizacion del dolar + calculateProductPrices (con markup individual)
+src/lib/dollar.ts                         — Cotizacion del dolar + calculateProductPrices (con IVA + markup individual)
+src/lib/andreani.ts                       — Login JWT, cotizacion domicilio/sucursal (INACTIVO)
 src/lib/format-product.ts                 — Formateo de productos
 src/app/api/admin/enrich/route.ts         — Enrichment de categorias (Air Intra only filter)
-src/app/api/admin/products/route.ts       — CRUD productos (soporta markup/cashDiscount individual)
+src/app/api/admin/products/route.ts       — CRUD productos (soporta markup/cashDiscount/ivaRate/salePrice)
+src/app/api/admin/banners/route.ts        — CRUD banners promocionales
+src/app/api/admin/coupons/route.ts        — CRUD cupones de descuento
+src/app/api/admin/upload/route.ts         — Upload de imagenes (WebP, max 1600px)
 src/app/api/admin/export/products/route.ts — Export CSV (respeta markup individual)
 src/app/api/admin/suppliers/sync/route.ts — Sync Air Intra (con filtro de categorias)
 src/app/api/admin/suppliers/enrich-images/route.ts — Enriquecimiento de imagenes (WebP)
+src/app/api/banners/route.ts              — API publica de banners
+src/app/api/shipping/route.ts             — API de cotizacion de envio
 src/app/api/products/route.ts             — API publica de productos
 src/app/api/categories/route.ts           — API de categorias
 src/app/api/orders/route.ts               — API de pedidos
@@ -322,22 +403,36 @@ src/app/api/customer/                     — APIs de auth de clientes
 tailwind.config.ts                        — Paleta Compucity
 public/images/hero-slide-*.png            — Imagenes del carrusel hero
 public/images/logo-compucity-icon.png     — Logo recortado
+githooks/pre-push                         — Pre-push hook de proteccion
+scripts/deploy.sh                         — Script de deploy seguro
 ```
 
 ---
 
 ## Panel Admin (`/admin`)
 - **Dashboard:** Stats (productos, pedidos, clientes, categorias, proveedores)
-- **Productos:** CRUD completo, markup/descuento individual por producto, filtro por proveedor/categoria/estado
+- **Productos:** CRUD completo, markup/descuento individual, IVA (10.5%/21%), salePrice, filtros por columna, ordenamiento
 - **Categorias:** Arbol de categorias con mapeos de proveedores
 - **Proveedores:** 3 proveedores, sync manual, conteo de productos activos
 - **Pedidos:** Lista de pedidos, gestion de estados
 - **Clientes:** Lista con busqueda, detalle expandible
+- **Promociones:** Cupones de descuento + Banners promocionales (con imagen de fondo)
 - **Configuracion:** Cotizacion del dolar, markup global, descuento global, config de la tienda
+
+### Paginas Admin
+- `/admin` - Dashboard
+- `/admin/productos` - CRUD productos con filtros y ordenamiento
+- `/admin/categorias` - Arbol de categorias
+- `/admin/proveedores` - Sync y gestion de proveedores
+- `/admin/pedidos` - Lista de pedidos
+- `/admin/clientes` - Lista de clientes
+- `/admin/promociones` - Cupones + Banners
+- `/admin/configuracion` - Config global (dolar, markup, Andreani)
+- `/admin/login` - Login de admin
 
 ### APIs Admin
 - `POST /api/admin/auth/login` / `check` / `logout`
-- `GET/POST/PUT/DELETE /api/admin/products` (soporta markup/cashDiscount individual)
+- `GET/POST/PUT/DELETE /api/admin/products` (soporta markup/cashDiscount/ivaRate/salePrice)
 - `GET/POST /api/admin/categories`
 - `GET/POST /api/admin/suppliers`
 - `POST /api/admin/suppliers/sync` - Sync Air Intra
@@ -355,26 +450,40 @@ public/images/logo-compucity-icon.png     — Logo recortado
 - `POST /api/admin/seed`
 - `GET /api/admin/export/emails` / `products`
 - `GET/PUT /api/admin/config`
+- `GET/POST/PUT/DELETE /api/admin/banners` - CRUD banners
+- `GET/POST/PUT/DELETE /api/admin/coupons` - CRUD cupones
+- `POST /api/admin/upload` - Upload de imagenes (WebP)
+
+### APIs Publicas
+- `GET /api/products` - Productos con filtros
+- `GET /api/categories` - Categorias
+- `GET /api/banners` - Banners activos
+- `GET /api/pc-builder` - Productos por slot con compatibilidad
+- `GET /api/related-products` - Productos relacionados
+- `GET /api/search` - Busqueda de productos
+- `GET /api/dolar` - Cotizacion del dolar
+- `POST /api/orders` - Crear pedido
+- `POST /api/shipping` - Cotizacion de envio
 
 ---
 
 ## Imagenes de Productos
-- **Total con imagen:** 2,898 (69%)
-- **Total sin imagen:** 1,306 (31%)
-- **Air Intra:** 1,304 sin imagen (el API syp no devuelve imagenes)
+- **Total con imagen:** 2,899 (65%)
+- **Total sin imagen:** 1,565 (35%)
+- **Air Intra:** 1,563 sin imagen (el API syp no devuelve imagenes)
 - **Elit:** 2 sin imagen (ya tienen WebP del API)
 - **Invid:** 0 sin imagen (ya tienen imagenes del API)
 - **Formato:** WebP (max 800px, calidad 75) almacenadas en tabla `product_images`
 - **Endpoint:** `/api/image/[id]` - Sirve imagenes desde product_images
 - **Cross-provider matching:** Sistema para copiar imagenes entre proveedores por brand+model
 - **Scripts:** `scripts/enrich-images.mjs`, `scripts/batch-images.mjs`, `scripts/cross-provider-images.mjs`
-- **product_images:** 144 imagenes, 2.9 MB total
+- **product_images:** 147 imagenes
 
 ---
 
 ## Base de Datos (Turso)
 - **Host:** compucity-vorterixgames-gif.aws-us-east-1.turso.io
-- **Tablas:** products (4,466), categories (66), suppliers (3), orders (0), order_items (0), customers (1), product_images (144), dollar_rates (1), store_config (20), supplier_category_mappings (85), admins (1)
+- **Tablas (14):** products (4,464), categories (63), suppliers (3), orders (0), order_items (0), customers (1), product_images (147), dollar_rates (1), store_config (20), supplier_category_mappings (85), admins (1), banners (0), coupons (0), password_reset_tokens (2)
 
 ### Schema Products
 ```
@@ -384,13 +493,64 @@ markup INTEGER, cashDiscount INTEGER,
 sku TEXT UNIQUE, stock INTEGER DEFAULT 0, isActive INTEGER DEFAULT 1,
 isFeatured INTEGER DEFAULT 0, images TEXT, specs TEXT,
 providerId TEXT, providerSku TEXT, categoryId TEXT,
-supplierCategory TEXT, duplicateOfId TEXT,
+supplierCategory TEXT, duplicateOfId TEXT, categorySource TEXT DEFAULT 'auto',
+ivaRate REAL DEFAULT 10.5,
+salePrice REAL, saleStart TEXT, saleEnd TEXT,
 createdAt TEXT, updatedAt TEXT
 ```
 
-### Nuevos campos (2026-06-02)
-- `markup INTEGER` - Margen de ganancia individual (NULL = usar global de 15%)
-- `cashDiscount INTEGER` - Descuento efectivo individual (NULL = usar global de 0%)
+### Nuevos campos (2026-06-03 sesion 7)
+- `ivaRate REAL DEFAULT 10.5` - IVA por producto (10.5% o 21%)
+- `salePrice REAL` - Precio de oferta (si no es null y estamos en rango, reemplaza precio de lista)
+- `saleStart TEXT` - Fecha inicio de oferta
+- `saleEnd TEXT` - Fecha fin de oferta
+- `categorySource TEXT DEFAULT 'auto'` - Origen de la categorizacion (auto/manual)
+
+### Schema Banners
+```
+id TEXT PRIMARY KEY, title TEXT NOT NULL, subtitle TEXT,
+buttonText TEXT, buttonLink TEXT,
+bgColor TEXT DEFAULT '#3A8B68', textColor TEXT DEFAULT '#FFFFFF',
+imageUrl TEXT,
+position TEXT DEFAULT 'top', isActive INTEGER DEFAULT 1,
+"order" INTEGER DEFAULT 0,
+createdAt TEXT, updatedAt TEXT
+```
+
+### Schema Coupons
+```
+id TEXT PRIMARY KEY, code TEXT NOT NULL UNIQUE, description TEXT,
+discountType TEXT NOT NULL, discountValue REAL NOT NULL,
+minPurchase REAL DEFAULT 0, maxUses INTEGER DEFAULT 0,
+usedCount INTEGER DEFAULT 0,
+validFrom TEXT, validUntil TEXT,
+isActive INTEGER DEFAULT 1,
+createdAt TEXT, updatedAt TEXT
+```
+
+### Store Config (20 claves)
+| Clave | Valor | Descripcion |
+|-------|-------|-------------|
+| markup | 15 | Margen de ganancia global (%) |
+| cash_discount | 0 | Descuento efectivo global (%) |
+| dollar_source | nacion | Fuente de cotizacion |
+| origin_cp | 5172 | Codigo postal origen (La Falda) |
+| store_name | {"value":"Compucity"} | Nombre de la tienda |
+| store_slogan | {"value":"Tu Mundo Digital"} | Eslogan |
+| whatsapp_number | {"value":"3517656918"} | WhatsApp |
+| andreani_user | admin@compucity.com | Usuario Andreani |
+| andreani_password | compucity2026 | Password Andreani |
+| andreani_cliente | NULL | Codigo cliente Andreani (FALTA) |
+| andreani_contrato_domicilio | NULL | Contrato domicilio Andreani (FALTA) |
+| andreani_contrato_sucursal | NULL | Contrato sucursal Andreani (FALTA) |
+| shipping_markup | 0 | Recargo envio (%) |
+| weight_per_item | 2 | Peso por item (kg) |
+| correo_email | NULL | Email Correo Argentino |
+| correo_password | NULL | Password Correo Argentino |
+| correo_user_token | NULL | Token usuario Correo Argentino |
+| correo_password_token | NULL | Token password Correo Argentino |
+| slogan | NULL | (duplicado, usar store_slogan) |
+| whatsapp | NULL | (duplicado, usar whatsapp_number) |
 
 ---
 
@@ -409,6 +569,8 @@ createdAt TEXT, updatedAt TEXT
 ## Backups
 | Fecha | Archivo | Tamano | Contenido |
 |-------|---------|--------|----------|
+| 2026-06-03 (s7) | `compucity-backup-2026-06-03s7.tar.gz` | 121MB | Codigo completo con IVA, salePrice, promociones, filtros, protecciones deploy |
+| 2026-06-03 (s7) | `compucity-db-2026-06-03s7.json` | 8.87MB | Base de datos completa (14 tablas, 4,464 productos, banners, coupons) |
 | 2026-06-02 (s6) | `compucity-backup-2026-06-02s6.tar.gz` | 246MB | Codigo completo + propuesta IVA + investigacion Andreani |
 | 2026-06-02 (s5) | `compucity-backup-2026-06-02s5.tar.gz` | 42MB | Codigo completo con prioridad imagenes + recategorizacion |
 | 2026-06-02 (s5) | `compucity-db-2026-06-02s5.json` | 8.4MB | Base de datos completa (11 tablas, 4,787 filas) |
@@ -430,51 +592,40 @@ Todos los backups en `/home/z/my-project/download/backups/`
 - **Codigo:** `src/lib/andreani.ts` - Login JWT, cotizacion domicilio/sucursal - FUNCIONA
 - **API shipping:** `src/app/api/shipping/route.ts` - Intenta Andreani -> Correo Argentino -> fallback tablas
 - **Credenciales en DB (store_config):**
-  - `andreani_user` ✅ SET
-  - `andreani_password` ✅ SET
-  - `andreani_codigoCliente` ❌ VACIO
-  - `andreani_contratoDomicilio` ❌ VACIO
+  - `andreani_user` = admin@compucity.com
+  - `andreani_password` = compucity2026
+  - `andreani_cliente` = NULL (FALTA)
+  - `andreani_contrato_domicilio` = NULL (FALTA)
 - **`hasAndreaniCredentials()`:** Requiere los 4 campos para habilitar llamadas a Andreani
 - **Fallback actual:** Tablas de precios estimados por provincia (sin API real)
-- **Accion necesaria:** El dueño debe obtener de Andreani: codigoCliente + contratoDomicilio (contrato de envio a domicilio) y cargarlos en el panel admin
-
----
-
-## IVA - Pendiente de implementacion (sesion 6)
-- **Situacion actual:** Los precios NO incluyen IVA. El calculo es: `costPrice (USD) x dollarRate x (1 + markup/100)`
-- **Requisito:** Algunos productos tienen IVA 10.5% y otros 21%
-- **Opciones propuestas:**
-  - **A (Recomendada):** Campo `ivaRate` por producto (default 21%), override individual
-  - **B:** IVA por categoria (menos flexible)
-  - **C:** Hibrida (IVA por categoria + override por producto)
-- **Preguntas pendientes para el dueño:**
-  1. Los precios de costo (costPrice) ya incluyen IVA o son sin IVA?
-  2. Mostrar precios con IVA incluido (B2C) o desglosado?
-  3. Cuantos productos tendrian 10.5%? Son pocos o muchos?
-- **Estado:** EN ESPERA de confirmacion del dueño
+- **Accion necesaria:** El dueño debe obtener de Andreani: codigoCliente + contratoDomicilio y cargarlos en el panel admin
 
 ---
 
 ## Tareas Pendientes
 
 ### Alta Prioridad
-1. **IVA diferenciado:** Implementar campo ivaRate (10.5% / 21%) una vez confirmado por el dueño
+1. **IVA 21% en productos correspondientes:** Solo 9 productos tienen IVA 21%. El dueño debe identificar y cambiar los que correspondan (monitores, perifericos en general) desde el admin
 2. **Credenciales Andreani:** El dueño debe proporcionar codigoCliente + contratoDomicilio
-3. **Cargar imagenes faltantes:** ~1,306 productos sin imagen (mayormente Air Intra). Usar cross-provider matching + web search
+3. **Cargar imagenes faltantes:** ~1,565 productos sin imagen (mayormente Air Intra). Usar cross-provider matching + web search
 4. **SODIMM en memorias-ram:** ~40 memorias SODIMM (notebook) aparecen en la categoria memorias-ram del PC builder. El sistema las marca como incompatibles, pero seria mejor moverlas a una subcategoria separada o filtrarlas del PC builder
+5. **Crear banners y cupones:** Las tablas estan vacias, el dueño puede empezar a crear promociones desde `/admin/promociones`
 
 ### Media Prioridad
-5. **Recuperacion de contrasena por email:** El endpoint `/api/customer/forgot-password` existe pero necesita configuracion de servicio de email (Resend)
-6. **Verificar compatibilidad en Arma tu PC:** Testing exhaustivo del sistema de compatibilidad
-7. **Configurar markup/descuento individual:** Empezar a usar el feature nuevo en productos que lo necesiten
+6. **Recuperacion de contrasena por email:** El endpoint `/api/customer/forgot-password` existe pero necesita configuracion de servicio de email (Resend)
+7. **Verificar compatibilidad en Arma tu PC:** Testing exhaustivo del sistema de compatibilidad
+8. **Configurar markup/descuento individual:** Empezar a usar el feature nuevo en productos que lo necesiten
+9. **Correo Argentino:** Credenciales todas NULL en store_config, sin API de envio funcional
 
 ### Baja Prioridad
-8. **Optimizar imagenes:** Los thumbnails del catalogo podrian usar tamano reducido
-9. **SEO:** Meta tags, sitemap dinamico, structured data
+10. **Optimizar imagenes:** Los thumbnails del catalogo podrian usar tamano reducido
+11. **SEO:** Meta tags, sitemap dinamico, structured data
+12. **Limpiar claves duplicadas en store_config:** slogan/whatsapp estan duplicados con store_slogan/whatsapp_number
 
 ---
 
 ## Historial de Cambios
+- **2026-06-03 (s7):** IVA diferenciado implementado - campo ivaRate (10.5%/21%) en productos, formula de precios actualizada con IVA. Sistema de promociones completo - cupones de descuento + banners promocionales con imagen de fondo. Filtros y ordenamiento en tabla de admin productos. Precio de oferta (salePrice/saleStart/saleEnd). Protecciones contra deploy de versiones viejas (pre-push hook + deploy script + eliminacion repo duplicado + .gitignore). Fix error en promociones (Image import + upload API + columna imageUrl en banners). Backups completos (codigo 121MB + DB 8.87MB)
 - **2026-06-02 (s6):** Investigacion Andreani (credenciales incompletas, falta codigoCliente + contratoDomicilio). Propuesta de implementacion IVA diferenciado (10.5% / 21%) - 3 opciones presentadas, en espera de confirmacion del dueño. Backup codigo 246MB
 - **2026-06-02 (s5):** Prioridad global de imagenes - Productos con foto aparecen primero en todo el sitio (home, categorias, busqueda, PC Builder, relacionados). Recategorizacion: 7 PC Gamer Raptor (gabinete+fuente) movidas a gabinetes, 4 Gabinete Raptor de joysticks a gabinetes, 3 Switches TP-Link de oficina-pc a switches. Homepage PC Armadas: mezcla balanceada por subcategoria (round-robin). Backup completo (codigo 42MB + DB 8.4MB)
 - **2026-06-02 (s4):** Fix de busqueda de productos - El boton "Buscar en todos los productos" ahora muestra los resultados correctos. Causa: parametro q se extraia pero no se usaba. Solucion: searchProducts(q) cuando hay query. Mejoras: orden por relevancia, titulo dinamico, link limpiar busqueda. Push a GitHub exitoso
