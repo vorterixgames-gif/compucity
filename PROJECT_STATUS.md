@@ -593,8 +593,8 @@ createdAt TEXT, updatedAt TEXT
 ## Backups
 | Fecha | Archivo | Tamano | Contenido |
 |-------|---------|--------|----------|
-| 2026-06-04 (s10) | `compucity-db-backup-2026-06-03T19-45-02-019Z.json` | 10.2MB | DB completa (14 tablas, 4,428 productos, herencia categoría padre IVA/markup) |
-| 2026-06-04 (s10) | `compucity-code-backup-20260603-194509.tar.gz` | 838KB | Código con herencia de categoría padre (getCategoryPricing) |
+| 2026-06-04 (s10) | `compucity-db-backup-2026-06-03T20-16-00-610Z.json` | 10.2MB | DB completa (14 tablas, 4,428 productos, logo nuevo sin fondo) |
+| 2026-06-04 (s10) | `compucity-code-backup-20260603-201606.tar.gz` | 844KB | Código con nuevo logo (68px, hover scale-110, fondo blanco footer) |
 | 2026-06-04 (s9) | `compucity-db-backup-2026-06-03T16-45-38-744Z.json` | 8.9MB | DB completa (14 tablas, 4,459 productos, IVA por categoría, ivaRate=NULL en productos) |
 | 2026-06-04 (s9) | `compucity-code-backup-20260603-164530.tar.gz` | 832KB | Código con IVA por categoría + orden por precio ascendente |
 | 2026-06-03 (s8) | `compucity-db-backup-2026-06-03T15-36-48-764Z.json` | 8.9MB | Base de datos completa (14 tablas, 4,459 productos, categorías con markup) |
