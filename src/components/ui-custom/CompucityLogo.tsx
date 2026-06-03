@@ -33,10 +33,10 @@ export default function CompucityLogo({
     <Image
       src="/images/logo-compucity-icon.png"
       alt="Compucity"
-      width={191}
-      height={180}
+      width={720}
+      height={286}
       className="shrink-0"
-      style={{ width: s.icon, height: 'auto' }}
+      style={{ height: s.icon, width: 'auto' }}
       priority
     />
   )
