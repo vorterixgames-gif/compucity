@@ -940,17 +940,26 @@ export default function AdminProductos() {
                       <SelectValue placeholder="Seleccionar IVA" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="_inherit">Heredar de categoría (default 10,5%)</SelectItem>
-                      <SelectItem value="10.5">10,5%</SelectItem>
-                      <SelectItem value="21">21%</SelectItem>
+                      <SelectItem value="_inherit">{(() => {
+                        const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
+                        const inheritedRate = cat?.ivaRate != null ? cat.ivaRate : 10.5
+                        return `Heredar de categoría → ${inheritedRate}%`
+                      })()}</SelectItem>
+                      <SelectItem value="10.5">10,5% (forzar individual)</SelectItem>
+                      <SelectItem value="21">21% (forzar individual)</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-gray-400">
                     {(() => {
                       const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
-                      return cat?.ivaRate != null
-                        ? `Categoría usa ${cat.ivaRate}%. Seleccioná "Heredar" para usar el de categoría.`
-                        : 'Heredar usa 10,5% por defecto. Seleccioná 21% si corresponde.'
+                      if (cat?.ivaRate != null) {
+                        return form.ivaRate === ''
+                          ? `✓ Usando IVA ${cat.ivaRate}% de la categoría "${cat.name}".`
+                          : `Categoría usa ${cat.ivaRate}%. Este producto tiene IVA ${form.ivaRate}% individual.`
+                      }
+                      return form.ivaRate === ''
+                        ? 'Usando IVA default 10,5%. La categoría no tiene IVA configurado.'
+                        : `Este producto tiene IVA ${form.ivaRate}% individual.`
                     })()}
                   </p>
                 </div>

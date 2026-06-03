@@ -721,16 +721,18 @@ export default function AdminCategorias() {
                     onValueChange={(value) => setForm(prev => ({ ...prev, ivaRate: value === '_default' ? '' : value }))}
                   >
                     <SelectTrigger className="bg-white">
-                      <SelectValue placeholder="Usar default (10,5%)" />
+                      <SelectValue placeholder="Seleccionar IVA" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="_default">Default (10,5%)</SelectItem>
+                      <SelectItem value="_default">Default → 10,5% (los productos heredan este valor)</SelectItem>
                       <SelectItem value="10.5">10,5%</SelectItem>
                       <SelectItem value="21">21%</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-gray-400">
-                    {form.ivaRate ? `IVA ${form.ivaRate}% para esta categoría` : 'Dejar vacío = usar default (10,5%)'}
+                    {form.ivaRate
+                      ? `✓ Todos los productos de esta categoría (sin IVA individual) usarán ${form.ivaRate}%`
+                      : 'Sin IVA configurado → los productos usan default 10,5%'}
                   </p>
                 </div>
               </div>
