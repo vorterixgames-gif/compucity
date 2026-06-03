@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { fetchDollarRate, getStoreConfigNumber, calculateProductPrices } from '@/lib/dollar'
+import { fetchDollarRate, getStoreConfigNumber, calculateProductPrices, CategoryMarkup } from '@/lib/dollar'
 
 export async function GET(request: NextRequest) {
   const categoryId = request.nextUrl.searchParams.get('categoryId')
@@ -11,11 +11,20 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const [dollar, markup, cashDiscount] = await Promise.all([
+    const [dollar, markup, cashDiscount, catMarkupResult] = await Promise.all([
       fetchDollarRate(),
       getStoreConfigNumber('markup', 30),
       getStoreConfigNumber('cash_discount', 10),
+      db.execute('SELECT id, markup, cashDiscount FROM categories'),
     ])
+
+    const catMarkupMap = new Map<string, CategoryMarkup>()
+    for (const row of catMarkupResult.rows as any[]) {
+      catMarkupMap.set(row.id, {
+        markup: row.markup != null ? Number(row.markup) : null,
+        cashDiscount: row.cashDiscount != null ? Number(row.cashDiscount) : null,
+      })
+    }
 
     let result
 
@@ -40,7 +49,8 @@ export async function GET(request: NextRequest) {
     }
 
     const products = (result.rows as any[]).map((p) => {
-      const calculated = calculateProductPrices(p, dollar.rate, markup, cashDiscount)
+      const catMarkup = p.categoryId ? catMarkupMap.get(p.categoryId) : null
+      const calculated = calculateProductPrices(p, dollar.rate, markup, cashDiscount, catMarkup)
       const images: string[] = calculated.images ? JSON.parse(calculated.images) : []
       return {
         id: calculated.id,

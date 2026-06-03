@@ -1,5 +1,5 @@
 import { db } from './db'
-import { fetchDollarRate, getStoreConfigNumber, calculateProductPrices } from './dollar'
+import { fetchDollarRate, getStoreConfigNumber, calculateProductPrices, CategoryMarkup } from './dollar'
 
 // ============================================
 // CATEGORÍAS
@@ -13,6 +13,8 @@ export interface Category {
   parentId: string | null
   enabled: number
   order: number
+  markup: number | null
+  cashDiscount: number | null
   createdAt: string
   updatedAt: string
 }
@@ -82,8 +84,21 @@ export interface Product {
   _costUsd?: number
 }
 
+// Helper: build a map of categoryId -> CategoryMarkup for fast lookup
+async function getCategoryMarkupMap(): Promise<Map<string, CategoryMarkup>> {
+  const catResult = await db.execute('SELECT id, markup, cashDiscount FROM categories')
+  const map = new Map<string, CategoryMarkup>()
+  for (const row of catResult.rows as any[]) {
+    map.set(row.id, {
+      markup: row.markup != null ? Number(row.markup) : null,
+      cashDiscount: row.cashDiscount != null ? Number(row.cashDiscount) : null,
+    })
+  }
+  return map
+}
+
 export async function getAllActiveProducts(limit = 50): Promise<Product[]> {
-  const [result, dollar, markup, cashDiscount] = await Promise.all([
+  const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
     db.execute({
       sql: "SELECT * FROM products WHERE isActive = 1 AND stock > 0 ORDER BY CASE WHEN images IS NOT NULL AND images != '[]' THEN 0 ELSE 1 END, COALESCE(createdAt, updatedAt) DESC LIMIT ?",
       args: [limit],
@@ -91,23 +106,25 @@ export async function getAllActiveProducts(limit = 50): Promise<Product[]> {
     fetchDollarRate(),
     getStoreConfigNumber('markup', 30),
     getStoreConfigNumber('cash_discount', 10),
+    getCategoryMarkupMap(),
   ])
 
   return (result.rows as any[]).map(p =>
-    calculateProductPrices(p, dollar.rate, markup, cashDiscount)
+    calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
   ) as Product[]
 }
 
 export async function getFeaturedProducts(): Promise<Product[]> {
-  const [result, dollar, markup, cashDiscount] = await Promise.all([
+  const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
     db.execute("SELECT * FROM products WHERE isFeatured = 1 AND isActive = 1 AND stock > 0 ORDER BY CASE WHEN images IS NOT NULL AND images != '[]' THEN 0 ELSE 1 END, COALESCE(createdAt, updatedAt) DESC LIMIT 8"),
     fetchDollarRate(),
     getStoreConfigNumber('markup', 30),
     getStoreConfigNumber('cash_discount', 10),
+    getCategoryMarkupMap(),
   ])
 
   return (result.rows as any[]).map(p =>
-    calculateProductPrices(p, dollar.rate, markup, cashDiscount)
+    calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
   ) as Product[]
 }
 
@@ -136,7 +153,7 @@ export async function getProductsByCategory(slug: string): Promise<Product[]> {
   const allIds = [categoryId, ...subIds]
   const placeholders = allIds.map(() => '?').join(',')
 
-  const [result, dollar, markup, cashDiscount] = await Promise.all([
+  const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
     db.execute({
       sql: `SELECT p.* FROM products p
             WHERE p.categoryId IN (${placeholders}) AND p.isActive = 1 AND p.stock > 0
@@ -146,17 +163,18 @@ export async function getProductsByCategory(slug: string): Promise<Product[]> {
     fetchDollarRate(),
     getStoreConfigNumber('markup', 30),
     getStoreConfigNumber('cash_discount', 10),
+    getCategoryMarkupMap(),
   ])
 
   return (result.rows as any[]).map(p =>
-    calculateProductPrices(p, dollar.rate, markup, cashDiscount)
+    calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
   ) as Product[]
 }
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {
-  const [result, dollar, markup, cashDiscount] = await Promise.all([
+  const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
     db.execute({
-      sql: `SELECT p.*, c.name as categoryName, c.slug as categorySlug
+      sql: `SELECT p.*, c.name as categoryName, c.slug as categorySlug, c.markup as categoryMarkup, c.cashDiscount as categoryCashDiscount
             FROM products p
             LEFT JOIN categories c ON p.categoryId = c.id
             WHERE p.slug = ?`,
@@ -165,12 +183,17 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
     fetchDollarRate(),
     getStoreConfigNumber('markup', 30),
     getStoreConfigNumber('cash_discount', 10),
+    getCategoryMarkupMap(),
   ])
 
   const rows = result.rows as any[]
   if (!rows[0]) return null
 
-  const row = calculateProductPrices(rows[0], dollar.rate, markup, cashDiscount)
+  const catMarkup: CategoryMarkup | null = rows[0].categoryId
+    ? (catMarkupMap.get(rows[0].categoryId) ?? null)
+    : null
+
+  const row = calculateProductPrices(rows[0], dollar.rate, markup, cashDiscount, catMarkup)
 
   return {
     ...row,
@@ -184,7 +207,7 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
 
 export async function searchProducts(query: string, limit = 20): Promise<Product[]> {
   const searchTerm = `%${query}%`
-  const [result, dollar, markup, cashDiscount] = await Promise.all([
+  const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
     db.execute({
       sql: `SELECT * FROM products
             WHERE isActive = 1 AND stock > 0
@@ -196,10 +219,11 @@ export async function searchProducts(query: string, limit = 20): Promise<Product
     fetchDollarRate(),
     getStoreConfigNumber('markup', 30),
     getStoreConfigNumber('cash_discount', 10),
+    getCategoryMarkupMap(),
   ])
 
   return (result.rows as any[]).map(p =>
-    calculateProductPrices(p, dollar.rate, markup, cashDiscount)
+    calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
   ) as Product[]
 }
 
@@ -235,11 +259,12 @@ export async function getTopProductsByCategorySlug(slug: string, limit = 8): Pro
       })
     )
 
-    const [results, dollar, markup, cashDiscount] = await Promise.all([
+    const [results, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
       Promise.all(productPromises),
       fetchDollarRate(),
       getStoreConfigNumber('markup', 30),
       getStoreConfigNumber('cash_discount', 10),
+      getCategoryMarkupMap(),
     ])
 
     // Interleave: take 1 from each subcat in round-robin, prioritizing those with images
@@ -262,12 +287,12 @@ export async function getTopProductsByCategorySlug(slug: string, limit = 8): Pro
     }
 
     return selected.map(p =>
-      calculateProductPrices(p, dollar.rate, markup, cashDiscount)
+      calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
     ) as Product[]
   }
 
   // Fallback: single category, just sort by images first then price
-  const [result, dollar, markup, cashDiscount] = await Promise.all([
+  const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
     db.execute({
       sql: `SELECT p.* FROM products p
             WHERE p.categoryId IN (${placeholders}) AND p.isActive = 1 AND p.stock > 0
@@ -277,10 +302,11 @@ export async function getTopProductsByCategorySlug(slug: string, limit = 8): Pro
     fetchDollarRate(),
     getStoreConfigNumber('markup', 30),
     getStoreConfigNumber('cash_discount', 10),
+    getCategoryMarkupMap(),
   ])
 
   return (result.rows as any[]).map(p =>
-    calculateProductPrices(p, dollar.rate, markup, cashDiscount)
+    calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
   ) as Product[]
 }
 

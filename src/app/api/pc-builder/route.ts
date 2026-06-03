@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { fetchDollarRate } from '@/lib/dollar'
+import { fetchDollarRate, calculateProductPrices } from '@/lib/dollar'
 import {
   extractCompatibility,
   applyCompatibilityFilters,
@@ -111,6 +111,16 @@ export async function GET(request: NextRequest) {
     const markup = await getConfig('markup', 30)
     const cashDiscount = await getConfig('cash_discount', 10)
 
+    // Build category markup map for price calculation
+    const catMarkupResult = await db.execute('SELECT id, markup, cashDiscount FROM categories')
+    const catMarkupMap = new Map<string, { markup: number | null; cashDiscount: number | null }>()
+    for (const row of catMarkupResult.rows as any[]) {
+      catMarkupMap.set(row.id, {
+        markup: row.markup != null ? Number(row.markup) : null,
+        cashDiscount: row.cashDiscount != null ? Number(row.cashDiscount) : null,
+      })
+    }
+
     // If requesting a specific slot, return products for that component category
     if (slot) {
       const slotConfig = COMPONENT_SLOTS.find(s => s.slot === slot)
@@ -132,25 +142,16 @@ export async function GET(request: NextRequest) {
 
       // Get active products in this category
       const result = await db.execute({
-        sql: `SELECT p.id, p.name, p.slug, p.price, p.comparePrice, p.costPrice, p.markup, p.cashDiscount, p.images, p.stock, p.specs
-              FROM products p
+        sql: `SELECT p.* FROM products p
               WHERE p.categoryId = ? AND p.isActive = 1 AND p.stock > 0 AND p.categoryId IS NOT NULL
               ORDER BY CASE WHEN p.images IS NOT NULL AND p.images != '[]' THEN 0 ELSE 1 END, p.price ASC`,
         args: [categoryId],
       })
 
       const products = (result.rows as any[]).map(p => {
-        if (p.costPrice && p.costPrice > 0) {
-          // Use product-level markup/discount if set, otherwise use global
-          const effectiveMarkup = p.markup != null ? Number(p.markup) : markup
-          const effectiveCashDiscount = p.cashDiscount != null ? Number(p.cashDiscount) : cashDiscount
-          const effectiveIvaRate = p.ivaRate != null ? Number(p.ivaRate) : 10.5
-          // costUSD × (1+IVA) × (1+markup) × dollarRate
-          const listPrice = Math.ceil(p.costPrice * (1 + effectiveIvaRate / 100) * (1 + effectiveMarkup / 100) * dollar.rate)
-          const cashPrice = Math.ceil(p.costPrice * (1 + effectiveIvaRate / 100) * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * dollar.rate)
-          return { ...p, price: listPrice, comparePrice: cashPrice, _calculated: true }
-        }
-        return { ...p, _calculated: false }
+        const catMarkup = p.categoryId ? catMarkupMap.get(p.categoryId) : null
+        const calculated = calculateProductPrices(p, dollar.rate, markup, cashDiscount, catMarkup)
+        return calculated
       }).filter(p => !isExcludedFromBuilder(slot, p.name))
 
       // Parse compatibility filters from query params

@@ -58,6 +58,8 @@ interface Category {
   parentId: string | null
   enabled: number
   order: number
+  markup: number | null
+  cashDiscount: number | null
   createdAt: string
   updatedAt: string
 }
@@ -67,6 +69,8 @@ interface CategoryForm {
   image: string
   parentId: string
   enabled: boolean
+  markup: string
+  cashDiscount: string
 }
 
 const emptyForm: CategoryForm = {
@@ -74,6 +78,8 @@ const emptyForm: CategoryForm = {
   image: '',
   parentId: '',
   enabled: true,
+  markup: '',
+  cashDiscount: '',
 }
 
 export default function AdminCategorias() {
@@ -143,6 +149,8 @@ export default function AdminCategorias() {
       image: category.image || '',
       parentId: category.parentId || '',
       enabled: category.enabled === 1,
+      markup: category.markup != null ? String(category.markup) : '',
+      cashDiscount: category.cashDiscount != null ? String(category.cashDiscount) : '',
     })
     setFormError('')
     setFormOpen(true)
@@ -180,6 +188,8 @@ export default function AdminCategorias() {
         image: form.image.trim() || null,
         parentId: form.parentId || null,
         enabled: form.enabled,
+        markup: form.markup.trim() || null,
+        cashDiscount: form.cashDiscount.trim() || null,
       }
 
       const res = await fetch('/api/admin/categories', {
@@ -359,6 +369,8 @@ export default function AdminCategorias() {
                     <TableHead>Padre</TableHead>
                     <TableHead className="text-center">Visible</TableHead>
                     <TableHead className="text-center">Subcat.</TableHead>
+                    <TableHead className="text-center">Markup</TableHead>
+                    <TableHead className="text-center">Dto. Efect.</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -427,6 +439,24 @@ export default function AdminCategorias() {
                           <TableCell className="text-center text-sm text-gray-500">
                             {children.length}
                           </TableCell>
+                          <TableCell className="text-center">
+                            {category.markup != null ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-800">
+                                {category.markup}%
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400">Global</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {category.cashDiscount != null ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">
+                                {category.cashDiscount}%
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400">Global</span>
+                            )}
+                          </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
                               <Button
@@ -491,6 +521,24 @@ export default function AdminCategorias() {
                                 </button>
                               </TableCell>
                               <TableCell></TableCell>
+                              <TableCell className="text-center">
+                                {child.markup != null ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-800">
+                                    {child.markup}%
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-gray-400">Global</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {child.cashDiscount != null ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">
+                                    {child.cashDiscount}%
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-gray-400">Global</span>
+                                )}
+                              </TableCell>
                               <TableCell className="text-right">
                                 <div className="flex items-center justify-end gap-1">
                                   <Button
@@ -600,6 +648,49 @@ export default function AdminCategorias() {
               <span className="text-sm text-gray-500">
                 {form.enabled ? 'Visible en la tienda' : 'Oculta en la tienda'}
               </span>
+            </div>
+
+            {/* Markup y Descuento por Categoría */}
+            <div className="border-t pt-4 mt-2">
+              <p className="text-sm font-semibold text-gray-700 mb-3">Margen y Descuento por Categoría</p>
+              <p className="text-xs text-gray-400 mb-3">
+                Si configuras un margen o descuento aquí, se usará para todos los productos de esta categoría que no tengan un valor individual.
+                Prioridad: Producto individual {'>'} Categoría {'>'} Global (15% markup, 0% dto. efectivo)
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="cat-markup">Margen de ganancia (%)</Label>
+                  <Input
+                    id="cat-markup"
+                    type="number"
+                    min="0"
+                    max="500"
+                    step="1"
+                    value={form.markup}
+                    onChange={(e) => setForm(prev => ({ ...prev, markup: e.target.value }))}
+                    placeholder="Usar global (15%)"
+                  />
+                  <p className="text-xs text-gray-400">
+                    {form.markup ? `${form.markup}% para esta categoría` : 'Dejar vacío = usar global (15%)'}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cat-cashDiscount">Descuento efectivo (%)</Label>
+                  <Input
+                    id="cat-cashDiscount"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={form.cashDiscount}
+                    onChange={(e) => setForm(prev => ({ ...prev, cashDiscount: e.target.value }))}
+                    placeholder="Usar global (0%)"
+                  />
+                  <p className="text-xs text-gray-400">
+                    {form.cashDiscount ? `${form.cashDiscount}% para esta categoría` : 'Dejar vacío = usar global (0%)'}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 

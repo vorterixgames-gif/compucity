@@ -344,4 +344,28 @@ export async function ensureMigrations() {
       console.warn('[migration] Could not add imageUrl to banners:', e)
     }
   }
+
+  // 19. Add markup column to categories (category-level markup, null = use global)
+  try {
+    await db.execute({ sql: 'SELECT markup FROM categories LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({ sql: 'ALTER TABLE categories ADD COLUMN markup INTEGER' })
+      console.log('[migration] Added markup column to categories')
+    } catch (e) {
+      console.warn('[migration] Could not add markup column to categories:', e)
+    }
+  }
+
+  // 20. Add cashDiscount column to categories (category-level cash discount, null = use global)
+  try {
+    await db.execute({ sql: 'SELECT cashDiscount FROM categories LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({ sql: 'ALTER TABLE categories ADD COLUMN cashDiscount INTEGER' })
+      console.log('[migration] Added cashDiscount column to categories')
+    } catch (e) {
+      console.warn('[migration] Could not add cashDiscount column to categories:', e)
+    }
+  }
 }

@@ -161,18 +161,57 @@ export async function calculatePrices(costUsd: number): Promise<CalculatedPrices
 }
 
 // Calculate product prices for display (IVA incluido)
-// If the product has individual markup/cashDiscount/ivaRate, use those; otherwise fall back to global values
+// Priority: product individual > category > global
 // SAFEGUARDS: validates all inputs to prevent pricing errors that could cost the business money
 const VALID_IVA_RATES = [10.5, 21] // Only allowed IVA percentages
 const SAFE_DEFAULT_IVA = 10.5       // Fallback if ivaRate is invalid/missing
 const MIN_DOLLAR_RATE = 100          // Minimum reasonable dollar rate (safety net)
 const MAX_MARKUP = 500               // Maximum markup percentage allowed
 
-export function calculateProductPrices(product: any, dollarRate: number, globalMarkup: number, globalCashDiscount: number) {
+export interface CategoryMarkup {
+  markup: number | null
+  cashDiscount: number | null
+}
+
+export function calculateProductPrices(
+  product: any,
+  dollarRate: number,
+  globalMarkup: number,
+  globalCashDiscount: number,
+  categoryMarkup?: CategoryMarkup | null
+) {
   if (product.costPrice && Number(product.costPrice) > 0) {
-    // Use product-level markup/discount/iva if set, otherwise use global/defaults
-    let markup = product.markup != null ? Number(product.markup) : globalMarkup
-    const cashDiscount = product.cashDiscount != null ? Number(product.cashDiscount) : globalCashDiscount
+    // PRIORITY: product individual > category > global
+    // Markup
+    let markup: number
+    let markupSource: 'product' | 'category' | 'global'
+
+    if (product.markup != null) {
+      markup = Number(product.markup)
+      markupSource = 'product'
+    } else if (categoryMarkup?.markup != null) {
+      markup = Number(categoryMarkup.markup)
+      markupSource = 'category'
+    } else {
+      markup = globalMarkup
+      markupSource = 'global'
+    }
+
+    // Cash discount - same priority
+    let cashDiscount: number
+    let cashDiscountSource: 'product' | 'category' | 'global'
+
+    if (product.cashDiscount != null) {
+      cashDiscount = Number(product.cashDiscount)
+      cashDiscountSource = 'product'
+    } else if (categoryMarkup?.cashDiscount != null) {
+      cashDiscount = Number(categoryMarkup.cashDiscount)
+      cashDiscountSource = 'category'
+    } else {
+      cashDiscount = globalCashDiscount
+      cashDiscountSource = 'global'
+    }
+
     let ivaRate = product.ivaRate != null ? Number(product.ivaRate) : SAFE_DEFAULT_IVA
 
     // SAFEGUARD: Validate IVA rate - must be 10.5 or 21, never 0 or invalid
@@ -185,6 +224,7 @@ export function calculateProductPrices(product: any, dollarRate: number, globalM
     if (isNaN(markup) || markup < 0) {
       console.warn(`[PRICE SAFETY] Invalid markup ${markup} for product "${product.name}" (${product.id}), falling back to global ${globalMarkup}%`)
       markup = globalMarkup
+      markupSource = 'global'
     }
     if (markup > MAX_MARKUP) {
       console.warn(`[PRICE SAFETY] Suspicious markup ${markup}% for product "${product.name}" (${product.id}), capping at ${MAX_MARKUP}%`)
@@ -218,6 +258,8 @@ export function calculateProductPrices(product: any, dollarRate: number, globalM
       _effectiveMarkup: markup,
       _effectiveCashDiscount: cashDiscount,
       _effectiveIvaRate: ivaRate,
+      _markupSource: markupSource,
+      _cashDiscountSource: cashDiscountSource,
     }
   }
   return {

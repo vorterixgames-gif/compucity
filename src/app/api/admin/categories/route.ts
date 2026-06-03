@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const body = await request.json()
-    const { name, image, parentId, enabled, order } = body
+    const { name, image, parentId, enabled, order, markup, cashDiscount } = body
 
     if (!name) {
       return NextResponse.json({ error: 'Nombre es requerido' }, { status: 400 })
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString()
 
     await db.execute({
-      sql: 'INSERT INTO categories (id, name, slug, image, parentId, enabled, "order", createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      sql: 'INSERT INTO categories (id, name, slug, image, parentId, enabled, "order", markup, cashDiscount, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       args: [
         id,
         name,
@@ -56,6 +56,8 @@ export async function POST(request: NextRequest) {
         parentId || null,
         enabled !== undefined ? (enabled ? 1 : 0) : 1,
         order || 0,
+        markup != null && markup !== '' ? Number(markup) : null,
+        cashDiscount != null && cashDiscount !== '' ? Number(cashDiscount) : null,
         now,
         now,
       ],
@@ -74,7 +76,7 @@ export async function PUT(request: NextRequest) {
     if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const body = await request.json()
-    const { id, name, image, parentId, enabled, order } = body
+    const { id, name, image, parentId, enabled, order, markup, cashDiscount } = body
 
     if (!id) {
       return NextResponse.json({ error: 'ID es requerido' }, { status: 400 })
@@ -103,6 +105,14 @@ export async function PUT(request: NextRequest) {
     if (order !== undefined) {
       fields.push('"order" = ?')
       values.push(order)
+    }
+    if (markup !== undefined) {
+      fields.push('markup = ?')
+      values.push(markup != null && markup !== '' ? Number(markup) : null)
+    }
+    if (cashDiscount !== undefined) {
+      fields.push('cashDiscount = ?')
+      values.push(cashDiscount != null && cashDiscount !== '' ? Number(cashDiscount) : null)
     }
 
     if (fields.length === 0) {
