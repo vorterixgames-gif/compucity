@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { fetchDollarRate, calculateProductPrices } from '@/lib/dollar'
+import { deduplicateProducts } from '@/lib/queries'
 import {
   extractCompatibility,
   applyCompatibilityFilters,
@@ -149,11 +150,11 @@ export async function GET(request: NextRequest) {
         args: [categoryId],
       })
 
-      const products = (result.rows as any[]).map(p => {
+      const products = deduplicateProducts((result.rows as any[]).map(p => {
         const catMarkup = p.categoryId ? catMarkupMap.get(p.categoryId) : null
         const calculated = calculateProductPrices(p, dollar.rate, markup, cashDiscount, catMarkup)
         return calculated
-      }).filter(p => !isExcludedFromBuilder(slot, p.name))
+      })).filter(p => !isExcludedFromBuilder(slot, p.name))
 
       // Parse compatibility filters from query params
       const filters: CompatibilityFilters = {}

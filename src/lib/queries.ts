@@ -52,6 +52,60 @@ export async function getCategoryBySlug(slug: string): Promise<Category | null> 
 }
 
 // ============================================
+// DEDUPLICACIÓN DE PRODUCTOS
+// ============================================
+
+/**
+ * Normaliza un nombre de producto para agrupar duplicados:
+ * - Convierte a minúsculas
+ * - Elimina espacios múltiples
+ * - Elimina caracteres especiales al final (puntos, comillas)
+ */
+function normalizeProductName(name: string): string {
+  return name.toLowerCase().trim().replace(/\s+/g, ' ').replace(/['.]+$/, '')
+}
+
+/**
+ * Deduplica productos por nombre normalizado.
+ * Para cada grupo de duplicados:
+ * 1. Primero elige el más barato que tenga stock
+ * 2. Si ninguno tiene stock, elige el más barato
+ */
+export function deduplicateProducts<T extends { name: string; costPrice: number | null; stock: number }>(products: T[]): T[] {
+  if (products.length <= 1) return products
+
+  const groups = new Map<string, T[]>()
+
+  for (const product of products) {
+    const key = normalizeProductName(product.name)
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key)!.push(product)
+  }
+
+  const result: T[] = []
+  for (const [, group] of groups) {
+    if (group.length === 1) {
+      result.push(group[0])
+      continue
+    }
+
+    // Sort: stock > 0 first, then by costPrice ascending
+    const sorted = [...group].sort((a, b) => {
+      const aHasStock = a.stock > 0 ? 1 : 0
+      const bHasStock = b.stock > 0 ? 1 : 0
+      if (aHasStock !== bHasStock) return bHasStock - aHasStock // stock first
+      const aCost = a.costPrice ?? 0
+      const bCost = b.costPrice ?? 0
+      return aCost - bCost // cheapest first
+    })
+
+    result.push(sorted[0]) // Keep only the best one
+  }
+
+  return result
+}
+
+// ============================================
 // PRODUCTOS
 // ============================================
 
@@ -131,9 +185,10 @@ export async function getAllActiveProducts(limit = 50): Promise<Product[]> {
     getCategoryMarkupMap(),
   ])
 
-  return (result.rows as any[]).map(p =>
+  const mapped = (result.rows as any[]).map(p =>
     calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
   ) as Product[]
+  return deduplicateProducts(mapped)
 }
 
 export async function getFeaturedProducts(): Promise<Product[]> {
@@ -145,9 +200,10 @@ export async function getFeaturedProducts(): Promise<Product[]> {
     getCategoryMarkupMap(),
   ])
 
-  return (result.rows as any[]).map(p =>
+  const mapped2 = (result.rows as any[]).map(p =>
     calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
   ) as Product[]
+  return deduplicateProducts(mapped2)
 }
 
 export async function getProductsByCategory(slug: string): Promise<Product[]> {
@@ -188,9 +244,10 @@ export async function getProductsByCategory(slug: string): Promise<Product[]> {
     getCategoryMarkupMap(),
   ])
 
-  return (result.rows as any[]).map(p =>
+  const mapped3 = (result.rows as any[]).map(p =>
     calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
   ) as Product[]
+  return deduplicateProducts(mapped3)
 }
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {
@@ -244,9 +301,10 @@ export async function searchProducts(query: string, limit = 20): Promise<Product
     getCategoryMarkupMap(),
   ])
 
-  return (result.rows as any[]).map(p =>
+  const mapped4 = (result.rows as any[]).map(p =>
     calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
   ) as Product[]
+  return deduplicateProducts(mapped4)
 }
 
 export async function getTopProductsByCategorySlug(slug: string, limit = 8): Promise<Product[]> {
@@ -308,9 +366,9 @@ export async function getTopProductsByCategorySlug(slug: string, limit = 8): Pro
       round++
     }
 
-    return selected.map(p =>
+    return deduplicateProducts(selected.map(p =>
       calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
-    ) as Product[]
+    ) as Product[])
   }
 
   // Fallback: single category, just sort by images first then price
@@ -327,9 +385,10 @@ export async function getTopProductsByCategorySlug(slug: string, limit = 8): Pro
     getCategoryMarkupMap(),
   ])
 
-  return (result.rows as any[]).map(p =>
+  const mapped5 = (result.rows as any[]).map(p =>
     calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
   ) as Product[]
+  return deduplicateProducts(mapped5)
 }
 
 // ============================================

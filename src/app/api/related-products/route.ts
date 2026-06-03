@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { fetchDollarRate, getStoreConfigNumber, calculateProductPrices, CategoryMarkup } from '@/lib/dollar'
+import { deduplicateProducts } from '@/lib/queries'
 
 export async function GET(request: NextRequest) {
   const categoryId = request.nextUrl.searchParams.get('categoryId')
@@ -49,9 +50,12 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const products = (result.rows as any[]).map((p) => {
+    const deduped = deduplicateProducts((result.rows as any[]).map((p) => {
       const catMarkup = p.categoryId ? catMarkupMap.get(p.categoryId) : null
-      const calculated = calculateProductPrices(p, dollar.rate, markup, cashDiscount, catMarkup)
+      return calculateProductPrices(p, dollar.rate, markup, cashDiscount, catMarkup)
+    }))
+
+    const products = deduped.map((calculated) => {
       const images: string[] = calculated.images ? JSON.parse(calculated.images) : []
       return {
         id: calculated.id,
