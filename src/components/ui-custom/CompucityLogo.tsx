@@ -13,7 +13,7 @@ const sizeMap = {
   sm: { icon: 30 },
   md: { icon: 36 },
   lg: { icon: 42 },
-  xl: { icon: 48 },
+  xl: { icon: 56 },
 }
 
 export default function CompucityLogo({
