@@ -19,6 +19,7 @@ const sizeMap = {
 export default function CompucityLogo({
   size = 'md',
   className = '',
+  whiteText = false,
 }: CompucityLogoProps) {
   const s = sizeMap[size]
 
@@ -30,7 +31,11 @@ export default function CompucityLogo({
         width={720}
         height={286}
         className="shrink-0"
-        style={{ height: s.icon, width: 'auto' }}
+        style={{
+          height: s.icon,
+          width: 'auto',
+          filter: whiteText ? 'brightness(0) invert(1)' : 'none',
+        }}
         priority
       />
     </span>
