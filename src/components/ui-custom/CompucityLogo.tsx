@@ -24,7 +24,7 @@ export default function CompucityLogo({
   const s = sizeMap[size]
 
   return (
-    <span className={`inline-flex ${className}`}>
+    <span className={`inline-flex ${whiteText ? 'bg-white/95 rounded-lg px-2.5 py-1.5' : ''} ${className}`}>
       <Image
         src="/images/logo-compucity-icon.png"
         alt="Compucity"
@@ -34,7 +34,6 @@ export default function CompucityLogo({
         style={{
           height: s.icon,
           width: 'auto',
-          filter: whiteText ? 'brightness(0) invert(1)' : 'none',
         }}
         priority
       />
