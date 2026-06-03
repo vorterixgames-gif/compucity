@@ -15,6 +15,7 @@ export interface Category {
   order: number
   markup: number | null
   cashDiscount: number | null
+  ivaRate: number | null
   createdAt: string
   updatedAt: string
 }
@@ -86,12 +87,13 @@ export interface Product {
 
 // Helper: build a map of categoryId -> CategoryMarkup for fast lookup
 async function getCategoryMarkupMap(): Promise<Map<string, CategoryMarkup>> {
-  const catResult = await db.execute('SELECT id, markup, cashDiscount FROM categories')
+  const catResult = await db.execute('SELECT id, markup, cashDiscount, ivaRate FROM categories')
   const map = new Map<string, CategoryMarkup>()
   for (const row of catResult.rows as any[]) {
     map.set(row.id, {
       markup: row.markup != null ? Number(row.markup) : null,
       cashDiscount: row.cashDiscount != null ? Number(row.cashDiscount) : null,
+      ivaRate: row.ivaRate != null ? Number(row.ivaRate) : null,
     })
   }
   return map

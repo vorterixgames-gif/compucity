@@ -39,7 +39,7 @@ export async function GET() {
       fetchDollarRate(),
       getStoreConfigNumber('markup', 30),
       getStoreConfigNumber('cash_discount', 10),
-      db.execute('SELECT id, markup, cashDiscount FROM categories'),
+      db.execute('SELECT id, markup, cashDiscount, ivaRate FROM categories'),
       db.execute(
         `SELECT p.*, c.name as categoryName, c.markup as categoryMarkup, c.cashDiscount as categoryCashDiscount
          FROM products p 
@@ -54,6 +54,7 @@ export async function GET() {
       catMarkupMap.set(row.id, {
         markup: row.markup != null ? Number(row.markup) : null,
         cashDiscount: row.cashDiscount != null ? Number(row.cashDiscount) : null,
+        ivaRate: row.ivaRate != null ? Number(row.ivaRate) : null,
       })
     }
 
@@ -141,18 +142,19 @@ export async function POST(request: NextRequest) {
         fetchDollarRate(),
         getConfig('markup', 30),
         getConfig('cash_discount', 10),
-        categoryId ? db.execute({ sql: 'SELECT markup, cashDiscount FROM categories WHERE id = ?', args: [categoryId] }) : null,
+        categoryId ? db.execute({ sql: 'SELECT markup, cashDiscount, ivaRate FROM categories WHERE id = ?', args: [categoryId] }) : null,
       ])
 
       // Get category markup if available
       const catRow = catMarkupResult ? (catMarkupResult.rows as any[])[0] : null
       const catMarkupVal = catRow?.markup != null ? Number(catRow.markup) : null
       const catCashDiscountVal = catRow?.cashDiscount != null ? Number(catRow.cashDiscount) : null
+      const catIvaRateVal = catRow?.ivaRate != null ? Number(catRow.ivaRate) : null
 
-      // Priority: product individual → category → global
+      // Priority: product individual → category → global/default
       const effectiveMarkup = markup != null && markup !== '' ? Number(markup) : (catMarkupVal != null ? catMarkupVal : globalMarkup)
       const effectiveCashDiscount = cashDiscount != null && cashDiscount !== '' ? Number(cashDiscount) : (catCashDiscountVal != null ? catCashDiscountVal : globalCashDiscount)
-      let effectiveIvaRate = ivaRate != null && ivaRate !== '' ? Number(ivaRate) : 10.5
+      let effectiveIvaRate = ivaRate != null && ivaRate !== '' ? Number(ivaRate) : (catIvaRateVal != null ? catIvaRateVal : 10.5)
 
       // SAFEGUARD: Only allow valid IVA rates (10.5 or 21)
       if (isNaN(effectiveIvaRate) || ![10.5, 21].includes(effectiveIvaRate)) {
@@ -250,13 +252,14 @@ export async function PUT(request: NextRequest) {
           fetchDollarRate(),
           getConfig('markup', 30),
           getConfig('cash_discount', 10),
-          effectiveCategoryId ? db.execute({ sql: 'SELECT markup, cashDiscount FROM categories WHERE id = ?', args: [effectiveCategoryId] }) : null,
+          effectiveCategoryId ? db.execute({ sql: 'SELECT markup, cashDiscount, ivaRate FROM categories WHERE id = ?', args: [effectiveCategoryId] }) : null,
         ])
 
         // Get category markup if available
         const catRow = catMarkupResult ? (catMarkupResult.rows as any[])[0] : null
         const catMarkupVal = catRow?.markup != null ? Number(catRow.markup) : null
         const catCashDiscountVal = catRow?.cashDiscount != null ? Number(catRow.cashDiscount) : null
+        const catIvaRateVal = catRow?.ivaRate != null ? Number(catRow.ivaRate) : null
 
         // Determine effective markup: product individual → category → global
         let effectiveMarkup = globalMarkup
@@ -282,7 +285,7 @@ export async function PUT(request: NextRequest) {
         }
 
         const dollarRate = dollar?.rate || 1415
-        let effectiveIvaRate = ivaRate != null && ivaRate !== '' ? Number(ivaRate) : 10.5
+        let effectiveIvaRate = ivaRate != null && ivaRate !== '' ? Number(ivaRate) : (catIvaRateVal != null ? catIvaRateVal : 10.5)
 
         // SAFEGUARD: Only allow valid IVA rates (10.5 or 21)
         if (isNaN(effectiveIvaRate) || ![10.5, 21].includes(effectiveIvaRate)) {

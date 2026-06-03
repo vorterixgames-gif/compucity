@@ -171,6 +171,7 @@ const MAX_MARKUP = 500               // Maximum markup percentage allowed
 export interface CategoryMarkup {
   markup: number | null
   cashDiscount: number | null
+  ivaRate: number | null
 }
 
 export function calculateProductPrices(
@@ -212,7 +213,20 @@ export function calculateProductPrices(
       cashDiscountSource = 'global'
     }
 
-    let ivaRate = product.ivaRate != null ? Number(product.ivaRate) : SAFE_DEFAULT_IVA
+    // IVA rate - same priority: product → category → default
+    let ivaRate: number
+    let ivaRateSource: 'product' | 'category' | 'default'
+
+    if (product.ivaRate != null) {
+      ivaRate = Number(product.ivaRate)
+      ivaRateSource = 'product'
+    } else if (categoryMarkup?.ivaRate != null) {
+      ivaRate = Number(categoryMarkup.ivaRate)
+      ivaRateSource = 'category'
+    } else {
+      ivaRate = SAFE_DEFAULT_IVA
+      ivaRateSource = 'default'
+    }
 
     // SAFEGUARD: Validate IVA rate - must be 10.5 or 21, never 0 or invalid
     if (isNaN(ivaRate) || !VALID_IVA_RATES.includes(ivaRate)) {
@@ -260,6 +274,7 @@ export function calculateProductPrices(
       _effectiveIvaRate: ivaRate,
       _markupSource: markupSource,
       _cashDiscountSource: cashDiscountSource,
+      _ivaRateSource: ivaRateSource,
     }
   }
   return {

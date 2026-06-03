@@ -368,4 +368,16 @@ export async function ensureMigrations() {
       console.warn('[migration] Could not add cashDiscount column to categories:', e)
     }
   }
+
+  // 21. Add ivaRate column to categories (category-level IVA, null = use default 10.5%)
+  try {
+    await db.execute({ sql: 'SELECT ivaRate FROM categories LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({ sql: 'ALTER TABLE categories ADD COLUMN ivaRate REAL' })
+      console.log('[migration] Added ivaRate column to categories')
+    } catch (e) {
+      console.warn('[migration] Could not add ivaRate column to categories:', e)
+    }
+  }
 }

@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const body = await request.json()
-    const { name, image, parentId, enabled, order, markup, cashDiscount } = body
+    const { name, image, parentId, enabled, order, markup, cashDiscount, ivaRate } = body
 
     if (!name) {
       return NextResponse.json({ error: 'Nombre es requerido' }, { status: 400 })
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString()
 
     await db.execute({
-      sql: 'INSERT INTO categories (id, name, slug, image, parentId, enabled, "order", markup, cashDiscount, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      sql: 'INSERT INTO categories (id, name, slug, image, parentId, enabled, "order", markup, cashDiscount, ivaRate, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       args: [
         id,
         name,
@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
         order || 0,
         markup != null && markup !== '' ? Number(markup) : null,
         cashDiscount != null && cashDiscount !== '' ? Number(cashDiscount) : null,
+        ivaRate != null && ivaRate !== '' ? Number(ivaRate) : null,
         now,
         now,
       ],
@@ -76,7 +77,7 @@ export async function PUT(request: NextRequest) {
     if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const body = await request.json()
-    const { id, name, image, parentId, enabled, order, markup, cashDiscount } = body
+    const { id, name, image, parentId, enabled, order, markup, cashDiscount, ivaRate } = body
 
     if (!id) {
       return NextResponse.json({ error: 'ID es requerido' }, { status: 400 })
@@ -113,6 +114,10 @@ export async function PUT(request: NextRequest) {
     if (cashDiscount !== undefined) {
       fields.push('cashDiscount = ?')
       values.push(cashDiscount != null && cashDiscount !== '' ? Number(cashDiscount) : null)
+    }
+    if (ivaRate !== undefined) {
+      fields.push('ivaRate = ?')
+      values.push(ivaRate != null && ivaRate !== '' ? Number(ivaRate) : null)
     }
 
     if (fields.length === 0) {

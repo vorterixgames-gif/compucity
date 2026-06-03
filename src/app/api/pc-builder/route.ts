@@ -112,12 +112,13 @@ export async function GET(request: NextRequest) {
     const cashDiscount = await getConfig('cash_discount', 10)
 
     // Build category markup map for price calculation
-    const catMarkupResult = await db.execute('SELECT id, markup, cashDiscount FROM categories')
-    const catMarkupMap = new Map<string, { markup: number | null; cashDiscount: number | null }>()
+    const catMarkupResult = await db.execute('SELECT id, markup, cashDiscount, ivaRate FROM categories')
+    const catMarkupMap = new Map<string, { markup: number | null; cashDiscount: number | null; ivaRate: number | null }>()
     for (const row of catMarkupResult.rows as any[]) {
       catMarkupMap.set(row.id, {
         markup: row.markup != null ? Number(row.markup) : null,
         cashDiscount: row.cashDiscount != null ? Number(row.cashDiscount) : null,
+        ivaRate: row.ivaRate != null ? Number(row.ivaRate) : null,
       })
     }
 

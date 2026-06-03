@@ -60,6 +60,7 @@ interface Category {
   order: number
   markup: number | null
   cashDiscount: number | null
+  ivaRate: number | null
   createdAt: string
   updatedAt: string
 }
@@ -71,6 +72,7 @@ interface CategoryForm {
   enabled: boolean
   markup: string
   cashDiscount: string
+  ivaRate: string
 }
 
 const emptyForm: CategoryForm = {
@@ -80,6 +82,7 @@ const emptyForm: CategoryForm = {
   enabled: true,
   markup: '',
   cashDiscount: '',
+  ivaRate: '',
 }
 
 export default function AdminCategorias() {
@@ -151,6 +154,7 @@ export default function AdminCategorias() {
       enabled: category.enabled === 1,
       markup: category.markup != null ? String(category.markup) : '',
       cashDiscount: category.cashDiscount != null ? String(category.cashDiscount) : '',
+      ivaRate: category.ivaRate != null ? String(category.ivaRate) : '',
     })
     setFormError('')
     setFormOpen(true)
@@ -190,6 +194,7 @@ export default function AdminCategorias() {
         enabled: form.enabled,
         markup: form.markup.trim() || null,
         cashDiscount: form.cashDiscount.trim() || null,
+        ivaRate: form.ivaRate.trim() || null,
       }
 
       const res = await fetch('/api/admin/categories', {
@@ -371,6 +376,7 @@ export default function AdminCategorias() {
                     <TableHead className="text-center">Subcat.</TableHead>
                     <TableHead className="text-center">Markup</TableHead>
                     <TableHead className="text-center">Dto. Efect.</TableHead>
+                    <TableHead className="text-center">IVA</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -457,6 +463,15 @@ export default function AdminCategorias() {
                               <span className="text-xs text-gray-400">Global</span>
                             )}
                           </TableCell>
+                          <TableCell className="text-center">
+                            {category.ivaRate != null ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-purple-100 text-purple-800">
+                                {category.ivaRate}%
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400">Default</span>
+                            )}
+                          </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
                               <Button
@@ -537,6 +552,15 @@ export default function AdminCategorias() {
                                   </span>
                                 ) : (
                                   <span className="text-xs text-gray-400">Global</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                {child.ivaRate != null ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-purple-100 text-purple-800">
+                                    {child.ivaRate}%
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-gray-400">Default</span>
                                 )}
                               </TableCell>
                               <TableCell className="text-right">
@@ -650,14 +674,14 @@ export default function AdminCategorias() {
               </span>
             </div>
 
-            {/* Markup y Descuento por Categoría */}
+            {/* Markup, Descuento e IVA por Categoría */}
             <div className="border-t pt-4 mt-2">
-              <p className="text-sm font-semibold text-gray-700 mb-3">Margen y Descuento por Categoría</p>
+              <p className="text-sm font-semibold text-gray-700 mb-3">Margen, Descuento e IVA por Categoría</p>
               <p className="text-xs text-gray-400 mb-3">
-                Si configuras un margen o descuento aquí, se usará para todos los productos de esta categoría que no tengan un valor individual.
-                Prioridad: Producto individual {'>'} Categoría {'>'} Global (15% markup, 0% dto. efectivo)
+                Si configuras un valor aquí, se usará para todos los productos de esta categoría que no tengan un valor individual.
+                Prioridad: Producto individual {'>'} Categoría {'>'} Global (15% markup, 0% dto. efectivo, 10,5% IVA)
               </p>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="cat-markup">Margen de ganancia (%)</Label>
                   <Input
@@ -688,6 +712,25 @@ export default function AdminCategorias() {
                   />
                   <p className="text-xs text-gray-400">
                     {form.cashDiscount ? `${form.cashDiscount}% para esta categoría` : 'Dejar vacío = usar global (0%)'}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cat-ivaRate">IVA (%)</Label>
+                  <Select
+                    value={form.ivaRate || '_default'}
+                    onValueChange={(value) => setForm(prev => ({ ...prev, ivaRate: value === '_default' ? '' : value }))}
+                  >
+                    <SelectTrigger className="bg-white">
+                      <SelectValue placeholder="Usar default (10,5%)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_default">Default (10,5%)</SelectItem>
+                      <SelectItem value="10.5">10,5%</SelectItem>
+                      <SelectItem value="21">21%</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-400">
+                    {form.ivaRate ? `IVA ${form.ivaRate}% para esta categoría` : 'Dejar vacío = usar default (10,5%)'}
                   </p>
                 </div>
               </div>

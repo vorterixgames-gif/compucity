@@ -16,7 +16,7 @@ export async function GET() {
       fetchDollarRate(),
       getStoreConfigNumber('markup', 30),
       getStoreConfigNumber('cash_discount', 10),
-      db.execute('SELECT id, markup, cashDiscount FROM categories'),
+      db.execute('SELECT id, markup, cashDiscount, ivaRate FROM categories'),
     ])
 
     // Build category markup map for 3-tier priority: product → category → global
@@ -25,6 +25,7 @@ export async function GET() {
       catMarkupMap.set(row.id, {
         markup: row.markup != null ? Number(row.markup) : null,
         cashDiscount: row.cashDiscount != null ? Number(row.cashDiscount) : null,
+        ivaRate: row.ivaRate != null ? Number(row.ivaRate) : null,
       })
     }
 
@@ -65,13 +66,15 @@ export async function GET() {
         const catMarkup = p.categoryId ? catMarkupMap.get(p.categoryId) : null
         const catMarkupVal = catMarkup?.markup ?? null
         const catCashDiscountVal = catMarkup?.cashDiscount ?? null
+        const catIvaRateVal = catMarkup?.ivaRate ?? null
 
         // Priority: product individual → category → global
         const effectiveMarkup = p.markup != null ? Number(p.markup) : (catMarkupVal != null ? catMarkupVal : markup)
         const effectiveCashDiscount = p.cashDiscount != null ? Number(p.cashDiscount) : (catCashDiscountVal != null ? catCashDiscountVal : cashDiscount)
+        const effectiveIvaRate = p.ivaRate != null ? Number(p.ivaRate) : (catIvaRateVal != null ? catIvaRateVal : ivaRate)
         // costUSD × (1+IVA) × (1+markup) × dollarRate
-        listPrice = Math.ceil(Number(p.costPrice) * (1 + ivaRate / 100) * (1 + effectiveMarkup / 100) * dollar.rate)
-        cashPrice = Math.ceil(Number(p.costPrice) * (1 + ivaRate / 100) * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * dollar.rate)
+        listPrice = Math.ceil(Number(p.costPrice) * (1 + effectiveIvaRate / 100) * (1 + effectiveMarkup / 100) * dollar.rate)
+        cashPrice = Math.ceil(Number(p.costPrice) * (1 + effectiveIvaRate / 100) * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * dollar.rate)
       }
 
       return [

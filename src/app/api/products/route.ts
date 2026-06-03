@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
       fetchDollarRate(),
       getStoreConfigNumber('markup', 30),
       getStoreConfigNumber('cash_discount', 10),
-      db.execute('SELECT id, markup, cashDiscount FROM categories'),
+      db.execute('SELECT id, markup, cashDiscount, ivaRate FROM categories'),
     ])
 
     const catMarkupMap = new Map<string, CategoryMarkup>()
@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
       catMarkupMap.set(row.id, {
         markup: row.markup != null ? Number(row.markup) : null,
         cashDiscount: row.cashDiscount != null ? Number(row.cashDiscount) : null,
+        ivaRate: row.ivaRate != null ? Number(row.ivaRate) : null,
       })
     }
 

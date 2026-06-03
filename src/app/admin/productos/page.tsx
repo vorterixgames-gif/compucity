@@ -90,6 +90,7 @@ interface Product {
   _effectiveIvaRate?: number
   _markupSource?: 'product' | 'category' | 'global'
   _cashDiscountSource?: 'product' | 'category' | 'global'
+  _ivaRateSource?: 'product' | 'category' | 'default'
   createdAt: string
   updatedAt: string
 }
@@ -275,10 +276,11 @@ export default function AdminProductos() {
       const selectedCategory = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
       const catMarkup = selectedCategory?.markup != null ? Number(selectedCategory.markup) : null
       const catCashDiscount = selectedCategory?.cashDiscount != null ? Number(selectedCategory.cashDiscount) : null
+      const catIvaRate = selectedCategory?.ivaRate != null ? Number(selectedCategory.ivaRate) : null
 
       const effectiveMarkup = form.markup !== '' ? Number(form.markup) : (catMarkup != null ? catMarkup : dollarConfig.markup)
       const effectiveCashDiscount = form.cashDiscount !== '' ? Number(form.cashDiscount) : (catCashDiscount != null ? catCashDiscount : dollarConfig.cashDiscount)
-      const effectiveIvaRate = form.ivaRate !== '' ? Number(form.ivaRate) : 10.5
+      const effectiveIvaRate = form.ivaRate !== '' ? Number(form.ivaRate) : (catIvaRate != null ? catIvaRate : 10.5)
       // costUSD × (1+IVA) × (1+markup) × dollarRate
       const listPrice = Math.ceil(costUsd * (1 + effectiveIvaRate / 100) * (1 + effectiveMarkup / 100) * dollarConfig.rate)
       const cashPrice = Math.ceil(costUsd * (1 + effectiveIvaRate / 100) * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * dollarConfig.rate)
@@ -734,8 +736,11 @@ export default function AdminProductos() {
                                 {(product as any)._cashDiscountSource === 'category' && (
                                   <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-orange-50 text-orange-600 shrink-0" title={`Desc. efectivo por categoría: ${(product as any)._effectiveCashDiscount}%`}>DC</Badge>
                                 )}
-                                {(product as any)._effectiveIvaRate != null && (product as any)._effectiveIvaRate !== 10.5 && (
-                                  <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-purple-50 text-purple-600 shrink-0" title={`IVA: ${(product as any)._effectiveIvaRate}%`}>I</Badge>
+                                {(product as any)._ivaRateSource === 'product' && (product as any)._effectiveIvaRate !== 10.5 && (
+                                  <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-purple-50 text-purple-600 shrink-0" title={`IVA individual: ${(product as any)._effectiveIvaRate}%`}>I</Badge>
+                                )}
+                                {(product as any)._ivaRateSource === 'category' && (
+                                  <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-violet-50 text-violet-600 shrink-0" title={`IVA por categoría: ${(product as any)._effectiveIvaRate}%`}>IC</Badge>
                                 )}
                               </div>
                             )}
@@ -940,7 +945,12 @@ export default function AdminProductos() {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-gray-400">
-                    Default 10,5%. Cambiar a 21% si corresponde.
+                    {(() => {
+                      const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
+                      return cat?.ivaRate != null
+                        ? `Categoría usa ${cat.ivaRate}%. Dejar así para usar el de categoría.`
+                        : 'Default 10,5%. Cambiar a 21% si corresponde.'
+                    })()}
                   </p>
                 </div>
               </div>
@@ -990,7 +1000,15 @@ export default function AdminProductos() {
                     <div>
                       <p className="text-compucity-green">IVA</p>
                       <p className="font-bold text-compucity-green-dark">
-                        {form.ivaRate || '10.5'}%
+                        {form.ivaRate !== '' ? form.ivaRate : (() => {
+                          const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
+                          return cat?.ivaRate != null ? cat.ivaRate : '10.5'
+                        })()}%
+                        {form.ivaRate !== '' && <span className="text-xs font-normal text-purple-600 ml-1">(individual)</span>}
+                        {form.ivaRate === '' && (() => {
+                          const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
+                          return cat?.ivaRate != null ? <span className="text-xs font-normal text-violet-600 ml-1">(categoría)</span> : null
+                        })()}
                       </p>
                     </div>
                   </div>
