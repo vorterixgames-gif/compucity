@@ -13,6 +13,10 @@ import {
   Calculator,
   ImageIcon,
   Download,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Filter,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -111,6 +115,16 @@ interface ProductForm {
   saleEnd: string       // sale end date (ISO)
 }
 
+type SortColumn = 'name' | 'categoryName' | 'costPrice' | 'price' | 'comparePrice' | 'stock' | 'isActive'
+type SortDirection = 'asc' | 'desc'
+
+interface Filters {
+  category: string
+  stockStatus: string // 'all' | 'inStock' | 'lowStock' | 'outOfStock'
+  activeStatus: string // 'all' | 'active' | 'inactive'
+  onSale: string // 'all' | 'yes' | 'no'
+}
+
 interface DollarConfig {
   rate: number
   markup: number
@@ -154,6 +168,19 @@ export default function AdminProductos() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // Sorting
+  const [sortColumn, setSortColumn] = useState<SortColumn>('name')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+
+  // Filters
+  const [filters, setFilters] = useState<Filters>({
+    category: 'all',
+    stockStatus: 'all',
+    activeStatus: 'all',
+    onSale: 'all',
+  })
+  const [showFilters, setShowFilters] = useState(false)
 
   // Dialog states
   const [formOpen, setFormOpen] = useState(false)
@@ -263,11 +290,73 @@ export default function AdminProductos() {
     }
   }, [form.costPrice, form.markup, form.cashDiscount, form.ivaRate, dollarConfig])
 
-  const filteredProducts = products.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.sku?.toLowerCase().includes(search.toLowerCase()) ||
-    p.categoryName?.toLowerCase().includes(search.toLowerCase())
-  )
+  // Sorting handler
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      if (sortDirection === 'asc') setSortDirection('desc')
+      else { setSortColumn('name'); setSortDirection('asc') } // 3rd click resets
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  // Sort icon for column headers
+  const SortIcon = ({ column }: { column: SortColumn }) => {
+    if (sortColumn !== column) return <ArrowUpDown className="w-3.5 h-3.5 text-gray-300" />
+    if (sortDirection === 'asc') return <ArrowUp className="w-3.5 h-3.5 text-compucity-green" />
+    return <ArrowDown className="w-3.5 h-3.5 text-compucity-green" />
+  }
+
+  // Count active filters
+  const activeFilterCount = Object.values(filters).filter(v => v !== 'all').length
+
+  // Filter + sort products
+  const filteredProducts = (() => {
+    let result = products.filter(p =>
+      p.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.sku?.toLowerCase().includes(search.toLowerCase()) ||
+      p.categoryName?.toLowerCase().includes(search.toLowerCase())
+    )
+
+    // Apply filters
+    if (filters.category !== 'all') {
+      result = result.filter(p => p.categoryId === filters.category)
+    }
+    if (filters.stockStatus !== 'all') {
+      if (filters.stockStatus === 'inStock') result = result.filter(p => p.stock > 5)
+      else if (filters.stockStatus === 'lowStock') result = result.filter(p => p.stock > 0 && p.stock <= 5)
+      else if (filters.stockStatus === 'outOfStock') result = result.filter(p => p.stock <= 0)
+    }
+    if (filters.activeStatus !== 'all') {
+      if (filters.activeStatus === 'active') result = result.filter(p => p.isActive === 1)
+      else if (filters.activeStatus === 'inactive') result = result.filter(p => p.isActive !== 1)
+    }
+    if (filters.onSale !== 'all') {
+      if (filters.onSale === 'yes') result = result.filter(p => p.salePrice != null && p.salePrice > 0)
+      else if (filters.onSale === 'no') result = result.filter(p => p.salePrice == null || p.salePrice <= 0)
+    }
+
+    // Apply sorting
+    result.sort((a, b) => {
+      let aVal: any, bVal: any
+      switch (sortColumn) {
+        case 'name': aVal = a.name.toLowerCase(); bVal = b.name.toLowerCase(); break
+        case 'categoryName': aVal = (a.categoryName || '').toLowerCase(); bVal = (b.categoryName || '').toLowerCase(); break
+        case 'costPrice': aVal = a.costPrice || 0; bVal = b.costPrice || 0; break
+        case 'price': aVal = a.price || 0; bVal = b.price || 0; break
+        case 'comparePrice': aVal = a.comparePrice || 0; bVal = b.comparePrice || 0; break
+        case 'stock': aVal = a.stock; bVal = b.stock; break
+        case 'isActive': aVal = a.isActive; bVal = b.isActive; break
+        default: return 0
+      }
+      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
+      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
+      return 0
+    })
+
+    return result
+  })()
 
   const handleCreate = () => {
     setEditingId(null)
@@ -437,32 +526,129 @@ export default function AdminProductos() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <Input
-          placeholder="Buscar por nombre, SKU o categoría..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-10"
-        />
-        {search && (
-          <button
-            onClick={() => setSearch('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+      {/* Search + Filter Bar */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              placeholder="Buscar por nombre, SKU o categoría..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          <Button
+            variant={showFilters ? 'default' : 'outline'}
+            className={showFilters ? 'bg-compucity-green hover:bg-compucity-green-dark' : ''}
+            onClick={() => setShowFilters(!showFilters)}
           >
-            <X className="w-4 h-4" />
-          </button>
+            <Filter className="w-4 h-4 mr-2" />
+            Filtros
+            {activeFilterCount > 0 && (
+              <Badge className="ml-2 bg-white text-compucity-green text-xs px-1.5 py-0">{activeFilterCount}</Badge>
+            )}
+          </Button>
+        </div>
+
+        {/* Expandable Filters */}
+        {showFilters && (
+          <div className="flex flex-wrap items-center gap-3 p-3 bg-gray-50 rounded-lg border">
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Categoría</Label>
+              <Select value={filters.category} onValueChange={(v) => setFilters(prev => ({ ...prev, category: v }))}>
+                <SelectTrigger className="w-48 h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {categories
+                    .filter(c => !c.parentId)
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map(cat => (
+                      <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Stock</Label>
+              <Select value={filters.stockStatus} onValueChange={(v) => setFilters(prev => ({ ...prev, stockStatus: v }))}>
+                <SelectTrigger className="w-40 h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="inStock">En stock (+5)</SelectItem>
+                  <SelectItem value="lowStock">Bajo stock (1-5)</SelectItem>
+                  <SelectItem value="outOfStock">Sin stock (0)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Estado</Label>
+              <Select value={filters.activeStatus} onValueChange={(v) => setFilters(prev => ({ ...prev, activeStatus: v }))}>
+                <SelectTrigger className="w-36 h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="active">Activos</SelectItem>
+                  <SelectItem value="inactive">Inactivos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">En oferta</Label>
+              <Select value={filters.onSale} onValueChange={(v) => setFilters(prev => ({ ...prev, onSale: v }))}>
+                <SelectTrigger className="w-36 h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="yes">En oferta</SelectItem>
+                  <SelectItem value="no">Sin oferta</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {activeFilterCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-red-500 hover:text-red-700 mt-4"
+                onClick={() => setFilters({ category: 'all', stockStatus: 'all', activeStatus: 'all', onSale: 'all' })}
+              >
+                <X className="w-3 h-3 mr-1" />
+                Limpiar filtros
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
       {/* Products Table */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-sm text-gray-500">
+          <span>{filteredProducts.length} de {products.length} productos{(search || activeFilterCount > 0) ? ' (filtrados)' : ''}</span>
+          {(sortColumn !== 'name' || sortDirection !== 'asc') && (
+            <button
+              onClick={() => { setSortColumn('name'); setSortDirection('asc') }}
+              className="text-xs text-compucity-green hover:underline"
+            >
+              Restablecer orden
+            </button>
+          )}
+        </div>
       <div className="rounded-xl border shadow-sm bg-card text-card-foreground overflow-hidden">
         <div className="admin-table-wrapper">
           {filteredProducts.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               <Package className="w-12 h-12 mx-auto mb-2 opacity-30" />
-              <p>No hay productos{search ? ' que coincidan con la búsqueda' : ''}</p>
+              <p>No hay productos{search || activeFilterCount > 0 ? ' que coincidan con los filtros' : ''}</p>
             </div>
           ) : (
               <table className="w-full text-sm admin-fixed-table">
@@ -478,13 +664,27 @@ export default function AdminProductos() {
                 </colgroup>
                 <thead>
                   <tr className="border-b bg-gray-50/80">
-                    <th className="h-10 px-2 text-left align-middle font-medium text-gray-600">Nombre</th>
-                    <th className="h-10 px-2 text-left align-middle font-medium text-gray-600">Categoría</th>
-                    <th className="h-10 px-2 text-right align-middle font-medium text-gray-600">Costo USD</th>
-                    <th className="h-10 px-2 text-right align-middle font-medium text-gray-600">Precio Lista</th>
-                    <th className="h-10 px-2 text-right align-middle font-medium text-gray-600">Efectivo</th>
-                    <th className="h-10 px-2 text-center align-middle font-medium text-gray-600">Stock</th>
-                    <th className="h-10 px-2 text-center align-middle font-medium text-gray-600">Activo</th>
+                    <th className="h-10 px-2 text-left align-middle font-medium text-gray-600 cursor-pointer select-none hover:bg-gray-100 transition-colors" onClick={() => handleSort('name')}>
+                      <div className="flex items-center gap-1">Nombre <SortIcon column="name" /></div>
+                    </th>
+                    <th className="h-10 px-2 text-left align-middle font-medium text-gray-600 cursor-pointer select-none hover:bg-gray-100 transition-colors" onClick={() => handleSort('categoryName')}>
+                      <div className="flex items-center gap-1">Categoría <SortIcon column="categoryName" /></div>
+                    </th>
+                    <th className="h-10 px-2 text-right align-middle font-medium text-gray-600 cursor-pointer select-none hover:bg-gray-100 transition-colors" onClick={() => handleSort('costPrice')}>
+                      <div className="flex items-center justify-end gap-1">Costo USD <SortIcon column="costPrice" /></div>
+                    </th>
+                    <th className="h-10 px-2 text-right align-middle font-medium text-gray-600 cursor-pointer select-none hover:bg-gray-100 transition-colors" onClick={() => handleSort('price')}>
+                      <div className="flex items-center justify-end gap-1">Precio Lista <SortIcon column="price" /></div>
+                    </th>
+                    <th className="h-10 px-2 text-right align-middle font-medium text-gray-600 cursor-pointer select-none hover:bg-gray-100 transition-colors" onClick={() => handleSort('comparePrice')}>
+                      <div className="flex items-center justify-end gap-1">Efectivo <SortIcon column="comparePrice" /></div>
+                    </th>
+                    <th className="h-10 px-2 text-center align-middle font-medium text-gray-600 cursor-pointer select-none hover:bg-gray-100 transition-colors" onClick={() => handleSort('stock')}>
+                      <div className="flex items-center justify-center gap-1">Stock <SortIcon column="stock" /></div>
+                    </th>
+                    <th className="h-10 px-2 text-center align-middle font-medium text-gray-600 cursor-pointer select-none hover:bg-gray-100 transition-colors" onClick={() => handleSort('isActive')}>
+                      <div className="flex items-center justify-center gap-1">Activo <SortIcon column="isActive" /></div>
+                    </th>
                     <th className="h-10 px-2 text-center align-middle font-medium text-gray-600">Acciones</th>
                   </tr>
                 </thead>
@@ -595,6 +795,7 @@ export default function AdminProductos() {
               </table>
           )}
         </div>
+      </div>
       </div>
 
       {/* Product Form Dialog */}
