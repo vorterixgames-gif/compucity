@@ -661,12 +661,13 @@ export default function AdminProductos() {
           ) : (
               <table className="w-full text-sm admin-fixed-table">
                 <colgroup>
-                  <col style={{ width: '28%' }} />
+                  <col style={{ width: '26%' }} />
+                  <col style={{ width: '12%' }} />
+                  <col style={{ width: '10%' }} />
                   <col style={{ width: '13%' }} />
-                  <col style={{ width: '11%' }} />
-                  <col style={{ width: '14%' }} />
-                  <col style={{ width: '13%' }} />
+                  <col style={{ width: '12%' }} />
                   <col style={{ width: '7%' }} />
+                  <col style={{ width: '6%' }} />
                   <col style={{ width: '6%' }} />
                   <col style={{ width: '8%' }} />
                 </colgroup>
@@ -687,6 +688,7 @@ export default function AdminProductos() {
                     <th className="h-10 px-2 text-right align-middle font-medium text-gray-600 cursor-pointer select-none hover:bg-gray-100 transition-colors" onClick={() => handleSort('comparePrice')}>
                       <div className="flex items-center justify-end gap-1">Efectivo <SortIcon column="comparePrice" /></div>
                     </th>
+                    <th className="h-10 px-2 text-center align-middle font-medium text-gray-600">IVA</th>
                     <th className="h-10 px-2 text-center align-middle font-medium text-gray-600 cursor-pointer select-none hover:bg-gray-100 transition-colors" onClick={() => handleSort('stock')}>
                       <div className="flex items-center justify-center gap-1">Stock <SortIcon column="stock" /></div>
                     </th>
@@ -769,6 +771,21 @@ export default function AdminProductos() {
                           </div>
                         ) : (
                           <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+                      <td className="p-2 align-middle text-center">
+                        {(product as any)._effectiveIvaRate != null ? (
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold ${
+                            (product as any)._ivaRateSource === 'category'
+                              ? 'bg-violet-100 text-violet-800'
+                              : (product as any)._ivaRateSource === 'product'
+                                ? 'bg-purple-100 text-purple-800'
+                                : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {(product as any)._effectiveIvaRate}%
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
                         )}
                       </td>
                       <td className="p-2 align-middle text-center">
