@@ -180,7 +180,7 @@ export async function POST(request: NextRequest) {
         hasCostPrice ? Number(costPrice) : null,
         markup != null && markup !== '' ? Number(markup) : null,
         cashDiscount != null && cashDiscount !== '' ? Number(cashDiscount) : null,
-        ivaRate != null && ivaRate !== '' ? Number(ivaRate) : 10.5,
+        ivaRate != null && ivaRate !== '' ? Number(ivaRate) : null,
         salePrice ? Number(salePrice) : null,
         saleStart || null,
         saleEnd || null,
@@ -318,10 +318,15 @@ export async function PUT(request: NextRequest) {
     if (markup !== undefined) { fields.push('markup = ?'); values.push(markup != null && markup !== '' ? Number(markup) : null) }
     if (cashDiscount !== undefined) { fields.push('cashDiscount = ?'); values.push(cashDiscount != null && cashDiscount !== '' ? Number(cashDiscount) : null) }
     if (ivaRate !== undefined) {
-      const parsedIva = ivaRate != null && ivaRate !== '' ? Number(ivaRate) : 10.5
-      // SAFEGUARD: Only store valid IVA rates in the database
-      const safeIva = (isNaN(parsedIva) || ![10.5, 21].includes(parsedIva)) ? 10.5 : parsedIva
-      fields.push('ivaRate = ?'); values.push(safeIva)
+      if (ivaRate != null && ivaRate !== '') {
+        const parsedIva = Number(ivaRate)
+        // SAFEGUARD: Only store valid IVA rates in the database
+        const safeIva = (isNaN(parsedIva) || ![10.5, 21].includes(parsedIva)) ? null : parsedIva
+        fields.push('ivaRate = ?'); values.push(safeIva)
+      } else {
+        // null/empty = inherit from category
+        fields.push('ivaRate = ?'); values.push(null)
+      }
     }
     if (salePrice !== undefined) { fields.push('salePrice = ?'); values.push(salePrice ? Number(salePrice) : null) }
     if (saleStart !== undefined) { fields.push('saleStart = ?'); values.push(saleStart || null) }

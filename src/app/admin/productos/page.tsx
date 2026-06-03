@@ -112,7 +112,7 @@ interface ProductForm {
   categoryId: string
   markup: string       // individual product markup (empty = use global)
   cashDiscount: string  // individual product cash discount (empty = use global)
-  ivaRate: string       // IVA percentage (default 10.5)
+  ivaRate: string       // IVA percentage (empty = use category/default)
   salePrice: string     // promotional price (empty = no sale)
   saleStart: string     // sale start date (ISO)
   saleEnd: string       // sale end date (ISO)
@@ -152,7 +152,7 @@ const emptyForm: ProductForm = {
   categoryId: '',
   markup: '',
   cashDiscount: '',
-  ivaRate: '10.5',
+  ivaRate: '',
   salePrice: '',
   saleStart: '',
   saleEnd: '',
@@ -402,7 +402,7 @@ export default function AdminProductos() {
       categoryId: product.categoryId || '',
       markup: product.markup != null ? String(product.markup) : '',
       cashDiscount: product.cashDiscount != null ? String(product.cashDiscount) : '',
-      ivaRate: product.ivaRate != null ? String(product.ivaRate) : '10.5',
+      ivaRate: product.ivaRate != null ? String(product.ivaRate) : '',
       salePrice: product.salePrice != null ? String(product.salePrice) : '',
       saleStart: product.saleStart ? product.saleStart.slice(0, 10) : '',
       saleEnd: product.saleEnd ? product.saleEnd.slice(0, 10) : '',
@@ -467,7 +467,7 @@ export default function AdminProductos() {
         categoryId: form.categoryId || null,
         markup: form.markup !== '' ? Number(form.markup) : null,
         cashDiscount: form.cashDiscount !== '' ? Number(form.cashDiscount) : null,
-        ivaRate: form.ivaRate !== '' ? Number(form.ivaRate) : 10.5,
+        ivaRate: form.ivaRate !== '' ? Number(form.ivaRate) : null,
         salePrice: form.salePrice ? Number(form.salePrice) : null,
         saleStart: form.saleStart || null,
         saleEnd: form.saleEnd || null,
@@ -933,13 +933,14 @@ export default function AdminProductos() {
                     IVA (%)
                   </Label>
                   <Select
-                    value={form.ivaRate || '10.5'}
-                    onValueChange={(value) => updateForm('ivaRate', value)}
+                    value={form.ivaRate || '_inherit'}
+                    onValueChange={(value) => updateForm('ivaRate', value === '_inherit' ? '' : value)}
                   >
                     <SelectTrigger className="bg-white">
                       <SelectValue placeholder="Seleccionar IVA" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="_inherit">Heredar de categoría (default 10,5%)</SelectItem>
                       <SelectItem value="10.5">10,5%</SelectItem>
                       <SelectItem value="21">21%</SelectItem>
                     </SelectContent>
@@ -948,8 +949,8 @@ export default function AdminProductos() {
                     {(() => {
                       const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
                       return cat?.ivaRate != null
-                        ? `Categoría usa ${cat.ivaRate}%. Dejar así para usar el de categoría.`
-                        : 'Default 10,5%. Cambiar a 21% si corresponde.'
+                        ? `Categoría usa ${cat.ivaRate}%. Seleccioná "Heredar" para usar el de categoría.`
+                        : 'Heredar usa 10,5% por defecto. Seleccioná 21% si corresponde.'
                     })()}
                   </p>
                 </div>
@@ -1014,11 +1015,11 @@ export default function AdminProductos() {
                   </div>
                   <div className="border-t border-compucity-green-100 pt-2 space-y-1 text-sm">
                     <p className="text-gray-600">
-                      USD {Number(form.costPrice).toFixed(2)} × (1 + {form.ivaRate || '10.5'}%) × (1 + {form.markup !== '' ? form.markup : dollarConfig.markup}%) × ${dollarConfig.rate.toLocaleString('es-AR')} = 
+                      USD {Number(form.costPrice).toFixed(2)} × (1 + {form.ivaRate !== '' ? form.ivaRate : (() => { const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null; return cat?.ivaRate != null ? cat.ivaRate : '10.5'; })()}%) × (1 + {form.markup !== '' ? form.markup : dollarConfig.markup}%) × ${dollarConfig.rate.toLocaleString('es-AR')} = 
                       <strong className="text-gray-900"> {formatPrice(calculatedListPrice!)}</strong> <span className="text-gray-500">(lista c/IVA)</span>
                     </p>
                     <p className="text-gray-600">
-                      USD {Number(form.costPrice).toFixed(2)} × (1 + {form.ivaRate || '10.5'}%) × (1 + {form.markup !== '' ? form.markup : dollarConfig.markup}% - {form.cashDiscount !== '' ? form.cashDiscount : dollarConfig.cashDiscount}%) × ${dollarConfig.rate.toLocaleString('es-AR')} = 
+                      USD {Number(form.costPrice).toFixed(2)} × (1 + {form.ivaRate !== '' ? form.ivaRate : (() => { const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null; return cat?.ivaRate != null ? cat.ivaRate : '10.5'; })()}%) × (1 + {form.markup !== '' ? form.markup : dollarConfig.markup}% - {form.cashDiscount !== '' ? form.cashDiscount : dollarConfig.cashDiscount}%) × ${dollarConfig.rate.toLocaleString('es-AR')} = 
                       <strong className="text-green-700"> {formatPrice(calculatedCashPrice!)}</strong> <span className="text-gray-500">(efectivo c/IVA)</span>
                     </p>
                   </div>
