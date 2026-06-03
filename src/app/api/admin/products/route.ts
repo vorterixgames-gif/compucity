@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { fetchDollarRate } from '@/lib/dollar'
+import { fetchDollarRate, getStoreConfigNumber, calculateProductPrices, CategoryMarkup } from '@/lib/dollar'
 import { getCurrentAdmin } from '@/lib/admin-auth'
 
 async function getConfig(key: string, defaultValue: number): Promise<number> {
@@ -34,42 +34,38 @@ export async function GET() {
     const admin = await getCurrentAdmin()
     if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    // Get current dollar rate and config
-    const dollar = await fetchDollarRate()
-    const markup = await getConfig('markup', 30)
-    const cashDiscount = await getConfig('cash_discount', 10)
+    // Get current dollar rate, config, and category markup map
+    const [dollar, markup, cashDiscount, catMarkupResult, result] = await Promise.all([
+      fetchDollarRate(),
+      getStoreConfigNumber('markup', 30),
+      getStoreConfigNumber('cash_discount', 10),
+      db.execute('SELECT id, markup, cashDiscount FROM categories'),
+      db.execute(
+        `SELECT p.*, c.name as categoryName, c.markup as categoryMarkup, c.cashDiscount as categoryCashDiscount
+         FROM products p 
+         LEFT JOIN categories c ON p.categoryId = c.id 
+         ORDER BY p.createdAt DESC`
+      ),
+    ])
 
-    const result = await db.execute(
-      `SELECT p.*, c.name as categoryName 
-       FROM products p 
-       LEFT JOIN categories c ON p.categoryId = c.id 
-       ORDER BY p.createdAt DESC`
-    )
+    // Build category markup map for 3-tier priority: product → category → global
+    const catMarkupMap = new Map<string, CategoryMarkup>()
+    for (const row of catMarkupResult.rows as any[]) {
+      catMarkupMap.set(row.id, {
+        markup: row.markup != null ? Number(row.markup) : null,
+        cashDiscount: row.cashDiscount != null ? Number(row.cashDiscount) : null,
+      })
+    }
 
-    // Calculate prices based on dollar for products that have costPrice (USD)
+    // Calculate prices using calculateProductPrices (3-tier: product → category → global)
     const products = (result.rows as any[]).map(p => {
-      if (p.costPrice && p.costPrice > 0) {
-        // Use product-level markup/discount if set, otherwise fall back to global
-        const effectiveMarkup = p.markup != null ? Number(p.markup) : markup
-        const effectiveCashDiscount = p.cashDiscount != null ? Number(p.cashDiscount) : cashDiscount
-        const effectiveIvaRate = p.ivaRate != null ? Number(p.ivaRate) : 10.5
-        // Auto-calculate from USD cost
-        // costUSD × (1+IVA) × (1+markup) × dollarRate
-        const calculatedListPrice = Math.ceil(p.costPrice * (1 + effectiveIvaRate / 100) * (1 + effectiveMarkup / 100) * dollar.rate)
-        const calculatedCashPrice = Math.ceil(p.costPrice * (1 + effectiveIvaRate / 100) * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * dollar.rate)
-        return {
-          ...p,
-          price: calculatedListPrice,
-          comparePrice: calculatedCashPrice,
-          _calculated: true,
-          _dollarRate: dollar.rate,
-          _effectiveMarkup: effectiveMarkup,
-          _effectiveCashDiscount: effectiveCashDiscount,
-          _effectiveIvaRate: effectiveIvaRate,
-        }
+      const catMarkup = p.categoryId ? catMarkupMap.get(p.categoryId) : null
+      const calculated = calculateProductPrices(p, dollar.rate, markup, cashDiscount, catMarkup)
+      return {
+        ...calculated,
+        categoryName: p.categoryName,
+        _dollarRate: dollar.rate,
       }
-      // Manual pricing (no USD cost set)
-      return { ...p, _calculated: false, _dollarRate: dollar.rate }
     })
 
     return NextResponse.json({
@@ -140,12 +136,22 @@ export async function POST(request: NextRequest) {
 
     if (hasCostPrice) {
       // Auto-calculate from USD cost + dollar rate + markup
-      const dollar = await fetchDollarRate()
-      const globalMarkup = await getConfig('markup', 30)
-      const globalCashDiscount = await getConfig('cash_discount', 10)
-      // Use product-level values if provided, otherwise use global
-      const effectiveMarkup = markup != null && markup !== '' ? Number(markup) : globalMarkup
-      const effectiveCashDiscount = cashDiscount != null && cashDiscount !== '' ? Number(cashDiscount) : globalCashDiscount
+      // 3-tier priority: product → category → global
+      const [dollar, globalMarkup, globalCashDiscount, catMarkupResult] = await Promise.all([
+        fetchDollarRate(),
+        getConfig('markup', 30),
+        getConfig('cash_discount', 10),
+        categoryId ? db.execute({ sql: 'SELECT markup, cashDiscount FROM categories WHERE id = ?', args: [categoryId] }) : null,
+      ])
+
+      // Get category markup if available
+      const catRow = catMarkupResult ? (catMarkupResult.rows as any[])[0] : null
+      const catMarkupVal = catRow?.markup != null ? Number(catRow.markup) : null
+      const catCashDiscountVal = catRow?.cashDiscount != null ? Number(catRow.cashDiscount) : null
+
+      // Priority: product individual → category → global
+      const effectiveMarkup = markup != null && markup !== '' ? Number(markup) : (catMarkupVal != null ? catMarkupVal : globalMarkup)
+      const effectiveCashDiscount = cashDiscount != null && cashDiscount !== '' ? Number(cashDiscount) : (catCashDiscountVal != null ? catCashDiscountVal : globalCashDiscount)
       let effectiveIvaRate = ivaRate != null && ivaRate !== '' ? Number(ivaRate) : 10.5
 
       // SAFEGUARD: Only allow valid IVA rates (10.5 or 21)
@@ -220,48 +226,59 @@ export async function PUT(request: NextRequest) {
     let finalComparePrice: number | null | undefined = comparePrice !== undefined ? (comparePrice ? Number(comparePrice) : null) : undefined
 
     if (needRecalc) {
-      // Get the product's current costPrice if not provided in this request
+      // Get the product's current costPrice and categoryId if not provided in this request
       let effectiveCostPrice = hasCostPrice ? Number(costPrice) : 0
+      let effectiveCategoryId = categoryId || null
       
       if (!hasCostPrice && (markupChanged || discountChanged)) {
-        // Fetch current costPrice from DB since it wasn't sent
+        // Fetch current costPrice and categoryId from DB since they weren't sent
         const currentProduct = await db.execute({
-          sql: 'SELECT costPrice, markup, cashDiscount FROM products WHERE id = ?',
+          sql: 'SELECT costPrice, markup, cashDiscount, categoryId FROM products WHERE id = ?',
           args: [id],
         })
         const rows = currentProduct.rows as any[]
         if (rows.length > 0 && rows[0].costPrice && Number(rows[0].costPrice) > 0) {
           effectiveCostPrice = Number(rows[0].costPrice)
+          if (!effectiveCategoryId) effectiveCategoryId = rows[0].categoryId
         }
       }
 
       if (effectiveCostPrice > 0) {
         // Auto-calculate from USD cost + dollar rate + markup
-        const dollar = await fetchDollarRate()
-        const globalMarkup = await getConfig('markup', 30)
-        const globalCashDiscount = await getConfig('cash_discount', 10)
+        // 3-tier priority: product → category → global
+        const [dollar, globalMarkup, globalCashDiscount, catMarkupResult] = await Promise.all([
+          fetchDollarRate(),
+          getConfig('markup', 30),
+          getConfig('cash_discount', 10),
+          effectiveCategoryId ? db.execute({ sql: 'SELECT markup, cashDiscount FROM categories WHERE id = ?', args: [effectiveCategoryId] }) : null,
+        ])
 
-        // Determine effective markup: use product-level if provided, otherwise use existing or global
+        // Get category markup if available
+        const catRow = catMarkupResult ? (catMarkupResult.rows as any[])[0] : null
+        const catMarkupVal = catRow?.markup != null ? Number(catRow.markup) : null
+        const catCashDiscountVal = catRow?.cashDiscount != null ? Number(catRow.cashDiscount) : null
+
+        // Determine effective markup: product individual → category → global
         let effectiveMarkup = globalMarkup
         if (markup != null && markup !== '') {
           effectiveMarkup = Number(markup)
         } else if (markup === null || markup === '') {
-          // User cleared the individual markup, use global
-          effectiveMarkup = globalMarkup
+          // User cleared the individual markup, use category → global
+          effectiveMarkup = catMarkupVal != null ? catMarkupVal : globalMarkup
         } else if (markup === undefined) {
           // markup not sent in request - check if product has individual value
           if (hasCostPrice) {
-            // New costPrice being set, use global unless markup was provided
-            effectiveMarkup = globalMarkup
+            // New costPrice being set, use category → global unless markup was provided
+            effectiveMarkup = catMarkupVal != null ? catMarkupVal : globalMarkup
           }
-          // Otherwise keep current behavior
         }
 
+        // Determine effective cashDiscount: product individual → category → global
         let effectiveCashDiscount = globalCashDiscount
         if (cashDiscount != null && cashDiscount !== '') {
           effectiveCashDiscount = Number(cashDiscount)
         } else if (cashDiscount === null || cashDiscount === '') {
-          effectiveCashDiscount = globalCashDiscount
+          effectiveCashDiscount = catCashDiscountVal != null ? catCashDiscountVal : globalCashDiscount
         }
 
         const dollarRate = dollar?.rate || 1415

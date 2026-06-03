@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-03 (sesion 7)
+**Ultima actualizacion:** 2026-06-03 (sesion 8)
 
 ---
 
@@ -95,7 +95,7 @@
 
 ---
 
-## Sistema de Precios (Global + Individual + IVA)
+## Sistema de Precios (Global + Categoría + Individual + IVA)
 
 ### Configuracion Global
 - **Markup (margen de ganancia):** 15% (store_config: markup = 15)
@@ -104,9 +104,19 @@
 - **Fuente dolar:** Banco Nacion (dolar_api)
 - **Panel admin:** `/admin/configuracion` - Permite cambiar dolar, markup, descuento global
 
+### Sistema de 3 Niveles de Markup (IMPLEMENTADO sesion 8)
+- **Prioridad:** Producto individual → Categoría → Global
+- **Campos en categorías:** `markup` y `cashDiscount` (nullable, si es null usa el global)
+- **Campos en productos:** `markup` y `cashDiscount` (nullable, si es null usa categoría o global)
+- **Vista previa en admin productos:** Muestra si se usa "(individual)", "(categoría)" o global
+- **Badges en tabla:** M (markup individual), MC (markup categoría), D (dto individual), DC (dto categoría)
+- **Cálculo en vivo:** Al cambiar categoría en el formulario, se recalculan precios considerando markup de categoría
+- **APIs actualizadas:** Todas las APIs (pública, admin, export, PC Builder) usan el sistema de 3 niveles
+- **Estado actual:** 0 categorías con markup propio (todas usan global 15%), 2 productos con markup individual
+
 ### Markup y Descuento Individual por Producto
 - Cada producto puede tener su propio **markup** y **cashDiscount** (campos nullable en la DB)
-- Si el producto tiene valor individual, se usa ese; si es NULL, se usa el global
+- Si el producto tiene valor individual, se usa ese; si es NULL, se verifica la categoría, y si tampoco tiene, se usa el global
 - **Interfaz admin:** Campos "Margen individual (%)" y "Descuento efectivo individual (%)" en el formulario de productos
 - **Indicadores visuales:** Badges "M" (markup) y "D" (descuento) en la tabla de productos
 - **Vista previa:** El calculo automatico muestra si se estan usando valores individuales con etiqueta "(individual)"
@@ -569,6 +579,9 @@ createdAt TEXT, updatedAt TEXT
 ## Backups
 | Fecha | Archivo | Tamano | Contenido |
 |-------|---------|--------|----------|
+| 2026-06-03 (s8) | `compucity-db-backup-2026-06-03T15-36-48-764Z.json` | 8.9MB | Base de datos completa (14 tablas, 4,459 productos, categorías con markup) |
+| 2026-06-03 (s8) | `compucity-db-sql-backup-2026-06-03T15-37-45-192Z.sql` | 8.0MB | Base de datos completa en SQL (schema + INSERT) |
+| 2026-06-03 (s8) | `compucity-code-backup-2026-06-03-1538.tar.gz` | 40MB | Código completo con sistema de 3 niveles de markup |
 | 2026-06-03 (s7) | `compucity-backup-2026-06-03s7.tar.gz` | 121MB | Codigo completo con IVA, salePrice, promociones, filtros, protecciones deploy |
 | 2026-06-03 (s7) | `compucity-db-2026-06-03s7.json` | 8.87MB | Base de datos completa (14 tablas, 4,464 productos, banners, coupons) |
 | 2026-06-02 (s6) | `compucity-backup-2026-06-02s6.tar.gz` | 246MB | Codigo completo + propuesta IVA + investigacion Andreani |
@@ -625,6 +638,7 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ---
 
 ## Historial de Cambios
+- **2026-06-03 (s8):** Sistema de 3 niveles de markup implementado - Producto individual → Categoría → Global. Todas las APIs (pública, admin, export, PC Builder) actualizadas para respetar prioridad. Admin categorías: campos markup/cashDiscount (ya existían). Admin productos: badges MC/DC para markup por categoría, vista previa muestra "(categoría)" cuando aplica, cálculo en vivo al cambiar categoría. Admin products API: GET usa calculateProductPrices con category markup map, POST/PUT usan 3 niveles al crear/actualizar. Export CSV usa 3 niveles. Backups completos (código 40MB + DB JSON 8.9MB + DB SQL 8.0MB)
 - **2026-06-03 (s7):** IVA diferenciado implementado - campo ivaRate (10.5%/21%) en productos, formula de precios actualizada con IVA. Sistema de promociones completo - cupones de descuento + banners promocionales con imagen de fondo. Filtros y ordenamiento en tabla de admin productos. Precio de oferta (salePrice/saleStart/saleEnd). Protecciones contra deploy de versiones viejas (pre-push hook + deploy script + eliminacion repo duplicado + .gitignore). Fix error en promociones (Image import + upload API + columna imageUrl en banners). Backups completos (codigo 121MB + DB 8.87MB)
 - **2026-06-02 (s6):** Investigacion Andreani (credenciales incompletas, falta codigoCliente + contratoDomicilio). Propuesta de implementacion IVA diferenciado (10.5% / 21%) - 3 opciones presentadas, en espera de confirmacion del dueño. Backup codigo 246MB
 - **2026-06-02 (s5):** Prioridad global de imagenes - Productos con foto aparecen primero en todo el sitio (home, categorias, busqueda, PC Builder, relacionados). Recategorizacion: 7 PC Gamer Raptor (gabinete+fuente) movidas a gabinetes, 4 Gabinete Raptor de joysticks a gabinetes, 3 Switches TP-Link de oficina-pc a switches. Homepage PC Armadas: mezcla balanceada por subcategoria (round-robin). Backup completo (codigo 42MB + DB 8.4MB)

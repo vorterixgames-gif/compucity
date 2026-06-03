@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { fetchDollarRate, getStoreConfigNumber } from '@/lib/dollar'
+import { fetchDollarRate, getStoreConfigNumber, CategoryMarkup } from '@/lib/dollar'
 import { getCurrentAdmin } from '@/lib/admin-auth'
 
 export async function GET() {
@@ -11,13 +11,25 @@ export async function GET() {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
-    // Get current dollar rate and config
-    const dollar = await fetchDollarRate()
-    const markup = await getStoreConfigNumber('markup', 30)
-    const cashDiscount = await getStoreConfigNumber('cash_discount', 10)
+    // Get current dollar rate, config, and category markup map
+    const [dollar, markup, cashDiscount, catMarkupResult] = await Promise.all([
+      fetchDollarRate(),
+      getStoreConfigNumber('markup', 30),
+      getStoreConfigNumber('cash_discount', 10),
+      db.execute('SELECT id, markup, cashDiscount FROM categories'),
+    ])
+
+    // Build category markup map for 3-tier priority: product → category → global
+    const catMarkupMap = new Map<string, CategoryMarkup>()
+    for (const row of catMarkupResult.rows as any[]) {
+      catMarkupMap.set(row.id, {
+        markup: row.markup != null ? Number(row.markup) : null,
+        cashDiscount: row.cashDiscount != null ? Number(row.cashDiscount) : null,
+      })
+    }
 
     const result = await db.execute(
-      `SELECT p.name, p.sku, p.costPrice, p.price, p.comparePrice, p.stock, p.isActive, p.isFeatured, p.providerId, p.providerSku, p.markup, p.cashDiscount, p.ivaRate, c.name as categoryName
+      `SELECT p.name, p.sku, p.costPrice, p.price, p.comparePrice, p.stock, p.isActive, p.isFeatured, p.providerId, p.providerSku, p.markup, p.cashDiscount, p.ivaRate, p.categoryId, c.name as categoryName
        FROM products p 
        LEFT JOIN categories c ON p.categoryId = c.id 
        ORDER BY p.createdAt DESC`
@@ -47,11 +59,16 @@ export async function GET() {
       let cashPrice = p.comparePrice ? Number(p.comparePrice) : 0
       const ivaRate = p.ivaRate != null ? Number(p.ivaRate) : 10.5
 
-      // Auto-calculate from USD cost if costPrice > 0 (same logic as admin products API)
+      // Auto-calculate from USD cost if costPrice > 0 (3-tier: product → category → global)
       if (p.costPrice && Number(p.costPrice) > 0) {
-        // Use product-level markup/discount/iva if set, otherwise use global/defaults
-        const effectiveMarkup = p.markup != null ? Number(p.markup) : markup
-        const effectiveCashDiscount = p.cashDiscount != null ? Number(p.cashDiscount) : cashDiscount
+        // Get category markup for 3-tier priority
+        const catMarkup = p.categoryId ? catMarkupMap.get(p.categoryId) : null
+        const catMarkupVal = catMarkup?.markup ?? null
+        const catCashDiscountVal = catMarkup?.cashDiscount ?? null
+
+        // Priority: product individual → category → global
+        const effectiveMarkup = p.markup != null ? Number(p.markup) : (catMarkupVal != null ? catMarkupVal : markup)
+        const effectiveCashDiscount = p.cashDiscount != null ? Number(p.cashDiscount) : (catCashDiscountVal != null ? catCashDiscountVal : cashDiscount)
         // costUSD × (1+IVA) × (1+markup) × dollarRate
         listPrice = Math.ceil(Number(p.costPrice) * (1 + ivaRate / 100) * (1 + effectiveMarkup / 100) * dollar.rate)
         cashPrice = Math.ceil(Number(p.costPrice) * (1 + ivaRate / 100) * (1 + (effectiveMarkup - effectiveCashDiscount) / 100) * dollar.rate)

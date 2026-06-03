@@ -88,6 +88,8 @@ interface Product {
   _effectiveMarkup?: number
   _effectiveCashDiscount?: number
   _effectiveIvaRate?: number
+  _markupSource?: 'product' | 'category' | 'global'
+  _cashDiscountSource?: 'product' | 'category' | 'global'
   createdAt: string
   updatedAt: string
 }
@@ -265,13 +267,17 @@ export default function AdminProductos() {
     }
   }, [])
 
-  // Calculate prices when costPrice, markup, cashDiscount, or ivaRate changes
+  // Calculate prices when costPrice, markup, cashDiscount, ivaRate, or categoryId changes
   useEffect(() => {
     const costUsd = Number(form.costPrice)
     if (costUsd > 0 && dollarConfig) {
-      // Use individual markup/discount if set, otherwise use global
-      const effectiveMarkup = form.markup !== '' ? Number(form.markup) : dollarConfig.markup
-      const effectiveCashDiscount = form.cashDiscount !== '' ? Number(form.cashDiscount) : dollarConfig.cashDiscount
+      // 3-tier priority: product individual → category → global
+      const selectedCategory = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
+      const catMarkup = selectedCategory?.markup != null ? Number(selectedCategory.markup) : null
+      const catCashDiscount = selectedCategory?.cashDiscount != null ? Number(selectedCategory.cashDiscount) : null
+
+      const effectiveMarkup = form.markup !== '' ? Number(form.markup) : (catMarkup != null ? catMarkup : dollarConfig.markup)
+      const effectiveCashDiscount = form.cashDiscount !== '' ? Number(form.cashDiscount) : (catCashDiscount != null ? catCashDiscount : dollarConfig.cashDiscount)
       const effectiveIvaRate = form.ivaRate !== '' ? Number(form.ivaRate) : 10.5
       // costUSD × (1+IVA) × (1+markup) × dollarRate
       const listPrice = Math.ceil(costUsd * (1 + effectiveIvaRate / 100) * (1 + effectiveMarkup / 100) * dollarConfig.rate)
@@ -288,7 +294,7 @@ export default function AdminProductos() {
       setCalculatedListPrice(null)
       setCalculatedCashPrice(null)
     }
-  }, [form.costPrice, form.markup, form.cashDiscount, form.ivaRate, dollarConfig])
+  }, [form.costPrice, form.markup, form.cashDiscount, form.ivaRate, form.categoryId, categories, dollarConfig])
 
   // Sorting handler
   const handleSort = (column: SortColumn) => {
@@ -716,11 +722,17 @@ export default function AdminProductos() {
                                 {product._calculated && (
                                   <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-compucity-green-50 text-compucity-green shrink-0">A</Badge>
                                 )}
-                                {(product as any)._effectiveMarkup != null && (product as any)._effectiveMarkup !== dollarConfig?.markup && (
-                                  <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-blue-50 text-blue-600 shrink-0" title={`Margen: ${(product as any)._effectiveMarkup}%`}>M</Badge>
+                                {(product as any)._markupSource === 'product' && (
+                                  <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-blue-50 text-blue-600 shrink-0" title={`Margen individual: ${(product as any)._effectiveMarkup}%`}>M</Badge>
                                 )}
-                                {(product as any)._effectiveCashDiscount != null && (product as any)._effectiveCashDiscount !== dollarConfig?.cashDiscount && (
-                                  <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-amber-50 text-amber-600 shrink-0" title={`Desc: ${(product as any)._effectiveCashDiscount}%`}>D</Badge>
+                                {(product as any)._markupSource === 'category' && (
+                                  <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-indigo-50 text-indigo-600 shrink-0" title={`Margen por categoría: ${(product as any)._effectiveMarkup}%`}>MC</Badge>
+                                )}
+                                {(product as any)._cashDiscountSource === 'product' && (
+                                  <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-amber-50 text-amber-600 shrink-0" title={`Desc. efectivo individual: ${(product as any)._effectiveCashDiscount}%`}>D</Badge>
+                                )}
+                                {(product as any)._cashDiscountSource === 'category' && (
+                                  <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-orange-50 text-orange-600 shrink-0" title={`Desc. efectivo por categoría: ${(product as any)._effectiveCashDiscount}%`}>DC</Badge>
                                 )}
                                 {(product as any)._effectiveIvaRate != null && (product as any)._effectiveIvaRate !== 10.5 && (
                                   <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-purple-50 text-purple-600 shrink-0" title={`IVA: ${(product as any)._effectiveIvaRate}%`}>I</Badge>
@@ -881,7 +893,10 @@ export default function AdminProductos() {
                     className="bg-white"
                   />
                   <p className="text-xs text-gray-400">
-                    Dejar vacío para usar el margen global ({dollarConfig?.markup ?? 30}%)
+                    Dejar vacío para usar categoría ({(() => {
+                      const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
+                      return cat?.markup != null ? `cat: ${cat.markup}%` : `global: ${dollarConfig?.markup ?? 30}%`
+                    })()})
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -901,7 +916,10 @@ export default function AdminProductos() {
                     className="bg-white"
                   />
                   <p className="text-xs text-gray-400">
-                    Dejar vacío para usar el descuento global ({dollarConfig?.cashDiscount ?? 10}%)
+                    Dejar vacío para usar categoría ({(() => {
+                      const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
+                      return cat?.cashDiscount != null ? `cat: ${cat.cashDiscount}%` : `global: ${dollarConfig?.cashDiscount ?? 10}%`
+                    })()})
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -942,8 +960,15 @@ export default function AdminProductos() {
                     <div>
                       <p className="text-compucity-green">Margen de ganancia</p>
                       <p className="font-bold text-compucity-green-dark">
-                        {form.markup !== '' ? form.markup : dollarConfig.markup}%
+                        {form.markup !== '' ? form.markup : (() => {
+                          const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
+                          return cat?.markup != null ? cat.markup : dollarConfig.markup
+                        })()}%
                         {form.markup !== '' && <span className="text-xs font-normal text-blue-600 ml-1">(individual)</span>}
+                        {form.markup === '' && (() => {
+                          const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
+                          return cat?.markup != null ? <span className="text-xs font-normal text-indigo-600 ml-1">(categoría)</span> : null
+                        })()}
                       </p>
                     </div>
                   </div>
@@ -951,8 +976,15 @@ export default function AdminProductos() {
                     <div>
                       <p className="text-compucity-green">Descuento efectivo</p>
                       <p className="font-bold text-compucity-green-dark">
-                        {form.cashDiscount !== '' ? form.cashDiscount : dollarConfig.cashDiscount}%
+                        {form.cashDiscount !== '' ? form.cashDiscount : (() => {
+                          const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
+                          return cat?.cashDiscount != null ? cat.cashDiscount : dollarConfig.cashDiscount
+                        })()}%
                         {form.cashDiscount !== '' && <span className="text-xs font-normal text-amber-600 ml-1">(individual)</span>}
+                        {form.cashDiscount === '' && (() => {
+                          const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
+                          return cat?.cashDiscount != null ? <span className="text-xs font-normal text-orange-600 ml-1">(categoría)</span> : null
+                        })()}
                       </p>
                     </div>
                     <div>
