@@ -318,7 +318,7 @@ export default function Navbar() {
 
           {/* LOGO - SVG de alta calidad */}
           <Link href="/" className="group shrink-0">
-            <CompucityLogo variant="full" size="xl" className="group-hover:scale-105 transition-transform duration-200" />
+            <CompucityLogo variant="full" size="xl" className="group-hover:scale-110 transition-transform duration-300" />
           </Link>
 
           {/* Search - desktop */}
