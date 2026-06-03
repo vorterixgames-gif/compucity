@@ -61,3 +61,6 @@ download/
 
 # Dev scripts and PID files
 .zscripts/
+
+# Prevent duplicate repo directories
+compucity-repo/
