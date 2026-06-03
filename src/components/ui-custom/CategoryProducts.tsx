@@ -60,7 +60,7 @@ export default function CategoryProducts({
   categoryName,
   searchQuery,
 }: Props) {
-  const [sort, setSort] = useState<SortOption>('newest')
+  const [sort, setSort] = useState<SortOption>('price-asc')
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
   const [onlyInStock, setOnlyInStock] = useState(false)
