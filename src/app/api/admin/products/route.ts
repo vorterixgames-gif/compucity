@@ -39,7 +39,7 @@ export async function GET() {
       fetchDollarRate(),
       getStoreConfigNumber('markup', 30),
       getStoreConfigNumber('cash_discount', 10),
-      db.execute('SELECT id, markup, cashDiscount, ivaRate FROM categories'),
+      db.execute('SELECT id, parentId, markup, cashDiscount, ivaRate FROM categories'),
       db.execute(
         `SELECT p.*, c.name as categoryName, c.markup as categoryMarkup, c.cashDiscount as categoryCashDiscount
          FROM products p 
@@ -48,13 +48,29 @@ export async function GET() {
       ),
     ])
 
-    // Build category markup map for 3-tier priority: product → category → global
-    const catMarkupMap = new Map<string, CategoryMarkup>()
+    // Build category markup map with parent inheritance for 3-tier priority
+    const rawCatMap = new Map<string, { parentId: string | null; markup: number | null; cashDiscount: number | null; ivaRate: number | null }>()
     for (const row of catMarkupResult.rows as any[]) {
-      catMarkupMap.set(row.id, {
+      rawCatMap.set(row.id, {
+        parentId: row.parentId,
         markup: row.markup != null ? Number(row.markup) : null,
         cashDiscount: row.cashDiscount != null ? Number(row.cashDiscount) : null,
         ivaRate: row.ivaRate != null ? Number(row.ivaRate) : null,
+      })
+    }
+    const catMarkupMap = new Map<string, CategoryMarkup>()
+    const resolveCat = (id: string, field: 'markup' | 'cashDiscount' | 'ivaRate'): number | null => {
+      const entry = rawCatMap.get(id)
+      if (!entry) return null
+      if (entry[field] != null) return entry[field]
+      if (entry.parentId) return resolveCat(entry.parentId, field)
+      return null
+    }
+    for (const [id] of rawCatMap) {
+      catMarkupMap.set(id, {
+        markup: resolveCat(id, 'markup'),
+        cashDiscount: resolveCat(id, 'cashDiscount'),
+        ivaRate: resolveCat(id, 'ivaRate'),
       })
     }
 

@@ -175,6 +175,34 @@ export default function AdminProductos() {
   const [search, setSearch] = useState('')
   const [saving, setSaving] = useState(false)
 
+  // Resolve category pricing with parent inheritance (subcategory → parent → null)
+  const getCategoryPricing = useCallback((categoryId: string | null): { markup: number | null; cashDiscount: number | null; ivaRate: number | null; categoryName: string | null } => {
+    if (!categoryId) return { markup: null, cashDiscount: null, ivaRate: null, categoryName: null }
+    const cat = categories.find(c => c.id === categoryId)
+    if (!cat) return { markup: null, cashDiscount: null, ivaRate: null, categoryName: null }
+
+    // If the category has the value, use it; otherwise check parent
+    const resolve = (field: 'markup' | 'cashDiscount' | 'ivaRate'): number | null => {
+      if (cat[field] != null) return cat[field]
+      // Walk up the parent chain
+      let parentId = cat.parentId
+      while (parentId) {
+        const parent = categories.find(c => c.id === parentId)
+        if (!parent) break
+        if (parent[field] != null) return parent[field]
+        parentId = parent.parentId
+      }
+      return null
+    }
+
+    return {
+      markup: resolve('markup'),
+      cashDiscount: resolve('cashDiscount'),
+      ivaRate: resolve('ivaRate'),
+      categoryName: cat.name,
+    }
+  }, [categories])
+
   // Sorting
   const [sortColumn, setSortColumn] = useState<SortColumn>('name')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
@@ -275,11 +303,11 @@ export default function AdminProductos() {
   useEffect(() => {
     const costUsd = Number(form.costPrice)
     if (costUsd > 0 && dollarConfig) {
-      // 3-tier priority: product individual → category → global
-      const selectedCategory = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
-      const catMarkup = selectedCategory?.markup != null ? Number(selectedCategory.markup) : null
-      const catCashDiscount = selectedCategory?.cashDiscount != null ? Number(selectedCategory.cashDiscount) : null
-      const catIvaRate = selectedCategory?.ivaRate != null ? Number(selectedCategory.ivaRate) : null
+      // 3-tier priority: product individual → category (with parent inheritance) → global
+      const catPricing = getCategoryPricing(form.categoryId || null)
+      const catMarkup = catPricing.markup != null ? Number(catPricing.markup) : null
+      const catCashDiscount = catPricing.cashDiscount != null ? Number(catPricing.cashDiscount) : null
+      const catIvaRate = catPricing.ivaRate != null ? Number(catPricing.ivaRate) : null
 
       const effectiveMarkup = form.markup !== '' ? Number(form.markup) : (catMarkup != null ? catMarkup : dollarConfig.markup)
       const effectiveCashDiscount = form.cashDiscount !== '' ? Number(form.cashDiscount) : (catCashDiscount != null ? catCashDiscount : dollarConfig.cashDiscount)
@@ -299,7 +327,7 @@ export default function AdminProductos() {
       setCalculatedListPrice(null)
       setCalculatedCashPrice(null)
     }
-  }, [form.costPrice, form.markup, form.cashDiscount, form.ivaRate, form.categoryId, categories, dollarConfig])
+  }, [form.costPrice, form.markup, form.cashDiscount, form.ivaRate, form.categoryId, categories, dollarConfig, getCategoryPricing])
 
   // Sorting handler
   const handleSort = (column: SortColumn) => {
@@ -919,8 +947,8 @@ export default function AdminProductos() {
                   />
                   <p className="text-xs text-gray-400">
                     Dejar vacío para usar categoría ({(() => {
-                      const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
-                      return cat?.markup != null ? `cat: ${cat.markup}%` : `global: ${dollarConfig?.markup ?? 30}%`
+                      const cp = getCategoryPricing(form.categoryId || null)
+                      return cp.markup != null ? `cat: ${cp.markup}%` : `global: ${dollarConfig?.markup ?? 30}%`
                     })()})
                   </p>
                 </div>
@@ -942,8 +970,8 @@ export default function AdminProductos() {
                   />
                   <p className="text-xs text-gray-400">
                     Dejar vacío para usar categoría ({(() => {
-                      const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
-                      return cat?.cashDiscount != null ? `cat: ${cat.cashDiscount}%` : `global: ${dollarConfig?.cashDiscount ?? 10}%`
+                      const cp = getCategoryPricing(form.categoryId || null)
+                      return cp.cashDiscount != null ? `cat: ${cp.cashDiscount}%` : `global: ${dollarConfig?.cashDiscount ?? 10}%`
                     })()})
                   </p>
                 </div>
@@ -961,8 +989,8 @@ export default function AdminProductos() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="_inherit">{(() => {
-                        const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
-                        const inheritedRate = cat?.ivaRate != null ? cat.ivaRate : 10.5
+                        const cp = getCategoryPricing(form.categoryId || null)
+                        const inheritedRate = cp.ivaRate != null ? cp.ivaRate : 10.5
                         return `Heredar de categoría → ${inheritedRate}%`
                       })()}</SelectItem>
                       <SelectItem value="10.5">10,5% (forzar individual)</SelectItem>
@@ -971,11 +999,11 @@ export default function AdminProductos() {
                   </Select>
                   <p className="text-xs text-gray-400">
                     {(() => {
-                      const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
-                      if (cat?.ivaRate != null) {
+                      const cp = getCategoryPricing(form.categoryId || null)
+                      if (cp.ivaRate != null) {
                         return form.ivaRate === ''
-                          ? `✓ Usando IVA ${cat.ivaRate}% de la categoría "${cat.name}".`
-                          : `Categoría usa ${cat.ivaRate}%. Este producto tiene IVA ${form.ivaRate}% individual.`
+                          ? `✓ Usando IVA ${cp.ivaRate}% de la categoría "${cp.categoryName}".`
+                          : `Categoría usa ${cp.ivaRate}%. Este producto tiene IVA ${form.ivaRate}% individual.`
                       }
                       return form.ivaRate === ''
                         ? 'Usando IVA default 10,5%. La categoría no tiene IVA configurado.'
@@ -1001,13 +1029,13 @@ export default function AdminProductos() {
                       <p className="text-compucity-green">Margen de ganancia</p>
                       <p className="font-bold text-compucity-green-dark">
                         {form.markup !== '' ? form.markup : (() => {
-                          const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
-                          return cat?.markup != null ? cat.markup : dollarConfig.markup
+                          const cp = getCategoryPricing(form.categoryId || null)
+                          return cp.markup != null ? cp.markup : dollarConfig.markup
                         })()}%
                         {form.markup !== '' && <span className="text-xs font-normal text-blue-600 ml-1">(individual)</span>}
                         {form.markup === '' && (() => {
-                          const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
-                          return cat?.markup != null ? <span className="text-xs font-normal text-indigo-600 ml-1">(categoría)</span> : null
+                          const cp = getCategoryPricing(form.categoryId || null)
+                          return cp.markup != null ? <span className="text-xs font-normal text-indigo-600 ml-1">(categoría)</span> : null
                         })()}
                       </p>
                     </div>
@@ -1017,13 +1045,13 @@ export default function AdminProductos() {
                       <p className="text-compucity-green">Descuento efectivo</p>
                       <p className="font-bold text-compucity-green-dark">
                         {form.cashDiscount !== '' ? form.cashDiscount : (() => {
-                          const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
-                          return cat?.cashDiscount != null ? cat.cashDiscount : dollarConfig.cashDiscount
+                          const cp = getCategoryPricing(form.categoryId || null)
+                          return cp.cashDiscount != null ? cp.cashDiscount : dollarConfig.cashDiscount
                         })()}%
                         {form.cashDiscount !== '' && <span className="text-xs font-normal text-amber-600 ml-1">(individual)</span>}
                         {form.cashDiscount === '' && (() => {
-                          const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
-                          return cat?.cashDiscount != null ? <span className="text-xs font-normal text-orange-600 ml-1">(categoría)</span> : null
+                          const cp = getCategoryPricing(form.categoryId || null)
+                          return cp.cashDiscount != null ? <span className="text-xs font-normal text-orange-600 ml-1">(categoría)</span> : null
                         })()}
                       </p>
                     </div>
@@ -1031,24 +1059,24 @@ export default function AdminProductos() {
                       <p className="text-compucity-green">IVA</p>
                       <p className="font-bold text-compucity-green-dark">
                         {form.ivaRate !== '' ? form.ivaRate : (() => {
-                          const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
-                          return cat?.ivaRate != null ? cat.ivaRate : '10.5'
+                          const cp = getCategoryPricing(form.categoryId || null)
+                          return cp.ivaRate != null ? cp.ivaRate : '10.5'
                         })()}%
                         {form.ivaRate !== '' && <span className="text-xs font-normal text-purple-600 ml-1">(individual)</span>}
                         {form.ivaRate === '' && (() => {
-                          const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null
-                          return cat?.ivaRate != null ? <span className="text-xs font-normal text-violet-600 ml-1">(categoría)</span> : null
+                          const cp = getCategoryPricing(form.categoryId || null)
+                          return cp.ivaRate != null ? <span className="text-xs font-normal text-violet-600 ml-1">(categoría)</span> : null
                         })()}
                       </p>
                     </div>
                   </div>
                   <div className="border-t border-compucity-green-100 pt-2 space-y-1 text-sm">
                     <p className="text-gray-600">
-                      USD {Number(form.costPrice).toFixed(2)} × (1 + {form.ivaRate !== '' ? form.ivaRate : (() => { const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null; return cat?.ivaRate != null ? cat.ivaRate : '10.5'; })()}%) × (1 + {form.markup !== '' ? form.markup : dollarConfig.markup}%) × ${dollarConfig.rate.toLocaleString('es-AR')} = 
+                      USD {Number(form.costPrice).toFixed(2)} × (1 + {form.ivaRate !== '' ? form.ivaRate : (() => { const cp = getCategoryPricing(form.categoryId || null); return cp.ivaRate != null ? cp.ivaRate : '10.5'; })()}%) × (1 + {form.markup !== '' ? form.markup : dollarConfig.markup}%) × ${dollarConfig.rate.toLocaleString('es-AR')} = 
                       <strong className="text-gray-900"> {formatPrice(calculatedListPrice!)}</strong> <span className="text-gray-500">(lista c/IVA)</span>
                     </p>
                     <p className="text-gray-600">
-                      USD {Number(form.costPrice).toFixed(2)} × (1 + {form.ivaRate !== '' ? form.ivaRate : (() => { const cat = form.categoryId ? categories.find(c => c.id === form.categoryId) : null; return cat?.ivaRate != null ? cat.ivaRate : '10.5'; })()}%) × (1 + {form.markup !== '' ? form.markup : dollarConfig.markup}% - {form.cashDiscount !== '' ? form.cashDiscount : dollarConfig.cashDiscount}%) × ${dollarConfig.rate.toLocaleString('es-AR')} = 
+                      USD {Number(form.costPrice).toFixed(2)} × (1 + {form.ivaRate !== '' ? form.ivaRate : (() => { const cp = getCategoryPricing(form.categoryId || null); return cp.ivaRate != null ? cp.ivaRate : '10.5'; })()}%) × (1 + {form.markup !== '' ? form.markup : dollarConfig.markup}% - {form.cashDiscount !== '' ? form.cashDiscount : dollarConfig.cashDiscount}%) × ${dollarConfig.rate.toLocaleString('es-AR')} = 
                       <strong className="text-green-700"> {formatPrice(calculatedCashPrice!)}</strong> <span className="text-gray-500">(efectivo c/IVA)</span>
                     </p>
                   </div>

@@ -86,14 +86,34 @@ export interface Product {
 }
 
 // Helper: build a map of categoryId -> CategoryMarkup for fast lookup
+// Includes parent inheritance: if subcategory has null, inherits from parent
 async function getCategoryMarkupMap(): Promise<Map<string, CategoryMarkup>> {
-  const catResult = await db.execute('SELECT id, markup, cashDiscount, ivaRate FROM categories')
-  const map = new Map<string, CategoryMarkup>()
+  const catResult = await db.execute('SELECT id, parentId, markup, cashDiscount, ivaRate FROM categories')
+  const rawMap = new Map<string, { parentId: string | null; markup: number | null; cashDiscount: number | null; ivaRate: number | null }>()
   for (const row of catResult.rows as any[]) {
-    map.set(row.id, {
+    rawMap.set(row.id, {
+      parentId: row.parentId,
       markup: row.markup != null ? Number(row.markup) : null,
       cashDiscount: row.cashDiscount != null ? Number(row.cashDiscount) : null,
       ivaRate: row.ivaRate != null ? Number(row.ivaRate) : null,
+    })
+  }
+
+  // Build resolved map with parent inheritance
+  const map = new Map<string, CategoryMarkup>()
+  const resolve = (id: string, field: 'markup' | 'cashDiscount' | 'ivaRate'): number | null => {
+    const entry = rawMap.get(id)
+    if (!entry) return null
+    if (entry[field] != null) return entry[field]
+    if (entry.parentId) return resolve(entry.parentId, field)
+    return null
+  }
+
+  for (const [id] of rawMap) {
+    map.set(id, {
+      markup: resolve(id, 'markup'),
+      cashDiscount: resolve(id, 'cashDiscount'),
+      ivaRate: resolve(id, 'ivaRate'),
     })
   }
   return map
