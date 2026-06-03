@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-04 (sesion 9)
+**Ultima actualizacion:** 2026-06-04 (sesion 10)
 
 ---
 
@@ -122,15 +122,18 @@
 - **Vista previa:** El calculo automatico muestra si se estan usando valores individuales con etiqueta "(individual)"
 - **Estado actual:** 2 productos con markup individual, 12 con cashDiscount individual
 
-### IVA Diferenciado (IMPLEMENTADO sesion 7, actualizado sesion 9)
+### IVA Diferenciado (IMPLEMENTADO sesion 7, actualizado sesiones 9-10)
 - **Campo products:** `ivaRate REAL` (nullable, NULL = heredar de categoria o default 10.5%)
 - **Campo categories:** `ivaRate REAL` (nullable, NULL = usar default 10.5%)
-- **Prioridad:** Producto individual → Categoría → Default (10.5%)
-- **Distribucion actual:** 4,445 productos con ivaRate=NULL (heredan de categoria), 14 productos con IVA 21% individual
-- **Categorias con IVA:** Notebooks=21%
-- **Interfaz admin productos:** Selector IVA con opcion "Heredar de categoria (default 10,5%)" + "10,5%" + "21%"
+- **Prioridad:** Producto individual → Categoría (con herencia padre) → Default (10.5%)
+- **Herencia de categoría padre (GLOBAL, sesion 10):** Las subcategorías heredan ivaRate/markup/cashDiscount de su categoría padre si no tienen valor propio. Funciona en TODAS las categorías, no solo una específica
+- **Distribucion actual:** 4,428 productos con ivaRate=NULL (heredan de categoria), 14 productos con IVA 21% individual
+- **Categorias con IVA propio:** Notebooks=21%, Monitores=21%
+- **Interfaz admin productos:** Selector IVA con opcion "Heredar de categoria → X%" (muestra valor heredado) + "10,5%" + "21%". Texto de ayuda: "Usando IVA X% de la categoría [nombre]"
 - **Interfaz admin categorias:** Selector IVA con opcion "Default (10,5%)" + "10,5%" + "21%"
+- **Columna IVA en tabla admin:** Muestra IVA efectivo con colores (violeta=categoría, morado=individual, gris=default)
 - **Fix sesion 9:** Se corrigio que todos los productos tenian ivaRate=10.5 forzado (nunca heredaban de categoria). Ahora ivaRate=NULL en productos significa heredar de categoria
+- **Fix sesion 10:** Herencia de categoría padre implementada - `getCategoryPricing()` recorre la cadena de padres (subcategoría → padre → abuelo...) para encontrar ivaRate/markup/cashDiscount. Aplica en frontend admin, backend queries (`getCategoryMarkupMap`), y API admin productos
 
 ### Precio de Oferta (salePrice)
 - **Campos:** `salePrice REAL`, `saleStart TEXT`, `saleEnd TEXT` en tabla products
@@ -144,7 +147,7 @@ Precio de lista  = costUSD x (1 + ivaRate/100) x (1 + markup/100) x cotizacionDo
 Precio efectivo  = costUSD x (1 + ivaRate/100) x (1 + (markup - cashDiscount)/100) x cotizacionDolar
 Precio oferta    = salePrice (si esta dentro del rango de fechas, reemplaza precio de lista)
 ```
-Donde markup, cashDiscount e ivaRate siguen prioridad: Producto individual → Categoría → Global/Default.
+Donde markup, cashDiscount e ivaRate siguen prioridad: Producto individual → Categoría (heredando de padre si no tiene) → Global/Default.
 
 ---
 
@@ -590,6 +593,8 @@ createdAt TEXT, updatedAt TEXT
 ## Backups
 | Fecha | Archivo | Tamano | Contenido |
 |-------|---------|--------|----------|
+| 2026-06-04 (s10) | `compucity-db-backup-2026-06-03T19-45-02-019Z.json` | 10.2MB | DB completa (14 tablas, 4,428 productos, herencia categoría padre IVA/markup) |
+| 2026-06-04 (s10) | `compucity-code-backup-20260603-194509.tar.gz` | 838KB | Código con herencia de categoría padre (getCategoryPricing) |
 | 2026-06-04 (s9) | `compucity-db-backup-2026-06-03T16-45-38-744Z.json` | 8.9MB | DB completa (14 tablas, 4,459 productos, IVA por categoría, ivaRate=NULL en productos) |
 | 2026-06-04 (s9) | `compucity-code-backup-20260603-164530.tar.gz` | 832KB | Código con IVA por categoría + orden por precio ascendente |
 | 2026-06-03 (s8) | `compucity-db-backup-2026-06-03T15-36-48-764Z.json` | 8.9MB | Base de datos completa (14 tablas, 4,459 productos, categorías con markup) |
@@ -632,7 +637,7 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ## Tareas Pendientes
 
 ### Alta Prioridad
-1. **IVA 21% en categorías correspondientes:** Solo la categoría Notebooks tiene IVA 21%. El dueño debe configurar IVA 21% en categorías como Monitores, Periféricos, etc. desde `/admin/categorias`. Los productos heredan automáticamente el IVA de su categoría
+1. **IVA 21% en categorías correspondientes:** Notebooks y Monitores tienen IVA 21%. El dueño puede configurar IVA 21% en otras categorías desde `/admin/categorias`. Las subcategorías heredan automáticamente de su categoría padre. Los productos con ivaRate=NULL heredan de su categoría
 2. **Credenciales Andreani:** El dueño debe proporcionar codigoCliente + contratoDomicilio
 3. **Cargar imagenes faltantes:** ~1,565 productos sin imagen (mayormente Air Intra). Usar cross-provider matching + web search
 4. **SODIMM en memorias-ram:** ~40 memorias SODIMM (notebook) aparecen en la categoria memorias-ram del PC builder. El sistema las marca como incompatibles, pero seria mejor moverlas a una subcategoria separada o filtrarlas del PC builder
@@ -652,6 +657,7 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ---
 
 ## Historial de Cambios
+- **2026-06-04 (s10):** Herencia de categoría padre implementada (GLOBAL) - Las subcategorías heredan ivaRate/markup/cashDiscount de su categoría padre si no tienen valor propio. `getCategoryPricing()` recorre la cadena de padres (subcategoría → padre → abuelo...). Aplica en frontend admin (selector IVA, preview, tabla), backend queries (`getCategoryMarkupMap`), y API admin productos. Admin productos: selector IVA muestra "Heredar de categoría → X%" con valor heredado, texto de ayuda "Usando IVA X% de la categoría [nombre]", columna IVA con colores. Fix: `interface Category` ahora incluye `ivaRate`. Categoría Monitores configurada con IVA 21%. Backups completos (código 838KB + DB 10.2MB)
 - **2026-06-04 (s9):** Fix IVA por categoría - La columna ivaRate no existía en tabla categories (migración #21 nunca se ejecutó en Turso). Se agregó manualmente. Se corrigió que todos los productos tenían ivaRate=10.5 forzado (4,445 productos actualizados a NULL para que hereden de categoría). Admin productos: selector IVA ahora tiene opción "Heredar de categoría" en vez de forzar 10.5%. API productos: ivaRate vacío ahora guarda NULL en vez de 10.5. Fórmula preview muestra IVA heredado correctamente. Categoría Notebooks configurada con IVA 21%. Orden por defecto cambiado a precio ascendente (más baratos primero) en categorías, búsqueda y todos los productos. Backups completos (código 832KB + DB 8.9MB)
 - **2026-06-03 (s8):** Sistema de 3 niveles de markup implementado - Producto individual → Categoría → Global. Todas las APIs (pública, admin, export, PC Builder) actualizadas para respetar prioridad. Admin categorías: campos markup/cashDiscount (ya existían). Admin productos: badges MC/DC para markup por categoría, vista previa muestra "(categoría)" cuando aplica, cálculo en vivo al cambiar categoría. Admin products API: GET usa calculateProductPrices con category markup map, POST/PUT usan 3 niveles al crear/actualizar. Export CSV usa 3 niveles. Backups completos (código 40MB + DB JSON 8.9MB + DB SQL 8.0MB)
 - **2026-06-03 (s7):** IVA diferenciado implementado - campo ivaRate (10.5%/21%) en productos, formula de precios actualizada con IVA. Sistema de promociones completo - cupones de descuento + banners promocionales con imagen de fondo. Filtros y ordenamiento en tabla de admin productos. Precio de oferta (salePrice/saleStart/saleEnd). Protecciones contra deploy de versiones viejas (pre-push hook + deploy script + eliminacion repo duplicado + .gitignore). Fix error en promociones (Image import + upload API + columna imageUrl en banners). Backups completos (codigo 121MB + DB 8.87MB)
