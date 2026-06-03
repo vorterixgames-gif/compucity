@@ -57,6 +57,9 @@ interface Category {
   slug: string
   parentId: string | null
   enabled: number
+  markup: number | null
+  cashDiscount: number | null
+  ivaRate: number | null
 }
 
 interface Product {
