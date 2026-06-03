@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-03 (sesion 8)
+**Ultima actualizacion:** 2026-06-04 (sesion 9)
 
 ---
 
@@ -46,7 +46,7 @@
 | Elit | 1,506 | 1,518 | 1,516 | 2 | 1,518 |
 | Invid Computers | 1,187 | 1,191 | 1,191 | 0 | 1,191 |
 | Manual | 1 | 1 | 1 | 0 | 1 |
-| **Total** | **4,183** | **4,464** | **2,899** | **1,565** | **4,464** |
+| **Total** | **4,179** | **4,459** | **2,899** | **1,565** | **4,459** |
 
 ---
 
@@ -122,11 +122,15 @@
 - **Vista previa:** El calculo automatico muestra si se estan usando valores individuales con etiqueta "(individual)"
 - **Estado actual:** 2 productos con markup individual, 12 con cashDiscount individual
 
-### IVA Diferenciado (IMPLEMENTADO sesion 7)
-- **Campo:** `ivaRate REAL DEFAULT 10.5` en tabla products
-- **Distribucion actual:** 4,455 productos con IVA 10.5%, 9 productos con IVA 21%
-- **Interfaz admin:** Selector de IVA (10.5% / 21%) en el formulario de productos
-- **El dueño debe:** Cambiar manualmente a 21% los productos que correspondan (monitores, perifericos en general)
+### IVA Diferenciado (IMPLEMENTADO sesion 7, actualizado sesion 9)
+- **Campo products:** `ivaRate REAL` (nullable, NULL = heredar de categoria o default 10.5%)
+- **Campo categories:** `ivaRate REAL` (nullable, NULL = usar default 10.5%)
+- **Prioridad:** Producto individual → Categoría → Default (10.5%)
+- **Distribucion actual:** 4,445 productos con ivaRate=NULL (heredan de categoria), 14 productos con IVA 21% individual
+- **Categorias con IVA:** Notebooks=21%
+- **Interfaz admin productos:** Selector IVA con opcion "Heredar de categoria (default 10,5%)" + "10,5%" + "21%"
+- **Interfaz admin categorias:** Selector IVA con opcion "Default (10,5%)" + "10,5%" + "21%"
+- **Fix sesion 9:** Se corrigio que todos los productos tenian ivaRate=10.5 forzado (nunca heredaban de categoria). Ahora ivaRate=NULL en productos significa heredar de categoria
 
 ### Precio de Oferta (salePrice)
 - **Campos:** `salePrice REAL`, `saleStart TEXT`, `saleEnd TEXT` en tabla products
@@ -140,7 +144,7 @@ Precio de lista  = costUSD x (1 + ivaRate/100) x (1 + markup/100) x cotizacionDo
 Precio efectivo  = costUSD x (1 + ivaRate/100) x (1 + (markup - cashDiscount)/100) x cotizacionDolar
 Precio oferta    = salePrice (si esta dentro del rango de fechas, reemplaza precio de lista)
 ```
-Donde markup, cashDiscount e ivaRate son los del producto (si tiene) o los globales (si no).
+Donde markup, cashDiscount e ivaRate siguen prioridad: Producto individual → Categoría → Global/Default.
 
 ---
 
@@ -504,9 +508,16 @@ sku TEXT UNIQUE, stock INTEGER DEFAULT 0, isActive INTEGER DEFAULT 1,
 isFeatured INTEGER DEFAULT 0, images TEXT, specs TEXT,
 providerId TEXT, providerSku TEXT, categoryId TEXT,
 supplierCategory TEXT, duplicateOfId TEXT, categorySource TEXT DEFAULT 'auto',
-ivaRate REAL DEFAULT 10.5,
+ivaRate REAL,          -- NULL = heredar de categoria, 10.5 o 21 = valor individual
 salePrice REAL, saleStart TEXT, saleEnd TEXT,
 createdAt TEXT, updatedAt TEXT
+```
+
+### Schema Categories (campos de precio)
+```
+markup INTEGER,        -- NULL = usar global (15%), numero = markup de categoria
+cashDiscount INTEGER,  -- NULL = usar global (0%), numero = dto efectivo de categoria
+ivaRate REAL,          -- NULL = usar default (10.5%), 10.5 o 21 = IVA de categoria
 ```
 
 ### Nuevos campos (2026-06-03 sesion 7)
@@ -581,6 +592,7 @@ createdAt TEXT, updatedAt TEXT
 |-------|---------|--------|----------|
 | 2026-06-03 (s8) | `compucity-db-backup-2026-06-03T15-36-48-764Z.json` | 8.9MB | Base de datos completa (14 tablas, 4,459 productos, categorías con markup) |
 | 2026-06-03 (s8) | `compucity-db-sql-backup-2026-06-03T15-37-45-192Z.sql` | 8.0MB | Base de datos completa en SQL (schema + INSERT) |
+| 2026-06-04 (s9) | `src-backup-20260603-161033.tar.gz` | 831KB | Código con fix IVA por categoría (null = heredar) |
 | 2026-06-03 (s8) | `compucity-code-backup-2026-06-03-1538.tar.gz` | 40MB | Código completo con sistema de 3 niveles de markup |
 | 2026-06-03 (s7) | `compucity-backup-2026-06-03s7.tar.gz` | 121MB | Codigo completo con IVA, salePrice, promociones, filtros, protecciones deploy |
 | 2026-06-03 (s7) | `compucity-db-2026-06-03s7.json` | 8.87MB | Base de datos completa (14 tablas, 4,464 productos, banners, coupons) |
@@ -618,7 +630,7 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ## Tareas Pendientes
 
 ### Alta Prioridad
-1. **IVA 21% en productos correspondientes:** Solo 9 productos tienen IVA 21%. El dueño debe identificar y cambiar los que correspondan (monitores, perifericos en general) desde el admin
+1. **IVA 21% en categorías correspondientes:** Solo la categoría Notebooks tiene IVA 21%. El dueño debe configurar IVA 21% en categorías como Monitores, Periféricos, etc. desde `/admin/categorias`. Los productos heredan automáticamente el IVA de su categoría
 2. **Credenciales Andreani:** El dueño debe proporcionar codigoCliente + contratoDomicilio
 3. **Cargar imagenes faltantes:** ~1,565 productos sin imagen (mayormente Air Intra). Usar cross-provider matching + web search
 4. **SODIMM en memorias-ram:** ~40 memorias SODIMM (notebook) aparecen en la categoria memorias-ram del PC builder. El sistema las marca como incompatibles, pero seria mejor moverlas a una subcategoria separada o filtrarlas del PC builder
@@ -638,6 +650,7 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ---
 
 ## Historial de Cambios
+- **2026-06-04 (s9):** Fix IVA por categoría - La columna ivaRate no existía en tabla categories (migración #21 nunca se ejecutó en Turso). Se agregó manualmente. Se corrigió que todos los productos tenían ivaRate=10.5 forzado (4,445 productos actualizados a NULL para que hereden de categoría). Admin productos: selector IVA ahora tiene opción "Heredar de categoría" en vez de forzar 10.5%. API productos: ivaRate vacío ahora guarda NULL en vez de 10.5. Fórmula preview muestra IVA heredado correctamente. Categoría Notebooks configurada con IVA 21%. Deploy + backup
 - **2026-06-03 (s8):** Sistema de 3 niveles de markup implementado - Producto individual → Categoría → Global. Todas las APIs (pública, admin, export, PC Builder) actualizadas para respetar prioridad. Admin categorías: campos markup/cashDiscount (ya existían). Admin productos: badges MC/DC para markup por categoría, vista previa muestra "(categoría)" cuando aplica, cálculo en vivo al cambiar categoría. Admin products API: GET usa calculateProductPrices con category markup map, POST/PUT usan 3 niveles al crear/actualizar. Export CSV usa 3 niveles. Backups completos (código 40MB + DB JSON 8.9MB + DB SQL 8.0MB)
 - **2026-06-03 (s7):** IVA diferenciado implementado - campo ivaRate (10.5%/21%) en productos, formula de precios actualizada con IVA. Sistema de promociones completo - cupones de descuento + banners promocionales con imagen de fondo. Filtros y ordenamiento en tabla de admin productos. Precio de oferta (salePrice/saleStart/saleEnd). Protecciones contra deploy de versiones viejas (pre-push hook + deploy script + eliminacion repo duplicado + .gitignore). Fix error en promociones (Image import + upload API + columna imageUrl en banners). Backups completos (codigo 121MB + DB 8.87MB)
 - **2026-06-02 (s6):** Investigacion Andreani (credenciales incompletas, falta codigoCliente + contratoDomicilio). Propuesta de implementacion IVA diferenciado (10.5% / 21%) - 3 opciones presentadas, en espera de confirmacion del dueño. Backup codigo 246MB
