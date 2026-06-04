@@ -92,7 +92,7 @@ const SLOTS: { slot: string; label: string; categorySlug: string; icon: React.El
   { slot: 'thermal', label: 'Pasta Térmica', categorySlug: 'pastas-termicas', icon: Droplets, required: false, maxQty: 1 },
   { slot: 'monitor', label: 'Monitor', categorySlug: 'monitores', icon: Monitor, required: false, maxQty: 2 },
   { slot: 'network', label: 'Placa de Red / WiFi', categorySlug: 'placas-de-red', icon: Wifi, required: false, maxQty: 1 },
-  { slot: 'peripherals', label: 'Periférico', categorySlug: 'perifericos', icon: Mouse, required: false, maxQty: 3 },
+  { slot: 'peripherals', label: 'Periféricos', categorySlug: 'perifericos', icon: Mouse, required: false, maxQty: 3 },
 ]
 
 // ============================================

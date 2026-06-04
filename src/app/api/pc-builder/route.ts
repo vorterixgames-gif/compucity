@@ -38,7 +38,7 @@ const COMPONENT_SLOTS: { slot: string; label: string; categorySlug: string }[] =
   { slot: 'thermal', label: 'Pasta Térmica', categorySlug: 'pastas-termicas' },
   { slot: 'monitor', label: 'Monitor', categorySlug: 'monitores' },
   { slot: 'network', label: 'Placa de Red', categorySlug: 'placas-de-red' },
-  { slot: 'peripherals', label: 'Periférico', categorySlug: 'perifericos' },
+  { slot: 'peripherals', label: 'Periféricos', categorySlug: 'perifericos' },
 ]
 
 // Name patterns to EXCLUDE from the PC builder (non-consumer/non-relevant products)
@@ -151,12 +151,20 @@ export async function GET(request: NextRequest) {
 
       const categoryId = catRows[0].id
 
-      // Get active products in this category
+      // Also find subcategory IDs (for parent categories like "perifericos" that have no direct products)
+      const subCatResult = await db.execute({
+        sql: 'SELECT id FROM categories WHERE parentId = ?',
+        args: [categoryId],
+      })
+      const categoryIds = [categoryId, ...(subCatResult.rows as any[]).map(r => r.id)]
+
+      // Get active products in this category AND its subcategories
+      const placeholders = categoryIds.map(() => '?').join(',')
       const result = await db.execute({
         sql: `SELECT p.* FROM products p
-              WHERE p.categoryId = ? AND p.isActive = 1 AND p.stock > 0 AND p.categoryId IS NOT NULL
+              WHERE p.categoryId IN (${placeholders}) AND p.isActive = 1 AND p.stock > 0 AND p.categoryId IS NOT NULL
               ORDER BY CASE WHEN p.images IS NOT NULL AND p.images != '[]' THEN 0 ELSE 1 END, p.price ASC`,
-        args: [categoryId],
+        args: categoryIds,
       })
 
       const products = deduplicateProducts((result.rows as any[]).map(p => {
@@ -208,9 +216,18 @@ export async function GET(request: NextRequest) {
           const catRows = catResult.rows as any[]
           if (catRows.length === 0) return { ...s, count: 0 }
 
+          const catId = catRows[0].id
+          // Include subcategories in count (for parent categories like "perifericos")
+          const subCatResult = await db.execute({
+            sql: 'SELECT id FROM categories WHERE parentId = ?',
+            args: [catId],
+          })
+          const categoryIds = [catId, ...(subCatResult.rows as any[]).map(r => r.id)]
+          const placeholders = categoryIds.map(() => '?').join(',')
+
           const countResult = await db.execute({
-            sql: 'SELECT COUNT(*) as total FROM products WHERE categoryId = ? AND isActive = 1 AND stock > 0 AND categoryId IS NOT NULL',
-            args: [catRows[0].id],
+            sql: `SELECT COUNT(*) as total FROM products WHERE categoryId IN (${placeholders}) AND isActive = 1 AND stock > 0 AND categoryId IS NOT NULL`,
+            args: categoryIds,
           })
           return { ...s, count: (countResult.rows[0] as any).total }
         } catch {
