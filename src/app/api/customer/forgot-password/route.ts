@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCustomerByEmail } from '@/lib/customer-auth'
 import { db } from '@/lib/db'
-import { Resend } from 'resend'
 
-// Lazy initialize Resend to avoid build-time errors (no API key during build)
-let resendInstance: Resend | null = null
-function getResend(): Resend {
+// Lazy import Resend to avoid build-time errors when package is not installed
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let resendInstance: any = null
+async function getResend(): Promise<any> {
   if (!resendInstance) {
-    resendInstance = new Resend(process.env.RESEND_API_KEY)
+    try {
+      const { Resend } = await import('resend')
+      resendInstance = new Resend(process.env.RESEND_API_KEY)
+    } catch {
+      console.warn('[forgot-password] resend package not installed, email sending disabled')
+      return null
+    }
   }
   return resendInstance
 }
@@ -74,11 +80,15 @@ export async function POST(request: NextRequest) {
 
     // Send the email
     try {
-      await getResend().emails.send({
-        from: 'Compucity <onboarding@resend.dev>',
-        to: email.toLowerCase().trim(),
-        subject: 'Restablecer tu contraseña - Compucity',
-        html: `
+      const resend = await getResend()
+      if (!resend) {
+        console.warn('[forgot-password] Cannot send email: resend not configured')
+      } else {
+        await resend.emails.send({
+          from: 'Compucity <onboarding@resend.dev>',
+          to: email.toLowerCase().trim(),
+          subject: 'Restablecer tu contraseña - Compucity',
+          html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="text-align: center; margin-bottom: 30px;">
               <h1 style="color: #16a34a; margin: 0;">Compucity</h1>
@@ -109,7 +119,8 @@ export async function POST(request: NextRequest) {
             </div>
           </div>
         `,
-      })
+        })
+      }
     } catch (emailError) {
       console.error('Failed to send reset email:', emailError)
       // Don't reveal email sending failure to prevent info leakage
