@@ -103,22 +103,22 @@ export default async function HomePage() {
       <CategoryIcons />
 
       {/* ==========================================
-          ROW 1 - PC Armadas
+          ROW 1 - Notebooks
           ========================================== */}
-      {gamerPCs.length > 0 && (
+      {notebookProducts.length > 0 && (
         <section className="py-10 bg-gradient-to-b from-white to-compucity-green-50/50">
           <div className="max-w-7xl mx-auto px-4">
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-3">
                 <div className="w-1 h-8 bg-compucity-green-500 rounded-full" />
-                <h2 className="text-2xl md:text-3xl font-bold text-compucity-green-900">PC Armadas</h2>
+                <h2 className="text-2xl md:text-3xl font-bold text-compucity-green-900">Notebooks</h2>
               </div>
-              <Link href="/categoria/pc-armadas" className="inline-flex items-center gap-1 text-sm text-compucity-green-600 hover:text-compucity-green-800 font-semibold group transition">
+              <Link href="/categoria/notebooks" className="inline-flex items-center gap-1 text-sm text-compucity-green-600 hover:text-compucity-green-800 font-semibold group transition">
                 Ver todas <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
-              {gamerPCs.map((product) => (
+              {notebookProducts.map((product) => (
                 <ProductCard key={product.id} id={product.id} name={product.name} slug={product.slug} price={product.price} comparePrice={product.comparePrice} image={safeParseFirstImage(product.images)} stock={product.stock} salePrice={product.salePrice} saleStart={product.saleStart} saleEnd={product.saleEnd} />
               ))}
             </div>
@@ -151,22 +151,22 @@ export default async function HomePage() {
       )}
 
       {/* ==========================================
-          ROW 3 - Notebooks
+          ROW 3 - PCs
           ========================================== */}
-      {notebookProducts.length > 0 && (
+      {gamerPCs.length > 0 && (
         <section className="py-10 bg-gradient-to-b from-compucity-green-50/30 to-white">
           <div className="max-w-7xl mx-auto px-4">
             <div className="flex items-center justify-between mb-8">
               <div className="flex items-center gap-3">
                 <div className="w-1 h-8 bg-compucity-green-500 rounded-full" />
-                <h2 className="text-2xl md:text-3xl font-bold text-compucity-green-900">Notebooks</h2>
+                <h2 className="text-2xl md:text-3xl font-bold text-compucity-green-900">PCs</h2>
               </div>
-              <Link href="/categoria/notebooks" className="inline-flex items-center gap-1 text-sm text-compucity-green-600 hover:text-compucity-green-800 font-semibold group transition">
+              <Link href="/categoria/pc-armadas" className="inline-flex items-center gap-1 text-sm text-compucity-green-600 hover:text-compucity-green-800 font-semibold group transition">
                 Ver todas <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
-              {notebookProducts.map((product) => (
+              {gamerPCs.map((product) => (
                 <ProductCard key={product.id} id={product.id} name={product.name} slug={product.slug} price={product.price} comparePrice={product.comparePrice} image={safeParseFirstImage(product.images)} stock={product.stock} salePrice={product.salePrice} saleStart={product.saleStart} saleEnd={product.saleEnd} />
               ))}
             </div>
