@@ -682,14 +682,125 @@ export default function AdminProductos() {
             </button>
           )}
         </div>
-      <div className="rounded-xl border shadow-sm bg-card text-card-foreground overflow-hidden">
-        <div className="admin-table-wrapper">
-          {filteredProducts.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
-              <Package className="w-12 h-12 mx-auto mb-2 opacity-30" />
-              <p>No hay productos{search || activeFilterCount > 0 ? ' que coincidan con los filtros' : ''}</p>
-            </div>
-          ) : (
+      {filteredProducts.length === 0 ? (
+        <div className="rounded-xl border shadow-sm bg-card text-card-foreground text-center py-12 text-gray-400">
+          <Package className="w-12 h-12 mx-auto mb-2 opacity-30" />
+          <p>No hay productos{search || activeFilterCount > 0 ? ' que coincidan con los filtros' : ''}</p>
+        </div>
+      ) : (
+        <>
+          {/* Mobile Card View */}
+          <div className="block lg:hidden space-y-3">
+            {filteredProducts.map((product) => (
+              <div key={product.id} className="rounded-xl border shadow-sm bg-card text-card-foreground p-3 space-y-2">
+                {/* Name + Category row */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-gray-900 text-sm leading-tight truncate" title={product.name}>{product.name}</div>
+                    {product.sku && <span className="text-xs text-gray-400 font-mono">{product.sku}</span>}
+                    <div className="text-xs text-gray-500 mt-0.5">{product.categoryName || 'Sin categoría'}</div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Badge
+                      variant="secondary"
+                      className={product.stock > 5 ? 'bg-green-100 text-green-800' : product.stock > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}
+                    >
+                      Stock: {product.stock}
+                    </Badge>
+                    <Badge variant="secondary" className={product.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}>
+                      {product.isActive ? 'Activo' : 'Inactivo'}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Price row */}
+                <div className="flex items-center gap-3 text-sm flex-wrap">
+                  {product.costPrice && product.costPrice > 0 ? (
+                    <div className="flex items-center gap-1">
+                      <DollarSign className="w-3 h-3 text-compucity-green shrink-0" />
+                      <span className="font-medium text-compucity-green">{Number(product.costPrice).toFixed(2)}</span>
+                    </div>
+                  ) : null}
+                  <span className="font-medium text-gray-900">{formatPrice(product.price)}</span>
+                  {product.comparePrice ? (
+                    <span className="text-green-600 font-medium text-xs">Efectivo: {formatPrice(product.comparePrice)}</span>
+                  ) : null}
+                  {(product as any)._effectiveIvaRate != null && (
+                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold ${
+                      (product as any)._ivaRateSource === 'category'
+                        ? 'bg-violet-100 text-violet-800'
+                        : (product as any)._ivaRateSource === 'product'
+                          ? 'bg-purple-100 text-purple-800'
+                          : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      IVA {(product as any)._effectiveIvaRate}%
+                    </span>
+                  )}
+                  {product.salePrice && product.salePrice > 0 && (() => {
+                    const now = new Date()
+                    const startOk = !product.saleStart || now >= new Date(product.saleStart)
+                    const endOk = !product.saleEnd || now <= new Date(product.saleEnd + 'T23:59:59')
+                    return startOk && endOk ? (
+                      <Badge className="text-[10px] px-1.5 py-0 bg-orange-100 text-orange-700 border-orange-200 border">OFERTA</Badge>
+                    ) : null
+                  })()}
+                </div>
+
+                {/* Badges row */}
+                {(product._calculated || (product as any)._effectiveMarkup != null || (product as any)._effectiveCashDiscount != null || (product as any)._effectiveIvaRate != null) && (
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {product._calculated && (
+                      <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-compucity-green-50 text-compucity-green shrink-0">A</Badge>
+                    )}
+                    {(product as any)._markupSource === 'product' && (
+                      <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-blue-50 text-blue-600 shrink-0" title={`Margen individual: ${(product as any)._effectiveMarkup}%`}>M</Badge>
+                    )}
+                    {(product as any)._markupSource === 'category' && (
+                      <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-indigo-50 text-indigo-600 shrink-0" title={`Margen por categoría: ${(product as any)._effectiveMarkup}%`}>MC</Badge>
+                    )}
+                    {(product as any)._cashDiscountSource === 'product' && (
+                      <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-amber-50 text-amber-600 shrink-0" title={`Desc. efectivo individual: ${(product as any)._effectiveCashDiscount}%`}>D</Badge>
+                    )}
+                    {(product as any)._cashDiscountSource === 'category' && (
+                      <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-orange-50 text-orange-600 shrink-0" title={`Desc. efectivo por categoría: ${(product as any)._effectiveCashDiscount}%`}>DC</Badge>
+                    )}
+                    {(product as any)._ivaRateSource === 'product' && (product as any)._effectiveIvaRate !== 10.5 && (
+                      <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-purple-50 text-purple-600 shrink-0" title={`IVA individual: ${(product as any)._effectiveIvaRate}%`}>I</Badge>
+                    )}
+                    {(product as any)._ivaRateSource === 'category' && (
+                      <Badge variant="secondary" className="text-[10px] px-1 py-0 bg-violet-50 text-violet-600 shrink-0" title={`IVA por categoría: ${(product as any)._effectiveIvaRate}%`}>IC</Badge>
+                    )}
+                  </div>
+                )}
+
+                {/* Actions row */}
+                <div className="flex items-center justify-end gap-1 pt-1 border-t">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleEdit(product)}
+                    className="h-7 text-xs gap-1"
+                  >
+                    <Pencil className="w-3 h-3" />
+                    Editar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDelete(product.id)}
+                    className="h-7 text-xs gap-1 text-red-500 hover:text-red-700 border-red-200 hover:border-red-300"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Eliminar
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden lg:block rounded-xl border shadow-sm bg-card text-card-foreground overflow-hidden">
+            <div className="admin-table-wrapper">
               <table className="w-full text-sm admin-fixed-table">
                 <colgroup>
                   <col style={{ width: '26%' }} />
@@ -858,9 +969,10 @@ export default function AdminProductos() {
                   ))}
                 </tbody>
               </table>
-          )}
-        </div>
-      </div>
+            </div>
+          </div>
+        </>
+      )}
       </div>
 
       {/* Product Form Dialog */}
@@ -1417,88 +1529,4 @@ export default function AdminProductos() {
               <Switch
                 id="isActive"
                 checked={form.isActive}
-                onCheckedChange={(checked) => updateForm('isActive', checked)}
-              />
-              <Label htmlFor="isActive">Producto activo</Label>
-            </div>
-
-            <div className="flex items-center gap-3 py-2">
-              <Switch
-                id="isFeatured"
-                checked={form.isFeatured}
-                onCheckedChange={(checked) => updateForm('isFeatured', checked)}
-              />
-              <Label htmlFor="isFeatured">Producto destacado</Label>
-            </div>
-
-            <div className="sm:col-span-2 space-y-2">
-              <Label className="flex items-center gap-1">
-                <ImageIcon className="w-4 h-4" />
-                Imágenes del producto
-              </Label>
-              <ImageUploader
-                images={form.imageUrls}
-                onChange={(urls) => {
-                  console.log('[productos] ImageUploader onChange:', urls)
-                  setForm(prev => ({ ...prev, imageUrls: urls }))
-                }}
-                maxImages={6}
-              />
-            </div>
-
-            <div className="sm:col-span-2 space-y-2">
-              <Label htmlFor="specs">Especificaciones (JSON)</Label>
-              <Textarea
-                id="specs"
-                value={form.specs}
-                onChange={(e) => updateForm('specs', e.target.value)}
-                placeholder='{"RAM": "16GB", "Disco": "512GB SSD"}'
-                rows={3}
-                className="font-mono text-sm"
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setFormOpen(false)} disabled={saving}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSave} className="bg-compucity-green hover:bg-compucity-green-dark" disabled={saving || imageUploading}>
-              {saving ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Guardando...
-                </>
-              ) : imageUploading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Subiendo imágenes...
-                </>
-              ) : (
-                editingId ? 'Guardar Cambios' : 'Crear Producto'
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation */}
-      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar producto?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción no se puede deshacer. El producto será eliminado permanentemente.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
-              Eliminar
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  )
-}
+                onCheckedChange={(checked) => updateForm('isAc
