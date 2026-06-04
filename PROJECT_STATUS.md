@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-05 (sesion 13)
+**Ultima actualizacion:** 2026-06-05 (sesion 14)
 
 ---
 
@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** 18121fb (fix: filtrar placas-de-red y perifericos en PC Builder)
+- **Commit actual:** e020dd3 (feat: add user-selectable filter chips to PC Builder)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -267,6 +267,25 @@ El problema recurrente tenia 3 causas encadenadas:
 - Productos incompatibles: Se muestran aparte con razon de incompatibilidad, toggle para verlos
 - Banner de filtro activo: Indica cuando se esta filtrando por compatibilidad
 - **SODIMM (RAM notebook):** Se detectan y marcan como incompatibles (no sirven para PCs de escritorio)
+
+### Sistema de Filtros Manuales (IMPLEMENTADO sesion 14)
+- **Filtros por categoria:** Cada slot tiene filtros relevantes que el usuario puede activar/desactivar
+- **Logica:** AND entre grupos de filtros, OR dentro del mismo grupo
+- **Auto-reset:** Los filtros se limpian automaticamente al cambiar de slot
+- **UI:** Chips clickeables debajo de la barra de busqueda, con icono SlidersHorizontal
+
+| Slot | Filtros Disponibles |
+|------|-------------------|
+| Processor | Marca: AMD, Intel |
+| Motherboard | Socket: AM4, AM5, LGA 1700, LGA 1851 · Memoria: DDR4, DDR5 |
+| RAM | Memoria: DDR3, DDR4, DDR5 |
+| GPU | Marca: NVIDIA, AMD, Intel Arc |
+| SSD | Tipo: M.2/NVMe, SATA |
+| PSU | Potencia: 500W+, 650W+, 750W+, 850W+ |
+| Cooling | Tipo: AIO/Liquida, Aire |
+| Monitor | Tamaño: 24", 27", 32"+ · Resolucion: Full HD, QHD, 4K/UHD |
+| Network | Tipo: PCIe, USB, WiFi 6/6E |
+| Perifericos | Tipo: Mouse, Teclado, Auricular, Webcam, Microfono, Volante, Parlante, Joystick |
 
 ### Selector de Cantidades
 - RAM: 1 a 4 unidades
@@ -598,6 +617,7 @@ createdAt TEXT, updatedAt TEXT
 ## Backups
 | Fecha | Archivo | Tamano | Contenido |
 |-------|---------|--------|----------|
+| 2026-06-05 (s14) | `compucity-src-backup-20260605-s14.tar.gz` | 255KB | Codigo src con filtros manuales en PC Builder |
 | 2026-06-05 (s12) | `compucity-src-backup-20260605-s12.tar.gz` | 842KB | Codigo src + config con admin productos responsive |
 | 2026-06-05 (s11) | `compucity-code-backup-20260605.tar.gz` | 1.6GB | Codigo completo con homepage variedad de precios (eliminado por espacio) |
 | 2026-06-04 (s10) | `compucity-db-backup-2026-06-03T20-16-00-610Z.json` | 10.2MB | DB completa (14 tablas, 4,428 productos, logo nuevo sin fondo) |
@@ -664,6 +684,7 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ---
 
 ## Historial de Cambios
+- **2026-06-05 (s14):** Filtros manuales en PC Builder - Sistema de chips clickeables para filtrar productos dentro de cada slot. Processor: AMD/Intel. Motherboard: Socket (AM4/AM5/LGA1700/LGA1851) + DDR4/DDR5. RAM: DDR3/DDR4/DDR5. GPU: NVIDIA/AMD/Intel Arc. SSD: NVMe/SATA. PSU: 500W+/650W+/750W+/850W+. Cooling: AIO/Aire. Monitor: Tamaño + Resolucion. Network: PCIe/USB/WiFi6. Perifericos: Mouse/Teclado/Auricular/Webcam/Microfono/Volante/Parlante/Joystick. Logica AND entre grupos, OR dentro del mismo grupo. Auto-reset al cambiar slot. Blacklist network: agregados AP GIGABIT, WALL MOUNT, CEILLING, MINIHUB, OUTDOOR, INDOOR, ISP. Commit: e020dd3
 - **2026-06-05 (s13):** Fix filtros PC Builder para Placas de Red y Periféricos. Network: agregados P.REDW/PREDW/ARCHER T/P.RED para incluir placas reales, removidos TP-LINK/WIFI/WIRELESS/PCI-E amplios que matcheaban cámaras IP y sistemas Mesh. Exclusiones nuevas: CAMARA, DECO, MESH, TAPO C, CPE, RANGE EXTENDER, A SD, A HDMI, A DISPLAYPORT, CONTROLLER, CLOUD, JBL. Fix 'AP ' que matcheaba 'ADAP' falsamente (removido). Fix 'HUB' → 'HUB ' para no excluir 'Minihub' en adaptadores Ethernet. Removido RJ45 del exclude (aparece en adaptadores Ethernet legítimos). Periféricos: agregados WEB CAM, VOLANTE, WHEEL a include. Removidos 'CABLE' y 'ADAPTADOR' amplios del exclude (catcheaban "Mouse c/Cable", "Teclado con Cable", "Auricular gaming cableado"). Reemplazados con patterns específicos: CABLE KELYX, CABLE HDMI, CABLE DISPLAY, ADAPTADOR HDMI, ADAPTADOR VGA, etc. Renombrado "Periférico" → "Periféricos". Resultado: Network pasa de 16 (con cámaras/mesh) a 19 productos correctos (solo placas/adaptadores reales). Periféricos pasa de 393 a 418 productos (ahora incluye mouse/teclados cableados, webcams, volantes). Commit: 18121fb
 - **2026-06-05 (s12):** Admin productos responsive + Arma tu PC 3 slots nuevos. Admin: vista de tarjetas en movil (block lg:hidden) con info apilada y tabla solo en desktop (hidden lg:block). Fix archivo truncado por disco lleno. Arma tu PC: 3 slots nuevos (Monitor max 2, Placa de Red/WiFi max 1, Periferico max 3), todos opcionales. Iconos: Monitor, Wifi, Mouse. Whitelist/blacklist patterns para cada slot nuevo. GPU cambio icono a Gamepad2, Fuente a Plug. Commits: fe67bc8, 99a1c89, 4224786. Backup src (842KB)
 - **2026-06-05 (s11):** Homepage variedad de precios - 3 secciones (Notebooks, Monitores, PCs) con 4 productos cada una y variedad de precios (1 barato, 2 medios, 1 caro). Orden cambiado a Notebooks primero, Monitores segundo, PCs tercero. "PC Armadas" renombrado a "PCs". Funcion pickDiversePrices() en page.tsx pide 20 productos y selecciona 4 con variedad. IMPORTANTE: commit estable 2aa6093 (si se rompe algo, hacer `git reset --hard 2aa6093`). No tocar queries.ts ni layouts - solo page.tsx
