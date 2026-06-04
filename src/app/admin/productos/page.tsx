@@ -1529,4 +1529,88 @@ export default function AdminProductos() {
               <Switch
                 id="isActive"
                 checked={form.isActive}
-                onCheckedChange={(checked) => updateForm('isAc
+                onCheckedChange={(checked) => updateForm('isActive', checked)}
+              />
+              <Label htmlFor="isActive">Producto activo</Label>
+            </div>
+
+            <div className="flex items-center gap-3 py-2">
+              <Switch
+                id="isFeatured"
+                checked={form.isFeatured}
+                onCheckedChange={(checked) => updateForm('isFeatured', checked)}
+              />
+              <Label htmlFor="isFeatured">Producto destacado</Label>
+            </div>
+
+            <div className="sm:col-span-2 space-y-2">
+              <Label className="flex items-center gap-1">
+                <ImageIcon className="w-4 h-4" />
+                Imágenes del producto
+              </Label>
+              <ImageUploader
+                images={form.imageUrls}
+                onChange={(urls) => {
+                  console.log('[productos] ImageUploader onChange:', urls)
+                  setForm(prev => ({ ...prev, imageUrls: urls }))
+                }}
+                maxImages={6}
+              />
+            </div>
+
+            <div className="sm:col-span-2 space-y-2">
+              <Label htmlFor="specs">Especificaciones (JSON)</Label>
+              <Textarea
+                id="specs"
+                value={form.specs}
+                onChange={(e) => updateForm('specs', e.target.value)}
+                placeholder='{"RAM": "16GB", "Disco": "512GB SSD"}'
+                rows={3}
+                className="font-mono text-sm"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFormOpen(false)} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSave} className="bg-compucity-green hover:bg-compucity-green-dark" disabled={saving || imageUploading}>
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Guardando...
+                </>
+              ) : imageUploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Subiendo imágenes...
+                </>
+              ) : (
+                editingId ? 'Guardar Cambios' : 'Crear Producto'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar producto?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. El producto será eliminado permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  )
+}
