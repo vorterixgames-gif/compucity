@@ -44,7 +44,7 @@ const BUILDER_EXCLUDE_PATTERNS: Record<string, string[]> = {
   hdd: ['EXTERNO', 'EXTERNA', 'PORTABLE', 'DELL', 'LENOVO', 'VIDEO RECORDER', 'KIT ', 'SPONGE', 'BAHIA', 'COLOCACION', 'NOTEBOOK', 'LAPTOP', 'PC GAMER', 'PC KELYX', 'PC LENOVO', 'SIST.', 'MINI PC', 'BAREBONE'],
   ram: ['SIMM', 'P/DELL SERVER', 'P/HP SERVER', 'P/LENOVO SERVER', 'MOTHER', 'MB ', 'NOTEBOOK', 'LAPTOP', 'PC GAMER', 'PC KELYX', 'PC LENOVO', 'SIST.', 'MINI PC', 'BAREBONE'],
   gpu: ['DELL P2', 'DELL E2', 'HP Z', 'MONITOR', 'M/M', 'MTS', 'IP CAM', 'REPUESTO', '(RMA)', 'MB ', 'NOTEBOOK', 'LAPTOP', 'PC GAMER', 'PC KELYX', 'PC LENOVO', 'SIST.', 'MINI PC', 'BAREBONE', 'CABLE', 'ADAPTADOR'],
-  psu: ['MAENI', 'PERFORMANCE 12V', 'PERFORMANCE 9V', 'PERFORMANCE CARGA', '5V ', 'DE ALIMENTACION', 'DE EPL', 'REDUNDANTE', 'AUXILIAR', 'ATX P3', 'LENOVO', 'ENCHUFE', 'HP FUENTE REDUNDANTE', 'HP RPS', 'HPX311', 'NOTEBOOK', 'LAPTOP', 'PC GAMER', 'PC KELYX', 'PC LENOVO', 'SIST.', 'MINI PC', 'BAREBONE'],
+  psu: ['MAENI', '5V CARGA', 'DE ALIMENTACION', 'DE EPL', 'REDUNDANTE', 'AUXILIAR', 'LENOVO', 'ENCHUFE', 'HP FUENTE REDUNDANTE', 'HP RPS', 'HPX311', 'NOTEBOOK', 'LAPTOP', 'PC GAMER', 'PC KELYX', 'PC LENOVO', 'SIST.', 'MINI PC', 'BAREBONE'],
   cooling: ['PRINTER', 'DELL', 'AIO 24', 'HP SMART', 'NOTEBOOK', 'LAPTOP', 'PC GAMER', 'PC KELYX', 'PC LENOVO', 'SIST.', 'MINI PC', 'BAREBONE'],
   case: ['HP X421', 'FUENTE DE ALIMENTACI', 'NOTEBOOK', 'LAPTOP', 'PC KELYX', 'PC LENOVO', 'SIST.', 'MINI PC', 'BAREBONE'],
   processor: ['NOTEBOOK', 'LAPTOP', 'PC GAMER', 'PC KELYX', 'PC LENOVO', 'SIST.', 'MINI PC', 'BAREBONE'],
@@ -58,16 +58,16 @@ const BUILDER_EXCLUDE_PATTERNS: Record<string, string[]> = {
 // This is the primary defense against miscategorization - even if a product is in the
 // wrong category in the database, it won't appear in the wrong PC Builder slot.
 const BUILDER_INCLUDE_PATTERNS: Record<string, string[]> = {
-  processor: ['RYZEN', 'INTEL I3', 'INTEL I5', 'INTEL I7', 'INTEL I9', 'CORE I3', 'CORE I5', 'CORE I7', 'CORE I9', 'PENTIUM', 'CORE ULTRA', 'CELERO', 'ATHLON', 'XEON', 'I3-', 'I5-', 'I7-', 'I9-'],
-  motherboard: ['MOTHER', 'H610', 'B760', 'H810', 'A520', 'A620', 'B650', 'B550', 'H510', 'Z790', 'Z690', 'B660', 'H670', 'X670', 'A320', 'B450', 'X570', 'Z590', 'Z490', 'B460', 'H410', 'PLACA BASE', 'MAINBOARD'],
-  ram: ['DDR3', 'DDR4', 'DDR5', 'SODIMM', 'DIMM', 'MEMORIA RAM', 'CORSAIR VENGEANCE', 'CORSAIR MEMORY', 'KINGSTON FURY', 'G.SKILL', 'XPG'],
-  gpu: ['RTX', 'GTX', 'RADEON RX', 'GEFORCE', 'GRAPHICS CARD', 'QUADRO RTX', 'PLACA DE VIDEO', 'VGA RTX', 'VGA GTX', 'VGA RADEON', 'RX ', 'ARC ', 'TITAN'],
-  ssd: ['SSD', 'NVME', 'M.2', 'GEN4', 'GEN3', 'SOLID STATE'],
-  hdd: ['DISCO RIGIDO', 'HDD', 'IRONWOLF', 'SKYHAWK', 'HD SEAGATE INTERNO', 'HD TOSHIBA INTERNO', 'BARRACUDA', 'BLUE ', 'HARD DRIVE'],
-  psu: ['FUENTE', 'POWER SUPPLY', 'PSU', 'CORSAIR RM', 'CORSAIR CX', 'CORSAIR TX', 'SEASONIC', 'EVGA ', 'COUGAR', 'THERMALTAKE SMART', 'NOX ', 'AEROCOOL', 'XPG CORE'],
-  case: ['GABINETE', 'CHASSIS', 'TOWER', 'CASE ', 'CTE ', '5000T', '4500X', 'BLAZE FORCE', 'INFINITY GLASS', 'CORSAIR ', 'COOLER MASTER ', 'NZXT ', 'FRONTAL '],
-  cooling: ['COOLER', 'WATER COOL', 'LIQUID COOL', 'DISIPADOR', 'HEATSINK', 'SWAFAN', 'FAN COOLER', 'ICUE LINK', 'AIO ', 'AK620', 'NH-D15', 'NH-U12', 'DARK ROCK', 'HYPER '],
-  thermal: ['PASTA TERMICA', 'THERMAL PASTE', 'KRYONAUT', 'MX-', 'ARCTIC SILVER', 'NT-H1', 'NT-H2', 'HYDRONAUT'],
+  processor: ['RYZEN', 'INTEL I3', 'INTEL I5', 'INTEL I7', 'INTEL I9', 'CORE I3', 'CORE I5', 'CORE I7', 'CORE I9', 'PENTIUM', 'CORE ULTRA', 'CELERO', 'ATHLON', 'XEON', 'I3-', 'I5-', 'I7-', 'I9-', 'CPU '],
+  motherboard: ['MOTHER', 'MB ', 'H610', 'B760', 'H810', 'A520', 'A620', 'B650', 'B550', 'H510', 'Z790', 'Z690', 'B660', 'H670', 'X670', 'A320', 'B450', 'X570', 'Z590', 'Z490', 'B460', 'H410', 'X870', 'X870E', 'B860', 'H770', 'PLACA BASE', 'MAINBOARD', 'AM4', 'AM5', 'LGA'],
+  ram: ['DDR3', 'DDR4', 'DDR5', 'SODIMM', 'DIMM', 'MEMORIA RAM', 'CORSAIR VENGEANCE', 'CORSAIR MEMORY', 'KINGSTON FURY', 'G.SKILL', 'XPG', 'RAM'],
+  gpu: ['RTX', 'GTX', 'RADEON RX', 'GEFORCE', 'GRAPHICS CARD', 'QUADRO RTX', 'PLACA DE VIDEO', 'VGA', 'RX ', 'ARC ', 'TITAN', 'GT 1030', 'GT 210', 'PLACA POWERCOLOR', 'PLACA SAPPHIRE'],
+  ssd: ['SSD', 'NVME', 'M.2', 'GEN4', 'GEN3', 'SOLID STATE', 'DISCO INTERNO SSD', 'DISCO CRUCIAL'],
+  hdd: ['DISCO RIGIDO', 'HDD', 'IRONWOLF', 'SKYHAWK', 'HD SEAGATE INTERNO', 'HD TOSHIBA INTERNO', 'BARRACUDA', 'BLUE ', 'HARD DRIVE', 'DISCO DURO INT', 'DISCO INTERNO HDD', 'HD '],
+  psu: ['FUENTE', 'POWER SUPPLY', 'PSU', 'CORSAIR RM', 'CORSAIR CX', 'CORSAIR TX', 'SEASONIC', 'EVGA ', 'COUGAR', 'THERMALTAKE SMART', 'NOX ', 'AEROCOOL', 'XPG CORE', 'GAMEMAX', 'COOLER MASTER', 'WATT', 'GIGABYTE UD', 'GIGABYTE GP', 'GIGABYTE P', 'GIGABYTE AORUS', 'ASUS TUF', 'ASUS ROG', 'ASUS PRIME', 'XPG KYBER', 'MSI MPG', '80 PLUS', '80+', 'CX ATX', 'PERFORMANCE '],
+  case: ['GABINETE', 'CHASSIS', 'TOWER', 'CASE ', 'CTE ', '5000T', '4500X', 'BLAZE FORCE', 'INFINITY GLASS', 'CORSAIR ', 'COOLER MASTER ', 'NZXT ', 'FRONTAL ', 'GAB ', 'XPG ', 'GAMEMAX', 'THERMALTAKE', 'AEROCOOL', 'DEEPCOOL', 'BITFENIX', 'SENTEY', 'NACEB', 'NOX', 'KEPLERTEK', 'GAMING', 'GABINETE', 'KIT KELYX', 'RAPTOR'],
+  cooling: ['COOLER', 'WATER COOL', 'LIQUID COOL', 'DISIPADOR', 'HEATSINK', 'SWAFAN', 'FAN COOLER', 'ICUE LINK', 'AIO ', 'AK620', 'NH-D15', 'NH-U12', 'DARK ROCK', 'HYPER ', 'FAN ', 'LIQUID', 'ASUS LIQUID', 'THERMALTAKE', 'ARCTIC', 'GAMEMAX', 'CORSAIR', 'NOCTUA', 'BE QUIET', 'TT ', 'WATERFORCE', 'XPG LEVANTE', 'AORUS WATER'],
+  thermal: ['PASTA TERMICA', 'THERMAL PASTE', 'KRYONAUT', 'MX-', 'ARCTIC SILVER', 'NT-H1', 'NT-H2', 'HYDRONAUT', 'TERMICA', 'TERMICO', 'THERMAL', 'CONDUCTIVITY'],
 }
 
 /**
@@ -169,9 +169,9 @@ export async function GET(request: NextRequest) {
       // Apply compatibility filters and enrich products with compat info
       const enrichedProducts = applyCompatibilityFilters(products, slot, filters)
 
-      // Separate compatible and incompatible for sorting (compatible first)
-      const compatible = enrichedProducts.filter(e => e.isCompatible)
-      const incompatible = enrichedProducts.filter(e => !e.isCompatible)
+      // Separate compatible and incompatible for sorting (compatible first, then by price ascending)
+      const compatible = enrichedProducts.filter(e => e.isCompatible).sort((a, b) => (a.product.price || 0) - (b.product.price || 0))
+      const incompatible = enrichedProducts.filter(e => !e.isCompatible).sort((a, b) => (a.product.price || 0) - (b.product.price || 0))
       const sorted = [...compatible, ...incompatible]
 
       const finalProducts = sorted.map(({ product, compatInfo, isCompatible }) => ({

@@ -321,6 +321,12 @@ export default function ArmaTuPCPage() {
         <div className="max-w-7xl mx-auto px-4 py-8">
           <h1 className="text-3xl md:text-4xl font-bold mb-2">Arma tu PC a medida</h1>
           <p className="text-gray-300">Elegí los componentes y te la armamos. Envíos a todo el país.</p>
+          <div className="mt-3 flex items-start gap-2 text-sm bg-amber-900/40 border border-amber-500/30 rounded-lg px-3 py-2">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <span className="text-amber-200">
+              El armado de los equipos puede tener una demora de hasta <strong>96 horas hábiles</strong>.
+            </span>
+          </div>
           {processorInfo?.socket && (
             <div className="mt-3 flex items-center gap-2 text-sm">
               <ShieldCheck className="w-4 h-4 text-green-400" />
@@ -878,6 +884,12 @@ export default function ArmaTuPCPage() {
 
               {/* Actions */}
               <div className="p-5 border-t space-y-3">
+                {completedCount > 0 && (
+                  <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                    <span>El armado de los equipos puede tener una demora de hasta <strong>96 horas hábiles</strong>.</span>
+                  </div>
+                )}
                 <a
                   href={completedCount > 0 ? buildWhatsAppUrl() : undefined}
                   target="_blank"

@@ -57,11 +57,11 @@ export default function ProductGallery({ images, productName }: ProductGalleryPr
   return (
     <div>
       {/* Main Image */}
-      <div className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden mb-3">
+      <div className="relative bg-gray-100 rounded-lg overflow-hidden mb-3 flex items-center justify-center" style={{ maxHeight: '400px' }}>
         <img
           src={images[selectedIndex]}
           alt={`${productName} - Imagen ${selectedIndex + 1}`}
-          className="w-full h-full object-contain p-2 cursor-zoom-in"
+          className="max-h-[400px] w-auto max-w-full object-contain p-4 cursor-zoom-in"
           onClick={openLightbox}
         />
 
