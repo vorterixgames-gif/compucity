@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** 99a1c89 (admin productos responsive + fix truncado)
+- **Commit actual:** 4224786 (arma-tu-pc: monitor, placa de red, perifericos)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -210,7 +210,7 @@ Donde markup, cashDiscount e ivaRate siguen prioridad: Producto individual → C
 - **API:** `src/app/api/pc-builder/route.ts`
 - **Lib compatibilidad:** `src/lib/compatibility.ts`
 
-### 10 Slots de Componentes
+### 13 Slots de Componentes
 | Slot | Label | Categoria Slug | Requerido | Max Cantidad |
 |------|-------|---------------|-----------|-------------|
 | processor | Microprocesador | microprocesadores | Si | 1 |
@@ -223,6 +223,9 @@ Donde markup, cashDiscount e ivaRate siguen prioridad: Producto individual → C
 | case | Gabinete | gabinetes | Si | 1 |
 | cooling | Refrigeracion | refrigeracion | No | 1 |
 | thermal | Pasta Termica | pastas-termicas | No | 1 |
+| monitor | Monitor | monitores | No | 2 |
+| network | Placa de Red / WiFi | placas-de-red | No | 1 |
+| peripherals | Periferico | perifericos | No | 3 |
 
 ### Sistema de Filtrado de Productos (3 capas - FIX PERMANENTE)
 El PC Builder usa **3 capas de defensa** para garantizar que solo productos correctos aparezcan en cada slot:
@@ -661,7 +664,7 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ---
 
 ## Historial de Cambios
-- **2026-06-05 (s12):** Admin productos responsive - En movil se mostraba la tabla superpuesta (9 columnas en ~375px). Solucion: vista de tarjetas (cards) en movil (`block lg:hidden`) con info apilada (nombre, SKU, categoria, badges stock/activo, precios, IVA, badges markup, botones editar/eliminar) y tabla de 9 columnas solo en desktop (`hidden lg:block`). Fix: archivo se truncó por disco lleno durante la escritura, se restauró el final (switches, image uploader, specs, dialog footer, alert delete). Commits: fe67bc8 (responsive), 99a1c89 (fix truncado). Backup src (842KB)
+- **2026-06-05 (s12):** Admin productos responsive + Arma tu PC 3 slots nuevos. Admin: vista de tarjetas en movil (block lg:hidden) con info apilada y tabla solo en desktop (hidden lg:block). Fix archivo truncado por disco lleno. Arma tu PC: 3 slots nuevos (Monitor max 2, Placa de Red/WiFi max 1, Periferico max 3), todos opcionales. Iconos: Monitor, Wifi, Mouse. Whitelist/blacklist patterns para cada slot nuevo. GPU cambio icono a Gamepad2, Fuente a Plug. Commits: fe67bc8, 99a1c89, 4224786. Backup src (842KB)
 - **2026-06-05 (s11):** Homepage variedad de precios - 3 secciones (Notebooks, Monitores, PCs) con 4 productos cada una y variedad de precios (1 barato, 2 medios, 1 caro). Orden cambiado a Notebooks primero, Monitores segundo, PCs tercero. "PC Armadas" renombrado a "PCs". Funcion pickDiversePrices() en page.tsx pide 20 productos y selecciona 4 con variedad. IMPORTANTE: commit estable 2aa6093 (si se rompe algo, hacer `git reset --hard 2aa6093`). No tocar queries.ts ni layouts - solo page.tsx
 - **2026-06-04 (s10):** Herencia de categoría padre implementada (GLOBAL) - Las subcategorías heredan ivaRate/markup/cashDiscount de su categoría padre si no tienen valor propio. `getCategoryPricing()` recorre la cadena de padres (subcategoría → padre → abuelo...). Aplica en frontend admin (selector IVA, preview, tabla), backend queries (`getCategoryMarkupMap`), y API admin productos. Admin productos: selector IVA muestra "Heredar de categoría → X%" con valor heredado, texto de ayuda "Usando IVA X% de la categoría [nombre]", columna IVA con colores. Fix: `interface Category` ahora incluye `ivaRate`. Categoría Monitores configurada con IVA 21%. Backups completos (código 838KB + DB 10.2MB)
 - **2026-06-04 (s9):** Fix IVA por categoría - La columna ivaRate no existía en tabla categories (migración #21 nunca se ejecutó en Turso). Se agregó manualmente. Se corrigió que todos los productos tenían ivaRate=10.5 forzado (4,445 productos actualizados a NULL para que hereden de categoría). Admin productos: selector IVA ahora tiene opción "Heredar de categoría" en vez de forzar 10.5%. API productos: ivaRate vacío ahora guarda NULL en vez de 10.5. Fórmula preview muestra IVA heredado correctamente. Categoría Notebooks configurada con IVA 21%. Orden por defecto cambiado a precio ascendente (más baratos primero) en categorías, búsqueda y todos los productos. Backups completos (código 832KB + DB 8.9MB)
