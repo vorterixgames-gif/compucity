@@ -36,6 +36,9 @@ const COMPONENT_SLOTS: { slot: string; label: string; categorySlug: string }[] =
   { slot: 'case', label: 'Gabinete', categorySlug: 'gabinetes' },
   { slot: 'cooling', label: 'Refrigeración', categorySlug: 'refrigeracion' },
   { slot: 'thermal', label: 'Pasta Térmica', categorySlug: 'pastas-termicas' },
+  { slot: 'monitor', label: 'Monitor', categorySlug: 'monitores' },
+  { slot: 'network', label: 'Placa de Red', categorySlug: 'placas-de-red' },
+  { slot: 'peripherals', label: 'Periférico', categorySlug: 'perifericos' },
 ]
 
 // Name patterns to EXCLUDE from the PC builder (non-consumer/non-relevant products)
@@ -50,6 +53,9 @@ const BUILDER_EXCLUDE_PATTERNS: Record<string, string[]> = {
   processor: ['NOTEBOOK', 'LAPTOP', 'PC GAMER', 'PC KELYX', 'PC LENOVO', 'SIST.', 'MINI PC', 'BAREBONE'],
   motherboard: ['NOTEBOOK', 'LAPTOP', 'PC GAMER', 'PC KELYX', 'PC LENOVO', 'SIST.', 'MINI PC', 'BAREBONE'],
   thermal: ['NOTEBOOK', 'LAPTOP', 'PC GAMER', 'PC KELYX', 'PC LENOVO', 'SIST.', 'MINI PC', 'BAREBONE'],
+  monitor: ['NOTEBOOK', 'LAPTOP', 'TV ', 'TELEVISOR', 'CAR HOLDER', 'PARABRISAS', 'AUTO', 'DVD', 'PC GAMER', 'PC KELYX', 'PC LENOVO', 'SIST.', 'MINI PC', 'BAREBONE'],
+  network: ['NOTEBOOK', 'LAPTOP', 'SWITCH', 'ROUTER', 'ACCESS POINT', 'FIREWALL', 'AP ', 'SFP', 'FIBRA', 'FTTH', 'ONT', 'HUB', 'MODEM', 'PC GAMER', 'PC KELYX', 'PC LENOVO', 'SIST.', 'MINI PC', 'BAREBONE', 'CABLE', 'PATCH', 'RACK'],
+  peripherals: ['NOTEBOOK', 'LAPTOP', 'CABLE', 'ADAPTADOR', 'HUB USB', 'EXTENSOR', 'ALMOHADILLA', 'MOUSEPAD', 'FUNDAS', 'BATERIA', 'CARGADOR', 'PC GAMER', 'PC KELYX', 'PC LENOVO', 'SIST.', 'MINI PC', 'BAREBONE'],
 }
 
 // *** INCLUSION PATTERNS (WHITELIST) - THE KEY PERMANENT FIX ***
@@ -68,6 +74,9 @@ const BUILDER_INCLUDE_PATTERNS: Record<string, string[]> = {
   case: ['GABINETE', 'CHASSIS', 'TOWER', 'CASE ', 'CTE ', '5000T', '4500X', 'BLAZE FORCE', 'INFINITY GLASS', 'CORSAIR ', 'COOLER MASTER ', 'NZXT ', 'FRONTAL ', 'GAB ', 'XPG ', 'GAMEMAX', 'THERMALTAKE', 'AEROCOOL', 'DEEPCOOL', 'BITFENIX', 'SENTEY', 'NACEB', 'NOX', 'KEPLERTEK', 'GAMING', 'GABINETE', 'KIT KELYX', 'RAPTOR'],
   cooling: ['COOLER', 'WATER COOL', 'LIQUID COOL', 'DISIPADOR', 'HEATSINK', 'SWAFAN', 'FAN COOLER', 'ICUE LINK', 'AIO ', 'AK620', 'NH-D15', 'NH-U12', 'DARK ROCK', 'HYPER ', 'FAN ', 'LIQUID', 'ASUS LIQUID', 'THERMALTAKE', 'ARCTIC', 'GAMEMAX', 'CORSAIR', 'NOCTUA', 'BE QUIET', 'TT ', 'WATERFORCE', 'XPG LEVANTE', 'AORUS WATER'],
   thermal: ['PASTA TERMICA', 'THERMAL PASTE', 'KRYONAUT', 'MX-', 'ARCTIC SILVER', 'NT-H1', 'NT-H2', 'HYDRONAUT', 'TERMICA', 'TERMICO', 'THERMAL', 'CONDUCTIVITY'],
+  monitor: ['MONITOR', 'DISPLAY', 'PULGADA', 'IPS', 'VA ', 'OLED', 'CURVO', 'FLAT', 'FULL HD', 'QHD', '4K', 'UHD', 'HZ', 'REFRESH', 'GAMING', 'LED ', 'LCD', 'DELL P', 'DELL S', 'DELL U', 'LG ', 'SAMSUNG', 'BENQ', 'ASUS ', 'ACER', 'AOC', 'VIEWSONIC', 'HP P', 'HP V', 'HP E', 'KOORUI', 'GIGABYTE M', 'MSI OPTIX', 'MSI PRO', 'PHILIPS'],
+  network: ['TARJETA DE RED', 'PLACA DE RED', 'NIC', 'PCI-E', 'PCIEX', 'WIFI ', 'WI-FI', 'WIRELESS', 'BLUETOOTH', 'INTEL AX', 'INTEL BE', 'REALTEK', 'KILLER ', 'NETWORK CARD', 'ETHERNET', 'ADAPTADOR RED', 'ADAPTADOR DE RED', 'USB WIFI', 'USB RED', 'PCIE WIFI', 'PCIE RED', 'TPLINK', 'TP-LINK', 'EDUP', 'TENDA'],
+  peripherals: ['MOUSE', 'TECLADO', 'KEYBOARD', 'AURICULAR', 'HEADSET', 'WEBCAM', 'CAMERA', 'MICROFONO', 'MIC', 'SPEAKER', 'PARLANTE', 'JOYSTICK', 'GAMEPAD', 'CONTROL', 'PAD', 'MOUSE', 'GAMING MOUSE', 'MECHANICAL', 'MECANICO'],
 }
 
 /**

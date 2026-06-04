@@ -25,6 +25,10 @@ import {
   ShieldCheck,
   Info,
   Minus,
+  Wifi,
+  Mouse,
+  Gamepad2,
+  Plug,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -79,13 +83,16 @@ const SLOTS: { slot: string; label: string; categorySlug: string; icon: React.El
   { slot: 'processor', label: 'Microprocesador', categorySlug: 'microprocesadores', icon: Cpu, required: true, maxQty: 1 },
   { slot: 'motherboard', label: 'Motherboard', categorySlug: 'motherboards', icon: CircuitBoard, required: true, maxQty: 1 },
   { slot: 'ram', label: 'Memoria RAM', categorySlug: 'memorias-ram', icon: Zap, required: true, maxQty: 4 },
-  { slot: 'gpu', label: 'Placa de Video', categorySlug: 'placas-de-video', icon: Monitor, required: false, maxQty: 1 },
+  { slot: 'gpu', label: 'Placa de Video', categorySlug: 'placas-de-video', icon: Gamepad2, required: false, maxQty: 1 },
   { slot: 'ssd', label: 'Disco SSD', categorySlug: 'discos-ssd', icon: HardDrive, required: true, maxQty: 4 },
   { slot: 'hdd', label: 'Disco HDD', categorySlug: 'discos-hdd', icon: HardDrive, required: false, maxQty: 2 },
-  { slot: 'psu', label: 'Fuente', categorySlug: 'fuentes', icon: Zap, required: true, maxQty: 1 },
+  { slot: 'psu', label: 'Fuente', categorySlug: 'fuentes', icon: Plug, required: true, maxQty: 1 },
   { slot: 'case', label: 'Gabinete', categorySlug: 'gabinetes', icon: Box, required: true, maxQty: 1 },
   { slot: 'cooling', label: 'Refrigeración', categorySlug: 'refrigeracion', icon: Wind, required: false, maxQty: 1 },
   { slot: 'thermal', label: 'Pasta Térmica', categorySlug: 'pastas-termicas', icon: Droplets, required: false, maxQty: 1 },
+  { slot: 'monitor', label: 'Monitor', categorySlug: 'monitores', icon: Monitor, required: false, maxQty: 2 },
+  { slot: 'network', label: 'Placa de Red / WiFi', categorySlug: 'placas-de-red', icon: Wifi, required: false, maxQty: 1 },
+  { slot: 'peripherals', label: 'Periférico', categorySlug: 'perifericos', icon: Mouse, required: false, maxQty: 3 },
 ]
 
 // ============================================
