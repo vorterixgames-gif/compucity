@@ -104,20 +104,20 @@ export function extractMotherboardCompatibility(name: string): CompatibilityInfo
 
   // Fallback: if not detected, try chipset-based inference
   if (!socket) {
-    // B850, B840, X870, B650, A620 → AM5
-    if (/\b(B850|B840|X870|B650|A620)\b/i.test(upper)) {
+    // AM5 chipsets
+    if (/\b(B850|B840|X870|X870E|B650E?|A620|X670E?)\b/i.test(upper)) {
       socket = 'AM5'
     }
-    // B550, A520 → AM4
-    else if (/\b(B550|A520)\b/i.test(upper)) {
+    // AM4 chipsets
+    else if (/\b(B550|A520|X570|B450|A320)\b/i.test(upper)) {
       socket = 'AM4'
     }
-    // B860, Z890, H810 → 1851
+    // LGA1851 chipsets
     else if (/\b(B860|Z890|H810)\b/i.test(upper)) {
       socket = '1851'
     }
-    // B760, H610 → 1700
-    else if (/\b(B760|H610)\b/i.test(upper)) {
+    // LGA1700 chipsets
+    else if (/\b(B760|H610|B660|H670|Z690|Z790)\b/i.test(upper)) {
       socket = '1700'
     }
   }
