@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** 9d1979d (feat: add filter chips to category pages)
+- **Commit actual:** 2a3a11f (fix: remove generic filters from Componentes de PC parent category)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -617,6 +617,7 @@ createdAt TEXT, updatedAt TEXT
 ## Backups
 | Fecha | Archivo | Tamano | Contenido |
 |-------|---------|--------|----------|
+| 2026-06-05 (s14c) | `compucity-src-backup-20260605-s14c.tar.gz` | 237KB | Codigo src con fix filtros Componentes de PC (sin filtros genericos en parent) |
 | 2026-06-05 (s14b) | `compucity-src-backup-20260605-s14b.tar.gz` | 258KB | Codigo src con filtros en categorias tienda |
 | 2026-06-05 (s14) | `compucity-src-backup-20260605-s14.tar.gz` | 255KB | Codigo src con filtros manuales en PC Builder |
 | 2026-06-05 (s12) | `compucity-src-backup-20260605-s12.tar.gz` | 842KB | Codigo src + config con admin productos responsive |
@@ -685,7 +686,7 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ---
 
 ## Historial de Cambios
-- **2026-06-05 (s14):** Filtros en PC Builder + Categorías tienda. PC Builder: chips clickeables para filtrar productos (Processor: AMD/Intel, Motherboard: Socket+DDR, RAM: DDR3/4/5, GPU: NVIDIA/AMD/Intel Arc, SSD: NVMe/SATA, PSU: 500W+/650W+/750W+/850W+, Cooling: AIO/Aire, Monitor: Tamaño+Resolución, Network: PCIe/USB/WiFi6, Periféricos: Mouse/Teclado/Auricular/etc.). Categorías tienda: mismos filtros en CategoryProducts para 12 categorías (microprocesadores, motherboards, memorias-ram, placas-de-video, discos-ssd, fuentes, refrigeracion, monitores, placas-de-red, perifericos, componentes-de-pc, notebooks). Notebooks agrega filtros por marca (Lenovo/HP/Dell/Asus/Acer). Componentes-de-pc agrega filtros por tipo. Logica AND entre grupos, OR dentro del mismo grupo. Network blacklist: +AP GIGABIT, WALL MOUNT, CEILLING, MINIHUB, OUTDOOR, INDOOR, ISP. Commits: e020dd3, 9d1979d
+- **2026-06-05 (s14):** Filtros en PC Builder + Categorías tienda + fix. PC Builder: chips clickeables para filtrar productos (Processor: AMD/Intel, Motherboard: Socket+DDR, RAM: DDR3/4/5, GPU: NVIDIA/AMD/Intel Arc, SSD: NVMe/SATA, PSU: 500W+/650W+/750W+/850W+, Cooling: AIO/Aire, Monitor: Tamaño+Resolución, Network: PCIe/USB/WiFi6, Periféricos: Mouse/Teclado/Auricular/etc.). Categorías tienda: mismos filtros en CategoryProducts para 11 categorías. FIX: eliminados filtros genéricos de "Componentes de PC" (Procesador/Motherboard/RAM/GPU/SSD/Fuente) que eran redundantes con las subcategorías - los filtros ahora solo aparecen al seleccionar una subcategoría específica (ej: DDR3/4/5 en Memorias RAM, AMD/Intel en Microprocesadores). Network blacklist: +AP GIGABIT, WALL MOUNT, CEILLING, MINIHUB, OUTDOOR, INDOOR, ISP. Commits: e020dd3, 9d1979d, 2a3a11f
 - **2026-06-05 (s13):** Fix filtros PC Builder para Placas de Red y Periféricos. Network: agregados P.REDW/PREDW/ARCHER T/P.RED para incluir placas reales, removidos TP-LINK/WIFI/WIRELESS/PCI-E amplios que matcheaban cámaras IP y sistemas Mesh. Exclusiones nuevas: CAMARA, DECO, MESH, TAPO C, CPE, RANGE EXTENDER, A SD, A HDMI, A DISPLAYPORT, CONTROLLER, CLOUD, JBL. Fix 'AP ' que matcheaba 'ADAP' falsamente (removido). Fix 'HUB' → 'HUB ' para no excluir 'Minihub' en adaptadores Ethernet. Removido RJ45 del exclude (aparece en adaptadores Ethernet legítimos). Periféricos: agregados WEB CAM, VOLANTE, WHEEL a include. Removidos 'CABLE' y 'ADAPTADOR' amplios del exclude (catcheaban "Mouse c/Cable", "Teclado con Cable", "Auricular gaming cableado"). Reemplazados con patterns específicos: CABLE KELYX, CABLE HDMI, CABLE DISPLAY, ADAPTADOR HDMI, ADAPTADOR VGA, etc. Renombrado "Periférico" → "Periféricos". Resultado: Network pasa de 16 (con cámaras/mesh) a 19 productos correctos (solo placas/adaptadores reales). Periféricos pasa de 393 a 418 productos (ahora incluye mouse/teclados cableados, webcams, volantes). Commit: 18121fb
 - **2026-06-05 (s12):** Admin productos responsive + Arma tu PC 3 slots nuevos. Admin: vista de tarjetas en movil (block lg:hidden) con info apilada y tabla solo en desktop (hidden lg:block). Fix archivo truncado por disco lleno. Arma tu PC: 3 slots nuevos (Monitor max 2, Placa de Red/WiFi max 1, Periferico max 3), todos opcionales. Iconos: Monitor, Wifi, Mouse. Whitelist/blacklist patterns para cada slot nuevo. GPU cambio icono a Gamepad2, Fuente a Plug. Commits: fe67bc8, 99a1c89, 4224786. Backup src (842KB)
 - **2026-06-05 (s11):** Homepage variedad de precios - 3 secciones (Notebooks, Monitores, PCs) con 4 productos cada una y variedad de precios (1 barato, 2 medios, 1 caro). Orden cambiado a Notebooks primero, Monitores segundo, PCs tercero. "PC Armadas" renombrado a "PCs". Funcion pickDiversePrices() en page.tsx pide 20 productos y selecciona 4 con variedad. IMPORTANTE: commit estable 2aa6093 (si se rompe algo, hacer `git reset --hard 2aa6093`). No tocar queries.ts ni layouts - solo page.tsx
