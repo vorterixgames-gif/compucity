@@ -942,15 +942,36 @@ export default function AdminProductos() {
                     max="200"
                     value={form.markup}
                     onChange={(e) => updateForm('markup', e.target.value)}
-                    placeholder={dollarConfig ? `Global: ${dollarConfig.markup}%` : 'Ej: 30'}
+                    placeholder="Dejar vacío para heredar"
                     className="bg-white"
                   />
-                  <p className="text-xs text-gray-400">
-                    Dejar vacío para usar categoría ({(() => {
-                      const cp = getCategoryPricing(form.categoryId || null)
-                      return cp.markup != null ? `cat: ${cp.markup}%` : `global: ${dollarConfig?.markup ?? 30}%`
-                    })()})
-                  </p>
+                  {(() => {
+                    const cp = getCategoryPricing(form.categoryId || null)
+                    const hasCat = cp.markup != null
+                    const inheritedVal = hasCat ? cp.markup : (dollarConfig?.markup ?? 30)
+                    const source = hasCat ? 'category' : 'global'
+                    const isOverridden = form.markup !== ''
+                    return (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {isOverridden ? (
+                          <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                            {form.markup}% individual
+                          </span>
+                        ) : hasCat ? (
+                          <span className="inline-flex items-center gap-1 text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-medium">
+                            Hereda {cp.markup}% de &ldquo;{cp.categoryName}&rdquo;
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">
+                            Global {dollarConfig?.markup ?? 30}%
+                          </span>
+                        )}
+                        {isOverridden && hasCat && (
+                          <span className="text-[11px] text-gray-400">Categoría: {cp.markup}%</span>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="cashDiscount" className="flex items-center gap-1">
@@ -965,15 +986,36 @@ export default function AdminProductos() {
                     max="100"
                     value={form.cashDiscount}
                     onChange={(e) => updateForm('cashDiscount', e.target.value)}
-                    placeholder={dollarConfig ? `Global: ${dollarConfig.cashDiscount}%` : 'Ej: 10'}
+                    placeholder="Dejar vacío para heredar"
                     className="bg-white"
                   />
-                  <p className="text-xs text-gray-400">
-                    Dejar vacío para usar categoría ({(() => {
-                      const cp = getCategoryPricing(form.categoryId || null)
-                      return cp.cashDiscount != null ? `cat: ${cp.cashDiscount}%` : `global: ${dollarConfig?.cashDiscount ?? 10}%`
-                    })()})
-                  </p>
+                  {(() => {
+                    const cp = getCategoryPricing(form.categoryId || null)
+                    const hasCat = cp.cashDiscount != null
+                    const inheritedVal = hasCat ? cp.cashDiscount : (dollarConfig?.cashDiscount ?? 10)
+                    const source = hasCat ? 'category' : 'global'
+                    const isOverridden = form.cashDiscount !== ''
+                    return (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {isOverridden ? (
+                          <span className="inline-flex items-center gap-1 text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                            {form.cashDiscount}% individual
+                          </span>
+                        ) : hasCat ? (
+                          <span className="inline-flex items-center gap-1 text-xs bg-orange-50 text-orange-700 px-2 py-0.5 rounded-full font-medium">
+                            Hereda {cp.cashDiscount}% de &ldquo;{cp.categoryName}&rdquo;
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">
+                            Global {dollarConfig?.cashDiscount ?? 10}%
+                          </span>
+                        )}
+                        {isOverridden && hasCat && (
+                          <span className="text-[11px] text-gray-400">Categoría: {cp.cashDiscount}%</span>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="ivaRate" className="flex items-center gap-1">
