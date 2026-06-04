@@ -29,6 +29,7 @@ import {
   Mouse,
   Gamepad2,
   Plug,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -73,6 +74,111 @@ interface SelectedComponent {
   slot: string
   product: BuilderProduct
   quantity: number
+}
+
+// ============================================
+// Slot Filter Definitions
+// ============================================
+
+interface FilterOption {
+  key: string        // filter group key (e.g., 'brand', 'ddr', 'type')
+  label: string      // display label
+  value: string      // filter value
+  matchFn: (name: string) => boolean  // function to check if product name matches
+}
+
+const SLOT_FILTERS: Record<string, FilterOption[]> = {
+  processor: [
+    { key: 'brand', label: 'AMD', value: 'AMD', matchFn: (n) => /\bAMD\b|\bRYZEN\b|\bATHLON\b/i.test(n) },
+    { key: 'brand', label: 'Intel', value: 'Intel', matchFn: (n) => /\bINTEL\b|\bCORE\s*I[3579]\b|\bPENTIUM\b|\bCELERO\b|\bCORE ULTRA\b/i.test(n) },
+  ],
+  motherboard: [
+    { key: 'socket', label: 'AM4', value: 'AM4', matchFn: (n) => /\bAM4\b|\bB550\b|\bA520\b/i.test(n) },
+    { key: 'socket', label: 'AM5', value: 'AM5', matchFn: (n) => /\bAM5\b|\bB650\b|\bB850\b|\bA620\b|\bX870\b|\bX670\b/i.test(n) },
+    { key: 'socket', label: 'LGA 1700', value: '1700', matchFn: (n) => /\b1700\b|\bB760\b|\bH610\b|\bZ690\b|\bZ790\b/i.test(n) },
+    { key: 'socket', label: 'LGA 1851', value: '1851', matchFn: (n) => /\b1851\b|\bB860\b|\bZ890\b|\bH810\b/i.test(n) },
+    { key: 'ddr', label: 'DDR4', value: 'DDR4', matchFn: (n) => /\bDDR4\b/i.test(n) },
+    { key: 'ddr', label: 'DDR5', value: 'DDR5', matchFn: (n) => /\bDDR5\b/i.test(n) },
+  ],
+  ram: [
+    { key: 'ddr', label: 'DDR3', value: 'DDR3', matchFn: (n) => /\bDDR3\b/i.test(n) },
+    { key: 'ddr', label: 'DDR4', value: 'DDR4', matchFn: (n) => /\bDDR4\b/i.test(n) },
+    { key: 'ddr', label: 'DDR5', value: 'DDR5', matchFn: (n) => /\bDDR5\b/i.test(n) },
+  ],
+  gpu: [
+    { key: 'brand', label: 'NVIDIA', value: 'NVIDIA', matchFn: (n) => /\bRTX\b|\bGTX\b|\bGEFORCE\b|\bNVIDIA\b|\bQUADRO\b|\bGT 1030\b/i.test(n) },
+    { key: 'brand', label: 'AMD', value: 'AMD', matchFn: (n) => /\bRADEON\b|\bRX\s\d/i.test(n) },
+    { key: 'brand', label: 'Intel Arc', value: 'INTEL_ARC', matchFn: (n) => /\bARC\s*A[37]\b/i.test(n) },
+  ],
+  ssd: [
+    { key: 'type', label: 'M.2 / NVMe', value: 'NVME', matchFn: (n) => /\bNVME\b|\bM\.2\b|\bM2\b/i.test(n) },
+    { key: 'type', label: 'SATA', value: 'SATA', matchFn: (n) => /\bSATA\b/i.test(n) && !/\bNVME\b|\bM\.2\b/i.test(n) },
+  ],
+  psu: [
+    { key: 'wattage', label: '500W+', value: '500', matchFn: (n) => { const m = n.match(/(\d{3,4})\s*W/i); return m ? parseInt(m[1]) >= 500 : false; } },
+    { key: 'wattage', label: '650W+', value: '650', matchFn: (n) => { const m = n.match(/(\d{3,4})\s*W/i); return m ? parseInt(m[1]) >= 650 : false; } },
+    { key: 'wattage', label: '750W+', value: '750', matchFn: (n) => { const m = n.match(/(\d{3,4})\s*W/i); return m ? parseInt(m[1]) >= 750 : false; } },
+    { key: 'wattage', label: '850W+', value: '850', matchFn: (n) => { const m = n.match(/(\d{3,4})\s*W/i); return m ? parseInt(m[1]) >= 850 : false; } },
+  ],
+  cooling: [
+    { key: 'type', label: 'AIO / Líquida', value: 'LIQUID', matchFn: (n) => /\bWATER\s*COOL\b|\bAIO\b|\bLIQUID\b|\bWATERFORCE\b|\bWATER COOL\b/i.test(n) },
+    { key: 'type', label: 'Aire', value: 'AIR', matchFn: (n) => !/\bWATER\s*COOL\b|\bAIO\s|\bLIQUID\b|\bWATERFORCE\b/i.test(n) },
+  ],
+  monitor: [
+    { key: 'size', label: '24"', value: '24', matchFn: (n) => /\b24\b/i.test(n) },
+    { key: 'size', label: '27"', value: '27', matchFn: (n) => /\b27\b/i.test(n) },
+    { key: 'size', label: '32"+', value: '32', matchFn: (n) => /\b3[2-9]\b|\b4[0-9]\b/i.test(n) },
+    { key: 'resolution', label: 'Full HD', value: 'FHD', matchFn: (n) => /\bFULL\s*HD\b|\bFHD\b|\b1080\b/i.test(n) },
+    { key: 'resolution', label: 'QHD', value: 'QHD', matchFn: (n) => /\bQHD\b|\b2K\b|\b1440\b/i.test(n) },
+    { key: 'resolution', label: '4K / UHD', value: '4K', matchFn: (n) => /\b4K\b|\bUHD\b|\b2160\b/i.test(n) },
+  ],
+  network: [
+    { key: 'type', label: 'PCIe', value: 'PCIE', matchFn: (n) => /\bPCIEX?\b|\bPCI-E\b|\bPCIX\b/i.test(n) && !/\bUSB\b/i.test(n) },
+    { key: 'type', label: 'USB', value: 'USB', matchFn: (n) => /\bP\.?REDW?\s.*USB|USB.*RED|\bARCHER T\b/i.test(n) },
+    { key: 'type', label: 'WiFi 6 / 6E', value: 'WIFI6', matchFn: (n) => /\bWIFI\s*6\b|\bAX\d{4}\b|\bAX3000\b|\bAX1800\b/i.test(n) },
+  ],
+  peripherals: [
+    { key: 'type', label: 'Mouse', value: 'MOUSE', matchFn: (n) => /\bMOUSE\b/i.test(n) && !/\bMOUSEPAD\b/i.test(n) },
+    { key: 'type', label: 'Teclado', value: 'TECLADO', matchFn: (n) => /\bTECLADO\b|\bKEYBOARD\b|\bMECANICO\b|\bMECHANICAL\b/i.test(n) },
+    { key: 'type', label: 'Auricular', value: 'AURICULAR', matchFn: (n) => /\bAURICULAR\b|\bHEADSET\b/i.test(n) },
+    { key: 'type', label: 'Webcam', value: 'WEBCAM', matchFn: (n) => /\bWEBCAM\b|\bWEB CAM\b/i.test(n) },
+    { key: 'type', label: 'Micrófono', value: 'MICROFONO', matchFn: (n) => /\bMICROFONO\b|\bMICRÓFONO\b/i.test(n) },
+    { key: 'type', label: 'Volante', value: 'VOLANTE', matchFn: (n) => /\bVOLANTE\b|\bWHEEL\b|\bRACING\b/i.test(n) },
+    { key: 'type', label: 'Parlante', value: 'PARLANTE', matchFn: (n) => /\bPARLANTE\b|\bSPEAKER\b/i.test(n) },
+    { key: 'type', label: 'Joystick', value: 'JOYSTICK', matchFn: (n) => /\bJOYSTICK\b|\bGAMEPAD\b/i.test(n) },
+  ],
+}
+
+/**
+ * Apply manual filters to a product list.
+ * Logic: AND between different filter groups, OR within the same group.
+ * If no filters active for a group, all products pass that group.
+ */
+function applyManualFilters(products: BuilderProduct[], filters: Record<string, string[]>, slotKey: string): BuilderProduct[] {
+  const slotFilterOptions = SLOT_FILTERS[slotKey]
+  if (!slotFilterOptions || slotFilterOptions.length === 0) return products
+
+  // Get active filter groups
+  const activeGroups = new Map<string, FilterOption[]>()
+  for (const [key, values] of Object.entries(filters)) {
+    if (values.length === 0) continue
+    const matchingOptions = slotFilterOptions.filter(o => o.key === key && values.includes(o.value))
+    if (matchingOptions.length > 0) {
+      activeGroups.set(key, matchingOptions)
+    }
+  }
+
+  if (activeGroups.size === 0) return products
+
+  return products.filter(product => {
+    // Product must pass ALL active filter groups (AND logic between groups)
+    for (const [, options] of activeGroups) {
+      // Product must match at least one option in the group (OR logic within group)
+      const matchesGroup = options.some(opt => opt.matchFn(product.name))
+      if (!matchesGroup) return false
+    }
+    return true
+  })
 }
 
 // ============================================
@@ -130,6 +236,7 @@ export default function ArmaTuPCPage() {
   const [showIncompatible, setShowIncompatible] = useState(false)
   const [activeFilters, setActiveFilters] = useState<CompatibilityFilters>({})
   const [showMobileSummary, setShowMobileSummary] = useState(false)
+  const [manualFilters, setManualFilters] = useState<Record<string, string[]>>({})
 
   const currentSlot = SLOTS[currentStep]
   const selectedForCurrentSlot = selectedComponents.find(c => c.slot === currentSlot.slot)
@@ -189,6 +296,7 @@ export default function ArmaTuPCPage() {
   const loadProducts = useCallback(async () => {
     setLoading(true)
     setSearch('')
+    setManualFilters({})
     try {
       const params = new URLSearchParams({ slot: currentSlot.slot })
 
@@ -253,13 +361,54 @@ export default function ArmaTuPCPage() {
   const compatibleProducts = products.filter(p => p.isCompatible !== false)
   const incompatibleProducts = products.filter(p => p.isCompatible === false)
 
-  // Apply search filter
-  const filteredCompatible = compatibleProducts.filter(p =>
+  // Apply manual filters then search filter
+  const manualFilteredCompatible = applyManualFilters(compatibleProducts, manualFilters, currentSlot.slot)
+  const manualFilteredIncompatible = applyManualFilters(incompatibleProducts, manualFilters, currentSlot.slot)
+
+  const filteredCompatible = manualFilteredCompatible.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase())
   )
-  const filteredIncompatible = incompatibleProducts.filter(p =>
+  const filteredIncompatible = manualFilteredIncompatible.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase())
   )
+
+  // Get available filter options for the current slot
+  const currentSlotFilterOptions = SLOT_FILTERS[currentSlot.slot] || []
+  // Group filter options by key for rendering
+  const filterGroups = useMemo(() => {
+    const groups: { key: string; label: string; options: FilterOption[] }[] = []
+    const keyMap = new Map<string, FilterOption[]>()
+    const keyLabels: Record<string, string> = {
+      brand: 'Marca',
+      socket: 'Socket',
+      ddr: 'Memoria',
+      type: 'Tipo',
+      wattage: 'Potencia',
+      size: 'Tamaño',
+      resolution: 'Resolución',
+    }
+    for (const opt of currentSlotFilterOptions) {
+      if (!keyMap.has(opt.key)) keyMap.set(opt.key, [])
+      keyMap.get(opt.key)!.push(opt)
+    }
+    for (const [key, options] of keyMap) {
+      groups.push({ key, label: keyLabels[key] || key, options })
+    }
+    return groups
+  }, [currentSlot.slot])
+
+  // Toggle a manual filter value
+  const toggleFilter = (key: string, value: string) => {
+    setManualFilters(prev => {
+      const current = prev[key] || []
+      const isActive = current.includes(value)
+      const updated = isActive ? current.filter(v => v !== value) : [...current, value]
+      return { ...prev, [key]: updated }
+    })
+  }
+
+  const clearFilters = () => setManualFilters({})
+  const hasActiveFilters = Object.values(manualFilters).some(v => v.length > 0)
 
   const goNext = () => {
     if (currentStep < SLOTS.length - 1) {
@@ -363,6 +512,7 @@ export default function ArmaTuPCPage() {
                     (slot.slot === 'motherboard' && !!compatibilityFilters.socket) ||
                     (slot.slot === 'ram' && !!compatibilityFilters.ddr) ||
                     (slot.slot === 'psu' && !!compatibilityFilters.minWattage)
+                  const hasManualFilter = slot.slot === currentSlot.slot && hasActiveFilters
                   return (
                     <button
                       key={slot.slot}
@@ -379,6 +529,8 @@ export default function ArmaTuPCPage() {
                     >
                       {isSelected ? (
                         <Check className="h-3.5 w-3.5 shrink-0" />
+                      ) : hasManualFilter ? (
+                        <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
                       ) : hasFilter ? (
                         <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
                       ) : (
@@ -480,7 +632,7 @@ export default function ArmaTuPCPage() {
             )}
 
             {/* Search */}
-            <div className="relative mb-4">
+            <div className="relative mb-3">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
                 placeholder={`Buscar ${currentSlot.label.toLowerCase()}...`}
@@ -494,6 +646,57 @@ export default function ArmaTuPCPage() {
                 </button>
               )}
             </div>
+
+            {/* Filter Chips */}
+            {filterGroups.length > 0 && (
+              <div className="bg-white rounded-xl border p-3 mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-1.5">
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-gray-400" />
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Filtros</span>
+                  </div>
+                  {hasActiveFilters && (
+                    <button
+                      onClick={clearFilters}
+                      className="text-xs text-red-500 hover:text-red-700 font-medium transition"
+                    >
+                      Limpiar filtros
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  {filterGroups.map(group => (
+                    <div key={group.key}>
+                      <span className="text-[11px] text-gray-400 font-medium mb-1 block">{group.label}</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {group.options.map(opt => {
+                          const isActive = (manualFilters[opt.key] || []).includes(opt.value)
+                          return (
+                            <button
+                              key={opt.value}
+                              onClick={() => toggleFilter(opt.key, opt.value)}
+                              className={`px-2.5 py-1 rounded-full text-xs font-medium transition border ${
+                                isActive
+                                  ? 'bg-compucity-green text-white border-compucity-green shadow-sm'
+                                  : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-100'
+                              }`
+                              }
+                            >
+                              {opt.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {hasActiveFilters && (
+                  <p className="text-[11px] text-gray-400 mt-2">
+                    Mostrando {filteredCompatible.length + filteredIncompatible.length} de {compatibleProducts.length + incompatibleProducts.length} productos
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Product List */}
             <div className="space-y-2">
