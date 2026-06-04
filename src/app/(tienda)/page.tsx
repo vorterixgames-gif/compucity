@@ -25,30 +25,30 @@ export default async function HomePage() {
   let monitorProducts: any[] = []
   let notebookProducts: any[] = []
 
+  // Pick 4 products with price variety from a larger pool
+  function pickDiversePrices(products: any[], count = 4): any[] {
+    if (products.length <= count) return products
+    const sorted = [...products].sort((a, b) => (a.price || 0) - (b.price || 0))
+    if (sorted.length <= count) return sorted
+    // Pick 1 cheap, 2 mid, 1 expensive
+    const cheap = sorted[0]
+    const mid1 = sorted[Math.floor(sorted.length / 3)]
+    const mid2 = sorted[Math.floor(sorted.length * 2 / 3)]
+    const expensive = sorted[sorted.length - 1]
+    return [cheap, mid1, mid2, expensive].slice(0, count)
+  }
+
   try {
     [featured, allProducts, gamerPCs, monitorProducts, notebookProducts] = await Promise.all([
       getFeaturedProducts(),
       getAllActiveProducts(),
-      getTopProductsByCategorySlug('pc-armadas', 4),
-      getTopProductsByCategorySlug('monitores', 4),
-      getTopProductsByCategorySlug('notebooks', 12),
+      getTopProductsByCategorySlug('pc-armadas', 20),
+      getTopProductsByCategorySlug('monitores', 20),
+      getTopProductsByCategorySlug('notebooks', 20),
     ])
-    // Pick 4 notebooks with brand/line variety (avoid 4 identical Legion)
-    if (notebookProducts.length > 4) {
-      const seen = new Set<string>()
-      const diverse: any[] = []
-      for (const p of notebookProducts) {
-        const name = (p.name || '').toLowerCase()
-        // Extract brand+line as key (e.g. "lenovo legion", "msi cyborg", "lenovo loq", "lenovo t14")
-        const brandLine = name.match(/(lenovo\s\w+|msi\s\w+|asus\s\w+|hp\s\w+|dell\s\w+|acer\s\w+)/)?.[1] || name.slice(0, 20)
-        if (!seen.has(brandLine)) {
-          seen.add(brandLine)
-          diverse.push(p)
-        }
-        if (diverse.length >= 4) break
-      }
-      notebookProducts = diverse.length >= 4 ? diverse : notebookProducts.slice(0, 4)
-    }
+    gamerPCs = pickDiversePrices(gamerPCs, 4)
+    monitorProducts = pickDiversePrices(monitorProducts, 4)
+    notebookProducts = pickDiversePrices(notebookProducts, 4)
   } catch (error) {
     console.error('Homepage data fetch error:', error)
   }
