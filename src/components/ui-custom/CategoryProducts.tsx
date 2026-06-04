@@ -95,14 +95,6 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'type', label: 'Parlante', value: 'PARLANTE', matchFn: (n) => /\bPARLANTE\b|\bSPEAKER\b/i.test(n) },
     { key: 'type', label: 'Joystick', value: 'JOYSTICK', matchFn: (n) => /\bJOYSTICK\b|\bGAMEPAD\b/i.test(n) },
   ],
-  'componentes-de-pc': [
-    { key: 'type', label: 'Procesador', value: 'CPU', matchFn: (n) => /\bRYZEN\b|\bCORE\s*I[3579]\b|\bINTEL I[3579]\b|\bPENTIUM\b|\bATHLON\b|\bCORE ULTRA\b/i.test(n) },
-    { key: 'type', label: 'Motherboard', value: 'MB', matchFn: (n) => /\bMOTHER\b|\bMB \b/i.test(n) },
-    { key: 'type', label: 'RAM', value: 'RAM', matchFn: (n) => /\bDDR[345]\b|\bSODIMM\b|\bMEMORIA RAM\b/i.test(n) },
-    { key: 'type', label: 'Placa de Video', value: 'GPU', matchFn: (n) => /\bRTX\b|\bGTX\b|\bRADEON\b|\bGEFORCE\b/i.test(n) },
-    { key: 'type', label: 'SSD', value: 'SSD', matchFn: (n) => /\bSSD\b|\bNVME\b|\bM\.2\b/i.test(n) },
-    { key: 'type', label: 'Fuente', value: 'PSU', matchFn: (n) => /\bFUENTE\b|\bPOWER SUPPLY\b|\bPSU\b/i.test(n) },
-  ],
   'notebooks': [
     { key: 'brand', label: 'Lenovo', value: 'LENOVO', matchFn: (n) => /\bLENOVO\b|\bTHINKPAD\b|\bIDEAPAD\b/i.test(n) },
     { key: 'brand', label: 'HP', value: 'HP', matchFn: (n) => /\bHP\b|\bPAVILION\b|\bOMEN\b|\bVICTUS\b/i.test(n) },
