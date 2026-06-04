@@ -145,6 +145,20 @@ export async function POST(request: NextRequest) {
     })
     const finalSlug = existing.rows.length > 0 ? `${slug}-${Date.now()}` : slug
 
+    // Check SKU uniqueness if provided
+    if (sku && sku.trim()) {
+      const existingSku = await db.execute({
+        sql: 'SELECT id FROM products WHERE sku = ?',
+        args: [sku.trim()],
+      })
+      if (existingSku.rows.length > 0) {
+        return NextResponse.json(
+          { error: `Ya existe un producto con el SKU "${sku.trim()}". Usá un SKU diferente o dejalo vacío.` },
+          { status: 400 }
+        )
+      }
+    }
+
     const now = new Date().toISOString()
 
     // Calculate prices
@@ -211,9 +225,15 @@ export async function POST(request: NextRequest) {
     })
 
     return NextResponse.json({ ok: true, product: { id, slug: finalSlug } })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Create product error:', error)
-    return NextResponse.json({ error: 'Error del servidor' }, { status: 500 })
+    if (error?.message?.includes('UNIQUE constraint failed: products.sku')) {
+      return NextResponse.json({ error: 'Ya existe un producto con ese SKU. Usá un SKU diferente o dejalo vacío.' }, { status: 400 })
+    }
+    if (error?.message?.includes('UNIQUE constraint failed: products.slug')) {
+      return NextResponse.json({ error: 'Ya existe un producto con ese nombre. Usá un nombre diferente.' }, { status: 400 })
+    }
+    return NextResponse.json({ error: 'Error del servidor', detail: error?.message }, { status: 500 })
   }
 }
 
