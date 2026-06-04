@@ -24,6 +24,130 @@ interface ProductItem {
   saleEnd?: string | null
 }
 
+// ============================================
+// Category Filter Definitions
+// ============================================
+
+interface CategoryFilterOption {
+  key: string
+  label: string
+  value: string
+  matchFn: (name: string) => boolean
+}
+
+const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
+  'microprocesadores': [
+    { key: 'brand', label: 'AMD', value: 'AMD', matchFn: (n) => /\bAMD\b|\bRYZEN\b|\bATHLON\b/i.test(n) },
+    { key: 'brand', label: 'Intel', value: 'Intel', matchFn: (n) => /\bINTEL\b|\bCORE\s*I[3579]\b|\bPENTIUM\b|\bCELERO\b|\bCORE ULTRA\b/i.test(n) },
+  ],
+  'motherboards': [
+    { key: 'socket', label: 'AM4', value: 'AM4', matchFn: (n) => /\bAM4\b|\bB550\b|\bA520\b/i.test(n) },
+    { key: 'socket', label: 'AM5', value: 'AM5', matchFn: (n) => /\bAM5\b|\bB650\b|\bB850\b|\bA620\b|\bX870\b|\bX670\b/i.test(n) },
+    { key: 'socket', label: 'LGA 1700', value: '1700', matchFn: (n) => /\b1700\b|\bB760\b|\bH610\b|\bZ690\b|\bZ790\b/i.test(n) },
+    { key: 'socket', label: 'LGA 1851', value: '1851', matchFn: (n) => /\b1851\b|\bB860\b|\bZ890\b|\bH810\b/i.test(n) },
+    { key: 'ddr', label: 'DDR4', value: 'DDR4', matchFn: (n) => /\bDDR4\b/i.test(n) },
+    { key: 'ddr', label: 'DDR5', value: 'DDR5', matchFn: (n) => /\bDDR5\b/i.test(n) },
+  ],
+  'memorias-ram': [
+    { key: 'ddr', label: 'DDR3', value: 'DDR3', matchFn: (n) => /\bDDR3\b/i.test(n) },
+    { key: 'ddr', label: 'DDR4', value: 'DDR4', matchFn: (n) => /\bDDR4\b/i.test(n) },
+    { key: 'ddr', label: 'DDR5', value: 'DDR5', matchFn: (n) => /\bDDR5\b/i.test(n) },
+  ],
+  'placas-de-video': [
+    { key: 'brand', label: 'NVIDIA', value: 'NVIDIA', matchFn: (n) => /\bRTX\b|\bGTX\b|\bGEFORCE\b|\bNVIDIA\b|\bQUADRO\b|\bGT 1030\b/i.test(n) },
+    { key: 'brand', label: 'AMD', value: 'AMD', matchFn: (n) => /\bRADEON\b|\bRX\s\d/i.test(n) },
+    { key: 'brand', label: 'Intel Arc', value: 'INTEL_ARC', matchFn: (n) => /\bARC\s*A[37]\b/i.test(n) },
+  ],
+  'discos-ssd': [
+    { key: 'type', label: 'M.2 / NVMe', value: 'NVME', matchFn: (n) => /\bNVME\b|\bM\.2\b|\bM2\b/i.test(n) },
+    { key: 'type', label: 'SATA', value: 'SATA', matchFn: (n) => /\bSATA\b/i.test(n) && !/\bNVME\b|\bM\.2\b/i.test(n) },
+  ],
+  'fuentes': [
+    { key: 'wattage', label: '500W+', value: '500', matchFn: (n) => { const m = n.match(/(\d{3,4})\s*W/i); return m ? parseInt(m[1]) >= 500 : false } },
+    { key: 'wattage', label: '650W+', value: '650', matchFn: (n) => { const m = n.match(/(\d{3,4})\s*W/i); return m ? parseInt(m[1]) >= 650 : false } },
+    { key: 'wattage', label: '750W+', value: '750', matchFn: (n) => { const m = n.match(/(\d{3,4})\s*W/i); return m ? parseInt(m[1]) >= 750 : false } },
+    { key: 'wattage', label: '850W+', value: '850', matchFn: (n) => { const m = n.match(/(\d{3,4})\s*W/i); return m ? parseInt(m[1]) >= 850 : false } },
+  ],
+  'refrigeracion': [
+    { key: 'type', label: 'AIO / Líquida', value: 'LIQUID', matchFn: (n) => /\bWATER\s*COOL\b|\bAIO\b|\bLIQUID\b|\bWATERFORCE\b/i.test(n) },
+    { key: 'type', label: 'Aire', value: 'AIR', matchFn: (n) => !/\bWATER\s*COOL\b|\bAIO\s|\bLIQUID\b|\bWATERFORCE\b/i.test(n) },
+  ],
+  'monitores': [
+    { key: 'size', label: '24"', value: '24', matchFn: (n) => /\b24\b/i.test(n) },
+    { key: 'size', label: '27"', value: '27', matchFn: (n) => /\b27\b/i.test(n) },
+    { key: 'size', label: '32"+', value: '32', matchFn: (n) => /\b3[2-9]\b|\b4[0-9]\b/i.test(n) },
+    { key: 'resolution', label: 'Full HD', value: 'FHD', matchFn: (n) => /\bFULL\s*HD\b|\bFHD\b|\b1080\b/i.test(n) },
+    { key: 'resolution', label: 'QHD', value: 'QHD', matchFn: (n) => /\bQHD\b|\b2K\b|\b1440\b/i.test(n) },
+    { key: 'resolution', label: '4K / UHD', value: '4K', matchFn: (n) => /\b4K\b|\bUHD\b|\b2160\b/i.test(n) },
+  ],
+  'placas-de-red': [
+    { key: 'type', label: 'PCIe', value: 'PCIE', matchFn: (n) => /\bPCIEX?\b|\bPCI-E\b|\bPCIX\b/i.test(n) && !/\bUSB\b/i.test(n) },
+    { key: 'type', label: 'USB', value: 'USB', matchFn: (n) => /\bP\.?REDW?\s.*USB|USB.*RED|\bARCHER T\b/i.test(n) },
+    { key: 'type', label: 'WiFi 6 / 6E', value: 'WIFI6', matchFn: (n) => /\bWIFI\s*6\b|\bAX\d{4}\b|\bAX3000\b|\bAX1800\b/i.test(n) },
+  ],
+  'perifericos': [
+    { key: 'type', label: 'Mouse', value: 'MOUSE', matchFn: (n) => /\bMOUSE\b/i.test(n) && !/\bMOUSEPAD\b/i.test(n) },
+    { key: 'type', label: 'Teclado', value: 'TECLADO', matchFn: (n) => /\bTECLADO\b|\bKEYBOARD\b|\bMECANICO\b|\bMECHANICAL\b/i.test(n) },
+    { key: 'type', label: 'Auricular', value: 'AURICULAR', matchFn: (n) => /\bAURICULAR\b|\bHEADSET\b/i.test(n) },
+    { key: 'type', label: 'Webcam', value: 'WEBCAM', matchFn: (n) => /\bWEBCAM\b|\bWEB CAM\b/i.test(n) },
+    { key: 'type', label: 'Micrófono', value: 'MICROFONO', matchFn: (n) => /\bMICROFONO\b|\bMICRÓFONO\b/i.test(n) },
+    { key: 'type', label: 'Volante', value: 'VOLANTE', matchFn: (n) => /\bVOLANTE\b|\bWHEEL\b|\bRACING\b/i.test(n) },
+    { key: 'type', label: 'Parlante', value: 'PARLANTE', matchFn: (n) => /\bPARLANTE\b|\bSPEAKER\b/i.test(n) },
+    { key: 'type', label: 'Joystick', value: 'JOYSTICK', matchFn: (n) => /\bJOYSTICK\b|\bGAMEPAD\b/i.test(n) },
+  ],
+  'componentes-de-pc': [
+    { key: 'type', label: 'Procesador', value: 'CPU', matchFn: (n) => /\bRYZEN\b|\bCORE\s*I[3579]\b|\bINTEL I[3579]\b|\bPENTIUM\b|\bATHLON\b|\bCORE ULTRA\b/i.test(n) },
+    { key: 'type', label: 'Motherboard', value: 'MB', matchFn: (n) => /\bMOTHER\b|\bMB \b/i.test(n) },
+    { key: 'type', label: 'RAM', value: 'RAM', matchFn: (n) => /\bDDR[345]\b|\bSODIMM\b|\bMEMORIA RAM\b/i.test(n) },
+    { key: 'type', label: 'Placa de Video', value: 'GPU', matchFn: (n) => /\bRTX\b|\bGTX\b|\bRADEON\b|\bGEFORCE\b/i.test(n) },
+    { key: 'type', label: 'SSD', value: 'SSD', matchFn: (n) => /\bSSD\b|\bNVME\b|\bM\.2\b/i.test(n) },
+    { key: 'type', label: 'Fuente', value: 'PSU', matchFn: (n) => /\bFUENTE\b|\bPOWER SUPPLY\b|\bPSU\b/i.test(n) },
+  ],
+  'notebooks': [
+    { key: 'brand', label: 'Lenovo', value: 'LENOVO', matchFn: (n) => /\bLENOVO\b|\bTHINKPAD\b|\bIDEAPAD\b/i.test(n) },
+    { key: 'brand', label: 'HP', value: 'HP', matchFn: (n) => /\bHP\b|\bPAVILION\b|\bOMEN\b|\bVICTUS\b/i.test(n) },
+    { key: 'brand', label: 'Dell', value: 'DELL', matchFn: (n) => /\bDELL\b|\bINSPIRON\b|\bLATITUDE\b|\bALIENWARE\b/i.test(n) },
+    { key: 'brand', label: 'Asus', value: 'ASUS', matchFn: (n) => /\bASUS\b|\bROG\b|\bTUF\b|\bZENBOOK\b|\bVIVOBOOK\b/i.test(n) },
+    { key: 'brand', label: 'Acer', value: 'ACER', matchFn: (n) => /\bACER\b|\bASPIRE\b|\bNITRO\b|\bPREDATOR\b/i.test(n) },
+  ],
+}
+
+const FILTER_GROUP_LABELS: Record<string, string> = {
+  brand: 'Marca',
+  socket: 'Socket',
+  ddr: 'Memoria',
+  type: 'Tipo',
+  wattage: 'Potencia',
+  size: 'Tamaño',
+  resolution: 'Resolución',
+}
+
+/**
+ * Apply category keyword filters to a product list.
+ * AND between groups, OR within the same group.
+ */
+function applyCategoryFilters(products: ProductItem[], filters: Record<string, string[]>, categorySlug: string): ProductItem[] {
+  const filterOptions = CATEGORY_FILTERS[categorySlug]
+  if (!filterOptions || filterOptions.length === 0) return products
+
+  const activeGroups = new Map<string, CategoryFilterOption[]>()
+  for (const [key, values] of Object.entries(filters)) {
+    if (values.length === 0) continue
+    const matching = filterOptions.filter(o => o.key === key && values.includes(o.value))
+    if (matching.length > 0) activeGroups.set(key, matching)
+  }
+
+  if (activeGroups.size === 0) return products
+
+  return products.filter(product => {
+    for (const [, options] of activeGroups) {
+      const matchesGroup = options.some(opt => opt.matchFn(product.name))
+      if (!matchesGroup) return false
+    }
+    return true
+  })
+}
+
 interface Props {
   products: ProductItem[]
   subcategories: Subcategory[]
@@ -65,17 +189,47 @@ export default function CategoryProducts({
   const [priceMax, setPriceMax] = useState('')
   const [onlyInStock, setOnlyInStock] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [categoryFilters, setCategoryFilters] = useState<Record<string, string[]>>({})
 
-  const hasActiveFilters = priceMin !== '' || priceMax !== '' || onlyInStock
+  const hasCategoryFilters = Object.values(categoryFilters).some(v => v.length > 0)
+  const hasActiveFilters = priceMin !== '' || priceMax !== '' || onlyInStock || hasCategoryFilters
 
-  const clearFilters = () => {
+  // Get filter groups for current category
+  const currentCategoryFilterOptions = CATEGORY_FILTERS[categorySlug] || []
+  const filterGroups = useMemo(() => {
+    const groups: { key: string; label: string; options: CategoryFilterOption[] }[] = []
+    const keyMap = new Map<string, CategoryFilterOption[]>()
+    for (const opt of currentCategoryFilterOptions) {
+      if (!keyMap.has(opt.key)) keyMap.set(opt.key, [])
+      keyMap.get(opt.key)!.push(opt)
+    }
+    for (const [key, options] of keyMap) {
+      groups.push({ key, label: FILTER_GROUP_LABELS[key] || key, options })
+    }
+    return groups
+  }, [currentCategoryFilterOptions.length, categorySlug])
+
+  const toggleCategoryFilter = (key: string, value: string) => {
+    setCategoryFilters(prev => {
+      const current = prev[key] || []
+      const isActive = current.includes(value)
+      const updated = isActive ? current.filter(v => v !== value) : [...current, value]
+      return { ...prev, [key]: updated }
+    })
+  }
+
+  const clearAllFilters = () => {
     setPriceMin('')
     setPriceMax('')
     setOnlyInStock(false)
+    setCategoryFilters({})
   }
 
   const filteredAndSorted = useMemo(() => {
     let result = [...products]
+
+    // Category keyword filters (brand, DDR, socket, etc.)
+    result = applyCategoryFilters(result, categoryFilters, categorySlug)
 
     // Price filter
     const min = parsePriceInput(priceMin)
@@ -113,7 +267,7 @@ export default function CategoryProducts({
     }
 
     return result
-  }, [products, sort, priceMin, priceMax, onlyInStock])
+  }, [products, sort, priceMin, priceMax, onlyInStock, categoryFilters, categorySlug])
 
   return (
     <div className="flex-1">
@@ -166,6 +320,56 @@ export default function CategoryProducts({
               {sub.name}
             </a>
           ))}
+        </div>
+      )}
+
+      {/* Category Filter Chips (brand, DDR, socket, etc.) */}
+      {filterGroups.length > 0 && (
+        <div className="mb-4 p-3 bg-white rounded-lg border border-gray-200">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-1.5">
+              <SlidersHorizontal className="w-3.5 h-3.5 text-gray-400" />
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Filtros</span>
+            </div>
+            {hasCategoryFilters && (
+              <button
+                onClick={() => setCategoryFilters({})}
+                className="text-xs text-red-500 hover:text-red-700 font-medium transition"
+              >
+                Limpiar filtros
+              </button>
+            )}
+          </div>
+          <div className="space-y-2">
+            {filterGroups.map(group => (
+              <div key={group.key}>
+                <span className="text-[11px] text-gray-400 font-medium mb-1 block">{group.label}</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {group.options.map(opt => {
+                    const isActive = (categoryFilters[opt.key] || []).includes(opt.value)
+                    return (
+                      <button
+                        key={opt.value}
+                        onClick={() => toggleCategoryFilter(opt.key, opt.value)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium transition border ${
+                          isActive
+                            ? 'bg-compucity-green text-white border-compucity-green shadow-sm'
+                            : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-100'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+          {hasCategoryFilters && (
+            <p className="text-[11px] text-gray-400 mt-2">
+              Mostrando {filteredAndSorted.length} de {products.length} productos
+            </p>
+          )}
         </div>
       )}
 
@@ -225,7 +429,7 @@ export default function CategoryProducts({
         {/* Clear filters */}
         {hasActiveFilters && (
           <button
-            onClick={clearFilters}
+            onClick={clearAllFilters}
             className="ml-auto flex items-center gap-1 text-sm text-compucity-green hover:text-compucity-green-dark font-medium transition"
           >
             <X className="h-3.5 w-3.5" />
@@ -247,7 +451,7 @@ export default function CategoryProducts({
           <div className="flex items-center gap-2">
             {hasActiveFilters && (
               <span className="bg-compucity-green text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                {[priceMin !== '', priceMax !== '', onlyInStock].filter(Boolean).length}
+                {[priceMin !== '', priceMax !== '', onlyInStock, hasCategoryFilters].filter(Boolean).length}
               </span>
             )}
             <ChevronDown className={`h-4 w-4 transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
@@ -308,7 +512,7 @@ export default function CategoryProducts({
             {/* Clear filters */}
             {hasActiveFilters && (
               <button
-                onClick={clearFilters}
+                onClick={clearAllFilters}
                 className="flex items-center gap-1 text-sm text-compucity-green hover:text-compucity-green-dark font-medium transition"
               >
                 <X className="h-3.5 w-3.5" />
@@ -342,7 +546,7 @@ export default function CategoryProducts({
         <div className="text-center py-16 bg-gray-50 rounded-lg border border-dashed border-gray-300">
           <p className="text-gray-500 text-lg mb-2">No hay productos que coincidan con los filtros</p>
           <button
-            onClick={clearFilters}
+            onClick={clearAllFilters}
             className="text-compucity-green hover:text-compucity-green-dark font-medium text-sm transition"
           >
             Limpiar filtros
