@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** f6a94e9 (fix: exclude SODIMM RAM from PC Builder - move from whitelist to blacklist)
+- **Commit actual:** af6b8a6 (feat: add PDF download to WhatsApp button in Arma tu PC)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -267,6 +267,20 @@ El problema recurrente tenia 3 causas encadenadas:
 - Productos incompatibles: Se muestran aparte con razon de incompatibilidad, toggle para verlos
 - Banner de filtro activo: Indica cuando se esta filtrando por compatibilidad
 - **SODIMM (RAM notebook):** Excluidas del PC Builder (SODIMM en blacklist del slot RAM). No aparecen en la seleccion de componentes. Si alguna se colara, se marca como incompatible siempre (sin depender de motherboard seleccionada)
+
+### PDF Download (IMPLEMENTADO sesion 15)
+- **Libreria:** jsPDF (client-side, no necesita server)
+- **Cuando:** Al hacer clic en cualquier boton de WhatsApp del Arma tu PC, se descarga un PDF Y se abre WhatsApp
+- **Contenido del PDF:**
+  - Header verde con branding Compucity (COMPU+CITY + tagline "TU MUNDO DIGITAL")
+  - Fecha y hora del presupuesto
+  - Lista de componentes con slot, nombre, precio unitario y total
+  - Precio de lista y precio en efectivo (destacado en verde)
+  - Nota de 96 horas hábiles
+  - Footer con datos de contacto y paginacion
+- **Nombre del archivo:** `Compucity-PC-a-Medida.pdf`
+- **3 botones modificados:** Desktop ultimo paso, sidebar "Consultar por WhatsApp", mobile sticky bar
+- **Icono:** Download agregado junto al icono de WhatsApp en los botones
 
 ### Sistema de Filtros Manuales (IMPLEMENTADO sesion 14)
 - **Filtros por categoria:** Cada slot tiene filtros relevantes que el usuario puede activar/desactivar
@@ -617,6 +631,7 @@ createdAt TEXT, updatedAt TEXT
 ## Backups
 | Fecha | Archivo | Tamano | Contenido |
 |-------|---------|--------|----------|
+| 2026-06-05 (s15b) | `compucity-src-backup-20260605-s15b.tar.gz` | 967KB | Codigo src con PDF download en Arma tu PC |
 | 2026-06-05 (s15) | `compucity-src-backup-20260605-s15.tar.gz` | 852KB | Codigo src con fix SODIMM excluido del PC Builder |
 | 2026-06-05 (s14c) | `compucity-src-backup-20260605-s14c.tar.gz` | 237KB | Codigo src con fix filtros Componentes de PC (sin filtros genericos en parent) |
 | 2026-06-05 (s14b) | `compucity-src-backup-20260605-s14b.tar.gz` | 258KB | Codigo src con filtros en categorias tienda |
@@ -687,7 +702,7 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ---
 
 ## Historial de Cambios
-- **2026-06-05 (s15):** Fix SODIMM en PC Builder - SODIMM movido de BUILDER_INCLUDE_PATTERNS a BUILDER_EXCLUDE_PATTERNS del slot RAM. Las ~40 memorias SODIMM (notebook) ya no aparecen en la seleccion de RAM del PC Builder. Ademas, el chequeo de compatibilidad SODIMM en compatibility.ts ahora funciona siempre (antes solo se activaba si habia motherboard seleccionada, permitiendo elegir SODIMM como compatible si no habia mother). Frontend: condicion del mensaje de incompatibilidad SODIMM ajustada. No se toco la categoria memorias-ram (los productos SODIMM siguen siendo visibles en la tienda, solo se excluyen del arma-tu-pc)
+- **2026-06-05 (s15):** Fix SODIMM + PDF download en Arma tu PC. SODIMM movido de BUILDER_INCLUDE_PATTERNS a BUILDER_EXCLUDE_PATTERNS del slot RAM (ya no aparecen en el PC Builder). PDF download: al hacer clic en cualquier boton de WhatsApp del Arma tu PC, se genera y descarga un PDF profesional (jsPDF client-side) con branding Compucity (header verde, COMPU+CITY, tagline), fecha, lista de componentes con precios, total de lista y efectivo, nota 96hs, footer con contacto. Los 3 botones (desktop ultimo paso, sidebar, mobile sticky) ahora descargan PDF + abren WhatsApp. Icono Download agregado. Commits: f6a94e9, af6b8a6
 - **2026-06-05 (s14):** Filtros en PC Builder + Categorías tienda + fix. PC Builder: chips clickeables para filtrar productos (Processor: AMD/Intel, Motherboard: Socket+DDR, RAM: DDR3/4/5, GPU: NVIDIA/AMD/Intel Arc, SSD: NVMe/SATA, PSU: 500W+/650W+/750W+/850W+, Cooling: AIO/Aire, Monitor: Tamaño+Resolución, Network: PCIe/USB/WiFi6, Periféricos: Mouse/Teclado/Auricular/etc.). Categorías tienda: mismos filtros en CategoryProducts para 11 categorías. FIX: eliminados filtros genéricos de "Componentes de PC" (Procesador/Motherboard/RAM/GPU/SSD/Fuente) que eran redundantes con las subcategorías - los filtros ahora solo aparecen al seleccionar una subcategoría específica (ej: DDR3/4/5 en Memorias RAM, AMD/Intel en Microprocesadores). Network blacklist: +AP GIGABIT, WALL MOUNT, CEILLING, MINIHUB, OUTDOOR, INDOOR, ISP. Commits: e020dd3, 9d1979d, 2a3a11f
 - **2026-06-05 (s13):** Fix filtros PC Builder para Placas de Red y Periféricos. Network: agregados P.REDW/PREDW/ARCHER T/P.RED para incluir placas reales, removidos TP-LINK/WIFI/WIRELESS/PCI-E amplios que matcheaban cámaras IP y sistemas Mesh. Exclusiones nuevas: CAMARA, DECO, MESH, TAPO C, CPE, RANGE EXTENDER, A SD, A HDMI, A DISPLAYPORT, CONTROLLER, CLOUD, JBL. Fix 'AP ' que matcheaba 'ADAP' falsamente (removido). Fix 'HUB' → 'HUB ' para no excluir 'Minihub' en adaptadores Ethernet. Removido RJ45 del exclude (aparece en adaptadores Ethernet legítimos). Periféricos: agregados WEB CAM, VOLANTE, WHEEL a include. Removidos 'CABLE' y 'ADAPTADOR' amplios del exclude (catcheaban "Mouse c/Cable", "Teclado con Cable", "Auricular gaming cableado"). Reemplazados con patterns específicos: CABLE KELYX, CABLE HDMI, CABLE DISPLAY, ADAPTADOR HDMI, ADAPTADOR VGA, etc. Renombrado "Periférico" → "Periféricos". Resultado: Network pasa de 16 (con cámaras/mesh) a 19 productos correctos (solo placas/adaptadores reales). Periféricos pasa de 393 a 418 productos (ahora incluye mouse/teclados cableados, webcams, volantes). Commit: 18121fb
 - **2026-06-05 (s12):** Admin productos responsive + Arma tu PC 3 slots nuevos. Admin: vista de tarjetas en movil (block lg:hidden) con info apilada y tabla solo en desktop (hidden lg:block). Fix archivo truncado por disco lleno. Arma tu PC: 3 slots nuevos (Monitor max 2, Placa de Red/WiFi max 1, Periferico max 3), todos opcionales. Iconos: Monitor, Wifi, Mouse. Whitelist/blacklist patterns para cada slot nuevo. GPU cambio icono a Gamepad2, Fuente a Plug. Commits: fe67bc8, 99a1c89, 4224786. Backup src (842KB)
