@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-05 (sesion 18)
+**Ultima actualizacion:** 2026-06-05 (sesion 20)
 
 ---
 
@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** 94bdbd4 (feat: robust Air Intra sync - always run extractProductsFromCorruptedJson as verification + post-sync count check)
+- **Commit actual:** f884cde (feat: reemplazar texto por logo real de Compucity en PDF del PC Builder)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -81,6 +81,8 @@
 
 ## Logo
 - **Archivo:** `public/images/logo-compucity-icon.png` (191x180px)
+- **Logo PDF:** `public/images/logo-compucity-pdf.png` (547x220px, RGBA) - Logo completo con forma geometrica verde + COMPU CITY + TU MUNDO DIGITAL
+- **Logo base64:** `src/lib/compucity-logo-base64.ts` - Encoding base64 para uso en jsPDF
 - **Componente:** `src/components/ui-custom/CompucityLogo.tsx`
 - Variantes: full (icono + COMPU+CITY + tagline), icon, horizontal
 - Tamanos: sm(30px), md(36px), lg(42px), xl(48px)
@@ -305,12 +307,13 @@ El problema recurrente tenia 3 causas encadenadas:
 - **Fix:** Se filtraron estos campos de las vistas de cliente (detalle de producto, tarjetas de catalogo). Solo se muestra la descripcion y el precio
 - **Archivos:** API publica de productos, componente de detalle de producto
 
-### PDF Download (IMPLEMENTADO sesion 15)
+### PDF Download (IMPLEMENTADO sesion 15, MEJORA sesion 20)
 - **Libreria:** jsPDF (client-side, no necesita server)
 - **Cuando:** Al hacer clic en cualquier boton de WhatsApp del Arma tu PC, se descarga un PDF Y se abre WhatsApp
 - **Contenido del PDF:**
-  - Header verde con branding Compucity (COMPU+CITY + tagline "TU MUNDO DIGITAL")
-  - Fecha y hora del presupuesto
+  - Header con logo real de Compucity (imagen PNG, 55x22mm) a la izquierda
+  - Fecha, hora y URL a la derecha del header
+  - Separador verde debajo del header
   - Lista de componentes con slot, nombre, precio unitario y total
   - Precio de lista y precio en efectivo (destacado en verde)
   - Nota de 96 horas hábiles
@@ -318,6 +321,8 @@ El problema recurrente tenia 3 causas encadenadas:
 - **Nombre del archivo:** `Compucity-PC-a-Medida.pdf`
 - **3 botones modificados:** Desktop ultimo paso, sidebar "Consultar por WhatsApp", mobile sticky bar
 - **Icono:** Download agregado junto al icono de WhatsApp en los botones
+- **MEJORA sesion 20:** Header del PDF reemplazado de texto (COMPU+CITY) a logo real de Compucity usando base64 encoding. Layout: logo izquierda + fecha/url derecha + separador verde
+- **Archivos:** `src/lib/compucity-logo-base64.ts` (logo en base64), `public/images/logo-compucity-pdf.png` (copia PNG)
 
 ### Sistema de Filtros Manuales (IMPLEMENTADO sesion 14)
 - **Filtros por categoria:** Cada slot tiene filtros relevantes que el usuario puede activar/desactivar
@@ -677,6 +682,7 @@ createdAt TEXT, updatedAt TEXT
 ## Backups
 | Fecha | Archivo | Tamano | Contenido |
 |-------|---------|--------|----------|
+| 2026-06-05 (s20) | `compucity-src-backup-20260605-s20.tar.gz` | ~1.1MB | Logo real en PDF del PC Builder + base64 encoding |
 | 2026-06-05 (s19) | `compucity-src-backup-20260605-s19.tar.gz` | ~14MB | Sync robusto Air Intra - verificacion doble + post-sync check |
 | 2026-06-05 (s18) | `compucity-src-backup-20260605-s18.tar.gz` | ~7.6MB | Air Intra sync error handling + rate limit detection |
 | 2026-06-05 (s17) | `compucity-src-backup-20260605-s17.tar.gz` | ~860KB | Air Intra isActive fix + batch sync + diagnostic script |
