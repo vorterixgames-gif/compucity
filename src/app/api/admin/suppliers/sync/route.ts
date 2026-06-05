@@ -54,8 +54,8 @@ const SUBCATEGORY_RULES: { parentSlug: string; rules: { keywords: string[]; subc
       { keywords: ['MINI PC', 'STICK PC', 'NUC', 'MELE', 'N100'], subcategorySlug: 'mini-pc', name: 'Mini PC' },
       // Design PCs -> PC Armadas/Diseño
       { keywords: ['DESIGN', 'DISEÑO', 'CREATOR', 'STUDIO'], subcategorySlug: 'diseno-pc', name: 'Diseño' },
-      // Oficina PCs (default) -> PC Armadas/Oficina
-      { keywords: ['SIST.', 'KELYX', 'OFFICE', 'OFICINA', 'PC'], subcategorySlug: 'oficina-pc', name: 'Oficina' },
+      // Oficina PCs (default for most branded PCs) -> PC Armadas/Oficina
+      { keywords: ['SIST.', 'KELYX', 'OFFICE', 'OFICINA', 'PC AIR', 'PC CX', 'PC ARKHAM', 'PC GAMEMAX', 'PC LENOVO', 'PC DELL', 'PC HP', 'PC'], subcategorySlug: 'oficina-pc', name: 'Oficina' },
     ],
   },
   {
@@ -92,7 +92,7 @@ const CATEGORY_KEYWORD_MAP: { keywords: string[]; categorySlug: string; name: st
   // These match entire product types that contain component keywords in their names
   // ==========================================
   // PC Armadas — complete PCs that may contain RTX/DDR/SSD in name
-  { keywords: ['PC GAMER','PC LENOVO','PC KELYX','SIST. KELYX','SIST.','COMPUTADORA','BAREBONE','DESKTOP','ALL IN ONE','ALL-IN-ONE'], categorySlug: 'pc-armadas', name: 'PC Armadas' },
+  { keywords: ['PC GAMER','PC LENOVO','PC KELYX','PC AIR','PC ARKHAM','PC GAMEMAX','SIST. KELYX','SIST.','COMPUTADORA','BAREBONE','DESKTOP','ALL IN ONE','ALL-IN-ONE'], categorySlug: 'pc-armadas', name: 'PC Armadas' },
   // Notebooks — contain RTX/DDR/SSD keywords but are NOT components
   { keywords: ['NOTEBOOK','LAPTOP','PORTATIL'], categorySlug: 'notebooks', name: 'Notebooks' },
   // Mini PC — complete PCs that may contain component keywords
@@ -357,6 +357,30 @@ function mapProductToCategory(
       nameKeyword: 'DESKTOP',
       targetSlug: 'pc-armadas',
       sourceSlugs: ['switches', 'discos-ssd'],
+    },
+    {
+      // PC AIR (Air Intra brand PCs) mis-categorized as components (contains PENTIUM/I3/etc.)
+      nameKeyword: 'PC AIR',
+      targetSlug: 'pc-armadas',
+      sourceSlugs: ['microprocesadores', 'memorias-ram', 'discos-ssd', 'fuentes', 'gabinetes'],
+    },
+    {
+      // PC ARKHAM mis-categorized as components
+      nameKeyword: 'PC ARKHAM',
+      targetSlug: 'pc-armadas',
+      sourceSlugs: ['microprocesadores', 'memorias-ram', 'discos-ssd', 'fuentes', 'gabinetes'],
+    },
+    {
+      // PC GAMEMAX mis-categorized as components
+      nameKeyword: 'PC GAMEMAX',
+      targetSlug: 'pc-armadas',
+      sourceSlugs: ['microprocesadores', 'memorias-ram', 'discos-ssd', 'fuentes', 'gabinetes'],
+    },
+    {
+      // PC CX (Air Intra brand PCs) mis-categorized as components
+      nameKeyword: 'PC CX',
+      targetSlug: 'pc-armadas',
+      sourceSlugs: ['microprocesadores', 'memorias-ram', 'discos-ssd', 'fuentes', 'gabinetes'],
     },
     // === NEW CORRECTIONS: prevent future miscategorization in PC Builder slots ===
     {
@@ -1269,6 +1293,40 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
       // NO delay between pages - Air Intra docs confirm pagination is immediate
     }
 
+    // ==========================================
+    // POST-SYNC RECATEGORIZATION: Fix products with NULL categoryId.
+    // Many products get NULL category because their name doesn't match any keyword
+    // and there's no supplier category mapping. We try to fix this by:
+    // 1. Using the supplier category mapping (if available)
+    // 2. Re-running keyword matching with a broader set of patterns
+    // ==========================================
+    try {
+      const nullCatResult = await db.execute({
+        sql: 'SELECT id, name, supplierCategory, providerSku FROM products WHERE providerId = ? AND categoryId IS NULL',
+        args: [supplier.id],
+      })
+      const nullCatProducts = nullCatResult.rows as any[]
+      if (nullCatProducts.length > 0) {
+        console.log(`[Air Intra] Attempting to recategorize ${nullCatProducts.length} products with NULL category...`)
+        let recategorized = 0
+        for (const product of nullCatProducts) {
+          const { categoryId: newCatId } = mapProductToCategory(
+            product.name, product.supplierCategory, supplierMappings, slugToId, idToParentId, parentSlugToChildSlugs
+          )
+          if (newCatId) {
+            await db.execute({
+              sql: 'UPDATE products SET categoryId = ?, updatedAt = ? WHERE id = ?',
+              args: [newCatId, new Date().toISOString(), product.id],
+            })
+            recategorized++
+          }
+        }
+        console.log(`[Air Intra] Recategorized ${recategorized} of ${nullCatProducts.length} NULL-category products`)
+      }
+    } catch (recatErr) {
+      console.error('[Air Intra] Recategorization error:', recatErr)
+    }
+
     const syncNow2 = new Date().toISOString()
     await db.execute({
       sql: 'UPDATE suppliers SET lastSyncAt = ?, updatedAt = ? WHERE id = ?',
@@ -1301,6 +1359,119 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
       console.error('[Air Intra] Post-sync verification error:', verifyErr)
     }
 
+    // ==========================================
+    // POST-SYNC RECOVERY: Search for known product brands using the API's
+    // `texto` parameter to find products that may have been lost due to JSON corruption.
+    // This specifically targets "PC AIR", "PC CX", "PC ARKHAM", "PC GAMEMAX" which are
+    // Air Intra's assembled PC brands that often get lost in corrupted JSON pages.
+    // ==========================================
+    const recoveryMarkup = supplier.markup || 30
+    const RECOVERY_SEARCHES = ['PC AIR', 'PC CX', 'PC ARKHAM', 'PC GAMEMAX']
+    let recoveryCreated = 0
+    for (const searchTerm of RECOVERY_SEARCHES) {
+      try {
+        console.log(`[Air Intra] Recovery search for "${searchTerm}"...`)
+        const recoveryRes = await fetch(`${baseUrl}/?q=${endpoint}&page=0`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ texto: searchTerm }),
+        })
+
+        if (recoveryRes.ok) {
+          const { data: recoveryData, error: recoveryError } = await safeParseAirIntraResponse(recoveryRes)
+          if (!recoveryError && Array.isArray(recoveryData) && recoveryData.length > 0) {
+            console.log(`[Air Intra] Recovery "${searchTerm}": found ${recoveryData.length} products`)
+            for (const product of recoveryData) {
+              const providerSku = product.codigo || product.codiart || ''
+              if (!providerSku || allFetchedSkus.has(providerSku)) continue
+
+              const price = parseFloat(product.precio || '0')
+              const productName = product.descrip || product.descripcion || product.titulo || ''
+              if (!productName || !providerSku) continue
+
+              const supplierCategory = getAirIntraSupplierCategory(product)
+              const costPrice = price
+              const sellingPrice = costPrice > 0 ? costPrice * (1 + recoveryMarkup / 100) : 0
+              const totalStock = (product.air?.disponible || 0) +
+                (product.lug?.disponible || 0) +
+                (product.ros?.disponible || 0) +
+                (product.cba?.disponible || 0) +
+                (product.mza?.disponible || 0) +
+                (product.stock_disponible || 0)
+
+              const { categoryId } = mapProductToCategory(
+                productName, supplierCategory, supplierMappings, slugToId, idToParentId, parentSlugToChildSlugs
+              )
+
+              let isActive = price > 0 ? 1 : 0
+              if (isActive === 1 && supplier.allowedCategories) {
+                const supplierAllowedCategories: string[] | null = typeof supplier.allowedCategories === 'string'
+                  ? JSON.parse(supplier.allowedCategories) : supplier.allowedCategories
+                if (supplierAllowedCategories !== null && categoryId) {
+                  const catSlug = Object.entries(slugToId).find(([_, id]) => id === categoryId)?.[0]
+                  const catParentId = idToParentId[categoryId]
+                  const catParentSlug = catParentId ? Object.entries(slugToId).find(([_, id]) => id === catParentId)?.[0] : null
+                  const isAllowed = catSlug ? supplierAllowedCategories.includes(catSlug) : false
+                  const isChildOfAllowed = catParentSlug ? supplierAllowedCategories.includes(catParentSlug) : false
+                  if (!isAllowed && !isChildOfAllowed) isActive = 0
+                }
+              }
+
+              const existingProduct = existingBySku[providerSku]
+              const now = new Date().toISOString()
+
+              if (existingProduct) {
+                await db.execute({
+                  sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, supplierCategory = ?, categoryId = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
+                  args: [costPrice, sellingPrice, totalStock, supplierCategory, categoryId, isActive, now, existingProduct.id],
+                })
+                updated++
+              } else {
+                const newId = crypto.randomUUID()
+                const formattedName = formatProductName(productName)
+                let slug = generateSlug(formattedName)
+                if (allExistingSlugs.has(slug)) {
+                  slug = slug + '-' + providerSku.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 10)
+                }
+                allExistingSlugs.add(slug)
+
+                const specs: Record<string, string> = {}
+                if (product.garantia) specs['Garantía'] = product.garantia
+                if (product.moneda) specs['Moneda'] = product.moneda
+                if (product.marca) specs['Marca'] = product.marca
+                if (product.rubro) specs['Rubro'] = product.rubro
+                if (product.grupo) specs['Grupo'] = product.grupo
+
+                await db.execute({
+                  sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
+                        VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
+                  args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, isActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, supplierCategory],
+                })
+                created++
+                recoveryCreated++
+                existingBySku[providerSku] = { id: newId, slug }
+                console.log(`[Air Intra] Recovery: added "${formattedName}" (SKU: ${providerSku})`)
+              }
+              allFetchedSkus.add(providerSku)
+              totalFetched++
+            }
+          } else if (recoveryError) {
+            console.log(`[Air Intra] Recovery "${searchTerm}" error: ${recoveryError}`)
+          } else {
+            console.log(`[Air Intra] Recovery "${searchTerm}": 0 results`)
+          }
+        }
+      } catch (recoveryErr) {
+        console.error(`[Air Intra] Recovery search error for "${searchTerm}":`, recoveryErr)
+      }
+    }
+    if (recoveryCreated > 0) {
+      console.log(`[Air Intra] Recovery total: ${recoveryCreated} new products added via targeted search`)
+    }
+
     result.ok = true
     result.total = totalFetched
     result.created = created
@@ -1314,7 +1485,8 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
       : totalRecoveredByExtractor > 0
         ? ` (${totalRecoveredByExtractor} productos recuperados por extractor)`
         : ''
-    result.message = `Sincronización completada: ${totalFetched} productos, ${created} nuevos, ${updated} actualizados, ${skipped} omitidos, ${errors} errores${recoveryNote}`
+    const recoverySearchNote = recoveryCreated > 0 ? ` + ${recoveryCreated} recuperados por búsqueda dirigida` : ''
+    result.message = `Sincronización completada: ${totalFetched} productos, ${created} nuevos, ${updated} actualizados, ${skipped} omitidos, ${errors} errores${recoveryNote}${recoverySearchNote}`
 
   } catch (error: any) {
     result.message = `Error de conexión con Air Intra: ${error.message}`
