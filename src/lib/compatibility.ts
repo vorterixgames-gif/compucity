@@ -50,14 +50,21 @@ export function extractProcessorCompatibility(name: string): CompatibilityInfo {
     socket = 'AM4'
   }
 
-  // Intel sockets - S1700, S1851, or just 1700/1851 in context
-  if (/\bS?1851\b/i.test(upper)) {
+  // Intel sockets - match S1851, S1700, LGA1851, LGA1700, or standalone 1700/1851
+  // Must handle both "LGA 1851" (with space) and "LGA1851" (no space)
+  if (/(?:S|LGA\s*)?1851/i.test(upper)) {
     socket = '1851'
-  } else if (/\bS?1700\b/i.test(upper)) {
+  } else if (/(?:S|LGA\s*)?1700/i.test(upper)) {
     socket = '1700'
   }
 
-  // Fallback: Intel brand implies at least LGA1700 if not detected
+  // Intel Core Ultra processors always use LGA 1851 (Arrow Lake)
+  // Models: Core Ultra 5 225F, Core Ultra 7 265K, Core Ultra 9 285K, etc.
+  if (!socket && /\bCORE ULTRA\b/i.test(upper)) {
+    socket = '1851'
+  }
+
+  // Fallback: Intel brand without detected socket → default LGA1700
   if (!socket && brand === 'Intel') {
     socket = '1700' // Default for Intel processors without explicit socket
   }
@@ -95,10 +102,10 @@ export function extractMotherboardCompatibility(name: string): CompatibilityInfo
     socket = 'AM4'
   }
 
-  // Intel sockets
-  if (/\b1851\b/i.test(upper)) {
+  // Intel sockets - match S1851, S1700, LGA1851, LGA1700, or standalone 1700/1851
+  if (/(?:S|LGA\s*)?1851/i.test(upper)) {
     socket = '1851'
-  } else if (/\b1700\b/i.test(upper)) {
+  } else if (/(?:S|LGA\s*)?1700/i.test(upper)) {
     socket = '1700'
   }
 

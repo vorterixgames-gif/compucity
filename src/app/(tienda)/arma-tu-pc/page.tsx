@@ -98,8 +98,8 @@ const SLOT_FILTERS: Record<string, FilterOption[]> = {
   motherboard: [
     { key: 'socket', label: 'AM4', value: 'AM4', matchFn: (n) => /\bAM4\b|\bB550\b|\bA520\b|\bX570\b|\bB450\b|\bA320\b/i.test(n)},
     { key: 'socket', label: 'AM5', value: 'AM5', matchFn: (n) => /\bAM5\b|\bB650\b|\bB850\b|\bB840\b|\bA620\b|\bX870\b|\bX670E?\b/i.test(n) },
-    { key: 'socket', label: 'LGA 1700', value: '1700', matchFn: (n) => /\b1700\b|\bB760\b|\bH610\b|\bB660\b|\bH670\b|\bZ690\b|\bZ790\b/i.test(n) },
-    { key: 'socket', label: 'LGA 1851', value: '1851', matchFn: (n) => /\b1851\b|\bB860\b|\bZ890\b|\bH810\b/i.test(n) },
+    { key: 'socket', label: 'LGA 1700', value: '1700', matchFn: (n) => /(?:S|LGA\s*)?1700|\bB760\b|\bH610\b|\bB660\b|\bH670\b|\bZ690\b|\bZ790\b/i.test(n) },
+    { key: 'socket', label: 'LGA 1851', value: '1851', matchFn: (n) => /(?:S|LGA\s*)?1851|\bB860\b|\bZ890\b|\bH810\b/i.test(n) },
     { key: 'ddr', label: 'DDR4', value: 'DDR4', matchFn: (n) => /\bDDR4\b/i.test(n) },
     { key: 'ddr', label: 'DDR5', value: 'DDR5', matchFn: (n) => /\bDDR5\b/i.test(n) },
   ],
