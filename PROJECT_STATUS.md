@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-05 (sesion 20)
+**Ultima actualizacion:** 2026-06-05 (sesion 21)
 
 ---
 
@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** f884cde (feat: reemplazar texto por logo real de Compucity en PDF del PC Builder)
+- **Commit actual:** 2cf33b5 (fix: Air Intra sync - switch to articulos, fix pagination, batch operations)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -759,6 +759,7 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ---
 
 ## Historial de Cambios
+- **2026-06-05 (s21):** FIX CRITICO Air Intra sync - Productos faltantes resuelto. (1) BUG PRINCIPAL: La paginación se detenía prematuramente cuando el JSON corrupto causaba que una página devolviera <500 productos, haciendo que el sync creyera que era la última página. El endpoint `syp` solo tenía ~4,500 productos y faltaban categorías. (2) Cambio de endpoint `syp` → `articulos`: Ahora usa el endpoint `articulos` que tiene 7,499 productos (vs 4,500 de syp) e incluye datos de categoría (rubro, grupo), garantía, tipo y estado. (3) Fix paginación: Ya no se detiene por `products.length < pageSize`. Ahora usa MAX_PAGES (30) + detección de página vacía. (4) Retry logic: Hasta 2 reintentos por página fallida. (5) Batch DB operations: Pre-load de productos existentes en memoria, INSERT/UPDATE en paralelo (concurrencia 20). (6) Script standalone: `sync-air-intra-direct.mjs` para sync directo a Turso sin pasar por API route. (7) Resultado: Air Intra pasó de 1,702 a 7,511 productos (7,324 activos). Commits: da050a3, 3ed8b21, 2cf33b5
 - **2026-06-05 (s16):** Multiples fixes y features de admin + PC Builder. (1) Bug #3: Filtro "Sin categoria" en admin productos - opcion para encontrar productos sin categoryId asignado (valor `"none"`). (2) Feature: Seleccion multiple y eliminacion masiva de productos - checkboxes en cada fila, select all, barra de acciones, dialogo de confirmacion, DELETE paralelo. (3) Bug #4: Cambiar nombre de categoria rompia PC Builder - el slug se regeneraba automaticamente, rompiendo las referencias hardcodeadas. Fix: API PUT ya no auto-regenera slug, campo slug editable en admin categorias con advertencia "No cambiar si se usa en Arma tu PC". (4) Feature: Ocultar datos internos de productos (Moneda DOL, EAN, Garantia) de las vistas publicas - solo se muestra descripcion y precio al cliente. (5) Bug #5: Socket detection - Intel Core Ultra 5 225F detectado como LGA 1700 en vez de LGA 1851. Causa: regex `/\bS?1851\b/` no matcheaba "LGA1851" (sin espacio). Fix: regex cambiado a `/(?:S|LGA\s*)?1851/`, + deteccion por modelo (CORE ULTRA = LGA 1851 siempre). Commits: 0969b04, afe7c31, 5a55884, f794b1d, 15fcb9a. Backup src (858KB)
 - **2026-06-05 (s15):** Fix SODIMM + PDF download en Arma tu PC. SODIMM movido de BUILDER_INCLUDE_PATTERNS a BUILDER_EXCLUDE_PATTERNS del slot RAM (ya no aparecen en el PC Builder). PDF download: al hacer clic en cualquier boton de WhatsApp del Arma tu PC, se genera y descarga un PDF profesional (jsPDF client-side) con branding Compucity (header verde, COMPU+CITY, tagline), fecha, lista de componentes con precios, total de lista y efectivo, nota 96hs, footer con contacto. Los 3 botones (desktop ultimo paso, sidebar, mobile sticky) ahora descargan PDF + abren WhatsApp. Icono Download agregado. Commits: f6a94e9, af6b8a6
 - **2026-06-05 (s14):** Filtros en PC Builder + Categorías tienda + fix. PC Builder: chips clickeables para filtrar productos (Processor: AMD/Intel, Motherboard: Socket+DDR, RAM: DDR3/4/5, GPU: NVIDIA/AMD/Intel Arc, SSD: NVMe/SATA, PSU: 500W+/650W+/750W+/850W+, Cooling: AIO/Aire, Monitor: Tamaño+Resolución, Network: PCIe/USB/WiFi6, Periféricos: Mouse/Teclado/Auricular/etc.). Categorías tienda: mismos filtros en CategoryProducts para 11 categorías. FIX: eliminados filtros genéricos de "Componentes de PC" (Procesador/Motherboard/RAM/GPU/SSD/Fuente) que eran redundantes con las subcategorías - los filtros ahora solo aparecen al seleccionar una subcategoría específica (ej: DDR3/4/5 en Memorias RAM, AMD/Intel en Microprocesadores). Network blacklist: +AP GIGABIT, WALL MOUNT, CEILLING, MINIHUB, OUTDOOR, INDOOR, ISP. Commits: e020dd3, 9d1979d, 2a3a11f
