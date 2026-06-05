@@ -1056,38 +1056,23 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
 
           // ==========================================
           // Air Intra category filter:
-          // Only allow periféricos, componentes de PC, cables y adaptadores, and PC armadas.
-          // Products in non-allowed categories are set isActive = 0.
+          // Products that map to a store category are active.
+          // Products with no category match remain isActive = 0.
+          // All parent categories and their subcategories are allowed,
+          // since the store sells the full product range from Air Intra.
           // ==========================================
-          const AIR_INTRA_ALLOWED_PARENTS = new Set(['perifericos', 'componentes-de-pc', 'pc-armadas'])
-          const AIR_INTRA_ALLOWED_SUBCATEGORIES = new Set(['cables-y-adaptadores'])
-          let airIntraIsActive = 1
-          if (categoryId) {
-            // Check if the category is a child of an allowed parent
-            const catSlug = Object.entries(slugToId).find(([_, id]) => id === categoryId)?.[0]
-            const catParentId = idToParentId[categoryId]
-            const catParentSlug = catParentId ? Object.entries(slugToId).find(([_, id]) => id === catParentId)?.[0] : null
-
-            const isAllowedParent = AIR_INTRA_ALLOWED_PARENTS.has(catSlug || '')
-            const isAllowedSubcategory = AIR_INTRA_ALLOWED_SUBCATEGORIES.has(catSlug || '')
-            const isChildOfAllowedParent = catParentSlug ? AIR_INTRA_ALLOWED_PARENTS.has(catParentSlug) : false
-
-            if (!isAllowedParent && !isAllowedSubcategory && !isChildOfAllowedParent) {
-              airIntraIsActive = 0
-            }
-          } else {
-            // No category matched — also deactivate for Air Intra
-            airIntraIsActive = 0
-          }
+          let airIntraIsActive = categoryId ? 1 : 0
 
           if (existingRows.length > 0) {
             await db.execute({
               sql: `UPDATE products SET
                 costPrice = ?, price = ?, stock = ?,
                 supplierCategory = ?,
+                categoryId = ?,
+                isActive = ?,
                 updatedAt = ?
               WHERE id = ?`,
-              args: [costPrice, sellingPrice, totalStock, supplierCategory, new Date().toISOString(), existingRows[0].id],
+              args: [costPrice, sellingPrice, totalStock, supplierCategory, categoryId, airIntraIsActive, new Date().toISOString(), existingRows[0].id],
             })
             updated++
           } else {
