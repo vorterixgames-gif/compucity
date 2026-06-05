@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
+import jsPDF from 'jspdf'
 import {
   Cpu,
   CircuitBoard,
@@ -30,6 +31,7 @@ import {
   Gamepad2,
   Plug,
   SlidersHorizontal,
+  Download,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -440,6 +442,160 @@ export default function ArmaTuPCPage() {
     msg += `📋 *Total de lista:* ${formatPrice(totalListPrice)}\n\n`
     msg += `Consulto por la disponibilidad y tiempo de armado. Gracias!`
     return `https://wa.me/5493517656918?text=${encodeURIComponent(msg)}`
+  }
+
+  // Generate PDF with selected components
+  const generatePDF = () => {
+    const doc = new jsPDF()
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const margin = 20
+    let y = 20
+
+    // Header - Compucity branding
+    doc.setFillColor(58, 139, 104) // #3A8B68
+    doc.rect(0, 0, pageWidth, 35, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(22)
+    doc.setFont('helvetica', 'bold')
+    doc.text('COMPU', margin, 22)
+    doc.setTextColor(117, 173, 149) // #75AD95
+    doc.text('CITY', margin + doc.getTextWidth('COMPU'), 22)
+    doc.setFontSize(10)
+    doc.setTextColor(200, 230, 215)
+    doc.text('TU MUNDO DIGITAL', margin, 29)
+
+    // Date on the right
+    const dateStr = new Date().toLocaleDateString('es-AR', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    })
+    doc.setFontSize(9)
+    doc.setTextColor(200, 230, 215)
+    doc.text(dateStr, pageWidth - margin, 22, { align: 'right' })
+    doc.text('Presupuesto generado en compucity.com.ar', pageWidth - margin, 29, { align: 'right' })
+
+    y = 45
+
+    // Title
+    doc.setTextColor(30, 30, 30)
+    doc.setFontSize(16)
+    doc.setFont('helvetica', 'bold')
+    doc.text('PC a Medida - Presupuesto', margin, y)
+    y += 10
+
+    // Separator line
+    doc.setDrawColor(58, 139, 104)
+    doc.setLineWidth(0.5)
+    doc.line(margin, y, pageWidth - margin, y)
+    y += 8
+
+    // Components list
+    doc.setFontSize(11)
+    selectedComponents.forEach(c => {
+      const slotLabel = SLOTS.find(s => s.slot === c.slot)?.label || c.slot
+      const unitPrice = c.product.comparePrice || c.product.price
+      const lineTotal = unitPrice * c.quantity
+
+      // Check if we need a new page
+      if (y > 265) {
+        doc.addPage()
+        y = 20
+      }
+
+      // Slot label (green)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(58, 139, 104)
+      doc.text(`${slotLabel}:`, margin, y)
+
+      // Product name
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(50, 50, 50)
+      const nameX = margin + 2
+      const maxNameWidth = pageWidth - margin * 2 - 45
+      const nameLines = doc.splitTextToSize(c.product.name, maxNameWidth)
+      doc.text(nameLines[0], nameX, y + 5)
+
+      // If name wraps to multiple lines, adjust y
+      if (nameLines.length > 1) {
+        for (let i = 1; i < nameLines.length; i++) {
+          y += 5
+          if (y > 265) { doc.addPage(); y = 20 }
+          doc.text(nameLines[i], nameX, y + 5)
+        }
+      }
+
+      // Price on the right
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(30, 30, 30)
+      const priceText = c.quantity > 1
+        ? `${c.quantity}x ${formatPrice(unitPrice)} c/u = ${formatPrice(lineTotal)}`
+        : formatPrice(unitPrice)
+      doc.text(priceText, pageWidth - margin, y + 5, { align: 'right' })
+
+      y += 14
+    })
+
+    // Check if we need a new page for totals
+    if (y > 240) {
+      doc.addPage()
+      y = 20
+    }
+
+    // Separator line before totals
+    y += 2
+    doc.setDrawColor(200, 200, 200)
+    doc.setLineWidth(0.3)
+    doc.line(margin, y, pageWidth - margin, y)
+    y += 8
+
+    // Total de lista
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(100, 100, 100)
+    doc.text('Precio de lista:', margin, y)
+    doc.setFont('helvetica', 'bold')
+    doc.text(formatPrice(totalListPrice), pageWidth - margin, y, { align: 'right' })
+    y += 8
+
+    // Total en efectivo (highlighted)
+    doc.setFillColor(232, 245, 242) // #EFF5F2
+    doc.roundedRect(margin - 3, y - 6, pageWidth - margin * 2 + 6, 14, 2, 2, 'F')
+    doc.setFontSize(13)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(58, 139, 104)
+    doc.text('Precio en efectivo:', margin, y)
+    doc.text(formatPrice(totalPrice), pageWidth - margin, y, { align: 'right' })
+    y += 18
+
+    // 96hs note
+    if (y < 270) {
+      doc.setFillColor(255, 248, 225)
+      doc.roundedRect(margin - 3, y - 5, pageWidth - margin * 2 + 6, 12, 2, 2, 'F')
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(146, 100, 0)
+      doc.text('El armado de los equipos puede tener una demora de hasta 96 horas hábiles.', margin, y + 2)
+      y += 18
+    }
+
+    // Footer on every page
+    const totalPages = doc.getNumberOfPages()
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i)
+      doc.setFontSize(7)
+      doc.setTextColor(150, 150, 150)
+      doc.text('Compucity - La Falda, Córdoba, Argentina | WhatsApp: 3517656918', margin, 290)
+      doc.text(`Página ${i} de ${totalPages}`, pageWidth - margin, 290, { align: 'right' })
+    }
+
+    // Download
+    doc.save('Compucity-PC-a-Medida.pdf')
+  }
+
+  // Handle WhatsApp + PDF download
+  const handleWhatsAppWithPDF = () => {
+    generatePDF()
+    window.open(buildWhatsAppUrl(), '_blank')
   }
 
   // Build compatibility info banner text
@@ -939,7 +1095,7 @@ export default function ArmaTuPCPage() {
                 <Button
                   onClick={() => {
                     if (completedRequired) {
-                      window.open(buildWhatsAppUrl(), '_blank')
+                      handleWhatsAppWithPDF()
                     }
                   }}
                   className="bg-green-600 hover:bg-green-700 gap-2"
@@ -947,6 +1103,7 @@ export default function ArmaTuPCPage() {
                 >
                   <MessageCircle className="w-4 h-4" />
                   Enviar por WhatsApp
+                  <Download className="w-3.5 h-3.5 opacity-60" />
                 </Button>
               )}
             </div>
@@ -1110,10 +1267,17 @@ export default function ArmaTuPCPage() {
                       ? 'bg-green-500 hover:bg-green-600 text-white cursor-pointer'
                       : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                   }`}
-                  onClick={(e) => { if (completedCount === 0) e.preventDefault() }}
+                  onClick={(e) => {
+                    if (completedCount === 0) {
+                      e.preventDefault()
+                    } else {
+                      generatePDF()
+                    }
+                  }}
                 >
                   <MessageCircle className="w-4 h-4" />
                   Consultar por WhatsApp
+                  <Download className="w-3.5 h-3.5 opacity-60" />
                 </a>
 
                 {completedCount > 0 && (
@@ -1176,7 +1340,7 @@ export default function ArmaTuPCPage() {
                 <Button
                   onClick={() => {
                     if (completedRequired) {
-                      window.open(buildWhatsAppUrl(), '_blank')
+                      handleWhatsAppWithPDF()
                     }
                   }}
                   className="bg-green-600 hover:bg-green-700 gap-1 flex-1 h-9 text-xs"
@@ -1184,6 +1348,7 @@ export default function ArmaTuPCPage() {
                 >
                   <MessageCircle className="w-3.5 h-3.5" />
                   WhatsApp
+                  <Download className="w-3 h-3 opacity-60" />
                 </Button>
               )}
             </div>
