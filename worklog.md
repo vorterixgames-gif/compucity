@@ -303,3 +303,30 @@ Stage Summary:
 - All price calculations across the app respect per-product values
 - PC builder cash price formula bug fixed (was inconsistent with other routes)
 - Build successful, no TypeScript errors in modified files
+---
+Task ID: 1
+Agent: Main
+Task: Fix Air Intra sync - products not being imported
+
+Work Log:
+- Investigated Air Intra sync code in route.ts (syncAirIntra function, ~350 lines)
+- Discovered API has 7,499 products (articulos endpoint) but DB only had 1,702
+- Root cause #1: Pagination stopped when corrupted JSON caused pages to return <500 products
+- Root cause #2: syp endpoint only has 4,500 products (no category data)
+- Switched from syp to articulos endpoint (7,499 products, has rubro/grupo/garantia/tipo/estado)
+- Fixed pagination: replaced products.length < pageSize check with MAX_PAGES + empty page detection
+- Added retry logic (2 retries per failed page)
+- Added in-memory product lookup (pre-load existing products) to avoid SELECT per product
+- Added batch DB operations with concurrency limit (20)
+- Added slug collision handling
+- Created standalone sync-air-intra-direct.mjs script
+- Ran sync: Air Intra went from 1,702 → 7,511 products (7,324 active)
+- Updated PROJECT_STATUS.md, created backup s21
+
+Stage Summary:
+- Air Intra products: 1,702 → 7,511 (7,324 active)
+- Total products in DB: ~4,500 → 10,309
+- Key files changed: src/app/api/admin/suppliers/sync/route.ts, sync-air-intra-direct.mjs
+- Commits: da050a3, 3ed8b21, 2cf33b5, 12bc87a
+- Note: 4,145 Air Intra products still without category (rubro codes are numeric, need mapping)
+
