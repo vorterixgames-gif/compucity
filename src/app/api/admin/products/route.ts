@@ -29,27 +29,187 @@ async function getConfig(key: string, defaultValue: number): Promise<number> {
   return defaultValue
 }
 
-export async function GET() {
+// Module-level dollar rate cache (avoid calling external API on every request)
+let cachedDollarRate = { rate: 0, fetchedAt: 0 }
+const DOLLAR_CACHE_TTL = 30 * 60 * 1000 // 30 minutes in ms
+
+async function getDollarRate(): Promise<number> {
+  const now = Date.now()
+  // Use cached rate if still fresh
+  if (cachedDollarRate.rate > 0 && (now - cachedDollarRate.fetchedAt) < DOLLAR_CACHE_TTL) {
+    return cachedDollarRate.rate
+  }
+
+  // Try reading from database first (fast, no external call)
+  try {
+    const dbResult = await db.execute('SELECT rate, updatedAt FROM dollar_rates ORDER BY updatedAt DESC LIMIT 1')
+    const rows = dbResult.rows as any[]
+    if (rows.length > 0 && rows[0].rate) {
+      const dbRate = Number(rows[0].rate)
+      const dbTime = new Date(rows[0].updatedAt).getTime()
+      // If DB rate is fresh enough (< 30 min), use it
+      if (dbRate > 0 && (now - dbTime) < DOLLAR_CACHE_TTL) {
+        cachedDollarRate = { rate: dbRate, fetchedAt: now }
+        return dbRate
+      }
+      // DB rate exists but is stale — use it as a fallback while we fetch
+      if (dbRate > 0 && cachedDollarRate.rate === 0) {
+        cachedDollarRate = { rate: dbRate, fetchedAt: dbTime }
+      }
+    }
+  } catch {}
+
+  // Fall back to external API
+  try {
+    const dollar = await fetchDollarRate()
+    if (dollar.rate > 0) {
+      cachedDollarRate = { rate: dollar.rate, fetchedAt: now }
+      return dollar.rate
+    }
+  } catch {}
+
+  // Ultimate fallback
+  if (cachedDollarRate.rate > 0) return cachedDollarRate.rate
+  return 1415
+}
+
+// Valid sort columns mapping (client name → SQL expression)
+const SORT_MAP: Record<string, string> = {
+  name: 'p.name',
+  categoryName: 'c.name',
+  costPrice: 'p.costPrice',
+  price: 'p.price',
+  comparePrice: 'p.comparePrice',
+  stock: 'p.stock',
+  isActive: 'p.isActive',
+}
+
+export async function GET(request: NextRequest) {
   try {
     const admin = await getCurrentAdmin()
     if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    // Get current dollar rate, config, and category markup map
-    const [dollar, markup, cashDiscount, catMarkupResult, result, suppliersResult] = await Promise.all([
-      fetchDollarRate(),
+    const sp = request.nextUrl.searchParams
+
+    // Parse pagination params
+    const page = Math.max(1, Number(sp.get('page')) || 1)
+    const limit = Math.min(200, Math.max(1, Number(sp.get('limit')) || 50))
+    const offset = (page - 1) * limit
+
+    // Parse filter params
+    const search = sp.get('search')?.trim() || ''
+    const categoryId = sp.get('categoryId') || ''
+    const supplierId = sp.get('supplierId') || ''
+    const stockStatus = sp.get('stockStatus') || ''
+    const activeStatus = sp.get('activeStatus') || ''
+    const onSale = sp.get('onSale') || ''
+
+    // Parse sort params
+    const sortKey = sp.get('sort') || ''
+    const sortDir = sp.get('sortDir') === 'asc' ? 'ASC' : 'DESC'
+    const sortExpr = SORT_MAP[sortKey] || ''
+    // Default sort: name ASC
+    const orderClause = sortExpr ? `ORDER BY ${sortExpr} ${sortDir}` : 'ORDER BY p.name ASC'
+
+    // Build WHERE conditions
+    const conditions: string[] = []
+    const args: any[] = []
+
+    // Search filter (name, SKU, or category name)
+    if (search) {
+      conditions.push(`(p.name LIKE ? OR p.sku LIKE ? OR c.name LIKE ?)`)
+      const likeTerm = `%${search}%`
+      args.push(likeTerm, likeTerm, likeTerm)
+    }
+
+    // Category filter (includes subcategories)
+    if (categoryId) {
+      if (categoryId === 'none') {
+        conditions.push(`p.categoryId IS NULL`)
+      } else {
+        // Get all descendant category IDs
+        const catResult = await db.execute('SELECT id, parentId FROM categories')
+        const catRows = catResult.rows as any[]
+        const catIds = new Set<string>()
+        catIds.add(categoryId)
+        const addChildIds = (pid: string) => {
+          for (const cat of catRows) {
+            if (cat.parentId === pid) {
+              catIds.add(cat.id)
+              addChildIds(cat.id)
+            }
+          }
+        }
+        addChildIds(categoryId)
+
+        const placeholders = Array.from(catIds).map(() => '?').join(',')
+        conditions.push(`p.categoryId IN (${placeholders})`)
+        args.push(...Array.from(catIds))
+      }
+    }
+
+    // Supplier filter
+    if (supplierId) {
+      if (supplierId === 'none') {
+        conditions.push(`p.providerId IS NULL`)
+      } else {
+        conditions.push(`p.providerId = ?`)
+        args.push(supplierId)
+      }
+    }
+
+    // Stock status filter
+    if (stockStatus === 'inStock') {
+      conditions.push(`p.stock > 5`)
+    } else if (stockStatus === 'lowStock') {
+      conditions.push(`p.stock > 0 AND p.stock <= 5`)
+    } else if (stockStatus === 'outOfStock') {
+      conditions.push(`p.stock <= 0`)
+    }
+
+    // Active status filter
+    if (activeStatus === 'active') {
+      conditions.push(`p.isActive = 1`)
+    } else if (activeStatus === 'inactive') {
+      conditions.push(`p.isActive != 1`)
+    }
+
+    // On sale filter
+    if (onSale === 'yes') {
+      conditions.push(`p.salePrice IS NOT NULL AND p.salePrice > 0`)
+    } else if (onSale === 'no') {
+      conditions.push(`p.salePrice IS NULL OR p.salePrice = 0`)
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+
+    // Run count query + data query + config in parallel
+    const selectColumns = `p.id, p.name, p.slug, p.price, p.comparePrice, p.costPrice,
+       p.markup, p.cashDiscount, p.ivaRate, p.sku, p.stock, p.isActive, p.isFeatured,
+       p.providerId, p.providerSku, p.categoryId,
+       p.salePrice, p.saleStart, p.saleEnd, p.createdAt, p.updatedAt,
+       c.name as categoryName, c.markup as categoryMarkup, c.cashDiscount as categoryCashDiscount,
+       s.name as providerName`
+
+    const [countResult, result, markup, cashDiscount, catMarkupResult, suppliersResult, categoriesResult, dollarRate] = await Promise.all([
+      db.execute({
+        sql: `SELECT COUNT(*) as total FROM products p LEFT JOIN categories c ON p.categoryId = c.id LEFT JOIN suppliers s ON p.providerId = s.id ${whereClause}`,
+        args,
+      }),
+      db.execute({
+        sql: `SELECT ${selectColumns} FROM products p LEFT JOIN categories c ON p.categoryId = c.id LEFT JOIN suppliers s ON p.providerId = s.id ${whereClause} ${orderClause} LIMIT ? OFFSET ?`,
+        args: [...args, limit, offset],
+      }),
       getStoreConfigNumber('markup', 30),
       getStoreConfigNumber('cash_discount', 10),
       db.execute('SELECT id, parentId, markup, cashDiscount, ivaRate FROM categories'),
-      db.execute(
-        `SELECT p.*, c.name as categoryName, c.markup as categoryMarkup, c.cashDiscount as categoryCashDiscount,
-                s.name as providerName
-         FROM products p 
-         LEFT JOIN categories c ON p.categoryId = c.id 
-         LEFT JOIN suppliers s ON p.providerId = s.id
-         ORDER BY p.createdAt DESC`
-      ),
       db.execute('SELECT id, name FROM suppliers ORDER BY name'),
+      db.execute('SELECT id, name, slug, parentId FROM categories ORDER BY name'),
+      getDollarRate(),
     ])
+
+    const total = (countResult.rows[0] as any)?.total || 0
+    const totalPages = Math.max(1, Math.ceil(total / limit))
 
     // Build category markup map with parent inheritance for 3-tier priority
     const rawCatMap = new Map<string, { parentId: string | null; markup: number | null; cashDiscount: number | null; ivaRate: number | null }>()
@@ -79,23 +239,28 @@ export async function GET() {
 
     // Calculate prices using calculateProductPrices (3-tier: product → category → global)
     const suppliersList = (suppliersResult.rows as any[]).map(s => ({ id: s.id, name: s.name }))
+    const categoriesList = (categoriesResult.rows as any[]).map(c => ({ id: c.id, name: c.name, slug: c.slug, parentId: c.parentId }))
 
     const products = (result.rows as any[]).map(p => {
       const catMarkup = p.categoryId ? catMarkupMap.get(p.categoryId) : null
-      const calculated = calculateProductPrices(p, dollar.rate, markup, cashDiscount, catMarkup)
+      const calculated = calculateProductPrices(p, dollarRate, markup, cashDiscount, catMarkup)
       return {
         ...calculated,
         categoryName: p.categoryName,
         providerName: p.providerName,
-        _dollarRate: dollar.rate,
+        _dollarRate: dollarRate,
       }
     })
 
     return NextResponse.json({
       ok: true,
       products,
+      total,
+      page,
+      totalPages,
       suppliers: suppliersList,
-      dollarRate: dollar.rate,
+      categories: categoriesList,
+      dollarRate,
       markup,
       cashDiscount,
     })
@@ -230,6 +395,9 @@ export async function POST(request: NextRequest) {
         categoryId || null, now, now,
       ],
     })
+
+    // Invalidate dollar cache so next GET fetches fresh rate
+    cachedDollarRate = { rate: 0, fetchedAt: 0 }
 
     return NextResponse.json({ ok: true, product: { id, slug: finalSlug } })
   } catch (error: any) {
@@ -388,6 +556,9 @@ export async function PUT(request: NextRequest) {
       sql: `UPDATE products SET ${fields.join(', ')} WHERE id = ?`,
       args: values,
     })
+
+    // Invalidate dollar cache so next GET fetches fresh rate
+    cachedDollarRate = { rate: 0, fetchedAt: 0 }
 
     return NextResponse.json({ ok: true })
   } catch (error: any) {

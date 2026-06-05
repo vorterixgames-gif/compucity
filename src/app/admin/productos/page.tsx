@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import {
   Plus,
   Search,
@@ -19,6 +19,10 @@ import {
   Filter,
   CheckSquare,
   Square,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -147,6 +151,19 @@ interface SupplierOption {
   name: string
 }
 
+interface CategoryOption {
+  id: string
+  name: string
+  slug: string
+  parentId: string | null
+}
+
+interface Pagination {
+  page: number
+  totalPages: number
+  total: number
+}
+
 const emptyForm: ProductForm = {
   name: '',
   description: '',
@@ -184,6 +201,13 @@ export default function AdminProductos() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // Pagination
+  const [pagination, setPagination] = useState<Pagination>({ page: 1, totalPages: 1, total: 0 })
+  const [pageSize, setPageSize] = useState(50)
+  const [searchLoading, setSearchLoading] = useState(false)
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   // Resolve category pricing with parent inheritance (subcategory → parent → null)
   const getCategoryPricing = useCallback((categoryId: string | null): { markup: number | null; cashDiscount: number | null; ivaRate: number | null; categoryName: string | null } => {
@@ -246,13 +270,51 @@ export default function AdminProductos() {
   const [calculatedCashPrice, setCalculatedCashPrice] = useState<number | null>(null)
   const [imageUploading, setImageUploading] = useState(false)
 
-  const loadProducts = useCallback(async () => {
+  const loadProducts = useCallback(async (opts?: { page?: number; limit?: number; search?: string; filters?: Filters; sortColumn?: SortColumn; sortDirection?: SortDirection }) => {
+    const currentPage = opts?.page ?? pagination.page
+    const currentLimit = opts?.limit ?? pageSize
+    const currentSearch = opts?.search !== undefined ? opts.search : search
+    const currentFilters = opts?.filters ?? filters
+    const currentSortCol = opts?.sortColumn ?? sortColumn
+    const currentSortDir = opts?.sortDirection ?? sortDirection
+
+    // Cancel any in-flight request
+    if (abortRef.current) abortRef.current.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     try {
-      const res = await fetch('/api/admin/products')
+      const params = new URLSearchParams()
+      params.set('page', String(currentPage))
+      params.set('limit', String(currentLimit))
+      if (currentSearch) params.set('search', currentSearch)
+      if (currentFilters.category && currentFilters.category !== 'all') params.set('categoryId', currentFilters.category)
+      if (currentFilters.supplier && currentFilters.supplier !== 'all') params.set('supplierId', currentFilters.supplier)
+      if (currentFilters.stockStatus && currentFilters.stockStatus !== 'all') params.set('stockStatus', currentFilters.stockStatus)
+      if (currentFilters.activeStatus && currentFilters.activeStatus !== 'all') params.set('activeStatus', currentFilters.activeStatus)
+      if (currentFilters.onSale && currentFilters.onSale !== 'all') params.set('onSale', currentFilters.onSale)
+      if (currentSortCol) params.set('sort', currentSortCol)
+      if (currentSortDir) params.set('sortDir', currentSortDir)
+
+      const res = await fetch(`/api/admin/products?${params.toString()}`, { signal: controller.signal })
       const data = await res.json()
       if (data.ok) {
         setProducts(data.products as Product[])
+        setPagination({ page: data.page, totalPages: data.totalPages, total: data.total })
         if (data.suppliers) setSuppliers(data.suppliers as SupplierOption[])
+        if (data.categories) {
+          // Merge API categories into full category state for form use
+          setCategories(prev => {
+            const apiCats = data.categories as CategoryOption[]
+            // If we already have full categories with markup etc, keep them
+            // Otherwise use the basic ones from the API
+            if (prev.length > 0) return prev
+            return apiCats.map(c => ({
+              id: c.id, name: c.name, slug: c.slug, parentId: c.parentId,
+              enabled: 1, markup: null, cashDiscount: null, ivaRate: null,
+            })) as Category[]
+          })
+        }
         // Also grab the dollar config from the response
         if (data.dollarRate) {
           setDollarConfig({
@@ -263,12 +325,14 @@ export default function AdminProductos() {
           })
         }
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === 'AbortError') return // Request was cancelled, ignore
       console.error('Error loading products:', error)
     } finally {
       setLoading(false)
+      setSearchLoading(false)
     }
-  }, [])
+  }, [pagination.page, pageSize, search, filters, sortColumn, sortDirection])
 
   const loadCategories = useCallback(async () => {
     try {
@@ -346,15 +410,17 @@ export default function AdminProductos() {
     }
   }, [form.costPrice, form.markup, form.cashDiscount, form.ivaRate, form.categoryId, categories, dollarConfig, getCategoryPricing])
 
-  // Sorting handler
+  // Sorting handler - triggers API call with new sort
   const handleSort = (column: SortColumn) => {
+    let newCol = column
+    let newDir: SortDirection = 'asc'
     if (sortColumn === column) {
-      if (sortDirection === 'asc') setSortDirection('desc')
-      else { setSortColumn('name'); setSortDirection('asc') } // 3rd click resets
-    } else {
-      setSortColumn(column)
-      setSortDirection('asc')
+      if (sortDirection === 'asc') newDir = 'desc'
+      else { newCol = 'name'; newDir = 'asc' } // 3rd click resets
     }
+    setSortColumn(newCol)
+    setSortDirection(newDir)
+    loadProducts({ sortColumn: newCol, sortDirection: newDir, page: 1 })
   }
 
   // Sort icon for column headers
@@ -383,66 +449,8 @@ export default function AdminProductos() {
     return ids
   }
 
-  // Filter + sort products
-  const filteredProducts = (() => {
-    let result = products.filter(p =>
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.sku?.toLowerCase().includes(search.toLowerCase()) ||
-      p.categoryName?.toLowerCase().includes(search.toLowerCase())
-    )
-
-    // Apply filters
-    if (filters.category !== 'all') {
-      if (filters.category === 'none') {
-        // Filter products WITHOUT a category
-        result = result.filter(p => !p.categoryId)
-      } else {
-        const catIds = getCategoryIdsWithDescendants(filters.category)
-        result = result.filter(p => p.categoryId && catIds.has(p.categoryId))
-      }
-    }
-    if (filters.supplier !== 'all') {
-      if (filters.supplier === 'none') {
-        // Filter products WITHOUT a supplier (manually entered)
-        result = result.filter(p => !p.providerId)
-      } else {
-        result = result.filter(p => p.providerId === filters.supplier)
-      }
-    }
-    if (filters.stockStatus !== 'all') {
-      if (filters.stockStatus === 'inStock') result = result.filter(p => p.stock > 5)
-      else if (filters.stockStatus === 'lowStock') result = result.filter(p => p.stock > 0 && p.stock <= 5)
-      else if (filters.stockStatus === 'outOfStock') result = result.filter(p => p.stock <= 0)
-    }
-    if (filters.activeStatus !== 'all') {
-      if (filters.activeStatus === 'active') result = result.filter(p => p.isActive === 1)
-      else if (filters.activeStatus === 'inactive') result = result.filter(p => p.isActive !== 1)
-    }
-    if (filters.onSale !== 'all') {
-      if (filters.onSale === 'yes') result = result.filter(p => p.salePrice != null && p.salePrice > 0)
-      else if (filters.onSale === 'no') result = result.filter(p => p.salePrice == null || p.salePrice <= 0)
-    }
-
-    // Apply sorting
-    result.sort((a, b) => {
-      let aVal: any, bVal: any
-      switch (sortColumn) {
-        case 'name': aVal = a.name.toLowerCase(); bVal = b.name.toLowerCase(); break
-        case 'categoryName': aVal = (a.categoryName || '').toLowerCase(); bVal = (b.categoryName || '').toLowerCase(); break
-        case 'costPrice': aVal = a.costPrice || 0; bVal = b.costPrice || 0; break
-        case 'price': aVal = a.price || 0; bVal = b.price || 0; break
-        case 'comparePrice': aVal = a.comparePrice || 0; bVal = b.comparePrice || 0; break
-        case 'stock': aVal = a.stock; bVal = b.stock; break
-        case 'isActive': aVal = a.isActive; bVal = b.isActive; break
-        default: return 0
-      }
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
-      return 0
-    })
-
-    return result
-  })()
+  // Products are now filtered/sorted server-side — just use them directly
+  const filteredProducts = products
 
   const handleCreate = () => {
     setEditingId(null)
@@ -499,7 +507,7 @@ export default function AdminProductos() {
     if (!deletingId) return
     try {
       await fetch(`/api/admin/products?id=${deletingId}`, { method: 'DELETE' })
-      setProducts(prev => prev.filter(p => p.id !== deletingId))
+      loadProducts() // Reload current page
     } catch (error) {
       console.error('Error deleting product:', error)
     }
@@ -531,8 +539,8 @@ export default function AdminProductos() {
     try {
       const ids = Array.from(selectedIds)
       await Promise.all(ids.map(id => fetch(`/api/admin/products?id=${id}`, { method: 'DELETE' })))
-      setProducts(prev => prev.filter(p => !selectedIds.has(p.id)))
       setSelectedIds(new Set())
+      loadProducts() // Reload current page
     } catch (error) {
       console.error('Error bulk deleting products:', error)
     }
@@ -598,7 +606,7 @@ export default function AdminProductos() {
       }
 
       setFormOpen(false)
-      loadProducts()
+      loadProducts() // Reload current page
     } catch (error) {
       setFormError('Error de conexión')
     } finally {
@@ -626,7 +634,7 @@ export default function AdminProductos() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Productos</h1>
-          <p className="text-sm text-gray-500">{products.length} productos en total</p>
+          <p className="text-sm text-gray-500">{pagination.total.toLocaleString('es-AR')} productos en total</p>
         </div>
         <div className="flex items-center gap-2">
           <a
@@ -653,12 +661,24 @@ export default function AdminProductos() {
             <Input
               placeholder="Buscar por nombre, SKU o categoría..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value
+                setSearch(val)
+                setSearchLoading(true)
+                // Debounce search: 300ms
+                if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current)
+                searchDebounceRef.current = setTimeout(() => {
+                  loadProducts({ search: val, page: 1 })
+                }, 300)
+              }}
               className="pl-10"
             />
+            {searchLoading && (
+              <Loader2 className="absolute right-9 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-gray-400" />
+            )}
             {search && (
               <button
-                onClick={() => setSearch('')}
+                onClick={() => { setSearch(''); loadProducts({ search: '', page: 1 }) }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
                 <X className="w-4 h-4" />
@@ -683,7 +703,7 @@ export default function AdminProductos() {
           <div className="flex flex-wrap items-center gap-3 p-3 bg-gray-50 rounded-lg border">
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Categoría</Label>
-              <Select value={filters.category} onValueChange={(v) => setFilters(prev => ({ ...prev, category: v }))}>
+              <Select value={filters.category} onValueChange={(v) => { setFilters(prev => ({ ...prev, category: v })); loadProducts({ filters: { ...filters, category: v }, page: 1 }) }}>
                 <SelectTrigger className="w-48 h-8 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas</SelectItem>
@@ -700,7 +720,7 @@ export default function AdminProductos() {
 
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Proveedor</Label>
-              <Select value={filters.supplier} onValueChange={(v) => setFilters(prev => ({ ...prev, supplier: v }))}>
+              <Select value={filters.supplier} onValueChange={(v) => { setFilters(prev => ({ ...prev, supplier: v })); loadProducts({ filters: { ...filters, supplier: v }, page: 1 }) }}>
                 <SelectTrigger className="w-44 h-8 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
@@ -714,7 +734,7 @@ export default function AdminProductos() {
 
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Stock</Label>
-              <Select value={filters.stockStatus} onValueChange={(v) => setFilters(prev => ({ ...prev, stockStatus: v }))}>
+              <Select value={filters.stockStatus} onValueChange={(v) => { setFilters(prev => ({ ...prev, stockStatus: v })); loadProducts({ filters: { ...filters, stockStatus: v }, page: 1 }) }}>
                 <SelectTrigger className="w-40 h-8 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
@@ -727,7 +747,7 @@ export default function AdminProductos() {
 
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Estado</Label>
-              <Select value={filters.activeStatus} onValueChange={(v) => setFilters(prev => ({ ...prev, activeStatus: v }))}>
+              <Select value={filters.activeStatus} onValueChange={(v) => { setFilters(prev => ({ ...prev, activeStatus: v })); loadProducts({ filters: { ...filters, activeStatus: v }, page: 1 }) }}>
                 <SelectTrigger className="w-36 h-8 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
@@ -739,7 +759,7 @@ export default function AdminProductos() {
 
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">En oferta</Label>
-              <Select value={filters.onSale} onValueChange={(v) => setFilters(prev => ({ ...prev, onSale: v }))}>
+              <Select value={filters.onSale} onValueChange={(v) => { setFilters(prev => ({ ...prev, onSale: v })); loadProducts({ filters: { ...filters, onSale: v }, page: 1 }) }}>
                 <SelectTrigger className="w-36 h-8 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
@@ -754,7 +774,7 @@ export default function AdminProductos() {
                 variant="ghost"
                 size="sm"
                 className="h-8 text-red-500 hover:text-red-700 mt-4"
-                onClick={() => setFilters({ category: 'all', supplier: 'all', stockStatus: 'all', activeStatus: 'all', onSale: 'all' })}
+                onClick={() => { const cleared = { category: 'all', supplier: 'all', stockStatus: 'all', activeStatus: 'all', onSale: 'all' }; setFilters(cleared); loadProducts({ filters: cleared, page: 1 }) }}
               >
                 <X className="w-3 h-3 mr-1" />
                 Limpiar filtros
@@ -792,16 +812,31 @@ export default function AdminProductos() {
 
       {/* Products Table */}
       <div className="space-y-2">
-        <div className="flex items-center justify-between text-sm text-gray-500">
-          <span>{filteredProducts.length} de {products.length} productos{(search || activeFilterCount > 0) ? ' (filtrados)' : ''}</span>
-          {(sortColumn !== 'name' || sortDirection !== 'asc') && (
-            <button
-              onClick={() => { setSortColumn('name'); setSortDirection('asc') }}
-              className="text-xs text-compucity-green hover:underline"
-            >
-              Restablecer orden
-            </button>
-          )}
+        {/* Pagination Top Bar */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-sm text-gray-500">
+          <span>Página {pagination.page} de {pagination.totalPages} ({pagination.total.toLocaleString('es-AR')} productos{(search || activeFilterCount > 0) ? ' filtrados' : ''})</span>
+          <div className="flex items-center gap-2">
+            {(sortColumn !== 'name' || sortDirection !== 'asc') && (
+              <button
+                onClick={() => { setSortColumn('name'); setSortDirection('asc'); loadProducts({ sortColumn: 'name', sortDirection: 'asc', page: 1 }) }}
+                className="text-xs text-compucity-green hover:underline"
+              >
+                Restablecer orden
+              </button>
+            )}
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-400">Mostrar:</span>
+              {[50, 100, 200].map(size => (
+                <button
+                  key={size}
+                  onClick={() => { setPageSize(size); loadProducts({ limit: size, page: 1 }) }}
+                  className={`px-2 py-0.5 text-xs rounded transition-colors ${pageSize === size ? 'bg-compucity-green text-white font-medium' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       {filteredProducts.length === 0 ? (
         <div className="rounded-xl border shadow-sm bg-card text-card-foreground text-center py-12 text-gray-400">
@@ -1129,6 +1164,60 @@ export default function AdminProductos() {
         </>
       )}
       </div>
+
+      {/* Pagination Bottom Bar */}
+      {pagination.totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+          <p className="text-sm text-gray-500">
+            Mostrando {((pagination.page - 1) * pageSize) + 1}–{Math.min(pagination.page * pageSize, pagination.total)} de {pagination.total.toLocaleString('es-AR')}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              disabled={pagination.page <= 1}
+              onClick={() => loadProducts({ page: 1 })}
+              title="Primera página"
+            >
+              <ChevronsLeft className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              disabled={pagination.page <= 1}
+              onClick={() => loadProducts({ page: pagination.page - 1 })}
+              title="Página anterior"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <span className="px-3 py-1 text-sm font-medium">
+              {pagination.page} / {pagination.totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              disabled={pagination.page >= pagination.totalPages}
+              onClick={() => loadProducts({ page: pagination.page + 1 })}
+              title="Página siguiente"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              disabled={pagination.page >= pagination.totalPages}
+              onClick={() => loadProducts({ page: pagination.totalPages })}
+              title="Última página"
+            >
+              <ChevronsRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Product Form Dialog */}
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
