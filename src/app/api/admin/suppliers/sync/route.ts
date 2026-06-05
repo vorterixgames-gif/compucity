@@ -1294,6 +1294,169 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
     }
 
     // ==========================================
+    // SUPPLEMENTARY SYNC: Also fetch from the 'syp' endpoint.
+    // The 'articulos' endpoint may not include all products — specifically,
+    // "esquema" products (PC builds like "PC AIR", "PC CX", etc.) that are
+    // configured as component bundles on the Air Intra website may only appear
+    // in the 'syp' endpoint. We paginate through 'syp' and add any products
+    // that are not already in the DB from the 'articulos' pass.
+    // ==========================================
+    console.log('[Air Intra] Starting supplementary syp endpoint sync...')
+    const sypMarkup = supplier.markup || 30
+    let sypCreated = 0
+    let sypUpdated = 0
+    let sypPage = 0
+    const SYP_MAX_PAGES = 30
+    const sypEndpoint = 'syp'
+
+    while (sypPage < SYP_MAX_PAGES) {
+      console.log(`[Air Intra] Fetching syp page ${sypPage}...`)
+      try {
+        const sypRes = await fetch(`${baseUrl}/?q=${sypEndpoint}&page=${sypPage}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({}),
+        })
+
+        if (!sypRes.ok) {
+          const errText = await sypRes.text().catch(() => '')
+          // Rate limit: stop the syp sync gracefully
+          if (errText.includes('Too many queries') || errText.includes('error_id":403')) {
+            console.log('[Air Intra] Rate limited during syp sync. Stopping supplementary pass.')
+            break
+          }
+          console.log(`[Air Intra] syp HTTP ${sypRes.status}. Stopping supplementary pass.`)
+          break
+        }
+
+        const { data: sypData, error: sypError } = await safeParseAirIntraResponse(sypRes)
+
+        if (sypError || !Array.isArray(sypData) || sypData.length === 0) {
+          console.log(`[Air Intra] syp page ${sypPage} returned 0 products or error. End of syp data.`)
+          break
+        }
+
+        const sypDbOps: Promise<void>[] = []
+
+        for (const product of sypData) {
+          try {
+            const providerSku = product.codigo || product.codiart || ''
+            if (!providerSku) continue
+
+            // Skip if already fetched from articulos
+            if (allFetchedSkus.has(providerSku)) continue
+
+            const price = parseFloat(product.precio || '0')
+            const productName = product.descrip || product.descripcion || product.titulo || ''
+            if (!productName) continue
+
+            const costPrice = price
+            const sellingPrice = costPrice > 0 ? costPrice * (1 + sypMarkup / 100) : 0
+            const totalStock = (product.air?.disponible || 0) +
+              (product.lug?.disponible || 0) +
+              (product.ros?.disponible || 0) +
+              (product.cba?.disponible || 0) +
+              (product.mza?.disponible || 0) +
+              (product.stock_disponible || 0)
+
+            // syp has no rubro/grupo — use keyword-only category mapping
+            const { categoryId } = mapProductToCategory(
+              productName, '', supplierMappings, slugToId, idToParentId, parentSlugToChildSlugs
+            )
+
+            let isActive = price > 0 ? 1 : 0
+            if (isActive === 1 && supplier.allowedCategories) {
+              const supplierAllowedCategories: string[] | null = typeof supplier.allowedCategories === 'string'
+                ? JSON.parse(supplier.allowedCategories) : supplier.allowedCategories
+              if (supplierAllowedCategories !== null && categoryId) {
+                const catSlug = Object.entries(slugToId).find(([_, id]) => id === categoryId)?.[0]
+                const catParentId = idToParentId[categoryId]
+                const catParentSlug = catParentId ? Object.entries(slugToId).find(([_, id]) => id === catParentId)?.[0] : null
+                const isAllowedCategory = catSlug ? supplierAllowedCategories.includes(catSlug) : false
+                const isChildOfAllowedCategory = catParentSlug ? supplierAllowedCategories.includes(catParentSlug) : false
+                if (!isAllowedCategory && !isChildOfAllowedCategory) {
+                  isActive = 0
+                }
+              }
+            }
+
+            const existingProduct = existingBySku[providerSku]
+            const now = new Date().toISOString()
+
+            if (existingProduct) {
+              // Update stock/price for product already in DB
+              sypDbOps.push(
+                db.execute({
+                  sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
+                  args: [costPrice, sellingPrice, totalStock, isActive, now, existingProduct.id],
+                }).then(() => { sypUpdated++ }).catch((err) => { console.error('Error updating syp product:', err); errors++ })
+              )
+            } else {
+              // Insert new product from syp
+              const newId = crypto.randomUUID()
+              const formattedName = formatProductName(productName)
+              let slug = generateSlug(formattedName)
+              if (allExistingSlugs.has(slug)) {
+                slug = slug + '-' + providerSku.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 10)
+              }
+              allExistingSlugs.add(slug)
+
+              const specs: Record<string, string> = {}
+              if (product.moneda) specs['Moneda'] = product.moneda
+
+              sypDbOps.push(
+                db.execute({
+                  sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
+                        VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
+                  args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, isActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, ''],
+                }).then(() => {
+                  sypCreated++
+                  created++
+                  existingBySku[providerSku] = { id: newId, slug }
+                  console.log(`[Air Intra] syp: added "${formattedName}" (SKU: ${providerSku})`)
+                }).catch((err) => { console.error('Error inserting syp product:', err); errors++ })
+              )
+            }
+
+            allFetchedSkus.add(providerSku)
+            totalFetched++
+          } catch (err) {
+            console.error('[Air Intra] Error processing syp product:', err)
+            errors++
+          }
+        }
+
+        // Execute syp DB operations
+        for (let i = 0; i < sypDbOps.length; i += BATCH_CONCURRENCY) {
+          const batch = sypDbOps.slice(i, i + BATCH_CONCURRENCY)
+          await Promise.all(batch)
+        }
+
+        console.log(`[Air Intra] syp page ${sypPage}: ${sypData.length} items processed`)
+
+        // If less than 500, this was the last page
+        if (sypData.length < 500) {
+          console.log('[Air Intra] syp: last page reached.')
+          break
+        }
+
+        sypPage++
+      } catch (sypErr: any) {
+        console.error(`[Air Intra] syp fetch error on page ${sypPage}:`, sypErr.message)
+        break // Stop syp sync on error
+      }
+    }
+
+    if (sypCreated > 0 || sypUpdated > 0) {
+      console.log(`[Air Intra] syp supplementary sync: ${sypCreated} new + ${sypUpdated} updated`)
+    } else {
+      console.log('[Air Intra] syp supplementary sync: no new products found')
+    }
+
+    // ==========================================
     // POST-SYNC RECATEGORIZATION: Fix products with NULL categoryId.
     // Many products get NULL category because their name doesn't match any keyword
     // and there's no supplier category mapping. We try to fix this by:
@@ -1633,7 +1796,8 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
         ? ` (${totalRecoveredByExtractor} productos recuperados por extractor)`
         : ''
     const recoverySearchNote = recoveryCreated > 0 || recoveryUpdated > 0 ? ` + ${recoveryCreated} recuperados por búsqueda dirigida (${recoveryUpdated} actualizados)` : ''
-    result.message = `Sincronización completada: ${totalFetched} productos, ${created} nuevos, ${updated} actualizados, ${skipped} omitidos, ${errors} errores${recoveryNote}${recoverySearchNote}`
+    const sypNote = sypCreated > 0 || sypUpdated > 0 ? ` + ${sypCreated} nuevos del catálogo syp (${sypUpdated} actualizados)` : ''
+    result.message = `Sincronización completada: ${totalFetched} productos, ${created} nuevos, ${updated} actualizados, ${skipped} omitidos, ${errors} errores${recoveryNote}${recoverySearchNote}${sypNote}`
 
   } catch (error: any) {
     result.message = `Error de conexión con Air Intra: ${error.message}`
