@@ -168,7 +168,7 @@ function getAirIntraSupplierCategory(product) {
 
 const CATEGORY_KEYWORD_MAP = [
   // Complete products first
-  { keywords: ['PC GAMER','PC LENOVO','PC KELYX','SIST. KELYX','SIST.','COMPUTADORA','BAREBONE','DESKTOP','ALL IN ONE','ALL-IN-ONE'], categorySlug: 'pc-armadas' },
+  { keywords: ['PC GAMER','PC LENOVO','PC KELYX','PC AIR','PC ARKHAM','PC GAMEMAX','PC CX','SIST. KELYX','SIST.','COMPUTADORA','BAREBONE','DESKTOP','ALL IN ONE','ALL-IN-ONE'], categorySlug: 'pc-armadas' },
   { keywords: ['NOTEBOOK','LAPTOP','PORTATIL'], categorySlug: 'notebooks' },
   { keywords: ['MINI PC','STICK PC','NUC','MELE','N100'], categorySlug: 'pc-armadas' },
   { keywords: ['MONITOR','ULTRAFINE','LED MONITOR'], categorySlug: 'monitores' },

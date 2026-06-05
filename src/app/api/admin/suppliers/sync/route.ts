@@ -1360,116 +1360,263 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
     }
 
     // ==========================================
-    // POST-SYNC RECOVERY: Search for known product brands using the API's
-    // `texto` parameter to find products that may have been lost due to JSON corruption.
-    // This specifically targets "PC AIR", "PC CX", "PC ARKHAM", "PC GAMEMAX" which are
-    // Air Intra's assembled PC brands that often get lost in corrupted JSON pages.
+    // POST-SYNC RECOVERY: Search for products that may have been lost due to
+    // JSON corruption. We use TWO strategies:
+    // 1. `texto` search for known brand names (PC AIR, PC CX, etc.)
+    // 2. `codiart` search for specific SKUs reported as missing
+    // Both use query parameters (not body) per Air Intra API docs.
+    // Rate limit handling: wait 5 min if rate-limited, then retry once.
     // ==========================================
     const recoveryMarkup = supplier.markup || 30
-    const RECOVERY_SEARCHES = ['PC AIR', 'PC CX', 'PC ARKHAM', 'PC GAMEMAX']
-    let recoveryCreated = 0
-    for (const searchTerm of RECOVERY_SEARCHES) {
+
+    // Helper: process a single recovery product
+    const processRecoveryProduct = async (product: any): Promise<{ action: 'created' | 'updated' | 'skipped' }> => {
+      const providerSku = product.codigo || product.codiart || ''
+      if (!providerSku || allFetchedSkus.has(providerSku)) return { action: 'skipped' }
+
+      const price = parseFloat(product.precio || '0')
+      const productName = product.descrip || product.descripcion || product.titulo || ''
+      if (!productName || !providerSku) return { action: 'skipped' }
+
+      const supplierCategory = getAirIntraSupplierCategory(product)
+      const costPrice = price
+      const sellingPrice = costPrice > 0 ? costPrice * (1 + recoveryMarkup / 100) : 0
+      const totalStock = (product.air?.disponible || 0) +
+        (product.lug?.disponible || 0) +
+        (product.ros?.disponible || 0) +
+        (product.cba?.disponible || 0) +
+        (product.mza?.disponible || 0) +
+        (product.stock_disponible || 0)
+
+      const { categoryId } = mapProductToCategory(
+        productName, supplierCategory, supplierMappings, slugToId, idToParentId, parentSlugToChildSlugs
+      )
+
+      let isActive = price > 0 ? 1 : 0
+      if (isActive === 1 && supplier.allowedCategories) {
+        const supplierAllowedCategories: string[] | null = typeof supplier.allowedCategories === 'string'
+          ? JSON.parse(supplier.allowedCategories) : supplier.allowedCategories
+        if (supplierAllowedCategories !== null && categoryId) {
+          const catSlug = Object.entries(slugToId).find(([_, id]) => id === categoryId)?.[0]
+          const catParentId = idToParentId[categoryId]
+          const catParentSlug = catParentId ? Object.entries(slugToId).find(([_, id]) => id === catParentId)?.[0] : null
+          const isAllowed = catSlug ? supplierAllowedCategories.includes(catSlug) : false
+          const isChildOfAllowed = catParentSlug ? supplierAllowedCategories.includes(catParentSlug) : false
+          if (!isAllowed && !isChildOfAllowed) isActive = 0
+        }
+      }
+
+      const existingProduct = existingBySku[providerSku]
+      const now = new Date().toISOString()
+
+      if (existingProduct) {
+        await db.execute({
+          sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, supplierCategory = ?, categoryId = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
+          args: [costPrice, sellingPrice, totalStock, supplierCategory, categoryId, isActive, now, existingProduct.id],
+        })
+        return { action: 'updated' }
+      } else {
+        const newId = crypto.randomUUID()
+        const formattedName = formatProductName(productName)
+        let slug = generateSlug(formattedName)
+        if (allExistingSlugs.has(slug)) {
+          slug = slug + '-' + providerSku.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 10)
+        }
+        allExistingSlugs.add(slug)
+
+        const specs: Record<string, string> = {}
+        if (product.garantia) specs['Garantía'] = product.garantia
+        if (product.moneda) specs['Moneda'] = product.moneda
+        if (product.marca) specs['Marca'] = product.marca
+        if (product.rubro) specs['Rubro'] = product.rubro
+        if (product.grupo) specs['Grupo'] = product.grupo
+        if (product.tipo?.name) specs['Tipo'] = product.tipo.name
+        if (product.estado?.name) specs['Estado'] = product.estado.name
+
+        await db.execute({
+          sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
+                VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
+          args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, isActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, supplierCategory],
+        })
+        existingBySku[providerSku] = { id: newId, slug }
+        console.log(`[Air Intra] Recovery: added "${formattedName}" (SKU: ${providerSku})`)
+        return { action: 'created' }
+      }
+    }
+
+    // Helper: fetch recovery results with rate limit handling
+    // IMPORTANT: Air Intra API search parameters (texto, codiart) MUST be in the POST body, NOT query params.
+    // Query params are ignored by the API for search filtering.
+    const fetchRecoveryResults = async (searchParams: Record<string, string>, description: string): Promise<any[] | null> => {
+      const searchUrl = `${baseUrl}/?q=${endpoint}&page=0`
+      
       try {
-        console.log(`[Air Intra] Recovery search for "${searchTerm}"...`)
-        const recoveryRes = await fetch(`${baseUrl}/?q=${endpoint}&page=0`, {
+        console.log(`[Air Intra] Recovery search: ${description}`)
+        let recoveryRes = await fetch(searchUrl, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ texto: searchTerm }),
+          body: JSON.stringify(searchParams),
         })
 
-        if (recoveryRes.ok) {
-          const { data: recoveryData, error: recoveryError } = await safeParseAirIntraResponse(recoveryRes)
-          if (!recoveryError && Array.isArray(recoveryData) && recoveryData.length > 0) {
-            console.log(`[Air Intra] Recovery "${searchTerm}": found ${recoveryData.length} products`)
-            for (const product of recoveryData) {
-              const providerSku = product.codigo || product.codiart || ''
-              if (!providerSku || allFetchedSkus.has(providerSku)) continue
-
-              const price = parseFloat(product.precio || '0')
-              const productName = product.descrip || product.descripcion || product.titulo || ''
-              if (!productName || !providerSku) continue
-
-              const supplierCategory = getAirIntraSupplierCategory(product)
-              const costPrice = price
-              const sellingPrice = costPrice > 0 ? costPrice * (1 + recoveryMarkup / 100) : 0
-              const totalStock = (product.air?.disponible || 0) +
-                (product.lug?.disponible || 0) +
-                (product.ros?.disponible || 0) +
-                (product.cba?.disponible || 0) +
-                (product.mza?.disponible || 0) +
-                (product.stock_disponible || 0)
-
-              const { categoryId } = mapProductToCategory(
-                productName, supplierCategory, supplierMappings, slugToId, idToParentId, parentSlugToChildSlugs
-              )
-
-              let isActive = price > 0 ? 1 : 0
-              if (isActive === 1 && supplier.allowedCategories) {
-                const supplierAllowedCategories: string[] | null = typeof supplier.allowedCategories === 'string'
-                  ? JSON.parse(supplier.allowedCategories) : supplier.allowedCategories
-                if (supplierAllowedCategories !== null && categoryId) {
-                  const catSlug = Object.entries(slugToId).find(([_, id]) => id === categoryId)?.[0]
-                  const catParentId = idToParentId[categoryId]
-                  const catParentSlug = catParentId ? Object.entries(slugToId).find(([_, id]) => id === catParentId)?.[0] : null
-                  const isAllowed = catSlug ? supplierAllowedCategories.includes(catSlug) : false
-                  const isChildOfAllowed = catParentSlug ? supplierAllowedCategories.includes(catParentSlug) : false
-                  if (!isAllowed && !isChildOfAllowed) isActive = 0
-                }
-              }
-
-              const existingProduct = existingBySku[providerSku]
-              const now = new Date().toISOString()
-
-              if (existingProduct) {
-                await db.execute({
-                  sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, supplierCategory = ?, categoryId = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
-                  args: [costPrice, sellingPrice, totalStock, supplierCategory, categoryId, isActive, now, existingProduct.id],
+        // Handle rate limit: wait 5 minutes and retry ONCE
+        if (recoveryRes.status === 403) {
+          const errText = await recoveryRes.text().catch(() => '')
+          if (errText.includes('Too many queries')) {
+            console.log(`[Air Intra] Recovery "${description}" rate-limited. Waiting 5 minutes before retry...`)
+            await new Promise(r => setTimeout(r, 5 * 60 * 1000))
+            
+            // Re-login after waiting (token may have expired)
+            console.log('[Air Intra] Re-logging in after rate limit wait...')
+            const reAuthRes = await fetch(`${baseUrl}/?q=login&user=${encodeURIComponent(supplier.apiUsername)}&pass=${encodeURIComponent(supplier.apiPassword)}`)
+            if (reAuthRes.ok) {
+              const { data: reAuthData, error: reAuthError } = await safeParseAirIntraResponse(reAuthRes)
+              if (!reAuthError && reAuthData?.token) {
+                const newToken = reAuthData.token
+                recoveryRes = await fetch(searchUrl, {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${newToken}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(searchParams),
                 })
-                updated++
               } else {
-                const newId = crypto.randomUUID()
-                const formattedName = formatProductName(productName)
-                let slug = generateSlug(formattedName)
-                if (allExistingSlugs.has(slug)) {
-                  slug = slug + '-' + providerSku.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 10)
-                }
-                allExistingSlugs.add(slug)
-
-                const specs: Record<string, string> = {}
-                if (product.garantia) specs['Garantía'] = product.garantia
-                if (product.moneda) specs['Moneda'] = product.moneda
-                if (product.marca) specs['Marca'] = product.marca
-                if (product.rubro) specs['Rubro'] = product.rubro
-                if (product.grupo) specs['Grupo'] = product.grupo
-
-                await db.execute({
-                  sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
-                        VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
-                  args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, isActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, supplierCategory],
-                })
-                created++
-                recoveryCreated++
-                existingBySku[providerSku] = { id: newId, slug }
-                console.log(`[Air Intra] Recovery: added "${formattedName}" (SKU: ${providerSku})`)
+                console.log(`[Air Intra] Re-login failed: ${reAuthError}. Skipping recovery "${description}".`)
+                return null
               }
-              allFetchedSkus.add(providerSku)
-              totalFetched++
+            } else {
+              console.log(`[Air Intra] Re-login HTTP ${reAuthRes.status}. Skipping recovery "${description}".`)
+              return null
             }
-          } else if (recoveryError) {
-            console.log(`[Air Intra] Recovery "${searchTerm}" error: ${recoveryError}`)
-          } else {
-            console.log(`[Air Intra] Recovery "${searchTerm}": 0 results`)
           }
         }
+
+        if (!recoveryRes.ok) {
+          console.log(`[Air Intra] Recovery "${description}" HTTP ${recoveryRes.status}. Skipping.`)
+          return null
+        }
+
+        const { data: recoveryData, error: recoveryError } = await safeParseAirIntraResponse(recoveryRes)
+        if (recoveryError) {
+          console.log(`[Air Intra] Recovery "${description}" parse error: ${recoveryError}`)
+          return null
+        }
+        if (!Array.isArray(recoveryData) || recoveryData.length === 0) {
+          console.log(`[Air Intra] Recovery "${description}": 0 results`)
+          return null
+        }
+        console.log(`[Air Intra] Recovery "${description}": found ${recoveryData.length} products`)
+        return recoveryData
       } catch (recoveryErr) {
-        console.error(`[Air Intra] Recovery search error for "${searchTerm}":`, recoveryErr)
+        console.error(`[Air Intra] Recovery search error for "${description}":`, recoveryErr)
+        return null
       }
     }
-    if (recoveryCreated > 0) {
-      console.log(`[Air Intra] Recovery total: ${recoveryCreated} new products added via targeted search`)
+
+    let recoveryCreated = 0
+    let recoveryUpdated = 0
+
+    // Strategy 1: Text search for known brand names
+    const RECOVERY_TEXT_SEARCHES = ['PC AIR', 'PC CX', 'PC ARKHAM', 'PC GAMEMAX']
+    for (const searchTerm of RECOVERY_TEXT_SEARCHES) {
+      const products = await fetchRecoveryResults({ texto: searchTerm }, `texto="${searchTerm}"`)
+      if (products) {
+        for (const product of products) {
+          const result = await processRecoveryProduct(product)
+          if (result.action === 'created') { recoveryCreated++; created++ }
+          else if (result.action === 'updated') { recoveryUpdated++; updated++ }
+          const providerSku = product.codigo || product.codiart || ''
+          if (providerSku) { allFetchedSkus.add(providerSku); totalFetched++ }
+        }
+      }
+      // Wait 2 seconds between recovery searches to avoid rate limiting
+      if (RECOVERY_TEXT_SEARCHES.indexOf(searchTerm) < RECOVERY_TEXT_SEARCHES.length - 1) {
+        await new Promise(r => setTimeout(r, 2000))
+      }
+    }
+
+    // Strategy 2: Search by specific SKUs (codiart) for known missing products
+    // These are SKUs that exist in Air Intra's catalog but were not imported
+    // due to corrupted JSON pages or other issues.
+    const MISSING_SKUS: string[] = [] // Will be populated dynamically
+    
+    // Detect missing SKUs by checking gaps in the API's SKU sequence
+    // Products with SKUs near known products but missing from DB are likely lost
+    try {
+      const dbSkuResult = await db.execute({
+        sql: 'SELECT providerSku FROM products WHERE providerId = ? AND providerSku IS NOT NULL ORDER BY CAST(providerSku AS INTEGER)',
+        args: [supplier.id],
+      })
+      const dbSkuSet = new Set((dbSkuResult.rows as any[]).map(r => r.providerSku))
+      
+      // For each SKU we fetched from the API, check if nearby SKUs exist in the DB
+      // If a gap is found (e.g., 52739 exists but 52751 doesn't and we fetched it from API),
+      // we should try to search for it
+      const fetchedSkuNums = Array.from(allFetchedSkus)
+        .map(s => parseInt(s, 10))
+        .filter(n => !isNaN(n))
+        .sort((a, b) => a - b)
+      
+      // Find gaps: where a fetched SKU has nearby missing SKUs
+      // Look for gaps of 1-50 between consecutive DB SKUs that we fetched from the API
+      for (let i = 0; i < fetchedSkuNums.length - 1; i++) {
+        const current = fetchedSkuNums[i]
+        const next = fetchedSkuNums[i + 1]
+        // If the gap is small (1-50) and we have products on both sides in the API
+        // but some in between are missing from the DB, they might be lost
+        if (next - current > 1 && next - current <= 50) {
+          for (let sku = current + 1; sku < next; sku++) {
+            const skuStr = String(sku)
+            if (!dbSkuSet.has(skuStr) && allFetchedSkus.has(skuStr)) {
+              // We fetched this SKU from API but it's not in DB - this is a processing error
+              console.log(`[Air Intra] Detected fetched-but-not-in-DB SKU: ${skuStr}`)
+              MISSING_SKUS.push(skuStr)
+            }
+          }
+        }
+      }
+      
+      // Also add any SKUs that were in the fetched set but somehow not processed
+      for (const sku of Array.from(allFetchedSkus)) {
+        if (!dbSkuSet.has(sku) && !isNaN(parseInt(sku, 10))) {
+          // This SKU was fetched from the API but isn't in the DB
+          // This could be a processing error during the main sync
+          if (!MISSING_SKUS.includes(sku)) {
+            MISSING_SKUS.push(sku)
+          }
+        }
+      }
+    } catch (gapErr) {
+      console.error('[Air Intra] Error detecting missing SKUs:', gapErr)
+    }
+    
+    if (MISSING_SKUS.length > 0) {
+      console.log(`[Air Intra] Found ${MISSING_SKUS.length} potentially missing SKUs to recover: ${MISSING_SKUS.slice(0, 20).join(', ')}${MISSING_SKUS.length > 20 ? '...' : ''}`)
+      // Search for each missing SKU using codiart parameter (max 20 to avoid excessive API calls)
+      const skusToSearch = MISSING_SKUS.slice(0, 20)
+      for (const sku of skusToSearch) {
+        const products = await fetchRecoveryResults({ codiart: sku }, `codiart=${sku}`)
+        if (products) {
+          for (const product of products) {
+            const result = await processRecoveryProduct(product)
+            if (result.action === 'created') { recoveryCreated++; created++ }
+            else if (result.action === 'updated') { recoveryUpdated++; updated++ }
+            const providerSku = product.codigo || product.codiart || ''
+            if (providerSku) { allFetchedSkus.add(providerSku); totalFetched++ }
+          }
+        }
+        // Wait 3 seconds between codiart searches to avoid rate limiting
+        if (skusToSearch.indexOf(sku) < skusToSearch.length - 1) {
+          await new Promise(r => setTimeout(r, 3000))
+        }
+      }
+    }
+
+    if (recoveryCreated > 0 || recoveryUpdated > 0) {
+      console.log(`[Air Intra] Recovery total: ${recoveryCreated} new + ${recoveryUpdated} updated via targeted search`)
     }
 
     result.ok = true
@@ -1485,7 +1632,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
       : totalRecoveredByExtractor > 0
         ? ` (${totalRecoveredByExtractor} productos recuperados por extractor)`
         : ''
-    const recoverySearchNote = recoveryCreated > 0 ? ` + ${recoveryCreated} recuperados por búsqueda dirigida` : ''
+    const recoverySearchNote = recoveryCreated > 0 || recoveryUpdated > 0 ? ` + ${recoveryCreated} recuperados por búsqueda dirigida (${recoveryUpdated} actualizados)` : ''
     result.message = `Sincronización completada: ${totalFetched} productos, ${created} nuevos, ${updated} actualizados, ${skipped} omitidos, ${errors} errores${recoveryNote}${recoverySearchNote}`
 
   } catch (error: any) {
