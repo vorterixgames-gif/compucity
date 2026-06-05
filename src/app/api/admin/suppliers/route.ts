@@ -10,6 +10,7 @@ function stripSupplierCredentials(supplier: any) {
     apiToken: apiToken ? '••••••••' : null,
     apiPassword: apiPassword ? '••••••••' : null,
     apiUsername: apiUsername || null,
+    allowedCategories: safe.allowedCategories ? JSON.parse(safe.allowedCategories) : null,
   }
 }
 
@@ -78,6 +79,11 @@ export async function GET(request: Request) {
       }
     }
 
+    // Get parent categories for the allowed-categories UI
+    const parentCategories = await db.execute({
+      sql: 'SELECT id, name, slug FROM categories WHERE parentId IS NULL ORDER BY "order", name',
+    })
+
     const enrichedSuppliers = suppliers.map(s => ({
       ...stripSupplierCredentials(s),
       productCount: productCounts[s.id] || 0,
@@ -87,6 +93,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       ok: true,
       suppliers: enrichedSuppliers,
+      parentCategories: (parentCategories.rows as any[]).map(c => ({ id: c.id, name: c.name, slug: c.slug })),
       total,
       page,
       totalPages: Math.ceil(total / limit),
@@ -172,7 +179,7 @@ export async function PUT(request: Request) {
     if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const body = await request.json()
-    const { id, name, contactName, contactEmail, contactPhone, website, apiType, apiBaseUrl, apiUserId, apiToken, apiUsername, apiPassword, markup, currency, isActive, notes } = body
+    const { id, name, contactName, contactEmail, contactPhone, website, apiType, apiBaseUrl, apiUserId, apiToken, apiUsername, apiPassword, markup, currency, isActive, notes, allowedCategories } = body
 
     if (!id) {
       return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
@@ -189,6 +196,7 @@ export async function PUT(request: Request) {
         website = ?, apiType = ?, apiBaseUrl = ?, apiUserId = ?,
         apiToken = ?, apiUsername = ?, apiPassword = ?,
         markup = ?, currency = ?, isActive = ?, notes = ?,
+        allowedCategories = ?,
         updatedAt = ?
       WHERE id = ?`,
       args: [
@@ -207,6 +215,7 @@ export async function PUT(request: Request) {
         currency || 'USD',
         isActive !== undefined ? (isActive ? 1 : 0) : 1,
         notes || null,
+        allowedCategories ? JSON.stringify(allowedCategories) : null,
         new Date().toISOString(),
         id,
       ],

@@ -1055,13 +1055,37 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
           )
 
           // ==========================================
-          // Air Intra category filter:
-          // Products that map to a store category are active.
-          // Products with no category match remain isActive = 0.
-          // All parent categories and their subcategories are allowed,
-          // since the store sells the full product range from Air Intra.
+          // Category filter based on supplier's allowedCategories config:
+          // - null: all categories allowed (no filter)
+          // - []: no categories allowed (all inactive)
+          // - ['slug1','slug2']: only those parent slugs + their children allowed
+          // Products with no category match are always inactive.
           // ==========================================
-          let airIntraIsActive = categoryId ? 1 : 0
+          let airIntraIsActive = 0
+          if (categoryId) {
+            const supplierAllowedCategories: string[] | null = supplier.allowedCategories
+              ? (typeof supplier.allowedCategories === 'string'
+                ? JSON.parse(supplier.allowedCategories)
+                : supplier.allowedCategories)
+              : null
+
+            if (supplierAllowedCategories === null) {
+              // No filter configured — all categories allowed
+              airIntraIsActive = 1
+            } else {
+              // Check if the product's category (or its parent) is in the allowed list
+              const catSlug = Object.entries(slugToId).find(([_, id]) => id === categoryId)?.[0]
+              const catParentId = idToParentId[categoryId]
+              const catParentSlug = catParentId ? Object.entries(slugToId).find(([_, id]) => id === catParentId)?.[0] : null
+
+              const isAllowedCategory = catSlug ? supplierAllowedCategories.includes(catSlug) : false
+              const isChildOfAllowedCategory = catParentSlug ? supplierAllowedCategories.includes(catParentSlug) : false
+
+              if (isAllowedCategory || isChildOfAllowedCategory) {
+                airIntraIsActive = 1
+              }
+            }
+          }
 
           if (existingRows.length > 0) {
             await db.execute({

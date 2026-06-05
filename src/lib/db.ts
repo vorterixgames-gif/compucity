@@ -123,7 +123,19 @@ export async function ensureMigrations() {
     }
   }
 
-  // 5. Add supplierCategory column to products
+  // 5. Add allowedCategories column to suppliers (JSON array of category slugs)
+  try {
+    await db.execute({ sql: 'SELECT allowedCategories FROM suppliers LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({ sql: 'ALTER TABLE suppliers ADD COLUMN allowedCategories TEXT' })
+      console.log('[migration] Added allowedCategories column to suppliers')
+    } catch (e) {
+      console.warn('[migration] Could not add allowedCategories:', e)
+    }
+  }
+
+  // 5b. Add supplierCategory column to products
   try {
     await db.execute({ sql: 'SELECT supplierCategory FROM products LIMIT 1', args: [] })
   } catch {

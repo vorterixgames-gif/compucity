@@ -46,6 +46,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 
+interface ParentCategory {
+  id: string
+  name: string
+  slug: string
+}
+
 interface Supplier {
   id: string
   name: string
@@ -62,11 +68,13 @@ interface Supplier {
   markup: number
   currency: string
   isActive: number
+  allowedCategories: string[] | null
   lastSyncAt: string | null
   notes: string | null
   createdAt: string
   updatedAt: string
   productCount: number
+  inactiveCount: number
 }
 
 const apiTypeLabels: Record<string, { label: string; color: string }> = {
@@ -147,6 +155,7 @@ function formatDate(dateStr: string | null): string {
 
 export default function AdminProveedores() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [parentCategories, setParentCategories] = useState<ParentCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [total, setTotal] = useState(0)
@@ -197,6 +206,7 @@ export default function AdminProveedores() {
       const data = await res.json()
       if (data.ok) {
         setSuppliers(data.suppliers)
+        if (data.parentCategories) setParentCategories(data.parentCategories)
         setTotal(data.total)
         setPage(data.page)
         setTotalPages(data.totalPages)
@@ -496,6 +506,53 @@ export default function AdminProveedores() {
     return categoryMappings.find(m => m.supplierCategory === supplierCategory)
   }
 
+  // Toggle allowed category for a supplier
+  const handleToggleAllowedCategory = async (supplier: Supplier, categorySlug: string) => {
+    const current = supplier.allowedCategories || []
+    const isCurrentlyAllowed = current.includes(categorySlug)
+    const newAllowed = isCurrentlyAllowed
+      ? current.filter((s: string) => s !== categorySlug)
+      : [...current, categorySlug]
+
+    // Optimistic update
+    setSuppliers(prev => prev.map(s =>
+      s.id === supplier.id ? { ...s, allowedCategories: newAllowed } : s
+    ))
+
+    try {
+      await fetch('/api/admin/suppliers', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: supplier.id, allowedCategories: newAllowed }),
+      })
+    } catch (error) {
+      console.error('Error updating allowed categories:', error)
+      // Revert on error
+      setSuppliers(prev => prev.map(s =>
+        s.id === supplier.id ? { ...s, allowedCategories: current } : s
+      ))
+    }
+  }
+
+  // Select all / deselect all categories for a supplier
+  const handleSetAllCategories = async (supplier: Supplier, selectAll: boolean) => {
+    const newAllowed = selectAll ? parentCategories.map(c => c.slug) : []
+
+    setSuppliers(prev => prev.map(s =>
+      s.id === supplier.id ? { ...s, allowedCategories: newAllowed.length > 0 ? newAllowed : null } : s
+    ))
+
+    try {
+      await fetch('/api/admin/suppliers', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: supplier.id, allowedCategories: newAllowed.length > 0 ? newAllowed : null }),
+      })
+    } catch (error) {
+      console.error('Error updating allowed categories:', error)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -723,6 +780,57 @@ export default function AdminProveedores() {
                     {supplier.notes && (
                       <div className="mt-4 p-3 bg-yellow-50 border border-yellow-100 rounded-lg">
                         <p className="text-sm text-yellow-800">{supplier.notes}</p>
+                      </div>
+                    )}
+
+                    {/* Allowed Categories Filter */}
+                    {supplier.apiType !== 'none' && parentCategories.length > 0 && (
+                      <div className="mt-4 p-3 bg-white border rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-semibold text-sm text-gray-700">Categorías Permitidas</h4>
+                          <div className="flex gap-2">
+                            <button
+                              className="text-xs text-compucity-green hover:underline"
+                              onClick={() => handleSetAllCategories(supplier, true)}
+                            >
+                              Todas
+                            </button>
+                            <span className="text-xs text-gray-300">|</span>
+                            <button
+                              className="text-xs text-gray-500 hover:underline"
+                              onClick={() => handleSetAllCategories(supplier, false)}
+                            >
+                              Ninguna
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-400 mb-2">
+                          {supplier.allowedCategories === null
+                            ? 'Todas las categorías están permitidas (filtro desactivado)'
+                            : supplier.allowedCategories.length === 0
+                              ? 'Ninguna categoría permitida — todos los productos se desactivarán'
+                              : `${supplier.allowedCategories.length} de ${parentCategories.length} categorías permitidas`
+                          }
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {parentCategories.map(cat => {
+                            const isAllowed = supplier.allowedCategories === null || supplier.allowedCategories.includes(cat.slug)
+                            return (
+                              <button
+                                key={cat.id}
+                                onClick={() => handleToggleAllowedCategory(supplier, cat.slug)}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors border ${
+                                  isAllowed
+                                    ? 'bg-compucity-green-50 text-compucity-green-dark border-compucity-green/30 hover:bg-compucity-green/20'
+                                    : 'bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100'
+                                }`}
+                              >
+                                <span className={`w-2 h-2 rounded-full ${isAllowed ? 'bg-compucity-green' : 'bg-gray-300'}`} />
+                                {cat.name}
+                              </button>
+                            )
+                          })}
+                        </div>
                       </div>
                     )}
 
