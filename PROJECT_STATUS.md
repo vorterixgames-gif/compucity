@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-05 (sesion 21)
+**Ultima actualizacion:** 2026-06-06 (sesion 22)
 
 ---
 
@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** 2cf33b5 (fix: Air Intra sync - switch to articulos, fix pagination, batch operations)
+- **Commit actual:** 0e2d6d9 (fix: improve category mapping - prevent switches/routers in PC Armadas, fix 30 miscategorized products)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -368,6 +368,7 @@ El problema recurrente tenia 3 causas encadenadas:
 - **Homepage:** 3 secciones con variedad de precios (1 barato, 2 medios, 1 caro por seccion). Orden: Notebooks, Monitores, PCs (renombrado de "PC Armadas"). Funcion pickDiversePrices() en page.tsx
 - **Keywords de deteccion:** PC LENOVO, PC KELYX, SIST., BAREBONE
 - **Correcciones sesion 5:** 7 "PC Gamer Raptor" (eran gabinete+fuente, no PCs completas) movidas de gamer-pc a gabinetes. 4 Gabinete Raptor movidas de joysticks a gabinetes. 3 Switches TP-Link movidas de oficina-pc a switches
+- **Correcciones sesion 22:** 23 switches "Desktop" movidos de PC Armadas a Switches. 1 antena TP-Link → Placas de Red. 1 escritorio → Escritorios. 2 adaptadores USB-C HDMI → Cables. 2 adaptadores TP-Link USB → Cables. 1 tensiómetro → Smart Home. Mapeo proveedor 001-0430 → Switches creado
 - **Air Intra:** 108 productos de networking (placas-de-red: SFP, Aruba, HP) desactivados
 - **Nota:** La subcategoria gamer-pc esta vacia hasta que se consigan PCs gamer reales de los proveedores
 
@@ -427,6 +428,7 @@ El problema recurrente tenia 3 causas encadenadas:
 - **Filtros por columna:** Busqueda por nombre, filtro por proveedor, filtro por categoria, filtro por estado (activo/inactivo), filtro por IVA (10.5%/21%), filtro por stock (con/sin)
 - **Filtro "Sin categoria":** Opcion en el dropdown de categorias para encontrar productos sin categoria asignada (valor `"none"`)
 - **Filtro por proveedor:** Columna y dropdown de proveedor en la tabla de productos
+- **Filtro "Ingresado manualmente":** Opcion en el dropdown de proveedor para filtrar productos sin proveedor (creados manualmente, valor `"none"`)
 - **Ordenamiento:** Click en encabezados de columna para ordenar asc/desc (nombre, costo USD, precio lista, stock, IVA, marca)
 - **Indicadores visuales:** Flechas de ordenamiento, badges de filtro activo, contador de resultados
 - **Limpiar filtros:** Boton para resetear todos los filtros y ordenamiento
@@ -682,6 +684,7 @@ createdAt TEXT, updatedAt TEXT
 ## Backups
 | Fecha | Archivo | Tamano | Contenido |
 |-------|---------|--------|----------|
+| 2026-06-06 (s22) | `compucity-src-backup-20260606-s22.tar.gz` | ~1.1MB | Filtro proveedor manual + fix categorias (switches/routers en PC Armadas) + 30 productos recategorizados |
 | 2026-06-05 (s20) | `compucity-src-backup-20260605-s20.tar.gz` | ~1.1MB | Logo real en PDF del PC Builder + base64 encoding |
 | 2026-06-05 (s19) | `compucity-src-backup-20260605-s19.tar.gz` | ~14MB | Sync robusto Air Intra - verificacion doble + post-sync check |
 | 2026-06-05 (s18) | `compucity-src-backup-20260605-s18.tar.gz` | ~7.6MB | Air Intra sync error handling + rate limit detection |
@@ -759,6 +762,7 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ---
 
 ## Historial de Cambios
+- **2026-06-06 (s22):** Filtro "Ingresado manualmente" en proveedor + FIX masivo de categorias. (1) Admin productos: opcion "Ingresado manualmente" en dropdown de Proveedor para filtrar productos sin proveedor (providerId vacio/nulo). (2) FIX categoria DESKTOP: keyword "DESKTOP" era demasiado generico en CATEGORY_KEYWORD_MAP, causando que switches "Desktop Switch" (ej: Switch 5P Tp-link Tl-sg1005d Gigabit Desktop) se categorizaran como PC Armadas. (3) Reordenamiento: SWITCH y ROUTER movidos al Grupo 1 (antes de PC Armadas) para que se detecten primero. (4) "DESKTOP" reemplazado por "DESKTOP PC" (mas especifico). (5) Nuevas correcciones automaticas: SWITCH→switches, ROUTER→routers-wifi, TP-LINK→placas-de-red, ESCRITORIO→escritorios, ANTENA→placas-de-red, USB-C HDMI→cables, ADAPTADOR TP-LINK USB→cables, TENSIOMETRO→smart-home, HIKVISION→switches. (6) DB: 30 productos recategorizados (23 switches + 1 antena + 1 escritorio + 2 USB-C HDMI + 2 adaptadores TP-Link + 1 tensiómetro). (7) Mapeo proveedor 001-0430 → switches creado para Air Intra. Commit: 0e2d6d9
 - **2026-06-05 (s21):** FIX CRITICO Air Intra sync - Productos faltantes resuelto. (1) BUG PRINCIPAL: La paginación se detenía prematuramente cuando el JSON corrupto causaba que una página devolviera <500 productos, haciendo que el sync creyera que era la última página. El endpoint `syp` solo tenía ~4,500 productos y faltaban categorías. (2) Cambio de endpoint `syp` → `articulos`: Ahora usa el endpoint `articulos` que tiene 7,499 productos (vs 4,500 de syp) e incluye datos de categoría (rubro, grupo), garantía, tipo y estado. (3) Fix paginación: Ya no se detiene por `products.length < pageSize`. Ahora usa MAX_PAGES (30) + detección de página vacía. (4) Retry logic: Hasta 2 reintentos por página fallida. (5) Batch DB operations: Pre-load de productos existentes en memoria, INSERT/UPDATE en paralelo (concurrencia 20). (6) Script standalone: `sync-air-intra-direct.mjs` para sync directo a Turso sin pasar por API route. (7) Resultado: Air Intra pasó de 1,702 a 7,511 productos (7,324 activos). Commits: da050a3, 3ed8b21, 2cf33b5
 - **2026-06-05 (s16):** Multiples fixes y features de admin + PC Builder. (1) Bug #3: Filtro "Sin categoria" en admin productos - opcion para encontrar productos sin categoryId asignado (valor `"none"`). (2) Feature: Seleccion multiple y eliminacion masiva de productos - checkboxes en cada fila, select all, barra de acciones, dialogo de confirmacion, DELETE paralelo. (3) Bug #4: Cambiar nombre de categoria rompia PC Builder - el slug se regeneraba automaticamente, rompiendo las referencias hardcodeadas. Fix: API PUT ya no auto-regenera slug, campo slug editable en admin categorias con advertencia "No cambiar si se usa en Arma tu PC". (4) Feature: Ocultar datos internos de productos (Moneda DOL, EAN, Garantia) de las vistas publicas - solo se muestra descripcion y precio al cliente. (5) Bug #5: Socket detection - Intel Core Ultra 5 225F detectado como LGA 1700 en vez de LGA 1851. Causa: regex `/\bS?1851\b/` no matcheaba "LGA1851" (sin espacio). Fix: regex cambiado a `/(?:S|LGA\s*)?1851/`, + deteccion por modelo (CORE ULTRA = LGA 1851 siempre). Commits: 0969b04, afe7c31, 5a55884, f794b1d, 15fcb9a. Backup src (858KB)
 - **2026-06-05 (s15):** Fix SODIMM + PDF download en Arma tu PC. SODIMM movido de BUILDER_INCLUDE_PATTERNS a BUILDER_EXCLUDE_PATTERNS del slot RAM (ya no aparecen en el PC Builder). PDF download: al hacer clic en cualquier boton de WhatsApp del Arma tu PC, se genera y descarga un PDF profesional (jsPDF client-side) con branding Compucity (header verde, COMPU+CITY, tagline), fecha, lista de componentes con precios, total de lista y efectivo, nota 96hs, footer con contacto. Los 3 botones (desktop ultimo paso, sidebar, mobile sticky) ahora descargan PDF + abren WhatsApp. Icono Download agregado. Commits: f6a94e9, af6b8a6
