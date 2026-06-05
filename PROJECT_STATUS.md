@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-06 (sesion 23)
+**Ultima actualizacion:** 2026-06-06 (sesion 24)
 
 ---
 
@@ -51,6 +51,19 @@
 - **Bug:** Air Intra sync fallaba con errores de rate limiting (HTTP 429) y no los manejaba correctamente
 - **Fix:** Se mejoro el manejo de errores en la sync de Air Intra con deteccion de rate limiting, retry automatico con backoff, y mensajes de error mas descriptivos
 - **Commit:** cd980cc
+
+### MEJORA sesion 19: Air Intra Batched Sync (evita timeout de Vercel)
+- **Problema:** El sync completo de Air Intra (~7,500 productos, 16 paginas de 500) puede tardar 30-60+ segundos, excediendo el limite de 60s de Vercel Hobby plan para serverless functions
+- **Solucion:** Sync por lotes (batched) - divide la sincronizacion en chunks de 4 paginas (~2,000 productos, ~10-15s por lote)
+- **Arquitectura:**
+  1. Primer call: Login + lote 1 (paginas 0-3). Retorna `hasMore: true`, `nextPage: 4`, `token`, `exchangeRate`
+  2. Calls subsiguientes: Frontend envia `batch: { startPage, endPage, token, exchangeRate }` para cada lote
+  3. Finalize step: Despues de todos los lotes, frontend envia `batch: { token, exchangeRate, finalize: true }` que ejecuta syp sync, recategorizacion, recovery, y actualiza lastSyncAt
+- **Backend:** `syncAirIntraBatch()` y `syncAirIntraFinalize()` en `src/app/api/admin/suppliers/sync/route.ts`
+- **Frontend:** `handleSync()` en `src/app/admin/proveedores/page.tsx` - orquesta los lotes automaticamente con barra de progreso
+- **vercel.json:** `maxDuration` corregido a 60 (antes decia 300, pero Hobby plan limita a 60s)
+- **PAGES_PER_BATCH:** 4 (constante, 4 x 500 = 2,000 productos por lote)
+- **Compatibilidad:** Invid y Elit siguen usando sync completo (no necesitan batched, son mas chicos)
 
 ### MEJORA sesion 18: Sync robusto de Air Intra - Verificacion doble + post-sync check
 - **Problema de fondo:** El sync de Air Intra pierde productos cuando el JSON se corrompe por PHP notices. Incluso cuando `JSON.parse` tiene exito, algunos productos pueden perderse silenciosamente
@@ -548,7 +561,7 @@ scripts/deploy.sh                         — Script de deploy seguro
 - `GET/POST/PUT/DELETE /api/admin/products` (soporta markup/cashDiscount/ivaRate/salePrice)
 - `GET/POST /api/admin/categories`
 - `GET/POST /api/admin/suppliers`
-- `POST /api/admin/suppliers/sync` - Sync Air Intra
+- `POST /api/admin/suppliers/sync` - Sync proveedores (Air Intra batched, Invid/Elit full)
 - `POST /api/admin/suppliers/recategorize`
 - `GET/POST /api/admin/suppliers/category-mappings`
 - `POST /api/admin/suppliers/enrich-images` - Carga de imagenes WebP
