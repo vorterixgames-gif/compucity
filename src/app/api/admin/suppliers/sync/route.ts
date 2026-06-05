@@ -949,6 +949,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
     let updated = 0
     let skipped = 0
     let errors = 0
+    let usedExtractionFallback = false
 
     while (hasMore) {
       console.log(`[Air Intra] Fetching page ${page}...`)
@@ -972,7 +973,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
         return result
       }
 
-      // Get raw text first (we need it for fallback), then try standard parse
+      // Get raw text first (we need it for fallback and verification), then try standard parse
       let products: any[] | null = null
       const rawResponseText = await productsRes.text()
       const { data: parsedProducts, error: parseError } = await (async () => {
@@ -991,6 +992,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
         if (rawResponseText) {
           const cleanedText = stripPhpNotices(rawResponseText)
           products = extractProductsFromCorruptedJson(cleanedText)
+          usedExtractionFallback = true
           console.log(`[Air Intra] Extracted ${products.length} products from corrupted response`)
         }
 
@@ -1015,6 +1017,46 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
           break
         }
         products = parsedProducts
+
+        // ==========================================
+        // ROBUSTNESS IMPROVEMENT: Always run extractProductsFromCorruptedJson
+        // as a verification layer on top of the standard parse.
+        // Even when JSON.parse succeeds, some products can be lost because
+        // PHP notices injected INSIDE the JSON array can cause the parser
+        // to silently skip objects after the corruption point.
+        // We extract by object from the raw text and merge any missing products.
+        // ==========================================
+        if (rawResponseText) {
+          const cleanedText = stripPhpNotices(rawResponseText)
+          const extractedProducts = extractProductsFromCorruptedJson(cleanedText)
+
+          if (extractedProducts.length > products.length) {
+            // The extractor found more products than the standard parse!
+            // This means the standard JSON.parse silently dropped some products.
+            // Build a Set of SKUs already in our parsed array for fast lookup.
+            const parsedSkus = new Set(
+              products.map((p: any) => p.codigo || p.codiart || '').filter(Boolean)
+            )
+
+            let recoveredCount = 0
+            for (const extracted of extractedProducts) {
+              const sku = extracted.codigo || extracted.codiart || ''
+              if (sku && !parsedSkus.has(sku)) {
+                // This product was missed by the standard parse — add it
+                products.push(extracted)
+                recoveredCount++
+              }
+            }
+
+            if (recoveredCount > 0) {
+              console.log(`[Air Intra] ⚡ Recovery: standard parse had ${products.length - recoveredCount} products, extractor found ${recoveredCount} additional products that were lost in corrupted JSON. Total: ${products.length}`)
+            }
+          } else if (extractedProducts.length > 0 && extractedProducts.length < products.length * 0.8) {
+            // Extractor found significantly fewer products — likely the response was clean
+            // and the extractor is just less efficient. No action needed.
+            console.log(`[Air Intra] Verification OK: standard parse ${products.length} vs extractor ${extractedProducts.length} products`)
+          }
+        }
       }
 
       for (const product of products) {
@@ -1159,13 +1201,44 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
       args: [syncNow2, syncNow2, supplier.id],
     })
 
+    // ==========================================
+    // POST-SYNC VERIFICATION: Compare synced total with DB count.
+    // If we synced significantly fewer products than what Air Intra has in the DB,
+    // it may indicate that the API response was corrupted and products were lost.
+    // We log a warning so the admin knows to re-sync.
+    // ==========================================
+    try {
+      const dbCount = await db.execute({
+        sql: 'SELECT COUNT(*) as cnt FROM products WHERE providerId = ?',
+        args: [supplier.id],
+      })
+      const dbTotal = (dbCount.rows as any[])[0]?.cnt || 0
+      console.log(`[Air Intra] Post-sync verification: synced ${totalFetched} from API, ${dbTotal} in DB`)
+
+      if (totalFetched > 0 && dbTotal > 0 && totalFetched < dbTotal * 0.85) {
+        // We synced way fewer products than what the DB has — this is normal
+        // because the DB accumulates products over time and some may have been
+        // deleted from the supplier. But if it's a FRESH sync and the API
+        // returned fewer than expected, it could indicate data loss.
+        console.log(`[Air Intra] ⚠️ Warning: synced ${totalFetched} products but DB has ${dbTotal}. Some products may have been lost during sync due to corrupted JSON.`)
+      }
+    } catch (verifyErr) {
+      // Don't fail the sync if verification fails
+      console.error('[Air Intra] Post-sync verification error:', verifyErr)
+    }
+
     result.ok = true
     result.total = totalFetched
     result.created = created
     result.updated = updated
     result.skipped = skipped
     result.errors = errors
-    result.message = `Sincronización completada: ${totalFetched} productos, ${created} nuevos, ${updated} actualizados, ${skipped} omitidos`
+
+    // Include recovery info in the message if products were recovered
+    const recoveryNote = usedExtractionFallback
+      ? ' (usando extracción de objetos por JSON corrupto)'
+      : ''
+    result.message = `Sincronización completada: ${totalFetched} productos, ${created} nuevos, ${updated} actualizados, ${skipped} omitidos${recoveryNote}`
 
   } catch (error: any) {
     result.message = `Error de conexión con Air Intra: ${error.message}`
