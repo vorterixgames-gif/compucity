@@ -350,6 +350,22 @@ export default function AdminProductos() {
   // Count active filters
   const activeFilterCount = Object.values(filters).filter(v => v !== 'all').length
 
+  // Build a set of category IDs that belong to a parent (includes the parent itself + all descendants)
+  const getCategoryIdsWithDescendants = (parentId: string): Set<string> => {
+    const ids = new Set<string>()
+    ids.add(parentId)
+    const addChildIds = (pid: string) => {
+      for (const cat of categories) {
+        if (cat.parentId === pid) {
+          ids.add(cat.id)
+          addChildIds(cat.id)
+        }
+      }
+    }
+    addChildIds(parentId)
+    return ids
+  }
+
   // Filter + sort products
   const filteredProducts = (() => {
     let result = products.filter(p =>
@@ -360,7 +376,8 @@ export default function AdminProductos() {
 
     // Apply filters
     if (filters.category !== 'all') {
-      result = result.filter(p => p.categoryId === filters.category)
+      const catIds = getCategoryIdsWithDescendants(filters.category)
+      result = result.filter(p => p.categoryId && catIds.has(p.categoryId))
     }
     if (filters.stockStatus !== 'all') {
       if (filters.stockStatus === 'inStock') result = result.filter(p => p.stock > 5)
