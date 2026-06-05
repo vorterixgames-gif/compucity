@@ -407,100 +407,108 @@ async function main() {
   console.log(`  With price <= 0: ${allProducts.length - withPrice}`);
   console.log(`  Products recovered by extractor: ${totalRecoveredByExtractor}`);
   
-  // Step 3: Upsert products into DB
-  console.log('\n[4/5] Upserting products into DB...');
+  // Step 3: Upsert products into DB (using batch operations for speed)
+  console.log('\n[4/5] Upserting products into DB (batch mode)...');
   let created = 0, updated = 0, skipped = 0, errors = 0;
-  let batch = [];
-  const BATCH_SIZE = 50;
+  const BATCH_CONCURRENCY = 20;
+  
+  // Prepare all DB operations first
+  const dbOperations = [];
   
   for (const product of allProducts) {
-    try {
-      const providerSku = product.codigo || product.codiart || '';
-      const price = parseFloat(product.precio || '0');
-      const productName = product.descrip || product.descripcion || product.titulo || '';
-      
-      if (!productName || !providerSku) {
-        skipped++;
-        continue;
+    const providerSku = product.codigo || product.codiart || '';
+    const price = parseFloat(product.precio || '0');
+    const productName = product.descrip || product.descripcion || product.titulo || '';
+    
+    if (!productName || !providerSku) {
+      skipped++;
+      continue;
+    }
+    
+    const costPrice = price;
+    const markup = supplier.markup || 30;
+    const sellingPrice = costPrice > 0 ? costPrice * (1 + markup / 100) : 0;
+    const totalStock = (product.air?.disponible || 0) +
+      (product.lug?.disponible || 0) +
+      (product.ros?.disponible || 0) +
+      (product.cba?.disponible || 0) +
+      (product.mza?.disponible || 0) +
+      (product.stock_disponible || 0);
+    
+    const supplierCategory = getAirIntraSupplierCategory(product);
+    const { categoryId } = mapProductToCategory(productName, supplierCategory, slugToId, supplierMappings);
+    
+    let isActive = price > 0 ? 1 : 0;
+    
+    // Check allowedCategories filter
+    if (isActive === 1 && supplier.allowedCategories) {
+      const allowed = typeof supplier.allowedCategories === 'string' 
+        ? JSON.parse(supplier.allowedCategories) : supplier.allowedCategories;
+      if (allowed && categoryId) {
+        const catSlug = Object.entries(slugToId).find(([_, id]) => id === categoryId)?.[0];
+        const catParentId = idToParentId[categoryId];
+        const catParentSlug = catParentId ? Object.entries(slugToId).find(([_, id]) => id === catParentId)?.[0] : null;
+        const isAllowed = catSlug ? allowed.includes(catSlug) : false;
+        const isChildAllowed = catParentSlug ? allowed.includes(catParentSlug) : false;
+        if (!isAllowed && !isChildAllowed) isActive = 0;
       }
-      
-      const costPrice = price;
-      const markup = supplier.markup || 30;
-      const sellingPrice = costPrice > 0 ? costPrice * (1 + markup / 100) : 0;
-      const totalStock = (product.air?.disponible || 0) +
-        (product.lug?.disponible || 0) +
-        (product.ros?.disponible || 0) +
-        (product.cba?.disponible || 0) +
-        (product.mza?.disponible || 0) +
-        (product.stock_disponible || 0);
-      
-      const supplierCategory = getAirIntraSupplierCategory(product);
-      const { categoryId } = mapProductToCategory(productName, supplierCategory, slugToId, supplierMappings);
-      
-      let isActive = price > 0 ? 1 : 0;
-      
-      // Check allowedCategories filter
-      if (isActive === 1 && supplier.allowedCategories) {
-        const allowed = typeof supplier.allowedCategories === 'string' 
-          ? JSON.parse(supplier.allowedCategories) : supplier.allowedCategories;
-        if (allowed && categoryId) {
-          const catSlug = Object.entries(slugToId).find(([_, id]) => id === categoryId)?.[0];
-          const catParentId = idToParentId[categoryId];
-          const catParentSlug = catParentId ? Object.entries(slugToId).find(([_, id]) => id === catParentId)?.[0] : null;
-          const isAllowed = catSlug ? allowed.includes(catSlug) : false;
-          const isChildAllowed = catParentSlug ? allowed.includes(catParentSlug) : false;
-          if (!isAllowed && !isChildAllowed) isActive = 0;
-        }
-      }
-      
-      const now = new Date().toISOString();
-      
-      if (existingBySku[providerSku]) {
-        // Update existing product
-        await db.execute({
+    }
+    
+    const now = new Date().toISOString();
+    
+    if (existingBySku[providerSku]) {
+      // Update existing product
+      dbOperations.push(
+        db.execute({
           sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, supplierCategory = ?, categoryId = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
           args: [costPrice, sellingPrice, totalStock, supplierCategory, categoryId, isActive, now, existingBySku[providerSku]],
-        });
-        updated++;
-      } else {
-        // Create new product
-        const formattedName = formatProductName(productName);
-        let slug = generateSlug(formattedName);
-        
-        // Handle slug collision
-        if (existingSlugs.has(slug)) {
-          slug = slug + '-' + providerSku.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 10);
-        }
-        existingSlugs.add(slug);
-        
-        const newId = crypto.randomUUID();
-        
-        const specs = {};
-        if (product.garantia) specs['Garantía'] = product.garantia;
-        if (product.moneda) specs['Moneda'] = product.moneda;
-        if (product.rubro) specs['Rubro'] = product.rubro;
-        if (product.grupo) specs['Grupo'] = product.grupo;
-        if (product.tipo?.name) specs['Tipo'] = product.tipo.name;
-        if (product.estado?.name) specs['Estado'] = product.estado.name;
-        
-        await db.execute({
+        }).then(() => { updated++ }).catch((err) => { console.error(`Error updating ${providerSku}:`, err.message); errors++ })
+      );
+    } else {
+      // Create new product
+      const formattedName = formatProductName(productName);
+      let slug = generateSlug(formattedName);
+      
+      // Handle slug collision
+      if (existingSlugs.has(slug)) {
+        slug = slug + '-' + providerSku.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 10);
+      }
+      existingSlugs.add(slug);
+      
+      const newId = crypto.randomUUID();
+      
+      const specs = {};
+      if (product.garantia) specs['Garantía'] = product.garantia;
+      if (product.moneda) specs['Moneda'] = product.moneda;
+      if (product.rubro) specs['Rubro'] = product.rubro;
+      if (product.grupo) specs['Grupo'] = product.grupo;
+      if (product.tipo?.name) specs['Tipo'] = product.tipo.name;
+      if (product.estado?.name) specs['Estado'] = product.estado.name;
+      
+      dbOperations.push(
+        db.execute({
           sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
                 VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, 0, '[]', ?, ?, ?, ?, ?)`,
           args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, isActive, JSON.stringify(specs), AIR_INTRA_SUPPLIER_ID, providerSku, categoryId, supplierCategory],
-        });
-        created++;
-        existingBySku[providerSku] = newId;
-      }
-      
-      // Progress report
-      if ((created + updated + skipped + errors) % 500 === 0) {
-        console.log(`  Progress: ${created + updated + skipped + errors}/${allProducts.length} (created: ${created}, updated: ${updated}, skipped: ${skipped}, errors: ${errors})`);
-      }
-    } catch (err) {
-      console.error(`  Error processing product ${product.codigo || 'unknown'}:`, err.message);
-      errors++;
+        }).then(() => {
+          created++;
+          existingBySku[providerSku] = newId;
+        }).catch((err) => { console.error(`Error inserting ${providerSku}:`, err.message); errors++ })
+      );
     }
   }
+  
+  // Execute all DB operations in parallel batches
+  console.log(`  Total DB operations: ${dbOperations.length}`);
+  for (let i = 0; i < dbOperations.length; i += BATCH_CONCURRENCY) {
+    const batch = dbOperations.slice(i, i + BATCH_CONCURRENCY);
+    await Promise.all(batch);
+    if (i > 0 && i % 200 === 0) {
+      console.log(`  Progress: ${Math.min(i + BATCH_CONCURRENCY, dbOperations.length)}/${dbOperations.length} operations (created: ${created}, updated: ${updated}, errors: ${errors})`);
+    }
+  }
+  
+  console.log(`  Final: created: ${created}, updated: ${updated}, skipped: ${skipped}, errors: ${errors}`);
   
   // Step 4: Update supplier lastSyncAt
   console.log('\n[5/5] Updating supplier sync timestamp...');
