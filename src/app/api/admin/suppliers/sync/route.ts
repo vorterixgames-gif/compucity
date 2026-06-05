@@ -11,7 +11,24 @@ interface SyncResult {
   skipped: number
   errors: number
   message: string
+  hasMore?: boolean       // true if there are more pages to sync (batch mode)
+  nextPage?: number      // next page to start from (batch mode)
+  token?: string         // Air Intra auth token to reuse (batch mode)
+  exchangeRate?: number  // Exchange rate from login (batch mode)
+  batchProgress?: { current: number; total: number }  // e.g. { current: 1, total: 4 }
 }
+
+// Batch parameters for Air Intra chunked sync
+interface AirIntraBatchParams {
+  startPage: number
+  endPage: number
+  token?: string
+  exchangeRate?: number
+  finalize?: boolean
+}
+
+// Number of pages per batch (4 × 500 = 2000 products, ~10-15s per batch)
+const PAGES_PER_BATCH = 4
 
 // Subcategory keyword rules: when a product maps to a parent category that has subcategories,
 // these rules determine which subcategory to assign based on product name/supplier category.
@@ -1857,6 +1874,902 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
   return result
 }
 
+/**
+ * Batched Air Intra sync: processes a range of pages from the 'articulos' endpoint.
+ * Each batch processes PAGES_PER_BATCH pages (4 pages × 500 products = ~2000).
+ * This keeps each request well within Vercel Hobby's 60s timeout (~10-15s per batch).
+ *
+ * When no token is provided, performs login first.
+ * Returns partial results with hasMore/token so the frontend can continue.
+ */
+async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Promise<SyncResult> {
+  const baseUrl = supplier.apiBaseUrl || 'https://api.air-intra.com/v2'
+  const result: SyncResult = { ok: false, total: 0, created: 0, updated: 0, skipped: 0, errors: 0, message: '' }
+
+  try {
+    // Check if we synced recently (Air Intra has a 5-min rate limit between cycles)
+    // Only check on the first batch (startPage === 0 and no token yet = initial call)
+    if (batch.startPage === 0 && !batch.token && supplier.lastSyncAt) {
+      const lastSync = new Date(supplier.lastSyncAt).getTime()
+      const elapsed = Date.now() - lastSync
+      const minInterval = 5 * 60 * 1000 // 5 minutes
+      if (elapsed < minInterval) {
+        const waitSeconds = Math.ceil((minInterval - elapsed) / 1000)
+        result.message = `Debe esperar ${waitSeconds} segundos antes de sincronizar nuevamente (la API de Air Intra tiene un límite de 5 minutos entre solicitudes).`
+        return result
+      }
+    }
+
+    // Build category lookups
+    const { slugToId, idToParentId, parentSlugToChildSlugs } = await buildCategoryLookup()
+    const supplierMappings = await buildSupplierMappingLookup(supplier.id)
+
+    // Pre-load existing products for this supplier (fresh for each batch)
+    console.log(`[Air Intra Batch] Pre-loading existing products from DB...`)
+    const existingProductsResult = await db.execute({
+      sql: 'SELECT id, providerSku, slug FROM products WHERE providerId = ?',
+      args: [supplier.id],
+    })
+    const existingBySku: Record<string, { id: string; slug: string }> = {}
+    const allExistingSlugs = new Set<string>()
+    for (const row of existingProductsResult.rows as any[]) {
+      if (row.providerSku) existingBySku[row.providerSku] = { id: row.id, slug: row.slug }
+      if (row.slug) allExistingSlugs.add(row.slug)
+    }
+    console.log(`[Air Intra Batch] Loaded ${Object.keys(existingBySku).length} existing products`)
+
+    // Login if no token provided
+    let token = batch.token || ''
+    let exchangeRate = batch.exchangeRate || 0
+
+    if (!token) {
+      console.log('[Air Intra Batch] Logging in...')
+      const authRes = await fetch(`${baseUrl}/?q=login&user=${encodeURIComponent(supplier.apiUsername)}&pass=${encodeURIComponent(supplier.apiPassword)}`)
+
+      if (!authRes.ok) {
+        result.message = `Error de autenticación Air Intra: ${authRes.status}`
+        return result
+      }
+
+      const { data: authData, error: authError } = await safeParseAirIntraResponse(authRes)
+      if (authError || !authData?.token) {
+        result.message = authError || 'No se recibió token de Air Intra'
+        return result
+      }
+
+      token = authData.token
+      exchangeRate = parseFloat(authData.cotiza || '0')
+      console.log(`[Air Intra Batch] Login OK. Cotización: ${exchangeRate}`)
+    }
+
+    // Fetch products page by page within the specified range
+    const endpoint = 'articulos'
+    const pageSize = 500
+    let totalFetched = 0
+    let created = 0
+    let updated = 0
+    let skipped = 0
+    let errors = 0
+    let usedExtractionFallback = false
+    let totalRecoveredByExtractor = 0
+    // Track all SKUs fetched in this batch to detect duplicates across pages
+    const allFetchedSkus = new Set<string>()
+    // Also load SKUs from previous batches (from DB) for cross-batch dedup
+    const previousSkusResult = await db.execute({
+      sql: 'SELECT providerSku FROM products WHERE providerId = ? AND providerSku IS NOT NULL',
+      args: [supplier.id],
+    })
+    for (const row of previousSkusResult.rows as any[]) {
+      if (row.providerSku) allFetchedSkus.add(row.providerSku)
+    }
+
+    let reachedEnd = false
+    let lastProcessedPage = batch.startPage - 1
+
+    for (let page = batch.startPage; page <= batch.endPage; page++) {
+      console.log(`[Air Intra Batch] Fetching page ${page}...`)
+      let products: any[] | null = null
+      let pageSucceeded = false
+      let retryCount = 0
+      const MAX_RETRIES = 2
+
+      // Retry loop
+      while (!pageSucceeded && retryCount <= MAX_RETRIES) {
+        try {
+          const productsRes = await fetch(`${baseUrl}/?q=${endpoint}&page=${page}`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({}),
+          })
+
+          if (!productsRes.ok) {
+            const errText = await productsRes.text().catch(() => '')
+
+            // Check for rate limit error
+            if (errText.includes('Too many queries') || errText.includes('error_id":403')) {
+              console.log(`[Air Intra Batch] Rate limited on page ${page}. Stopping batch.`)
+              result.message = `Rate limit de Air Intra alcanzado en página ${page}. Se procesaron ${totalFetched} productos en este lote.`
+              result.ok = totalFetched > 0
+              result.total = totalFetched
+              result.created = created
+              result.updated = updated
+              result.skipped = skipped
+              result.errors = errors
+              result.hasMore = true
+              result.nextPage = page
+              result.token = token
+              result.exchangeRate = exchangeRate
+              return result
+            }
+
+            if (retryCount < MAX_RETRIES) {
+              console.log(`[Air Intra Batch] HTTP ${productsRes.status} on page ${page}, retrying (${retryCount + 1}/${MAX_RETRIES})...`)
+              retryCount++
+              await new Promise(r => setTimeout(r, 2000))
+              continue
+            }
+
+            result.message = `Error HTTP ${productsRes.status} al obtener productos de Air Intra (página ${page}). ${errText.substring(0, 200)}`
+            result.total = totalFetched
+            result.created = created
+            result.updated = updated
+            result.skipped = skipped
+            result.errors = errors + 1
+            result.hasMore = true
+            result.nextPage = page
+            result.token = token
+            result.exchangeRate = exchangeRate
+            return result
+          }
+
+          // Get raw text first
+          const rawResponseText = await productsRes.text()
+          const { data: parsedProducts, error: parseError } = await (async () => {
+            const fakeRes = new Response(rawResponseText, {
+              headers: productsRes.headers,
+              status: productsRes.status,
+            })
+            return safeParseAirIntraResponse(fakeRes)
+          })()
+
+          if (parseError) {
+            console.log(`[Air Intra Batch] Standard parse failed on page ${page}: ${parseError}. Trying object extraction...`)
+
+            if (rawResponseText) {
+              const cleanedText = stripPhpNotices(rawResponseText)
+              products = extractProductsFromCorruptedJson(cleanedText)
+              usedExtractionFallback = true
+              console.log(`[Air Intra Batch] Extracted ${products.length} products from corrupted page ${page}`)
+            }
+
+            if (!products || products.length === 0) {
+              if (page === batch.startPage && !batch.token) {
+                result.message = `No se pudieron obtener productos de Air Intra: ${parseError}`
+                result.errors = errors + 1
+                result.total = totalFetched
+                result.created = created
+                result.updated = updated
+                result.skipped = skipped
+                return result
+              }
+              console.log(`[Air Intra Batch] Page ${page} returned 0 products. Treating as end of data.`)
+              pageSucceeded = true
+              reachedEnd = true
+              break
+            }
+            pageSucceeded = true
+          } else {
+            if (!Array.isArray(parsedProducts) || parsedProducts.length === 0) {
+              console.log(`[Air Intra Batch] Page ${page} returned empty array. End of data.`)
+              pageSucceeded = true
+              reachedEnd = true
+              break
+            }
+            products = parsedProducts
+
+            // Robustness verification: always run extractor as verification
+            if (rawResponseText) {
+              const cleanedText = stripPhpNotices(rawResponseText)
+              const extractedProducts = extractProductsFromCorruptedJson(cleanedText)
+
+              if (extractedProducts.length > products.length) {
+                const parsedSkus = new Set(
+                  products.map((p: any) => p.codigo || p.codiart || '').filter(Boolean)
+                )
+
+                let recoveredCount = 0
+                for (const extracted of extractedProducts) {
+                  const sku = extracted.codigo || extracted.codiart || ''
+                  if (sku && !parsedSkus.has(sku)) {
+                    products.push(extracted)
+                    recoveredCount++
+                  }
+                }
+
+                if (recoveredCount > 0) {
+                  totalRecoveredByExtractor += recoveredCount
+                  console.log(`[Air Intra Batch] ⚡ Recovery on page ${page}: ${recoveredCount} additional products recovered. Total: ${products.length}`)
+                }
+              }
+            }
+            pageSucceeded = true
+          }
+        } catch (fetchErr: any) {
+          if (retryCount < MAX_RETRIES) {
+            console.log(`[Air Intra Batch] Fetch error on page ${page}: ${fetchErr.message}. Retrying (${retryCount + 1}/${MAX_RETRIES})...`)
+            retryCount++
+            await new Promise(r => setTimeout(r, 2000))
+            continue
+          }
+          console.error(`[Air Intra Batch] Fetch error on page ${page} after ${MAX_RETRIES} retries:`, fetchErr)
+          errors++
+          pageSucceeded = true
+          break
+        }
+      } // end retry loop
+
+      // If we got no products after retries, treat as end of data
+      if (!products || products.length === 0) {
+        reachedEnd = true
+        break
+      }
+
+      lastProcessedPage = page
+
+      // Process products on this page
+      const dbOperations: Promise<void>[] = []
+
+      for (const product of products) {
+        try {
+          const providerSku = product.codigo || product.codiart || ''
+
+          // Skip duplicate products across pages
+          if (providerSku && allFetchedSkus.has(providerSku)) {
+            skipped++
+            continue
+          }
+          if (providerSku) allFetchedSkus.add(providerSku)
+
+          totalFetched++
+
+          const price = parseFloat(product.precio || '0')
+          const productName = product.descrip || product.descripcion || product.titulo || ''
+          const supplierCategory = getAirIntraSupplierCategory(product)
+          const costPrice = price
+          const markup = supplier.markup || 30
+          const sellingPrice = costPrice > 0 ? costPrice * (1 + markup / 100) : 0
+          const totalStock = (product.air?.disponible || 0) +
+            (product.lug?.disponible || 0) +
+            (product.ros?.disponible || 0) +
+            (product.cba?.disponible || 0) +
+            (product.mza?.disponible || 0) +
+            (product.stock_disponible || 0)
+
+          const { categoryId } = mapProductToCategory(
+            productName, supplierCategory, supplierMappings, slugToId, idToParentId, parentSlugToChildSlugs
+          )
+
+          // Air Intra isActive logic
+          let airIntraIsActive = price > 0 ? 1 : 0
+
+          if (airIntraIsActive === 1 && supplier.allowedCategories) {
+            const supplierAllowedCategories: string[] | null = typeof supplier.allowedCategories === 'string'
+              ? JSON.parse(supplier.allowedCategories)
+              : supplier.allowedCategories
+            if (supplierAllowedCategories !== null && categoryId) {
+              const catSlug = Object.entries(slugToId).find(([_, id]) => id === categoryId)?.[0]
+              const catParentId = idToParentId[categoryId]
+              const catParentSlug = catParentId ? Object.entries(slugToId).find(([_, id]) => id === catParentId)?.[0] : null
+              const isAllowedCategory = catSlug ? supplierAllowedCategories.includes(catSlug) : false
+              const isChildOfAllowedCategory = catParentSlug ? supplierAllowedCategories.includes(catParentSlug) : false
+              if (!isAllowedCategory && !isChildOfAllowedCategory) {
+                airIntraIsActive = 0
+              }
+            }
+          }
+
+          const existingProduct = existingBySku[providerSku]
+          const now = new Date().toISOString()
+
+          if (existingProduct) {
+            // UPDATE existing product
+            dbOperations.push(
+              db.execute({
+                sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, supplierCategory = ?, categoryId = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
+                args: [costPrice, sellingPrice, totalStock, supplierCategory, categoryId, airIntraIsActive, now, existingProduct.id],
+              }).then(() => { updated++ }).catch((err) => { console.error('Error updating Air Intra product:', err); errors++ })
+            )
+          } else if (productName && providerSku) {
+            // INSERT new product
+            const newId = crypto.randomUUID()
+            const formattedName = formatProductName(productName)
+            let slug = generateSlug(formattedName)
+
+            // Handle slug collision
+            if (allExistingSlugs.has(slug)) {
+              slug = slug + '-' + providerSku.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 10)
+            }
+            allExistingSlugs.add(slug)
+
+            const specs: Record<string, string> = {}
+            if (product.garantia) specs['Garantía'] = product.garantia
+            if (product.moneda) specs['Moneda'] = product.moneda
+            if (product.marca) specs['Marca'] = product.marca
+            if (product.rubro) specs['Rubro'] = product.rubro
+            if (product.grupo) specs['Grupo'] = product.grupo
+            if (product.tipo?.name) specs['Tipo'] = product.tipo.name
+            if (product.estado?.name) specs['Estado'] = product.estado.name
+
+            dbOperations.push(
+              db.execute({
+                sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
+                      VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
+                args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, airIntraIsActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, supplierCategory],
+              }).then(() => {
+                created++
+                existingBySku[providerSku] = { id: newId, slug }
+              }).catch((err) => { console.error('Error inserting Air Intra product:', err); errors++ })
+            )
+          } else {
+            skipped++
+          }
+        } catch (err) {
+          console.error('Error processing Air Intra product:', err)
+          errors++
+        }
+      }
+
+      // Execute all DB operations in parallel (limited concurrency)
+      const BATCH_CONCURRENCY = 20
+      for (let i = 0; i < dbOperations.length; i += BATCH_CONCURRENCY) {
+        const batchChunk = dbOperations.slice(i, i + BATCH_CONCURRENCY)
+        await Promise.all(batchChunk)
+      }
+
+      console.log(`[Air Intra Batch] Page ${page} processed: ${products.length} items (batch total: ${totalFetched})`)
+
+      // If this page returned 0 products, we've reached the end
+      if (products.length === 0) {
+        reachedEnd = true
+        break
+      }
+    }
+
+    // Determine if there are more pages to fetch
+    const hasMore = !reachedEnd
+
+    result.ok = true
+    result.total = totalFetched
+    result.created = created
+    result.updated = updated
+    result.skipped = skipped
+    result.errors = errors
+    result.hasMore = hasMore
+    result.nextPage = hasMore ? (lastProcessedPage + 1) : undefined
+    result.token = token
+    result.exchangeRate = exchangeRate
+
+    const recoveryNote = usedExtractionFallback
+      ? ` (JSON corrupto, ${totalRecoveredByExtractor} recuperados por extractor)`
+      : totalRecoveredByExtractor > 0
+        ? ` (${totalRecoveredByExtractor} recuperados por extractor)`
+        : ''
+    result.message = hasMore
+      ? `Lote procesado: ${totalFetched} productos, ${created} nuevos, ${updated} actualizados${recoveryNote}. Faltan más páginas.`
+      : `Último lote procesado: ${totalFetched} productos, ${created} nuevos, ${updated} actualizados${recoveryNote}. Todas las páginas completadas.`
+
+  } catch (error: any) {
+    result.message = `Error de conexión con Air Intra: ${error.message}`
+  }
+
+  return result
+}
+
+/**
+ * Finalize step for batched Air Intra sync.
+ * Runs after all articulos pages have been processed in batches.
+ * Handles: syp supplementary sync, recategorization, recovery, verification, lastSyncAt update.
+ */
+async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): Promise<SyncResult> {
+  const baseUrl = supplier.apiBaseUrl || 'https://api.air-intra.com/v2'
+  const result: SyncResult = { ok: false, total: 0, created: 0, updated: 0, skipped: 0, errors: 0, message: '' }
+
+  try {
+    const token = batch.token || ''
+    const exchangeRate = batch.exchangeRate || 0
+
+    if (!token) {
+      result.message = 'Token de Air Intra no proporcionado para finalización. Se requiere sincronizar desde el inicio.'
+      return result
+    }
+
+    // Build category lookups
+    const { slugToId, idToParentId, parentSlugToChildSlugs } = await buildCategoryLookup()
+    const supplierMappings = await buildSupplierMappingLookup(supplier.id)
+
+    // Pre-load existing products for syp/recovery dedup
+    console.log('[Air Intra Finalize] Pre-loading existing products from DB...')
+    const existingProductsResult = await db.execute({
+      sql: 'SELECT id, providerSku, slug FROM products WHERE providerId = ?',
+      args: [supplier.id],
+    })
+    const existingBySku: Record<string, { id: string; slug: string }> = {}
+    const allExistingSlugs = new Set<string>()
+    const allFetchedSkus = new Set<string>()
+    for (const row of existingProductsResult.rows as any[]) {
+      if (row.providerSku) {
+        existingBySku[row.providerSku] = { id: row.id, slug: row.slug }
+        allFetchedSkus.add(row.providerSku)
+      }
+      if (row.slug) allExistingSlugs.add(row.slug)
+    }
+    console.log(`[Air Intra Finalize] Loaded ${Object.keys(existingBySku).length} existing products`)
+
+    let totalFetched = 0
+    let created = 0
+    let updated = 0
+    let skipped = 0
+    let errors = 0
+
+    // ==========================================
+    // SUPPLEMENTARY SYNC: syp endpoint
+    // ==========================================
+    console.log('[Air Intra Finalize] Starting supplementary syp endpoint sync...')
+    const sypMarkup = supplier.markup || 30
+    let sypCreated = 0
+    let sypUpdated = 0
+    let sypPage = 0
+    const SYP_MAX_PAGES = 30
+    const sypEndpoint = 'syp'
+
+    while (sypPage < SYP_MAX_PAGES) {
+      console.log(`[Air Intra Finalize] Fetching syp page ${sypPage}...`)
+      try {
+        const sypRes = await fetch(`${baseUrl}/?q=${sypEndpoint}&page=${sypPage}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({}),
+        })
+
+        if (!sypRes.ok) {
+          const errText = await sypRes.text().catch(() => '')
+          if (errText.includes('Too many queries') || errText.includes('error_id":403')) {
+            console.log('[Air Intra Finalize] Rate limited during syp sync. Stopping supplementary pass.')
+            break
+          }
+          console.log(`[Air Intra Finalize] syp HTTP ${sypRes.status}. Stopping supplementary pass.`)
+          break
+        }
+
+        const { data: sypData, error: sypError } = await safeParseAirIntraResponse(sypRes)
+
+        if (sypError || !Array.isArray(sypData) || sypData.length === 0) {
+          console.log(`[Air Intra Finalize] syp page ${sypPage} returned 0 products or error. End of syp data.`)
+          break
+        }
+
+        const sypDbOps: Promise<void>[] = []
+
+        for (const product of sypData) {
+          try {
+            const providerSku = product.codigo || product.codiart || ''
+            if (!providerSku) continue
+
+            // Skip if already in DB from articulos batches
+            if (allFetchedSkus.has(providerSku)) continue
+
+            const price = parseFloat(product.precio || '0')
+            const productName = product.descrip || product.descripcion || product.titulo || ''
+            if (!productName) continue
+
+            const costPrice = price
+            const sellingPrice = costPrice > 0 ? costPrice * (1 + sypMarkup / 100) : 0
+            const totalStock = (product.air?.disponible || 0) +
+              (product.lug?.disponible || 0) +
+              (product.ros?.disponible || 0) +
+              (product.cba?.disponible || 0) +
+              (product.mza?.disponible || 0) +
+              (product.stock_disponible || 0)
+
+            const { categoryId } = mapProductToCategory(
+              productName, '', supplierMappings, slugToId, idToParentId, parentSlugToChildSlugs
+            )
+
+            let isActive = price > 0 ? 1 : 0
+            if (isActive === 1 && supplier.allowedCategories) {
+              const supplierAllowedCategories: string[] | null = typeof supplier.allowedCategories === 'string'
+                ? JSON.parse(supplier.allowedCategories) : supplier.allowedCategories
+              if (supplierAllowedCategories !== null && categoryId) {
+                const catSlug = Object.entries(slugToId).find(([_, id]) => id === categoryId)?.[0]
+                const catParentId = idToParentId[categoryId]
+                const catParentSlug = catParentId ? Object.entries(slugToId).find(([_, id]) => id === catParentId)?.[0] : null
+                const isAllowedCategory = catSlug ? supplierAllowedCategories.includes(catSlug) : false
+                const isChildOfAllowedCategory = catParentSlug ? supplierAllowedCategories.includes(catParentSlug) : false
+                if (!isAllowedCategory && !isChildOfAllowedCategory) {
+                  isActive = 0
+                }
+              }
+            }
+
+            const existingProduct = existingBySku[providerSku]
+            const now = new Date().toISOString()
+
+            if (existingProduct) {
+              sypDbOps.push(
+                db.execute({
+                  sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
+                  args: [costPrice, sellingPrice, totalStock, isActive, now, existingProduct.id],
+                }).then(() => { sypUpdated++ }).catch((err) => { console.error('Error updating syp product:', err); errors++ })
+              )
+            } else {
+              const newId = crypto.randomUUID()
+              const formattedName = formatProductName(productName)
+              let slug = generateSlug(formattedName)
+              if (allExistingSlugs.has(slug)) {
+                slug = slug + '-' + providerSku.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 10)
+              }
+              allExistingSlugs.add(slug)
+
+              const specs: Record<string, string> = {}
+              if (product.moneda) specs['Moneda'] = product.moneda
+
+              sypDbOps.push(
+                db.execute({
+                  sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
+                        VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
+                  args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, isActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, ''],
+                }).then(() => {
+                  sypCreated++
+                  created++
+                  existingBySku[providerSku] = { id: newId, slug }
+                }).catch((err) => { console.error('Error inserting syp product:', err); errors++ })
+              )
+            }
+
+            allFetchedSkus.add(providerSku)
+            totalFetched++
+          } catch (err) {
+            console.error('[Air Intra Finalize] Error processing syp product:', err)
+            errors++
+          }
+        }
+
+        // Execute syp DB operations
+        for (let i = 0; i < sypDbOps.length; i += 20) {
+          const batchChunk = sypDbOps.slice(i, i + 20)
+          await Promise.all(batchChunk)
+        }
+
+        console.log(`[Air Intra Finalize] syp page ${sypPage}: ${sypData.length} items processed`)
+
+        if (sypData.length < 500) {
+          console.log('[Air Intra Finalize] syp: last page reached.')
+          break
+        }
+
+        sypPage++
+      } catch (sypErr: any) {
+        console.error(`[Air Intra Finalize] syp fetch error on page ${sypPage}:`, sypErr.message)
+        break
+      }
+    }
+
+    if (sypCreated > 0 || sypUpdated > 0) {
+      console.log(`[Air Intra Finalize] syp supplementary sync: ${sypCreated} new + ${sypUpdated} updated`)
+    } else {
+      console.log('[Air Intra Finalize] syp supplementary sync: no new products found')
+    }
+
+    // ==========================================
+    // POST-SYNC RECATEGORIZATION: Fix products with NULL categoryId
+    // ==========================================
+    try {
+      const nullCatResult = await db.execute({
+        sql: 'SELECT id, name, supplierCategory, providerSku FROM products WHERE providerId = ? AND categoryId IS NULL',
+        args: [supplier.id],
+      })
+      const nullCatProducts = nullCatResult.rows as any[]
+      if (nullCatProducts.length > 0) {
+        console.log(`[Air Intra Finalize] Attempting to recategorize ${nullCatProducts.length} products with NULL category...`)
+        let recategorized = 0
+        for (const product of nullCatProducts) {
+          const { categoryId: newCatId } = mapProductToCategory(
+            product.name, product.supplierCategory, supplierMappings, slugToId, idToParentId, parentSlugToChildSlugs
+          )
+          if (newCatId) {
+            await db.execute({
+              sql: 'UPDATE products SET categoryId = ?, updatedAt = ? WHERE id = ?',
+              args: [newCatId, new Date().toISOString(), product.id],
+            })
+            recategorized++
+          }
+        }
+        console.log(`[Air Intra Finalize] Recategorized ${recategorized} of ${nullCatProducts.length} NULL-category products`)
+      }
+    } catch (recatErr) {
+      console.error('[Air Intra Finalize] Recategorization error:', recatErr)
+    }
+
+    // ==========================================
+    // POST-SYNC VERIFICATION
+    // ==========================================
+    try {
+      const dbCount = await db.execute({
+        sql: 'SELECT COUNT(*) as cnt FROM products WHERE providerId = ?',
+        args: [supplier.id],
+      })
+      const dbTotal = (dbCount.rows as any[])[0]?.cnt || 0
+      console.log(`[Air Intra Finalize] Post-sync verification: ${dbTotal} products in DB for this supplier`)
+    } catch (verifyErr) {
+      console.error('[Air Intra Finalize] Post-sync verification error:', verifyErr)
+    }
+
+    // ==========================================
+    // POST-SYNC RECOVERY: Search for missing products
+    // ==========================================
+    const recoveryMarkup = supplier.markup || 30
+    const endpoint = 'articulos'
+
+    // Helper: process a single recovery product
+    const processRecoveryProduct = async (product: any): Promise<{ action: 'created' | 'updated' | 'skipped' }> => {
+      const providerSku = product.codigo || product.codiart || ''
+      if (!providerSku || allFetchedSkus.has(providerSku)) return { action: 'skipped' }
+
+      const price = parseFloat(product.precio || '0')
+      const productName = product.descrip || product.descripcion || product.titulo || ''
+      if (!productName || !providerSku) return { action: 'skipped' }
+
+      const supplierCategory = getAirIntraSupplierCategory(product)
+      const costPrice = price
+      const sellingPrice = costPrice > 0 ? costPrice * (1 + recoveryMarkup / 100) : 0
+      const totalStock = (product.air?.disponible || 0) +
+        (product.lug?.disponible || 0) +
+        (product.ros?.disponible || 0) +
+        (product.cba?.disponible || 0) +
+        (product.mza?.disponible || 0) +
+        (product.stock_disponible || 0)
+
+      const { categoryId } = mapProductToCategory(
+        productName, supplierCategory, supplierMappings, slugToId, idToParentId, parentSlugToChildSlugs
+      )
+
+      let isActive = price > 0 ? 1 : 0
+      if (isActive === 1 && supplier.allowedCategories) {
+        const supplierAllowedCategories: string[] | null = typeof supplier.allowedCategories === 'string'
+          ? JSON.parse(supplier.allowedCategories) : supplier.allowedCategories
+        if (supplierAllowedCategories !== null && categoryId) {
+          const catSlug = Object.entries(slugToId).find(([_, id]) => id === categoryId)?.[0]
+          const catParentId = idToParentId[categoryId]
+          const catParentSlug = catParentId ? Object.entries(slugToId).find(([_, id]) => id === catParentId)?.[0] : null
+          const isAllowed = catSlug ? supplierAllowedCategories.includes(catSlug) : false
+          const isChildOfAllowed = catParentSlug ? supplierAllowedCategories.includes(catParentSlug) : false
+          if (!isAllowed && !isChildOfAllowed) isActive = 0
+        }
+      }
+
+      const existingProduct = existingBySku[providerSku]
+      const now = new Date().toISOString()
+
+      if (existingProduct) {
+        await db.execute({
+          sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, supplierCategory = ?, categoryId = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
+          args: [costPrice, sellingPrice, totalStock, supplierCategory, categoryId, isActive, now, existingProduct.id],
+        })
+        return { action: 'updated' }
+      } else {
+        const newId = crypto.randomUUID()
+        const formattedName = formatProductName(productName)
+        let slug = generateSlug(formattedName)
+        if (allExistingSlugs.has(slug)) {
+          slug = slug + '-' + providerSku.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 10)
+        }
+        allExistingSlugs.add(slug)
+
+        const specs: Record<string, string> = {}
+        if (product.garantia) specs['Garantía'] = product.garantia
+        if (product.moneda) specs['Moneda'] = product.moneda
+        if (product.marca) specs['Marca'] = product.marca
+        if (product.rubro) specs['Rubro'] = product.rubro
+        if (product.grupo) specs['Grupo'] = product.grupo
+        if (product.tipo?.name) specs['Tipo'] = product.tipo.name
+        if (product.estado?.name) specs['Estado'] = product.estado.name
+
+        await db.execute({
+          sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
+                VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
+          args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, isActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, supplierCategory],
+        })
+        existingBySku[providerSku] = { id: newId, slug }
+        return { action: 'created' }
+      }
+    }
+
+    // Helper: fetch recovery results with rate limit handling
+    const fetchRecoveryResults = async (searchParams: Record<string, string>, description: string): Promise<any[] | null> => {
+      const searchUrl = `${baseUrl}/?q=${endpoint}&page=0`
+
+      try {
+        console.log(`[Air Intra Finalize] Recovery search: ${description}`)
+        let recoveryRes = await fetch(searchUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(searchParams),
+        })
+
+        // Handle rate limit: wait 5 minutes and retry ONCE
+        if (recoveryRes.status === 403) {
+          const errText = await recoveryRes.text().catch(() => '')
+          if (errText.includes('Too many queries')) {
+            console.log(`[Air Intra Finalize] Recovery "${description}" rate-limited. Waiting 5 minutes before retry...`)
+            await new Promise(r => setTimeout(r, 5 * 60 * 1000))
+
+            // Re-login after waiting
+            console.log('[Air Intra Finalize] Re-logging in after rate limit wait...')
+            const reAuthRes = await fetch(`${baseUrl}/?q=login&user=${encodeURIComponent(supplier.apiUsername)}&pass=${encodeURIComponent(supplier.apiPassword)}`)
+            if (reAuthRes.ok) {
+              const { data: reAuthData, error: reAuthError } = await safeParseAirIntraResponse(reAuthRes)
+              if (!reAuthError && reAuthData?.token) {
+                const newToken = reAuthData.token
+                recoveryRes = await fetch(searchUrl, {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${newToken}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(searchParams),
+                })
+              } else {
+                console.log(`[Air Intra Finalize] Re-login failed: ${reAuthError}. Skipping recovery "${description}".`)
+                return null
+              }
+            } else {
+              console.log(`[Air Intra Finalize] Re-login HTTP ${reAuthRes.status}. Skipping recovery "${description}".`)
+              return null
+            }
+          }
+        }
+
+        if (!recoveryRes.ok) {
+          console.log(`[Air Intra Finalize] Recovery "${description}" HTTP ${recoveryRes.status}. Skipping.`)
+          return null
+        }
+
+        const { data: recoveryData, error: recoveryError } = await safeParseAirIntraResponse(recoveryRes)
+        if (recoveryError) {
+          console.log(`[Air Intra Finalize] Recovery "${description}" parse error: ${recoveryError}`)
+          return null
+        }
+        if (!Array.isArray(recoveryData) || recoveryData.length === 0) {
+          console.log(`[Air Intra Finalize] Recovery "${description}": 0 results`)
+          return null
+        }
+        console.log(`[Air Intra Finalize] Recovery "${description}": found ${recoveryData.length} products`)
+        return recoveryData
+      } catch (recoveryErr) {
+        console.error(`[Air Intra Finalize] Recovery search error for "${description}":`, recoveryErr)
+        return null
+      }
+    }
+
+    let recoveryCreated = 0
+    let recoveryUpdated = 0
+
+    // Strategy 1: Text search for known brand names
+    const RECOVERY_TEXT_SEARCHES = ['PC AIR', 'PC CX', 'PC ARKHAM', 'PC GAMEMAX']
+    for (const searchTerm of RECOVERY_TEXT_SEARCHES) {
+      const products = await fetchRecoveryResults({ texto: searchTerm }, `texto="${searchTerm}"`)
+      if (products) {
+        for (const product of products) {
+          const recResult = await processRecoveryProduct(product)
+          if (recResult.action === 'created') { recoveryCreated++; created++ }
+          else if (recResult.action === 'updated') { recoveryUpdated++; updated++ }
+          const providerSku = product.codigo || product.codiart || ''
+          if (providerSku) { allFetchedSkus.add(providerSku); totalFetched++ }
+        }
+      }
+      // Wait 2 seconds between recovery searches to avoid rate limiting
+      if (RECOVERY_TEXT_SEARCHES.indexOf(searchTerm) < RECOVERY_TEXT_SEARCHES.length - 1) {
+        await new Promise(r => setTimeout(r, 2000))
+      }
+    }
+
+    // Strategy 2: Search by specific SKUs for known missing products
+    const MISSING_SKUS: string[] = []
+
+    try {
+      const dbSkuResult = await db.execute({
+        sql: 'SELECT providerSku FROM products WHERE providerId = ? AND providerSku IS NOT NULL ORDER BY CAST(providerSku AS INTEGER)',
+        args: [supplier.id],
+      })
+      const dbSkuSet = new Set((dbSkuResult.rows as any[]).map(r => r.providerSku))
+
+      const fetchedSkuNums = Array.from(allFetchedSkus)
+        .map(s => parseInt(s, 10))
+        .filter(n => !isNaN(n))
+        .sort((a, b) => a - b)
+
+      for (let i = 0; i < fetchedSkuNums.length - 1; i++) {
+        const current = fetchedSkuNums[i]
+        const next = fetchedSkuNums[i + 1]
+        if (next - current > 1 && next - current <= 50) {
+          for (let sku = current + 1; sku < next; sku++) {
+            const skuStr = String(sku)
+            if (!dbSkuSet.has(skuStr) && allFetchedSkus.has(skuStr)) {
+              MISSING_SKUS.push(skuStr)
+            }
+          }
+        }
+      }
+
+      for (const sku of Array.from(allFetchedSkus)) {
+        if (!dbSkuSet.has(sku) && !isNaN(parseInt(sku, 10))) {
+          if (!MISSING_SKUS.includes(sku)) {
+            MISSING_SKUS.push(sku)
+          }
+        }
+      }
+    } catch (gapErr) {
+      console.error('[Air Intra Finalize] Error detecting missing SKUs:', gapErr)
+    }
+
+    if (MISSING_SKUS.length > 0) {
+      console.log(`[Air Intra Finalize] Found ${MISSING_SKUS.length} potentially missing SKUs to recover: ${MISSING_SKUS.slice(0, 20).join(', ')}${MISSING_SKUS.length > 20 ? '...' : ''}`)
+      const skusToSearch = MISSING_SKUS.slice(0, 20)
+      for (const sku of skusToSearch) {
+        const products = await fetchRecoveryResults({ codiart: sku }, `codiart=${sku}`)
+        if (products) {
+          for (const product of products) {
+            const recResult = await processRecoveryProduct(product)
+            if (recResult.action === 'created') { recoveryCreated++; created++ }
+            else if (recResult.action === 'updated') { recoveryUpdated++; updated++ }
+            const providerSku = product.codigo || product.codiart || ''
+            if (providerSku) { allFetchedSkus.add(providerSku); totalFetched++ }
+          }
+        }
+        if (skusToSearch.indexOf(sku) < skusToSearch.length - 1) {
+          await new Promise(r => setTimeout(r, 3000))
+        }
+      }
+    }
+
+    if (recoveryCreated > 0 || recoveryUpdated > 0) {
+      console.log(`[Air Intra Finalize] Recovery total: ${recoveryCreated} new + ${recoveryUpdated} updated via targeted search`)
+    }
+
+    // Update lastSyncAt
+    const syncNow = new Date().toISOString()
+    await db.execute({
+      sql: 'UPDATE suppliers SET lastSyncAt = ?, updatedAt = ? WHERE id = ?',
+      args: [syncNow, syncNow, supplier.id],
+    })
+
+    result.ok = true
+    result.total = totalFetched
+    result.created = created
+    result.updated = updated
+    result.skipped = skipped
+    result.errors = errors
+
+    const recoverySearchNote = recoveryCreated > 0 || recoveryUpdated > 0 ? ` + ${recoveryCreated} recuperados por búsqueda dirigida (${recoveryUpdated} actualizados)` : ''
+    const sypNote = sypCreated > 0 || sypUpdated > 0 ? ` + ${sypCreated} nuevos del catálogo syp (${sypUpdated} actualizados)` : ''
+    result.message = `Sincronización finalizada: syp ${sypCreated} nuevos (${sypUpdated} actualizados)${recoverySearchNote}${sypNote}`
+
+  } catch (error: any) {
+    result.message = `Error en finalización de Air Intra: ${error.message}`
+  }
+
+  return result
+}
+
 async function syncElit(supplier: any): Promise<SyncResult> {
   const baseUrl = supplier.apiBaseUrl || 'https://clientes.elit.com.ar'
   const result: SyncResult = { ok: false, total: 0, created: 0, updated: 0, skipped: 0, errors: 0, message: '' }
@@ -2037,7 +2950,8 @@ export async function POST(request: Request) {
     const admin = await getCurrentAdmin()
     if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    const { supplierId } = await request.json()
+    const body = await request.json()
+    const { supplierId, batch } = body as { supplierId: string; batch?: AirIntraBatchParams }
 
     if (!supplierId) {
       return NextResponse.json({ error: 'supplierId requerido' }, { status: 400 })
@@ -2055,26 +2969,43 @@ export async function POST(request: Request) {
 
     let syncResult: SyncResult
 
-    switch (supplier.apiType) {
-      case 'invid':
-        syncResult = await syncInvid(supplier)
-        break
-      case 'air_intra':
-        syncResult = await syncAirIntra(supplier)
-        break
-      case 'elit':
-        syncResult = await syncElit(supplier)
-        break
-      default:
-        return NextResponse.json({
-          error: `Tipo de API "${supplier.apiType}" no soportado. Tipos disponibles: invid, air_intra, elit`,
-        }, { status: 400 })
+    if (supplier.apiType === 'air_intra') {
+      // Batched sync for Air Intra to avoid Vercel Hobby 60s timeout
+      if (batch?.finalize) {
+        // Finalize step: run syp, recategorization, recovery, update lastSyncAt
+        syncResult = await syncAirIntraFinalize(supplier, batch)
+      } else if (batch) {
+        // Subsequent batch: use existing token, process specific page range
+        syncResult = await syncAirIntraBatch(supplier, batch)
+      } else {
+        // First call: login + first batch (pages 0 to PAGES_PER_BATCH-1)
+        syncResult = await syncAirIntraBatch(supplier, {
+          startPage: 0,
+          endPage: PAGES_PER_BATCH - 1,
+        })
+      }
+    } else {
+      // Invid / Elit: full sync as before (backward compatible)
+      switch (supplier.apiType) {
+        case 'invid':
+          syncResult = await syncInvid(supplier)
+          break
+        case 'elit':
+          syncResult = await syncElit(supplier)
+          break
+        default:
+          return NextResponse.json({
+            error: `Tipo de API "${supplier.apiType}" no soportado. Tipos disponibles: invid, air_intra, elit`,
+          }, { status: 400 })
+      }
     }
 
     // Run post-sync category validation to fix any miscategorized products
     // IMPORTANT: This now runs on EVERY sync (not just when new products are created)
     // because even existing products may have been categorized incorrectly by a previous sync
-    if (syncResult.ok) {
+    // For Air Intra batch mode: skip validation on intermediate batches (hasMore=true),
+    // it will run after the finalize step when all pages are done.
+    if (syncResult.ok && !syncResult.hasMore) {
       try {
         console.log('[sync] Running post-sync category validation...')
         const catResult = await db.execute('SELECT id, slug FROM categories')

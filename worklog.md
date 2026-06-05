@@ -1,49 +1,76 @@
----
-Task ID: 1
-Agent: Main
-Task: Investigate why SKU 52751 (PC AIR INTEL PENTIUM G6400 COMETLAKE) is missing from DB
+# Worklog - Task 1: Batched Air Intra Sync
 
-Work Log:
-- Queried Turso DB: SKU 52751 does NOT exist in the products table
-- Found 0 "PC AIR" products in DB (out of 7,511 Air Intra products)
-- Found 4,321 Air Intra products with NULL categoryId
-- Queried Air Intra API with texto=PC AIR → 0 results (product doesn't exist in API)
-- Queried Air Intra API with texto=PENTIUM G6400 → Only found CPU (SKU 48440), not the PC
-- Queried Air Intra API with rubro=001-0014 → 18 PC products, none with SKU 52751
-- Discovered Air Intra API rate limit is very aggressive (5+ min cooldown between queries)
-- Discovered search parameters (texto, codiart) MUST be in POST body, NOT query params
-- Fixed sync code: search params now go in body, added rate limit handling, added codiart search
-- Added 'PC AIR' and other missing keywords to sync-air-intra-direct.mjs
-- Created diagnose-missing-products.mjs diagnostic script
-- Deployed all changes to production
+## Summary
+Implemented batched sync for Air Intra supplier to avoid Vercel Hobby plan's 60-second timeout. The original `syncAirIntra` function processed ~7,500 products across 15+ pages in a single request, which could take 30-60+ seconds. The new batched approach splits the page iteration into chunks of 4 pages (~2,000 products per batch, ~10-15s each).
 
-Stage Summary:
-- ROOT CAUSE: Product "PC AIR INTEL PENTIUM G6400 COMETLAKE" (SKU 52751) does NOT exist in the Air Intra API
-- The API has 0 products matching "PC AIR" - the entire product line is absent from the API
-- This is NOT a sync bug - the product simply isn't available through the API endpoint
-- The user may be looking at Air Intra's intranet/website where the product exists but isn't exposed via API
-- Code improvements deployed: POST body search params, rate limit handling, codiart search, better recovery
----
-Task ID: 1
-Agent: Main
-Task: Fix missing Air Intra products (PC AIR SKU 52751) in CompuCity sync
+## Files Modified
 
-Work Log:
-- Analyzed user's screenshot of Air Intra product page showing "PC AIR INTEL PENTIUM G6400 COMETLAKE" SKU 52751
-- Used VLM to extract product details: SKU 52751, price 261.65 USD, category "COMPONENTES DEL ESQUEMA"
-- Investigated the Air Intra sync code in detail (src/app/api/admin/suppliers/sync/route.ts)
-- Searched database: found 7511 Air Intra products but ZERO "PC AIR" products
-- Found 34 "PC CX/ARKHAM/GAMEMAX" products exist in DB with supplierCategory 002-0015
-- Scanned ALL 15 pages of the `articulos` API endpoint - SKU 52751 and PC AIR products are NOT present
-- Scanned accessible pages of the `syp` API endpoint - also no PC AIR products found
-- Confirmed: "esquema" products (PC builds) are NOT available through the standard Air Intra API
-- Added supplementary `syp` endpoint sync to the sync route (after articulos pagination)
-- Manually inserted the missing product PC AIR Intel Pentium G6400 Cometlake (SKU 52751) into the DB
-- Committed and pushed the fix
+### 1. `/home/z/my-project/src/app/api/admin/suppliers/sync/route.ts`
 
-Stage Summary:
-- Root cause: The Air Intra `articulos` API endpoint does NOT include "esquema" (PC build) products like "PC AIR". These are composite products only visible on the Air Intra website.
-- Fix applied: Added supplementary `syp` endpoint sync pass in the sync route
-- Product SKU 52751 manually inserted: PC AIR Intel Pentium G6400 Cometlake, price $340.14 (261.65 + 30% markup), category Oficina (PC Armadas)
-- Key files modified: src/app/api/admin/suppliers/sync/route.ts (+165 lines for syp supplementary sync)
-- Git commit: 93829db "fix: add supplementary syp endpoint sync for missing Air Intra products"
+**Extended `SyncResult` interface** with batch-mode optional fields:
+- `hasMore` - true if there are more pages to sync
+- `nextPage` - next page to start from
+- `token` - Air Intra auth token to reuse across batches
+- `exchangeRate` - Exchange rate from login
+- `batchProgress` - Current/total batch progress info
+
+**Added `AirIntraBatchParams` interface** for batch request body:
+- `startPage` / `endPage` - Page range for this batch
+- `token` / `exchangeRate` - Reuse from previous batch
+- `finalize` - Flag for post-processing step
+
+**Added `PAGES_PER_BATCH = 4` constant** (4 × 500 = 2,000 products per batch)
+
+**Created `syncAirIntraBatch()` function** (~400 lines):
+- If no token provided: performs login first
+- Processes pages from `startPage` to `endPage`
+- Pre-loads existing products from DB for each batch (fresh lookups)
+- Includes all existing robustness features: PHP notice handling, corrupted JSON extraction, retry logic, rate limit detection
+- Returns partial results with `hasMore`, `nextPage`, `token`, `exchangeRate`
+- Cross-batch dedup via loading existing SKUs from DB
+
+**Created `syncAirIntraFinalize()` function** (~500 lines):
+- Runs after all articulos pages are processed
+- Handles syp supplementary sync
+- Handles recategorization of NULL-category products
+- Handles post-sync verification
+- Handles recovery (text search + codiart search)
+- Updates `lastSyncAt`
+- Returns final summary
+
+**Modified POST handler** to route Air Intra requests:
+- `batch.finalize === true` → calls `syncAirIntraFinalize()`
+- `batch` provided (not finalize) → calls `syncAirIntraBatch()` with specified page range
+- No `batch` → calls `syncAirIntraBatch()` with first batch (pages 0 to PAGES_PER_BATCH-1)
+- Invid and Elit syncs remain unchanged (backward compatible)
+
+**Modified post-sync validation** to skip when `syncResult.hasMore === true` (intermediate batches).
+
+### 2. `/home/z/my-project/src/app/admin/proveedores/page.tsx`
+
+**Added `syncProgress` state**: `{ current: number; total: number } | null`
+
+**Modified `handleSync`** for Air Intra:
+1. Makes first sync call (no batch params) → backend does login + first batch
+2. If response has `hasMore: true`, loops through subsequent batches sequentially
+3. After all pages done, makes a finalize call
+4. Accumulates totals (created, updated, fetched, errors) across all batches
+5. Handles partial errors gracefully
+
+**Added progress bar UI**:
+- Blue banner with spinner showing "Sincronizando lote N de M..."
+- Progress bar that fills as batches complete
+- Button text updates to show batch progress during sync
+
+## Key Design Decisions
+
+1. **Keep existing `syncAirIntra` function intact** - it still works but is no longer called via the POST handler for new code paths
+2. **Fresh DB lookups per batch** - each batch re-queries `existingBySku` and `allExistingSlugs` from DB since previous batches have committed their inserts
+3. **Cross-batch dedup** - loads existing SKUs from DB at the start of each batch to avoid duplicate inserts
+4. **Finalize is a separate step** - syp sync, recategorization, and recovery all run after all articulos pages are done
+5. **Rate limit check only on first batch** - only checks 5-minute interval on `startPage === 0` with no token
+6. **Progress shows unknown total** - since we don't know the exact number of batches upfront, progress shows "Lote N/..." until all batches complete
+
+## Build Verification
+- `npx next build` compiled successfully with no errors
+- Pre-existing lint warnings (not caused by these changes) exist in the codebase

@@ -179,6 +179,7 @@ export default function AdminProveedores() {
   // Sync
   const [syncingId, setSyncingId] = useState<string | null>(null)
   const [syncResult, setSyncResult] = useState<{ ok: boolean; message: string } | null>(null)
+  const [syncProgress, setSyncProgress] = useState<{ current: number; total: number } | null>(null)
 
   // Test connection
   const [testingId, setTestingId] = useState<string | null>(null)
@@ -346,21 +347,147 @@ export default function AdminProveedores() {
     e.stopPropagation()
     setSyncingId(supplier.id)
     setSyncResult(null)
+    setSyncProgress(null)
 
     try {
-      const res = await fetch('/api/admin/suppliers/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ supplierId: supplier.id }),
-      })
+      if (supplier.apiType === 'air_intra') {
+        // Batched sync for Air Intra to avoid Vercel Hobby 60s timeout
+        // Each batch processes PAGES_PER_BATCH (4) pages of ~500 products each
+        const PAGES_PER_BATCH = 4
+        let token: string | undefined
+        let exchangeRate: number | undefined
+        let nextPage: number | undefined
+        let batchNum = 1
+        let totalCreated = 0
+        let totalUpdated = 0
+        let totalFetched = 0
+        let totalErrors = 0
 
-      const data = await res.json()
-      setSyncResult({ ok: data.ok, message: data.message || 'Sincronización completada' })
+        // First call: login + first batch
+        const firstRes = await fetch('/api/admin/suppliers/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ supplierId: supplier.id }),
+        })
+        const firstData = await firstRes.json()
+
+        if (!firstData.ok && !firstData.hasMore) {
+          setSyncResult({ ok: false, message: firstData.message || 'Error en sincronización' })
+          setSyncingId(null)
+          setSyncProgress(null)
+          return
+        }
+
+        totalCreated += firstData.created || 0
+        totalUpdated += firstData.updated || 0
+        totalFetched += firstData.total || 0
+        totalErrors += firstData.errors || 0
+        token = firstData.token
+        exchangeRate = firstData.exchangeRate
+        nextPage = firstData.nextPage
+
+        // Continue with subsequent batches if there are more pages
+        while (firstData.hasMore && nextPage !== undefined && token) {
+          batchNum++
+          setSyncProgress({ current: batchNum, total: -1 }) // -1 = unknown total batches
+
+          const batchRes = await fetch('/api/admin/suppliers/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              supplierId: supplier.id,
+              batch: {
+                startPage: nextPage,
+                endPage: nextPage + PAGES_PER_BATCH - 1,
+                token,
+                exchangeRate,
+              },
+            }),
+          })
+
+          const batchData = await batchRes.json()
+
+          if (!batchData.ok && !batchData.hasMore) {
+            // Error on a batch — report what we've accumulated so far
+            setSyncResult({
+              ok: true,
+              message: `Sincronización parcial: ${totalFetched} productos procesados, ${totalCreated} nuevos, ${totalUpdated} actualizados. Error en lote ${batchNum}: ${batchData.message}`,
+            })
+            loadSuppliers(search, page)
+            setSyncingId(null)
+            setSyncProgress(null)
+            return
+          }
+
+          totalCreated += batchData.created || 0
+          totalUpdated += batchData.updated || 0
+          totalFetched += batchData.total || 0
+          totalErrors += batchData.errors || 0
+          token = batchData.token || token
+          exchangeRate = batchData.exchangeRate || exchangeRate
+          nextPage = batchData.nextPage
+
+          // Update firstData.hasMore for the loop condition
+          firstData.hasMore = batchData.hasMore
+        }
+
+        setSyncProgress({ current: batchNum, total: batchNum }) // Indicate finalization phase
+
+        // Finalize step: syp sync, recategorization, recovery
+        if (token) {
+          const finalizeRes = await fetch('/api/admin/suppliers/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              supplierId: supplier.id,
+              batch: {
+                startPage: 0,
+                endPage: 0,
+                token,
+                exchangeRate,
+                finalize: true,
+              },
+            }),
+          })
+
+          const finalizeData = await finalizeRes.json()
+          totalCreated += finalizeData.created || 0
+          totalUpdated += finalizeData.updated || 0
+          totalFetched += finalizeData.total || 0
+          totalErrors += finalizeData.errors || 0
+
+          const finalizeNote = finalizeData.ok
+            ? (finalizeData.message || 'Post-procesamiento completado')
+            : `Advertencia en post-procesamiento: ${finalizeData.message}`
+
+          setSyncResult({
+            ok: true,
+            message: `Sincronización completada: ${totalFetched} productos, ${totalCreated} nuevos, ${totalUpdated} actualizados, ${totalErrors} errores. ${finalizeNote}`,
+          })
+        } else {
+          setSyncResult({
+            ok: true,
+            message: `Sincronización completada: ${totalFetched} productos, ${totalCreated} nuevos, ${totalUpdated} actualizados, ${totalErrors} errores`,
+          })
+        }
+      } else {
+        // Non-Air Intra suppliers: single request sync (Invid, Elit)
+        const res = await fetch('/api/admin/suppliers/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ supplierId: supplier.id }),
+        })
+
+        const data = await res.json()
+        setSyncResult({ ok: data.ok, message: data.message || 'Sincronización completada' })
+      }
+
       loadSuppliers(search, page)
     } catch (error: any) {
       setSyncResult({ ok: false, message: `Error: ${error.message}` })
     } finally {
       setSyncingId(null)
+      setSyncProgress(null)
     }
   }
 
@@ -601,6 +728,20 @@ export default function AdminProveedores() {
       </div>
 
       {/* Sync/Test Result Banner */}
+      {syncProgress && syncingId && (
+        <div className="flex items-center gap-3 p-3 rounded-lg text-sm bg-blue-50 text-blue-700 border border-blue-200">
+          <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+          <span>
+            Sincronizando lote {syncProgress.current}{syncProgress.total > 0 ? ` de ${syncProgress.total}` : ''}...
+          </span>
+          <div className="flex-1 h-2 bg-blue-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-500 rounded-full transition-all duration-300"
+              style={{ width: syncProgress.total > 0 ? `${(syncProgress.current / syncProgress.total) * 100}%` : '100%' }}
+            />
+          </div>
+        </div>
+      )}
       {syncResult && (
         <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
           syncResult.ok
@@ -868,7 +1009,12 @@ export default function AdminProveedores() {
                               ) : (
                                 <RefreshCw className="w-4 h-4" />
                               )}
-                              {isSyncing ? 'Sincronizando...' : 'Sincronizar Productos'}
+                              {isSyncing && syncProgress
+                                ? `Lote ${syncProgress.current}/${syncProgress.total > 0 ? syncProgress.total : '...'}`
+                                : isSyncing
+                                  ? 'Sincronizando...'
+                                  : 'Sincronizar Productos'
+                              }
                             </Button>
                             <Button
                               variant="outline"
