@@ -1,26 +1,25 @@
 ---
 Task ID: 1
-Agent: Main Agent
-Task: Investigate and fix missing "PC AIR INTEL PENTIUM G6400 COMETLAKE" product from Air Intra sync
+Agent: Main
+Task: Investigate why SKU 52751 (PC AIR INTEL PENTIUM G6400 COMETLAKE) is missing from DB
 
 Work Log:
-- Investigated the Air Intra sync code (route.ts, sync-air-intra-direct.mjs)
-- Searched the Turso DB for "PC AIR" products - found ZERO
-- Searched the Air Intra API (articulos endpoint, 7,847 products) - found ZERO "PC AIR" products
-- Searched the Air Intra API (syp endpoint, 4,500 products) - found ZERO "PC AIR" products
-- Used the API's `texto` parameter to search for "PC AIR" - returned 0 results
-- Discovered API documentation at api.air-intra.com/docs/ with `texto`, `rubro`, `grupo`, `categoria` filter parameters
-- Found 4,321 products with NULL categoryId in the DB (invisible in store)
-- Added "PC AIR", "PC ARKHAM", "PC GAMEMAX" to CATEGORY_KEYWORD_MAP for pc-armadas
-- Added category corrections for PC AIR/CX/ARKHAM/GAMEMAX from microprocesadores to pc-armadas
-- Added these brands to SUBCATEGORY_RULES for pc-armadas/oficina
-- Added post-sync recovery using API `texto` parameter to find missing PC AIR/CX/ARKHAM/GAMEMAX products
-- Added NULL categoryId recategorization step after sync
-- Pushed all changes to git (commit 73001d4)
+- Queried Turso DB: SKU 52751 does NOT exist in the products table
+- Found 0 "PC AIR" products in DB (out of 7,511 Air Intra products)
+- Found 4,321 Air Intra products with NULL categoryId
+- Queried Air Intra API with texto=PC AIR → 0 results (product doesn't exist in API)
+- Queried Air Intra API with texto=PENTIUM G6400 → Only found CPU (SKU 48440), not the PC
+- Queried Air Intra API with rubro=001-0014 → 18 PC products, none with SKU 52751
+- Discovered Air Intra API rate limit is very aggressive (5+ min cooldown between queries)
+- Discovered search parameters (texto, codiart) MUST be in POST body, NOT query params
+- Fixed sync code: search params now go in body, added rate limit handling, added codiart search
+- Added 'PC AIR' and other missing keywords to sync-air-intra-direct.mjs
+- Created diagnose-missing-products.mjs diagnostic script
+- Deployed all changes to production
 
 Stage Summary:
-- The product "PC AIR INTEL PENTIUM G6400 COMETLAKE" does NOT exist in the Air Intra API
-- Air Intra API was thoroughly searched using multiple methods (full scan, texto parameter, both endpoints)
-- Code improvements made to handle PC AIR/CX/ARKHAM/GAMEMAX products if they ever appear in the API
-- 4,321 products with NULL category identified as a major issue - recategorization logic added
-- Post-sync recovery search added to catch products lost to JSON corruption
+- ROOT CAUSE: Product "PC AIR INTEL PENTIUM G6400 COMETLAKE" (SKU 52751) does NOT exist in the Air Intra API
+- The API has 0 products matching "PC AIR" - the entire product line is absent from the API
+- This is NOT a sync bug - the product simply isn't available through the API endpoint
+- The user may be looking at Air Intra's intranet/website where the product exists but isn't exposed via API
+- Code improvements deployed: POST body search params, rate limit handling, codiart search, better recovery
