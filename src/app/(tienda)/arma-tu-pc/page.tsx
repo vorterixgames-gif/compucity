@@ -839,7 +839,7 @@ export default function ArmaTuPCPage() {
                               reason = `Socket ${compatInfo.socket} no compatible con tu procesador (${SOCKET_LABELS[compatibilityFilters.socket] || compatibilityFilters.socket})`
                             } else if (currentSlot.slot === 'ram' && compatibilityFilters.ddr && compatInfo?.ddr && compatInfo.ddr !== compatibilityFilters.ddr) {
                               reason = `${compatInfo.ddr} no compatible con tu mother (requiere ${compatibilityFilters.ddr})`
-                            } else if (currentSlot.slot === 'ram' && compatInfo?.ddrType === 'sodimm') {
+                            } else if (currentSlot.slot === 'ram' && compatInfo?.ddrType === 'sodimm' && !compatibilityFilters.ddr) {
                               reason = 'Memoria SODIMM (notebook), no compatible con PCs de escritorio'
                             } else if (currentSlot.slot === 'psu' && compatibilityFilters.minWattage && compatInfo?.wattage && compatInfo.wattage < compatibilityFilters.minWattage) {
                               reason = `${compatInfo.wattage}W insuficiente (se recomienda ${compatibilityFilters.minWattage}W+ para tu placa de video)`

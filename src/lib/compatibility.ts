@@ -299,12 +299,14 @@ export function applyCompatibilityFilters(
       }
     }
 
+    // SODIMM filter (for RAM) — always mark as incompatible for desktop builds
+    // This catches any SODIMM that might slip through the API-level exclusion
+    if (slot === 'ram' && compatInfo.ddrType === 'sodimm') {
+      isCompatible = false
+    }
+
     // DDR filter (for RAM)
     if (filters.ddr && slot === 'ram') {
-      // Filter out SODIMM (laptop RAM) for desktop builds
-      if (compatInfo.ddrType === 'sodimm') {
-        isCompatible = false
-      }
       // Filter by DDR generation
       if (compatInfo.ddr && compatInfo.ddr !== filters.ddr) {
         isCompatible = false
