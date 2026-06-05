@@ -129,7 +129,7 @@ type SortDirection = 'asc' | 'desc'
 
 interface Filters {
   category: string
-  supplier: string // 'all' | supplierId
+  supplier: string // 'all' | 'none' | supplierId
   stockStatus: string // 'all' | 'inStock' | 'lowStock' | 'outOfStock'
   activeStatus: string // 'all' | 'active' | 'inactive'
   onSale: string // 'all' | 'yes' | 'no'
@@ -402,7 +402,12 @@ export default function AdminProductos() {
       }
     }
     if (filters.supplier !== 'all') {
-      result = result.filter(p => p.providerId === filters.supplier)
+      if (filters.supplier === 'none') {
+        // Filter products WITHOUT a supplier (manually entered)
+        result = result.filter(p => !p.providerId)
+      } else {
+        result = result.filter(p => p.providerId === filters.supplier)
+      }
     }
     if (filters.stockStatus !== 'all') {
       if (filters.stockStatus === 'inStock') result = result.filter(p => p.stock > 5)
@@ -699,6 +704,7 @@ export default function AdminProductos() {
                 <SelectTrigger className="w-44 h-8 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="none">Ingresado manualmente</SelectItem>
                   {suppliers.map(s => (
                     <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                   ))}
