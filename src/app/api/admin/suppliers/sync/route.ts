@@ -913,6 +913,21 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
     const { slugToId, idToParentId, parentSlugToChildSlugs } = await buildCategoryLookup()
     const supplierMappings = await buildSupplierMappingLookup(supplier.id)
 
+    // Pre-load existing products for this supplier (in-memory lookup for speed)
+    // This avoids a SELECT query per product during the upsert phase
+    console.log('[Air Intra] Pre-loading existing products from DB...')
+    const existingProductsResult = await db.execute({
+      sql: 'SELECT id, providerSku, slug FROM products WHERE providerId = ?',
+      args: [supplier.id],
+    })
+    const existingBySku: Record<string, { id: string; slug: string }> = {}
+    const allExistingSlugs = new Set<string>()
+    for (const row of existingProductsResult.rows as any[]) {
+      if (row.providerSku) existingBySku[row.providerSku] = { id: row.id, slug: row.slug }
+      if (row.slug) allExistingSlugs.add(row.slug)
+    }
+    console.log(`[Air Intra] Loaded ${Object.keys(existingBySku).length} existing products`)
+
     // Step 1: Login to get a fresh token
     console.log('[Air Intra] Logging in...')
     const authRes = await fetch(`${baseUrl}/?q=login&user=${encodeURIComponent(supplier.apiUsername)}&pass=${encodeURIComponent(supplier.apiPassword)}`)
@@ -1125,6 +1140,9 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
 
       consecutiveEmptyPages = 0  // Reset since we got products
 
+      // Collect DB operations for batch processing (much faster than individual queries)
+      const dbOperations: Promise<void>[] = []
+
       for (const product of products) {
         try {
           const providerSku = product.codigo || product.codiart || ''
@@ -1139,59 +1157,11 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
           totalFetched++
 
           const price = parseFloat(product.precio || '0')
-          if (price <= 0) {
-            // Still create the product in DB as inactive so we know it exists
-            // This prevents it from being re-created on every sync
-            const productName = product.descrip || product.descripcion || product.titulo || ''
-            if (!productName || !providerSku) {
-              skipped++
-              continue
-            }
-
-            const existing = await db.execute({
-              sql: 'SELECT id FROM products WHERE providerId = ? AND providerSku = ?',
-              args: [supplier.id, providerSku],
-            })
-
-            if ((existing.rows as any[]).length > 0) {
-              await db.execute({
-                sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, isActive = 0, updatedAt = ? WHERE id = ?`,
-                args: [0, 0, 0, new Date().toISOString(), (existing.rows as any[])[0].id],
-              })
-              updated++
-            } else {
-              const newId = crypto.randomUUID()
-              const formattedName = formatProductName(productName)
-              const slug = generateSlug(formattedName)
-              const supplierCategory = getAirIntraSupplierCategory(product)
-              const { categoryId } = mapProductToCategory(productName, supplierCategory, supplierMappings, slugToId, idToParentId, parentSlugToChildSlugs)
-
-              const specs: Record<string, string> = {}
-              if (product.garantia) specs['Garantía'] = product.garantia
-              if (product.moneda) specs['Moneda'] = product.moneda
-              if (product.marca) specs['Marca'] = product.marca
-              if (product.rubro) specs['Rubro'] = product.rubro
-              if (product.grupo) specs['Grupo'] = product.grupo
-
-              await db.execute({
-                sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
-                      VALUES (?, ?, ?, '', ?, ?, ?, ?, 0, ?, '[]', ?, ?, ?, ?, ?)`,
-                args: [newId, formattedName, slug, 0, 0, providerSku, 0, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, supplierCategory],
-              })
-              created++
-            }
-            skipped++
-            continue
-          }
-
-          const costPrice = price
+          const productName = product.descrip || product.descripcion || product.titulo || ''
           const supplierCategory = getAirIntraSupplierCategory(product)
-
-          // Air Intra prices are in USD
+          const costPrice = price
           const markup = supplier.markup || 30
-          const sellingPrice = costPrice * (1 + markup / 100)
-
-          // Check total available stock across warehouses
+          const sellingPrice = costPrice > 0 ? costPrice * (1 + markup / 100) : 0
           const totalStock = (product.air?.disponible || 0) +
             (product.lug?.disponible || 0) +
             (product.ros?.disponible || 0) +
@@ -1199,75 +1169,53 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
             (product.mza?.disponible || 0) +
             (product.stock_disponible || 0)
 
-          const productName = product.descrip || product.descripcion || product.titulo || ''
-
-          const existing = await db.execute({
-            sql: 'SELECT id FROM products WHERE providerId = ? AND providerSku = ?',
-            args: [supplier.id, providerSku],
-          })
-
-          const existingRows = existing.rows as any[]
-
           const { categoryId } = mapProductToCategory(
-            productName,
-            supplierCategory,
-            supplierMappings,
-            slugToId,
-            idToParentId,
-            parentSlugToChildSlugs
+            productName, supplierCategory, supplierMappings, slugToId, idToParentId, parentSlugToChildSlugs
           )
 
-          // ==========================================
-          // Air Intra isActive logic — aligned with Invid/Elit:
-          // Products with price > 0 are active (same as Invid).
-          // Products with price <= 0 are inactive.
-          // If allowedCategories is configured (non-null), additionally filter by category.
-          // ==========================================
+          // Air Intra isActive logic
           let airIntraIsActive = price > 0 ? 1 : 0
 
           if (airIntraIsActive === 1 && supplier.allowedCategories) {
-            // allowedCategories is configured — apply category filter on top
             const supplierAllowedCategories: string[] | null = typeof supplier.allowedCategories === 'string'
               ? JSON.parse(supplier.allowedCategories)
               : supplier.allowedCategories
-
             if (supplierAllowedCategories !== null && categoryId) {
               const catSlug = Object.entries(slugToId).find(([_, id]) => id === categoryId)?.[0]
               const catParentId = idToParentId[categoryId]
               const catParentSlug = catParentId ? Object.entries(slugToId).find(([_, id]) => id === catParentId)?.[0] : null
-
               const isAllowedCategory = catSlug ? supplierAllowedCategories.includes(catSlug) : false
               const isChildOfAllowedCategory = catParentSlug ? supplierAllowedCategories.includes(catParentSlug) : false
-
               if (!isAllowedCategory && !isChildOfAllowedCategory) {
                 airIntraIsActive = 0
               }
             }
           }
 
-          if (existingRows.length > 0) {
-            await db.execute({
-              sql: `UPDATE products SET
-                costPrice = ?, price = ?, stock = ?,
-                supplierCategory = ?,
-                categoryId = ?,
-                isActive = ?,
-                updatedAt = ?
-              WHERE id = ?`,
-              args: [costPrice, sellingPrice, totalStock, supplierCategory, categoryId, airIntraIsActive, new Date().toISOString(), existingRows[0].id],
-            })
-            updated++
-          } else {
-            if (!productName) {
-              skipped++
-              continue
-            }
+          // Use in-memory lookup instead of DB query
+          const existingProduct = existingBySku[providerSku]
+          const now = new Date().toISOString()
 
+          if (existingProduct) {
+            // UPDATE existing product
+            dbOperations.push(
+              db.execute({
+                sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, supplierCategory = ?, categoryId = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
+                args: [costPrice, sellingPrice, totalStock, supplierCategory, categoryId, airIntraIsActive, now, existingProduct.id],
+              }).then(() => { updated++ }).catch((err) => { console.error('Error updating Air Intra product:', err); errors++ })
+            )
+          } else if (productName && providerSku) {
+            // INSERT new product
             const newId = crypto.randomUUID()
             const formattedName = formatProductName(productName)
-            const slug = generateSlug(formattedName)
+            let slug = generateSlug(formattedName)
 
-            // Build specs from articulos data (richer than syp)
+            // Handle slug collision
+            if (allExistingSlugs.has(slug)) {
+              slug = slug + '-' + providerSku.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 10)
+            }
+            allExistingSlugs.add(slug)
+
             const specs: Record<string, string> = {}
             if (product.garantia) specs['Garantía'] = product.garantia
             if (product.moneda) specs['Moneda'] = product.moneda
@@ -1277,32 +1225,30 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
             if (product.tipo?.name) specs['Tipo'] = product.tipo.name
             if (product.estado?.name) specs['Estado'] = product.estado.name
 
-            await db.execute({
-              sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
-                    VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
-              args: [
-                newId,
-                formattedName,
-                slug,
-                sellingPrice,
-                costPrice,
-                providerSku,
-                totalStock,
-                airIntraIsActive,
-                0,
-                JSON.stringify(specs),
-                supplier.id,
-                providerSku,
-                categoryId,
-                supplierCategory,
-              ],
-            })
-            created++
+            dbOperations.push(
+              db.execute({
+                sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
+                      VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
+                args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, airIntraIsActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, supplierCategory],
+              }).then(() => {
+                created++
+                existingBySku[providerSku] = { id: newId, slug }
+              }).catch((err) => { console.error('Error inserting Air Intra product:', err); errors++ })
+            )
+          } else {
+            skipped++
           }
         } catch (err) {
           console.error('Error processing Air Intra product:', err)
           errors++
         }
+      }
+
+      // Execute all DB operations in parallel (limited concurrency to avoid overwhelming Turso)
+      const BATCH_CONCURRENCY = 20
+      for (let i = 0; i < dbOperations.length; i += BATCH_CONCURRENCY) {
+        const batch = dbOperations.slice(i, i + BATCH_CONCURRENCY)
+        await Promise.all(batch)
       }
 
       console.log(`[Air Intra] Page ${page} processed: ${products.length} items (total: ${totalFetched})`)
