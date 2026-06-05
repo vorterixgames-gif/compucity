@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-06 (sesion 22)
+**Ultima actualizacion:** 2026-06-06 (sesion 23)
 
 ---
 
@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** 0e2d6d9 (fix: improve category mapping - prevent switches/routers in PC Armadas, fix 30 miscategorized products)
+- **Commit actual:** e74ceca (fix: reducir cache del dólar a 15 min, server-side pagination admin, filtro Ingresado manualmente, fix categorías)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -59,14 +59,16 @@
 - **Mensaje informativo:** El resultado del sync ahora indica si se uso la extraccion de objetos como fallback
 - **Commit:** 94bdbd4
 
-### Estado actual de productos (2026-06-03 sesion 7)
-| Proveedor | Activos | Total | Con imagen | Sin imagen | Con costPrice |
-|-----------|---------|-------|------------|------------|---------------|
-| Air Intra | 1,701 | 1,701 | 191 | 1,510 | 1,701 |
-| Elit | 1,506 | 1,518 | 1,516 | 2 | 1,518 |
-| Invid Computers | 1,187 | 1,191 | 1,191 | 0 | 1,191 |
-| Manual | 1 | 1 | 1 | 0 | 1 |
-| **Total** | **4,391** | **4,411** | **2,899** | **1,512** | **4,411** |
+### Estado actual de productos (2026-06-06 sesion 23)
+| Proveedor | Total en DB | Con imagen | product_images |
+|-----------|------------|------------|----------------|
+| Air Intra | ~5,800 | 191 | - |
+| Elit | ~2,500 | 2,498 | - |
+| Invid | ~1,400 | 1,400 | - |
+| Manual | 1 | 1 | - |
+| **Total DB** | **~10,310** | - | **419** |
+
+**Nota:** Los totales incluyen productos inactivos y duplicados. El backup del 2026-06-06 tiene 10,310 registros en tabla products (muchos con stock=0 o isActive=0).
 
 ---
 
@@ -123,7 +125,10 @@
 - **Markup (margen de ganancia):** 15% (store_config: markup = 15)
 - **Descuento efectivo:** 0% (store_config: cash_discount = 0)
 - **IVA por defecto:** 10.5% (campo ivaRate en products, default 10.5)
-- **Fuente dolar:** Banco Nacion (dolar_api)
+- **Fuente dolar:** Banco Nacion (dolar_api) o Dólar Blue (configurable)
+- **Cache dolar:** 15 minutos (Next.js revalidate + memoria admin). Antes era 1h/30min, reducido sesion 23 para info más actualizada
+- **API externa:** DolarApi.com (dolarapi.com/v1/dolares/oficial o /blue)
+- **Flujo cache:** Memoria (15 min) → DB → Next.js fetch cache (15 min) → API externa → Fallback 1415
 - **Panel admin:** `/admin/configuracion` - Permite cambiar dolar, markup, descuento global
 
 ### Sistema de 3 Niveles de Markup (IMPLEMENTADO sesion 8)
@@ -576,22 +581,22 @@ scripts/deploy.sh                         — Script de deploy seguro
 ---
 
 ## Imagenes de Productos
-- **Total con imagen:** 2,899 (65%)
-- **Total sin imagen:** 1,565 (35%)
-- **Air Intra:** 1,563 sin imagen (el API syp no devuelve imagenes)
-- **Elit:** 2 sin imagen (ya tienen WebP del API)
+- **Total con imagen:** ~4,000+ (en tabla products)
+- **product_images:** 419 imagenes (WebP en DB)
+- **Air Intra:** ~1,563 sin imagen (el API syp no devuelve imagenes)
+- **Elit:** ~2 sin imagen (ya tienen WebP del API)
 - **Invid:** 0 sin imagen (ya tienen imagenes del API)
 - **Formato:** WebP (max 800px, calidad 75) almacenadas en tabla `product_images`
 - **Endpoint:** `/api/image/[id]` - Sirve imagenes desde product_images
 - **Cross-provider matching:** Sistema para copiar imagenes entre proveedores por brand+model
 - **Scripts:** `scripts/enrich-images.mjs`, `scripts/batch-images.mjs`, `scripts/cross-provider-images.mjs`
-- **product_images:** 147 imagenes
 
 ---
 
 ## Base de Datos (Turso)
 - **Host:** compucity-vorterixgames-gif.aws-us-east-1.turso.io
-- **Tablas (14):** products (4,464), categories (63), suppliers (3), orders (0), order_items (0), customers (1), product_images (147), dollar_rates (1), store_config (20), supplier_category_mappings (85), admins (1), banners (0), coupons (0), password_reset_tokens (2)
+- **Tablas (14):** products (10,310), categories (65), suppliers (3), orders (0), order_items (0), customers (1), product_images (419), dollar_rates (1), store_config (20), supplier_category_mappings (86), admins (1), banners (0), coupons (0), password_reset_tokens (2)
+- **Último backup:** backups/compucity-backup-2026-06-05.sql (24 MB)
 
 ### Schema Products
 ```
@@ -762,6 +767,7 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ---
 
 ## Historial de Cambios
+- **2026-06-06 (s23):** Cache del dólar reducido + server-side pagination admin + backup. (1) FIX cache dolar: Next.js revalidate reducido de 1h (3600s) a 15 min (900s) en `src/lib/dollar.ts`. Cache en memoria admin reducido de 30 min a 15 min en `src/app/api/admin/products/route.ts`. API externa (DolarApi.com) ahora se consulta max cada 15 min en vez de 1h. Flujo cache: Memoria (15 min) → DB → Next.js fetch cache (15 min) → API externa → Fallback 1415. (2) Server-side pagination en admin productos (commit 0a9d109): payload reducido de ~10MB a ~50KB, filtros/ordenamiento/paginacion ejecutados en SQL server-side, cache dolar en memoria para admin. (3) Backup DB: `backups/compucity-backup-2026-06-05.sql` (24 MB, 10,310 productos, todas las 14 tablas). Commits: 0a9d109, e74ceca
 - **2026-06-06 (s22):** Filtro "Ingresado manualmente" en proveedor + FIX masivo de categorias. (1) Admin productos: opcion "Ingresado manualmente" en dropdown de Proveedor para filtrar productos sin proveedor (providerId vacio/nulo). (2) FIX categoria DESKTOP: keyword "DESKTOP" era demasiado generico en CATEGORY_KEYWORD_MAP, causando que switches "Desktop Switch" (ej: Switch 5P Tp-link Tl-sg1005d Gigabit Desktop) se categorizaran como PC Armadas. (3) Reordenamiento: SWITCH y ROUTER movidos al Grupo 1 (antes de PC Armadas) para que se detecten primero. (4) "DESKTOP" reemplazado por "DESKTOP PC" (mas especifico). (5) Nuevas correcciones automaticas: SWITCH→switches, ROUTER→routers-wifi, TP-LINK→placas-de-red, ESCRITORIO→escritorios, ANTENA→placas-de-red, USB-C HDMI→cables, ADAPTADOR TP-LINK USB→cables, TENSIOMETRO→smart-home, HIKVISION→switches. (6) DB: 30 productos recategorizados (23 switches + 1 antena + 1 escritorio + 2 USB-C HDMI + 2 adaptadores TP-Link + 1 tensiómetro). (7) Mapeo proveedor 001-0430 → switches creado para Air Intra. Commit: 0e2d6d9
 - **2026-06-05 (s21):** FIX CRITICO Air Intra sync - Productos faltantes resuelto. (1) BUG PRINCIPAL: La paginación se detenía prematuramente cuando el JSON corrupto causaba que una página devolviera <500 productos, haciendo que el sync creyera que era la última página. El endpoint `syp` solo tenía ~4,500 productos y faltaban categorías. (2) Cambio de endpoint `syp` → `articulos`: Ahora usa el endpoint `articulos` que tiene 7,499 productos (vs 4,500 de syp) e incluye datos de categoría (rubro, grupo), garantía, tipo y estado. (3) Fix paginación: Ya no se detiene por `products.length < pageSize`. Ahora usa MAX_PAGES (30) + detección de página vacía. (4) Retry logic: Hasta 2 reintentos por página fallida. (5) Batch DB operations: Pre-load de productos existentes en memoria, INSERT/UPDATE en paralelo (concurrencia 20). (6) Script standalone: `sync-air-intra-direct.mjs` para sync directo a Turso sin pasar por API route. (7) Resultado: Air Intra pasó de 1,702 a 7,511 productos (7,324 activos). Commits: da050a3, 3ed8b21, 2cf33b5
 - **2026-06-05 (s16):** Multiples fixes y features de admin + PC Builder. (1) Bug #3: Filtro "Sin categoria" en admin productos - opcion para encontrar productos sin categoryId asignado (valor `"none"`). (2) Feature: Seleccion multiple y eliminacion masiva de productos - checkboxes en cada fila, select all, barra de acciones, dialogo de confirmacion, DELETE paralelo. (3) Bug #4: Cambiar nombre de categoria rompia PC Builder - el slug se regeneraba automaticamente, rompiendo las referencias hardcodeadas. Fix: API PUT ya no auto-regenera slug, campo slug editable en admin categorias con advertencia "No cambiar si se usa en Arma tu PC". (4) Feature: Ocultar datos internos de productos (Moneda DOL, EAN, Garantia) de las vistas publicas - solo se muestra descripcion y precio al cliente. (5) Bug #5: Socket detection - Intel Core Ultra 5 225F detectado como LGA 1700 en vez de LGA 1851. Causa: regex `/\bS?1851\b/` no matcheaba "LGA1851" (sin espacio). Fix: regex cambiado a `/(?:S|LGA\s*)?1851/`, + deteccion por modelo (CORE ULTRA = LGA 1851 siempre). Commits: 0969b04, afe7c31, 5a55884, f794b1d, 15fcb9a. Backup src (858KB)
