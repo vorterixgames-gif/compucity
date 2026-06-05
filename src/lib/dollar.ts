@@ -37,7 +37,7 @@ export async function fetchDollarRate(): Promise<DollarInfo> {
     // Fetch from DolarApi
     const apiUrl = configSource === 'blue' ? DOLAR_API_BLUE : DOLAR_API_OFICIAL
     const res = await fetch(apiUrl, {
-      next: { revalidate: 3600 }, // cache 1 hour on Next.js side
+      next: { revalidate: 900 }, // cache 15 minutes on Next.js side
     })
 
     if (!res.ok) throw new Error('DolarApi no responde')

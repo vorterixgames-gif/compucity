@@ -31,7 +31,7 @@ async function getConfig(key: string, defaultValue: number): Promise<number> {
 
 // Module-level dollar rate cache (avoid calling external API on every request)
 let cachedDollarRate = { rate: 0, fetchedAt: 0 }
-const DOLLAR_CACHE_TTL = 30 * 60 * 1000 // 30 minutes in ms
+const DOLLAR_CACHE_TTL = 15 * 60 * 1000 // 15 minutes in ms
 
 async function getDollarRate(): Promise<number> {
   const now = Date.now()
