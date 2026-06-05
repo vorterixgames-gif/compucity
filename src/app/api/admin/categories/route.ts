@@ -77,7 +77,7 @@ export async function PUT(request: NextRequest) {
     if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const body = await request.json()
-    const { id, name, image, parentId, enabled, order, markup, cashDiscount, ivaRate } = body
+    const { id, name, slug, image, parentId, enabled, order, markup, cashDiscount, ivaRate } = body
 
     if (!id) {
       return NextResponse.json({ error: 'ID es requerido' }, { status: 400 })
@@ -124,16 +124,19 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'No hay campos para actualizar' }, { status: 400 })
     }
 
-    // If name is changing, also update slug
-    if (name !== undefined) {
-      const slug = name
+    // Only update slug if explicitly provided in the request
+    // (auto-updating slug on name change breaks PC Builder hardcoded slug references)
+    if (slug !== undefined) {
+      const cleanSlug = slug
         .toLowerCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '')
-      fields.push('slug = ?')
-      values.push(slug)
+      if (cleanSlug) {
+        fields.push('slug = ?')
+        values.push(cleanSlug)
+      }
     }
 
     fields.push('updatedAt = ?')

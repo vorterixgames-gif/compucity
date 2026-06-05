@@ -67,6 +67,7 @@ interface Category {
 
 interface CategoryForm {
   name: string
+  slug: string
   image: string
   parentId: string
   enabled: boolean
@@ -77,6 +78,7 @@ interface CategoryForm {
 
 const emptyForm: CategoryForm = {
   name: '',
+  slug: '',
   image: '',
   parentId: '',
   enabled: true,
@@ -149,6 +151,7 @@ export default function AdminCategorias() {
     setEditingId(category.id)
     setForm({
       name: category.name,
+      slug: category.slug || '',
       image: category.image || '',
       parentId: category.parentId || '',
       enabled: category.enabled === 1,
@@ -189,6 +192,7 @@ export default function AdminCategorias() {
       const payload = {
         ...(editingId ? { id: editingId } : {}),
         name: form.name.trim(),
+        ...(editingId ? { slug: form.slug.trim() } : {}), // Only send slug on edit
         image: form.image.trim() || null,
         parentId: form.parentId || null,
         enabled: form.enabled,
@@ -622,6 +626,25 @@ export default function AdminCategorias() {
                 placeholder="Nombre de la categoría"
               />
             </div>
+
+            {editingId && (
+              <div className="space-y-2">
+                <Label htmlFor="cat-slug" className="flex items-center gap-1">
+                  Slug (URL)
+                  <span className="text-xs font-normal text-amber-600">⚠ No cambiar si se usa en Arma tu PC</span>
+                </Label>
+                <Input
+                  id="cat-slug"
+                  value={form.slug}
+                  onChange={(e) => setForm(prev => ({ ...prev, slug: e.target.value }))}
+                  placeholder="slug-de-la-categoria"
+                  className="font-mono text-sm"
+                />
+                <p className="text-xs text-gray-400">
+                  El slug identifica la categoría en las URLs y en el Armá tu PC. Si cambiás el nombre pero no tocás el slug, la categoría sigue funcionando igual.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="cat-image">URL de Imagen</Label>
