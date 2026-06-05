@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-05 (sesion 16)
+**Ultima actualizacion:** 2026-06-05 (sesion 17)
 
 ---
 
@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** 15fcb9a (fix: PC Builder socket detection - LGA1851/LGA1700 regex + Core Ultra)
+- **Commit actual:** cb797ad (fix: Air Intra supplier improvements - isActive logic + batch sync)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -37,18 +37,24 @@
 ## Proveedores (Regla CRITICA)
 
 ### REGLA DE FILTRADO POR PROVEEDOR
-- **Air Intra:** SOLO perifericos, componentes-de-pc, cables-y-adaptadores, pc-armadas
+- **Air Intra:** Todos los productos con precio > 0 se activan (igual que Invid/Elit). Si `allowedCategories` esta configurado (no null), se aplica como filtro adicional
 - **Elit:** MANTIENE TODOS sus productos (notebooks, impresion, toners, UPS, etc.)
 - **Invid Computers:** MANTIENE TODOS sus productos (notebooks, routers, switches, etc.)
+
+### FIX sesion 17: isActive de Air Intra alineado con Invid/Elit
+- **Antes:** Air Intra usaba logica compleja de `allowedCategories` que por defecto desactivaba productos (isActive=0 si no tenian categoria o la categoria no estaba en la lista)
+- **Despues:** Productos con precio > 0 son activos por defecto (igual que Invid). `allowedCategories` solo filtra si esta configurado (no null)
+- **Resultado:** 230 productos de Air Intra que estaban inactivos ahora estan activos
+- **sync-providers.mjs:** Se agrego Air Intra al script de sincronizacion batch (antes solo sincronizaba Invid y Elit)
 
 ### Estado actual de productos (2026-06-03 sesion 7)
 | Proveedor | Activos | Total | Con imagen | Sin imagen | Con costPrice |
 |-----------|---------|-------|------------|------------|---------------|
-| Air Intra | 1,489 | 1,754 | 191 | 1,563 | 1,754 |
+| Air Intra | 1,701 | 1,701 | 191 | 1,510 | 1,701 |
 | Elit | 1,506 | 1,518 | 1,516 | 2 | 1,518 |
 | Invid Computers | 1,187 | 1,191 | 1,191 | 0 | 1,191 |
 | Manual | 1 | 1 | 1 | 0 | 1 |
-| **Total** | **4,179** | **4,459** | **2,899** | **1,565** | **4,459** |
+| **Total** | **4,391** | **4,411** | **2,899** | **1,512** | **4,411** |
 
 ---
 
@@ -659,6 +665,7 @@ createdAt TEXT, updatedAt TEXT
 ## Backups
 | Fecha | Archivo | Tamano | Contenido |
 |-------|---------|--------|----------|
+| 2026-06-05 (s17) | `compucity-src-backup-20260605-s17.tar.gz` | ~860KB | Air Intra isActive fix + batch sync + diagnostic script |
 | 2026-06-05 (s16) | `compucity-src-backup-20260605-s16.tar.gz` | 858KB | Codigo src con socket detection fix, bulk delete, slug editable, specs ocultos |
 | 2026-06-05 (s15b) | `compucity-src-backup-20260605-s15b.tar.gz` | 967KB | Codigo src con PDF download en Arma tu PC |
 | 2026-06-05 (s15) | `compucity-src-backup-20260605-s15.tar.gz` | 852KB | Codigo src con fix SODIMM excluido del PC Builder |

@@ -995,12 +995,18 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
         }
 
         if (!products || products.length === 0) {
-          result.message = parseError
+          // Check if it's a rate limit error — don't count as fatal
+          if (rawResponseText.includes('Too many queries') || rawResponseText.includes('error_id":403')) {
+            result.message = `Rate limit de Air Intra alcanzado. Se sincronizaron ${totalFetched} productos antes del límite. Intente de nuevo en 5 minutos.`
+            result.ok = totalFetched > 0
+          } else {
+            result.message = parseError
+            result.errors = errors + 1
+          }
           result.total = totalFetched
           result.created = created
           result.updated = updated
           result.skipped = skipped
-          result.errors = errors + 1
           return result
         }
       } else {
