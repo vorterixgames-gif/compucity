@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { getVisibleSpecs } from '@/lib/product-specs'
 
 interface ProductTabsProps {
   description: string | null
@@ -17,7 +18,10 @@ type TabKey = (typeof TABS)[number]['key']
 
 export default function ProductTabs({ description, specs }: ProductTabsProps) {
   const [activeTab, setActiveTab] = useState<TabKey>('description')
-  const hasSpecs = Object.keys(specs).length > 0
+
+  // Filter out internal/supplier specs not relevant for customers
+  const visibleSpecs = getVisibleSpecs(specs)
+  const hasSpecs = visibleSpecs.length > 0
 
   return (
     <div>
@@ -64,7 +68,7 @@ export default function ProductTabs({ description, specs }: ProductTabsProps) {
           >
             {hasSpecs ? (
               <div className="border rounded-lg overflow-hidden">
-                {Object.entries(specs).map(([key, value], i) => (
+                {visibleSpecs.map(([key, value], i) => (
                   <div
                     key={key}
                     className={`flex ${i % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}

@@ -43,6 +43,7 @@ import {
   type CompatibilityInfo,
   type CompatibilityFilters,
 } from '@/lib/compatibility'
+import { getVisibleSpecs } from '@/lib/product-specs'
 
 // ============================================
 // Types
@@ -878,7 +879,7 @@ export default function ArmaTuPCPage() {
                     const isSelected = selectedForCurrentSlot?.product.id === product.id
                     const image = safeParseFirstImage(product.images)
                     const specs = parseSpecs(product.specs)
-                    const specEntries = Object.entries(specs).slice(0, 4)
+                    const specEntries = getVisibleSpecs(specs).slice(0, 4)
                     const compatInfo = product.compatInfo
 
                     return (
@@ -986,7 +987,7 @@ export default function ArmaTuPCPage() {
                             const isSelected = selectedForCurrentSlot?.product.id === product.id
                             const image = safeParseFirstImage(product.images)
                             const specs = parseSpecs(product.specs)
-                            const specEntries = Object.entries(specs).slice(0, 4)
+                            const specEntries = getVisibleSpecs(specs).slice(0, 4)
                             const compatInfo = product.compatInfo
 
                             // Determine incompatibility reason
