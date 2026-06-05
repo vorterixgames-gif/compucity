@@ -45,7 +45,7 @@ console.log('\n=== IMAGE STATS BY SUPPLIER ===')
 console.table(imageStats.rows)
 
 // Sample products from each provider
-for (const supplier of ['Elit', 'Invid Computers']) {
+for (const supplier of ['Elit', 'Invid Computers', 'Air Intra']) {
   const sample = await db.execute({
     sql: `SELECT p.name, c.slug as category, p.stock, p.price FROM products p 
           JOIN suppliers s ON p.providerId = s.id 

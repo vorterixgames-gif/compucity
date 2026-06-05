@@ -1055,25 +1055,20 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
           )
 
           // ==========================================
-          // Category filter based on supplier's allowedCategories config:
-          // - null: all categories allowed (no filter)
-          // - []: no categories allowed (all inactive)
-          // - ['slug1','slug2']: only those parent slugs + their children allowed
-          // Products with no category match are always inactive.
+          // Air Intra isActive logic — aligned with Invid/Elit:
+          // Products with price > 0 are active (same as Invid).
+          // Products with price <= 0 are inactive.
+          // If allowedCategories is configured (non-null), additionally filter by category.
           // ==========================================
-          let airIntraIsActive = 0
-          if (categoryId) {
-            const supplierAllowedCategories: string[] | null = supplier.allowedCategories
-              ? (typeof supplier.allowedCategories === 'string'
-                ? JSON.parse(supplier.allowedCategories)
-                : supplier.allowedCategories)
-              : null
+          let airIntraIsActive = price > 0 ? 1 : 0
 
-            if (supplierAllowedCategories === null) {
-              // No filter configured — all categories allowed
-              airIntraIsActive = 1
-            } else {
-              // Check if the product's category (or its parent) is in the allowed list
+          if (airIntraIsActive === 1 && supplier.allowedCategories) {
+            // allowedCategories is configured — apply category filter on top
+            const supplierAllowedCategories: string[] | null = typeof supplier.allowedCategories === 'string'
+              ? JSON.parse(supplier.allowedCategories)
+              : supplier.allowedCategories
+
+            if (supplierAllowedCategories !== null && categoryId) {
               const catSlug = Object.entries(slugToId).find(([_, id]) => id === categoryId)?.[0]
               const catParentId = idToParentId[categoryId]
               const catParentSlug = catParentId ? Object.entries(slugToId).find(([_, id]) => id === catParentId)?.[0] : null
@@ -1081,8 +1076,8 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
               const isAllowedCategory = catSlug ? supplierAllowedCategories.includes(catSlug) : false
               const isChildOfAllowedCategory = catParentSlug ? supplierAllowedCategories.includes(catParentSlug) : false
 
-              if (isAllowedCategory || isChildOfAllowedCategory) {
-                airIntraIsActive = 1
+              if (!isAllowedCategory && !isChildOfAllowedCategory) {
+                airIntraIsActive = 0
               }
             }
           }

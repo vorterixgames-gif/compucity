@@ -1,4 +1,4 @@
-// Re-sync Elit and Invid Computers to restore ALL their products
+// Re-sync all suppliers: Elit, Invid Computers, and Air Intra
 import { createClient } from '@libsql/client'
 
 const db = createClient({
@@ -66,6 +66,26 @@ async function main() {
       console.log('Invid sync result:', JSON.stringify(syncData, null, 2))
     } catch (err) {
       console.error('Invid sync error:', err.message)
+    }
+  }
+
+  // Sync Air Intra
+  const airIntraSupplier = suppliers.rows.find(s => s.apiType === 'air_intra')
+  if (airIntraSupplier) {
+    console.log(`\n=== SYNCING AIR INTRA (${airIntraSupplier.id}) ===`)
+    try {
+      const syncRes = await fetch('http://localhost:3000/api/admin/suppliers/sync', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Cookie': `admin_token=${token}`
+        },
+        body: JSON.stringify({ supplierId: airIntraSupplier.id })
+      })
+      const syncData = await syncRes.json()
+      console.log('Air Intra sync result:', JSON.stringify(syncData, null, 2))
+    } catch (err) {
+      console.error('Air Intra sync error:', err.message)
     }
   }
 
