@@ -386,8 +386,13 @@ export default function AdminProductos() {
 
     // Apply filters
     if (filters.category !== 'all') {
-      const catIds = getCategoryIdsWithDescendants(filters.category)
-      result = result.filter(p => p.categoryId && catIds.has(p.categoryId))
+      if (filters.category === 'none') {
+        // Filter products WITHOUT a category
+        result = result.filter(p => !p.categoryId)
+      } else {
+        const catIds = getCategoryIdsWithDescendants(filters.category)
+        result = result.filter(p => p.categoryId && catIds.has(p.categoryId))
+      }
     }
     if (filters.supplier !== 'all') {
       result = result.filter(p => p.providerId === filters.supplier)
@@ -637,6 +642,7 @@ export default function AdminProductos() {
                 <SelectTrigger className="w-48 h-8 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="none">Sin categoría</SelectItem>
                   {categories
                     .filter(c => !c.parentId)
                     .sort((a, b) => a.name.localeCompare(b.name))
