@@ -91,8 +91,13 @@ const CATEGORY_KEYWORD_MAP: { keywords: string[]; categorySlug: string; name: st
   // GROUP 1: COMPLETE PRODUCTS — MUST BE FIRST
   // These match entire product types that contain component keywords in their names
   // ==========================================
+  // Switches — MUST be before PC Armadas to catch "Desktop Switch" products
+  { keywords: ['SWITCH'], categorySlug: 'switches', name: 'Switches' },
+  // Routers — MUST be before PC Armadas to catch router products
+  { keywords: ['ROUTER','ARCHER','DECO','MESH WIFI','TL-WR','ROU WI'], categorySlug: 'routers-wifi', name: 'Routers WiFi' },
   // PC Armadas — complete PCs that may contain RTX/DDR/SSD in name
-  { keywords: ['PC GAMER','PC LENOVO','PC KELYX','PC AIR','PC ARKHAM','PC GAMEMAX','SIST. KELYX','SIST.','COMPUTADORA','BAREBONE','DESKTOP','ALL IN ONE','ALL-IN-ONE'], categorySlug: 'pc-armadas', name: 'PC Armadas' },
+  // NOTE: "DESKTOP" removed — too generic, matches "Desktop Switch", "Desktop Router"
+  { keywords: ['PC GAMER','PC LENOVO','PC KELYX','PC AIR','PC ARKHAM','PC GAMEMAX','PC CX','SIST. KELYX','SIST.','COMPUTADORA','BAREBONE','DESKTOP PC','ALL IN ONE','ALL-IN-ONE','POS '], categorySlug: 'pc-armadas', name: 'PC Armadas' },
   // Notebooks — contain RTX/DDR/SSD keywords but are NOT components
   { keywords: ['NOTEBOOK','LAPTOP','PORTATIL'], categorySlug: 'notebooks', name: 'Notebooks' },
   // Mini PC — complete PCs that may contain component keywords
@@ -164,10 +169,8 @@ const CATEGORY_KEYWORD_MAP: { keywords: string[]; categorySlug: string; name: st
   // ==========================================
   // GROUP 5: NETWORKING & MISC
   // ==========================================
-  // Routers WiFi
-  { keywords: ['ARCHER','ROUTER','DECO','MESH WIFI','TL-WR','ROU WI'], categorySlug: 'routers-wifi', name: 'Routers WiFi' },
-  // Switches
-  { keywords: ['SWITCH'], categorySlug: 'switches', name: 'Switches' },
+  // Routers WiFi (duplicate entry removed — already in GROUP 1 before PC Armadas)
+  // Switches (duplicate entry removed — already in GROUP 1 before PC Armadas)
   // Placas de Red
   { keywords: ['P.REDW','EAP','CPE','SFP','TL-WN','PREDW','RANGE EXTENDER','TAPO C','CAMARA IP'], categorySlug: 'placas-de-red', name: 'Placas de Red' },
   // Cables y Adaptadores — MUST be near the end; "CABLE" is very generic
@@ -353,10 +356,22 @@ function mapProductToCategory(
       sourceSlugs: ['fuentes', 'gabinetes'],
     },
     {
-      // Desktop PCs mis-categorized
-      nameKeyword: 'DESKTOP',
-      targetSlug: 'pc-armadas',
-      sourceSlugs: ['switches', 'discos-ssd'],
+      // Switch products with "Desktop" in the name (e.g. "Switch 5P Tp-link Gigabit Desktop")
+      nameKeyword: 'SWITCH',
+      targetSlug: 'switches',
+      sourceSlugs: ['pc-armadas', 'oficina-pc', 'gamer-pc', 'mini-pc', 'diseno-pc'],
+    },
+    {
+      // Router products with "Desktop" in the name
+      nameKeyword: 'ROUTER',
+      targetSlug: 'routers-wifi',
+      sourceSlugs: ['pc-armadas', 'oficina-pc', 'gamer-pc', 'mini-pc', 'diseno-pc'],
+    },
+    {
+      // TP-Link products with "Desktop" (antennas, etc.) → Conectividad
+      nameKeyword: 'TP-LINK',
+      targetSlug: 'placas-de-red',
+      sourceSlugs: ['pc-armadas', 'oficina-pc'],
     },
     {
       // PC AIR (Air Intra brand PCs) mis-categorized as components (contains PENTIUM/I3/etc.)
@@ -430,6 +445,42 @@ function mapProductToCategory(
       nameKeyword: '(RMA)',
       targetSlug: 'motherboards',
       sourceSlugs: ['placas-de-video', 'microprocesadores', 'memorias-ram'],
+    },
+    {
+      // Escritorios (desks) mis-categorized as PC Armadas
+      nameKeyword: 'ESCRITORIO',
+      targetSlug: 'escritorios',
+      sourceSlugs: ['pc-armadas', 'oficina-pc', 'gamer-pc', 'mini-pc', 'diseno-pc'],
+    },
+    {
+      // Antenas mis-categorized as PC Armadas
+      nameKeyword: 'ANTENA',
+      targetSlug: 'placas-de-red',
+      sourceSlugs: ['pc-armadas', 'oficina-pc', 'gamer-pc'],
+    },
+    {
+      // USB-C HDMI adapters mis-categorized as motherboards or placas-de-red
+      nameKeyword: 'USB-C A HDMI',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['motherboards', 'placas-de-red'],
+    },
+    {
+      // Adaptadores USB (card readers, video adapters) in placas-de-red → cables
+      nameKeyword: 'ADAPTADOR TP-LINK USB',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['placas-de-red'],
+    },
+    {
+      // Tensiómetros / health devices → no tech category (leave as null)
+      nameKeyword: 'TENSIOMETRO',
+      targetSlug: 'smart-home',
+      sourceSlugs: ['pc-armadas', 'oficina-pc'],
+    },
+    {
+      // Hikvision Switches mis-categorized as refrigeración or other categories
+      nameKeyword: 'HIKVISION',
+      targetSlug: 'switches',
+      sourceSlugs: ['refrigeracion', 'placas-de-red'],
     },
   ]
 
