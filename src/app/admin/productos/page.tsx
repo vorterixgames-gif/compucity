@@ -17,6 +17,8 @@ import {
   ArrowUp,
   ArrowDown,
   Filter,
+  CheckSquare,
+  Square,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -224,6 +226,11 @@ export default function AdminProductos() {
     onSale: 'all',
   })
   const [showFilters, setShowFilters] = useState(false)
+
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   // Dialog states
   const [formOpen, setFormOpen] = useState(false)
@@ -495,6 +502,39 @@ export default function AdminProductos() {
     setDeletingId(null)
   }
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredProducts.length) {
+      // Deselect all
+      setSelectedIds(new Set())
+    } else {
+      // Select all filtered
+      setSelectedIds(new Set(filteredProducts.map(p => p.id)))
+    }
+  }
+
+  const confirmBulkDelete = async () => {
+    setBulkDeleting(true)
+    try {
+      const ids = Array.from(selectedIds)
+      await Promise.all(ids.map(id => fetch(`/api/admin/products?id=${id}`, { method: 'DELETE' })))
+      setProducts(prev => prev.filter(p => !selectedIds.has(p.id)))
+      setSelectedIds(new Set())
+    } catch (error) {
+      console.error('Error bulk deleting products:', error)
+    }
+    setBulkDeleting(false)
+    setBulkDeleteOpen(false)
+  }
+
   const handleSave = async () => {
     setFormError('')
     if (!form.name.trim()) {
@@ -718,6 +758,32 @@ export default function AdminProductos() {
         )}
       </div>
 
+      {/* Bulk Actions Bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <span className="text-sm font-medium text-blue-800">{selectedIds.size} producto{selectedIds.size > 1 ? 's' : ''} seleccionado{selectedIds.size > 1 ? 's' : ''}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-blue-600 hover:text-blue-800"
+            onClick={() => setSelectedIds(new Set())}
+          >
+            <X className="w-3 h-3 mr-1" />
+            Deseleccionar
+          </Button>
+          <div className="flex-1" />
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1 text-red-600 hover:text-red-700 border-red-200 hover:border-red-300 hover:bg-red-50"
+            onClick={() => setBulkDeleteOpen(true)}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Eliminar {selectedIds.size} producto{selectedIds.size > 1 ? 's' : ''}
+          </Button>
+        </div>
+      )}
+
       {/* Products Table */}
       <div className="space-y-2">
         <div className="flex items-center justify-between text-sm text-gray-500">
@@ -741,14 +807,22 @@ export default function AdminProductos() {
           {/* Mobile Card View */}
           <div className="block lg:hidden space-y-3">
             {filteredProducts.map((product) => (
-              <div key={product.id} className="rounded-xl border shadow-sm bg-card text-card-foreground p-3 space-y-2">
+              <div key={product.id} className={`rounded-xl border shadow-sm bg-card text-card-foreground p-3 space-y-2 ${selectedIds.has(product.id) ? 'ring-2 ring-blue-400 bg-blue-50/30' : ''}`}>
                 {/* Name + Category row */}
                 <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium text-gray-900 text-sm leading-tight truncate" title={product.name}>{product.name}</div>
-                    {product.sku && <span className="text-xs text-gray-400 font-mono">{product.sku}</span>}
-                    <div className="text-xs text-gray-500 mt-0.5">{product.categoryName || 'Sin categoría'}</div>
-                    {product.providerName && <div className="text-xs text-gray-400">{product.providerName}</div>}
+                  <div className="flex items-start gap-2 min-w-0 flex-1">
+                    <button
+                      onClick={() => toggleSelect(product.id)}
+                      className="mt-0.5 shrink-0 text-gray-400 hover:text-blue-500 transition-colors"
+                    >
+                      {selectedIds.has(product.id) ? <CheckSquare className="w-4 h-4 text-blue-500" /> : <Square className="w-4 h-4" />}
+                    </button>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-gray-900 text-sm leading-tight truncate" title={product.name}>{product.name}</div>
+                      {product.sku && <span className="text-xs text-gray-400 font-mono">{product.sku}</span>}
+                      <div className="text-xs text-gray-500 mt-0.5">{product.categoryName || 'Sin categoría'}</div>
+                      {product.providerName && <div className="text-xs text-gray-400">{product.providerName}</div>}
+                    </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <Badge
@@ -853,19 +927,29 @@ export default function AdminProductos() {
             <div className="admin-table-wrapper">
               <table className="w-full text-sm admin-fixed-table">
                 <colgroup>
-                  <col style={{ width: '24%' }} />
-                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '3%' }} />
+                  <col style={{ width: '22%' }} />
                   <col style={{ width: '9%' }} />
-                  <col style={{ width: '10%' }} />
-                  <col style={{ width: '12%' }} />
-                  <col style={{ width: '10%' }} />
-                  <col style={{ width: '5%' }} />
-                  <col style={{ width: '5%' }} />
-                  <col style={{ width: '5%' }} />
-                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '8%' }} />
+                  <col style={{ width: '9%' }} />
+                  <col style={{ width: '11%' }} />
+                  <col style={{ width: '9%' }} />
+                  <col style={{ width: '4%' }} />
+                  <col style={{ width: '4%' }} />
+                  <col style={{ width: '4%' }} />
+                  <col style={{ width: '9%' }} />
                 </colgroup>
                 <thead>
                   <tr className="border-b bg-gray-50/80">
+                    <th className="h-10 px-1 text-center align-middle font-medium text-gray-600">
+                      <button
+                        onClick={toggleSelectAll}
+                        className="text-gray-400 hover:text-blue-500 transition-colors"
+                        title={selectedIds.size === filteredProducts.length ? 'Deseleccionar todos' : 'Seleccionar todos'}
+                      >
+                        {selectedIds.size === filteredProducts.length && filteredProducts.length > 0 ? <CheckSquare className="w-4 h-4 text-blue-500" /> : <Square className="w-4 h-4" />}
+                      </button>
+                    </th>
                     <th className="h-10 px-2 text-left align-middle font-medium text-gray-600 cursor-pointer select-none hover:bg-gray-100 transition-colors" onClick={() => handleSort('name')}>
                       <div className="flex items-center gap-1">Nombre <SortIcon column="name" /></div>
                     </th>
@@ -894,7 +978,15 @@ export default function AdminProductos() {
                 </thead>
                 <tbody>
                   {filteredProducts.map((product, index) => (
-                    <tr key={product.id} className={`hover:bg-muted/50 border-b transition-colors ${index % 2 === 1 ? 'bg-gray-50/50' : ''}`}>
+                    <tr key={product.id} className={`hover:bg-muted/50 border-b transition-colors ${selectedIds.has(product.id) ? 'bg-blue-50/50' : index % 2 === 1 ? 'bg-gray-50/50' : ''}`}>
+                      <td className="p-2 align-middle text-center">
+                        <button
+                          onClick={() => toggleSelect(product.id)}
+                          className="text-gray-400 hover:text-blue-500 transition-colors"
+                        >
+                          {selectedIds.has(product.id) ? <CheckSquare className="w-4 h-4 text-blue-500" /> : <Square className="w-4 h-4" />}
+                        </button>
+                      </td>
                       <td className="p-2 align-middle">
                         <div className="truncate" title={product.name}>
                           <span className="font-medium text-gray-900">{product.name}</span>
@@ -1664,6 +1756,31 @@ export default function AdminProductos() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
               Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Confirmation */}
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar {selectedIds.size} producto{selectedIds.size > 1 ? 's' : ''}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. {selectedIds.size} producto{selectedIds.size > 1 ? 's serán eliminados' : ' será eliminado'} permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmBulkDelete} className="bg-red-600 hover:bg-red-700" disabled={bulkDeleting}>
+              {bulkDeleting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Eliminando...
+                </>
+              ) : (
+                `Eliminar ${selectedIds.size} producto${selectedIds.size > 1 ? 's' : ''}`
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
