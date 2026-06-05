@@ -35,17 +35,20 @@ export async function GET() {
     if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     // Get current dollar rate, config, and category markup map
-    const [dollar, markup, cashDiscount, catMarkupResult, result] = await Promise.all([
+    const [dollar, markup, cashDiscount, catMarkupResult, result, suppliersResult] = await Promise.all([
       fetchDollarRate(),
       getStoreConfigNumber('markup', 30),
       getStoreConfigNumber('cash_discount', 10),
       db.execute('SELECT id, parentId, markup, cashDiscount, ivaRate FROM categories'),
       db.execute(
-        `SELECT p.*, c.name as categoryName, c.markup as categoryMarkup, c.cashDiscount as categoryCashDiscount
+        `SELECT p.*, c.name as categoryName, c.markup as categoryMarkup, c.cashDiscount as categoryCashDiscount,
+                s.name as providerName
          FROM products p 
          LEFT JOIN categories c ON p.categoryId = c.id 
+         LEFT JOIN suppliers s ON p.providerId = s.id
          ORDER BY p.createdAt DESC`
       ),
+      db.execute('SELECT id, name FROM suppliers ORDER BY name'),
     ])
 
     // Build category markup map with parent inheritance for 3-tier priority
@@ -75,12 +78,15 @@ export async function GET() {
     }
 
     // Calculate prices using calculateProductPrices (3-tier: product → category → global)
+    const suppliersList = (suppliersResult.rows as any[]).map(s => ({ id: s.id, name: s.name }))
+
     const products = (result.rows as any[]).map(p => {
       const catMarkup = p.categoryId ? catMarkupMap.get(p.categoryId) : null
       const calculated = calculateProductPrices(p, dollar.rate, markup, cashDiscount, catMarkup)
       return {
         ...calculated,
         categoryName: p.categoryName,
+        providerName: p.providerName,
         _dollarRate: dollar.rate,
       }
     })
@@ -88,6 +94,7 @@ export async function GET() {
     return NextResponse.json({
       ok: true,
       products,
+      suppliers: suppliersList,
       dollarRate: dollar.rate,
       markup,
       cashDiscount,

@@ -77,6 +77,7 @@ interface Product {
   images: string
   specs: string
   providerId: string | null
+  providerName: string | null
   providerSku: string | null
   categoryId: string | null
   categoryName: string | null
@@ -126,6 +127,7 @@ type SortDirection = 'asc' | 'desc'
 
 interface Filters {
   category: string
+  supplier: string // 'all' | supplierId
   stockStatus: string // 'all' | 'inStock' | 'lowStock' | 'outOfStock'
   activeStatus: string // 'all' | 'active' | 'inactive'
   onSale: string // 'all' | 'yes' | 'no'
@@ -136,6 +138,11 @@ interface DollarConfig {
   markup: number
   cashDiscount: number
   source: string
+}
+
+interface SupplierOption {
+  id: string
+  name: string
 }
 
 const emptyForm: ProductForm = {
@@ -171,6 +178,7 @@ function formatPrice(price: number): string {
 export default function AdminProductos() {
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [suppliers, setSuppliers] = useState<SupplierOption[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [saving, setSaving] = useState(false)
@@ -210,6 +218,7 @@ export default function AdminProductos() {
   // Filters
   const [filters, setFilters] = useState<Filters>({
     category: 'all',
+    supplier: 'all',
     stockStatus: 'all',
     activeStatus: 'all',
     onSale: 'all',
@@ -236,6 +245,7 @@ export default function AdminProductos() {
       const data = await res.json()
       if (data.ok) {
         setProducts(data.products as Product[])
+        if (data.suppliers) setSuppliers(data.suppliers as SupplierOption[])
         // Also grab the dollar config from the response
         if (data.dollarRate) {
           setDollarConfig({
@@ -378,6 +388,9 @@ export default function AdminProductos() {
     if (filters.category !== 'all') {
       const catIds = getCategoryIdsWithDescendants(filters.category)
       result = result.filter(p => p.categoryId && catIds.has(p.categoryId))
+    }
+    if (filters.supplier !== 'all') {
+      result = result.filter(p => p.providerId === filters.supplier)
     }
     if (filters.stockStatus !== 'all') {
       if (filters.stockStatus === 'inStock') result = result.filter(p => p.stock > 5)
@@ -635,6 +648,19 @@ export default function AdminProductos() {
             </div>
 
             <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Proveedor</Label>
+              <Select value={filters.supplier} onValueChange={(v) => setFilters(prev => ({ ...prev, supplier: v }))}>
+                <SelectTrigger className="w-44 h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {suppliers.map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
               <Label className="text-xs text-gray-500">Stock</Label>
               <Select value={filters.stockStatus} onValueChange={(v) => setFilters(prev => ({ ...prev, stockStatus: v }))}>
                 <SelectTrigger className="w-40 h-8 text-sm"><SelectValue /></SelectTrigger>
@@ -676,7 +702,7 @@ export default function AdminProductos() {
                 variant="ghost"
                 size="sm"
                 className="h-8 text-red-500 hover:text-red-700 mt-4"
-                onClick={() => setFilters({ category: 'all', stockStatus: 'all', activeStatus: 'all', onSale: 'all' })}
+                onClick={() => setFilters({ category: 'all', supplier: 'all', stockStatus: 'all', activeStatus: 'all', onSale: 'all' })}
               >
                 <X className="w-3 h-3 mr-1" />
                 Limpiar filtros
@@ -716,6 +742,7 @@ export default function AdminProductos() {
                     <div className="font-medium text-gray-900 text-sm leading-tight truncate" title={product.name}>{product.name}</div>
                     {product.sku && <span className="text-xs text-gray-400 font-mono">{product.sku}</span>}
                     <div className="text-xs text-gray-500 mt-0.5">{product.categoryName || 'Sin categoría'}</div>
+                    {product.providerName && <div className="text-xs text-gray-400">{product.providerName}</div>}
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <Badge
@@ -820,15 +847,16 @@ export default function AdminProductos() {
             <div className="admin-table-wrapper">
               <table className="w-full text-sm admin-fixed-table">
                 <colgroup>
-                  <col style={{ width: '26%' }} />
+                  <col style={{ width: '24%' }} />
+                  <col style={{ width: '10%' }} />
+                  <col style={{ width: '9%' }} />
+                  <col style={{ width: '10%' }} />
                   <col style={{ width: '12%' }} />
                   <col style={{ width: '10%' }} />
-                  <col style={{ width: '13%' }} />
-                  <col style={{ width: '12%' }} />
-                  <col style={{ width: '7%' }} />
-                  <col style={{ width: '6%' }} />
-                  <col style={{ width: '6%' }} />
-                  <col style={{ width: '8%' }} />
+                  <col style={{ width: '5%' }} />
+                  <col style={{ width: '5%' }} />
+                  <col style={{ width: '5%' }} />
+                  <col style={{ width: '10%' }} />
                 </colgroup>
                 <thead>
                   <tr className="border-b bg-gray-50/80">
@@ -838,6 +866,7 @@ export default function AdminProductos() {
                     <th className="h-10 px-2 text-left align-middle font-medium text-gray-600 cursor-pointer select-none hover:bg-gray-100 transition-colors" onClick={() => handleSort('categoryName')}>
                       <div className="flex items-center gap-1">Categoría <SortIcon column="categoryName" /></div>
                     </th>
+                    <th className="h-10 px-2 text-left align-middle font-medium text-gray-600">Proveedor</th>
                     <th className="h-10 px-2 text-right align-middle font-medium text-gray-600 cursor-pointer select-none hover:bg-gray-100 transition-colors" onClick={() => handleSort('costPrice')}>
                       <div className="flex items-center justify-end gap-1">Costo USD <SortIcon column="costPrice" /></div>
                     </th>
@@ -871,6 +900,11 @@ export default function AdminProductos() {
                       <td className="p-2 align-middle">
                         <div className="truncate text-sm text-gray-600" title={product.categoryName || ''}>
                           {product.categoryName || '—'}
+                        </div>
+                      </td>
+                      <td className="p-2 align-middle">
+                        <div className="truncate text-sm text-gray-500" title={product.providerName || ''}>
+                          {product.providerName || <span className="text-gray-300">—</span>}
                         </div>
                       </td>
                       <td className="p-2 align-middle text-right">
