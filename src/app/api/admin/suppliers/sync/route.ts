@@ -932,143 +932,258 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
     const exchangeRate = parseFloat(authData.cotiza || '0')
     console.log(`[Air Intra] Login OK. Cotización: ${exchangeRate}`)
 
-    // Step 2: Always use syp endpoint (Stock & Price)
-    // The articulos endpoint has complex nested objects and PHP notices that corrupt the JSON.
-    // syp returns simpler, flatter objects that are easier to parse.
-    const endpoint = 'syp'
+    // Step 2: Use articulos endpoint for richer data (includes rubro, grupo, garantia)
+    // The articulos endpoint has category and warranty data that syp lacks.
+    // We use a robust multi-layer parser to handle PHP notices in the response.
+    const endpoint = 'articulos'
     console.log(`[Air Intra] Using endpoint: ${endpoint}`)
 
     // Step 3: Fetch products page by page
     // Per Air Intra docs: pages can be fetched sequentially without delay.
     // The 5-minute wait is only between COMPLETE download cycles, not between pages.
+    const MAX_PAGES = 30  // Safety limit: 30 pages × 500 = 15,000 products max
     let page = 0
     const pageSize = 500
-    let hasMore = true
     let totalFetched = 0
     let created = 0
     let updated = 0
     let skipped = 0
     let errors = 0
+    let consecutiveEmptyPages = 0
     let usedExtractionFallback = false
+    let totalRecoveredByExtractor = 0
+    // Track all SKUs fetched to detect duplicates across pages
+    const allFetchedSkus = new Set<string>()
 
-    while (hasMore) {
+    while (page < MAX_PAGES) {
       console.log(`[Air Intra] Fetching page ${page}...`)
-      const productsRes = await fetch(`${baseUrl}/?q=${endpoint}&page=${page}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({}),
-      })
-
-      if (!productsRes.ok) {
-        const errText = await productsRes.text().catch(() => '')
-        result.message = `Error HTTP ${productsRes.status} al obtener productos de Air Intra (página ${page}). ${errText.substring(0, 200)}`
-        result.total = totalFetched
-        result.created = created
-        result.updated = updated
-        result.skipped = skipped
-        result.errors = errors + 1
-        return result
-      }
-
-      // Get raw text first (we need it for fallback and verification), then try standard parse
       let products: any[] | null = null
-      const rawResponseText = await productsRes.text()
-      const { data: parsedProducts, error: parseError } = await (async () => {
-        // Create a new Response from the cached text for our parser
-        const fakeRes = new Response(rawResponseText, {
-          headers: productsRes.headers,
-          status: productsRes.status,
-        })
-        return safeParseAirIntraResponse(fakeRes)
-      })()
+      let pageSucceeded = false
+      let retryCount = 0
+      const MAX_RETRIES = 2
 
-      if (parseError) {
-        console.log(`[Air Intra] Standard parse failed: ${parseError}. Trying object extraction...`)
+      // Retry loop: if a page fails to parse, retry up to MAX_RETRIES times
+      while (!pageSucceeded && retryCount <= MAX_RETRIES) {
+        try {
+          const productsRes = await fetch(`${baseUrl}/?q=${endpoint}&page=${page}`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({}),
+          })
 
-        // Fallback: extract individual product objects from the corrupted response
-        if (rawResponseText) {
-          const cleanedText = stripPhpNotices(rawResponseText)
-          products = extractProductsFromCorruptedJson(cleanedText)
-          usedExtractionFallback = true
-          console.log(`[Air Intra] Extracted ${products.length} products from corrupted response`)
-        }
+          if (!productsRes.ok) {
+            const errText = await productsRes.text().catch(() => '')
 
-        if (!products || products.length === 0) {
-          // Check if it's a rate limit error — don't count as fatal
-          if (rawResponseText.includes('Too many queries') || rawResponseText.includes('error_id":403')) {
-            result.message = `Rate limit de Air Intra alcanzado. Se sincronizaron ${totalFetched} productos antes del límite. Intente de nuevo en 5 minutos.`
-            result.ok = totalFetched > 0
-          } else {
-            result.message = parseError
+            // Check for rate limit error in the response body
+            if (errText.includes('Too many queries') || errText.includes('error_id":403')) {
+              console.log(`[Air Intra] Rate limited on page ${page}. Stopping sync.`)
+              result.message = `Rate limit de Air Intra alcanzado en página ${page}. Se sincronizaron ${totalFetched} productos. Intente de nuevo en 5 minutos.`
+              result.ok = totalFetched > 0
+              result.total = totalFetched
+              result.created = created
+              result.updated = updated
+              result.skipped = skipped
+              result.errors = errors
+              // Don't count as error — rate limit is expected behavior
+              await db.execute({
+                sql: 'UPDATE suppliers SET lastSyncAt = ?, updatedAt = ? WHERE id = ?',
+                args: [new Date().toISOString(), new Date().toISOString(), supplier.id],
+              })
+              return result
+            }
+
+            if (retryCount < MAX_RETRIES) {
+              console.log(`[Air Intra] HTTP ${productsRes.status} on page ${page}, retrying (${retryCount + 1}/${MAX_RETRIES})...`)
+              retryCount++
+              await new Promise(r => setTimeout(r, 2000)) // Wait 2s before retry
+              continue
+            }
+
+            result.message = `Error HTTP ${productsRes.status} al obtener productos de Air Intra (página ${page}). ${errText.substring(0, 200)}`
+            result.total = totalFetched
+            result.created = created
+            result.updated = updated
+            result.skipped = skipped
             result.errors = errors + 1
+            return result
           }
-          result.total = totalFetched
-          result.created = created
-          result.updated = updated
-          result.skipped = skipped
-          return result
-        }
-      } else {
-        if (!Array.isArray(parsedProducts) || parsedProducts.length === 0) {
-          hasMore = false
-          break
-        }
-        products = parsedProducts
 
-        // ==========================================
-        // ROBUSTNESS IMPROVEMENT: Always run extractProductsFromCorruptedJson
-        // as a verification layer on top of the standard parse.
-        // Even when JSON.parse succeeds, some products can be lost because
-        // PHP notices injected INSIDE the JSON array can cause the parser
-        // to silently skip objects after the corruption point.
-        // We extract by object from the raw text and merge any missing products.
-        // ==========================================
-        if (rawResponseText) {
-          const cleanedText = stripPhpNotices(rawResponseText)
-          const extractedProducts = extractProductsFromCorruptedJson(cleanedText)
+          // Get raw text first (we need it for fallback and verification)
+          const rawResponseText = await productsRes.text()
+          const { data: parsedProducts, error: parseError } = await (async () => {
+            const fakeRes = new Response(rawResponseText, {
+              headers: productsRes.headers,
+              status: productsRes.status,
+            })
+            return safeParseAirIntraResponse(fakeRes)
+          })()
 
-          if (extractedProducts.length > products.length) {
-            // The extractor found more products than the standard parse!
-            // This means the standard JSON.parse silently dropped some products.
-            // Build a Set of SKUs already in our parsed array for fast lookup.
-            const parsedSkus = new Set(
-              products.map((p: any) => p.codigo || p.codiart || '').filter(Boolean)
-            )
+          if (parseError) {
+            console.log(`[Air Intra] Standard parse failed on page ${page}: ${parseError}. Trying object extraction...`)
 
-            let recoveredCount = 0
-            for (const extracted of extractedProducts) {
-              const sku = extracted.codigo || extracted.codiart || ''
-              if (sku && !parsedSkus.has(sku)) {
-                // This product was missed by the standard parse — add it
-                products.push(extracted)
-                recoveredCount++
+            // Fallback: extract individual product objects from the corrupted response
+            if (rawResponseText) {
+              const cleanedText = stripPhpNotices(rawResponseText)
+              products = extractProductsFromCorruptedJson(cleanedText)
+              usedExtractionFallback = true
+              console.log(`[Air Intra] Extracted ${products.length} products from corrupted page ${page}`)
+            }
+
+            if (!products || products.length === 0) {
+              // Empty page could mean end of data OR unrecoverable corruption
+              // If this is the first page, it's likely an error. Otherwise, it might be the end.
+              if (page === 0) {
+                result.message = `No se pudieron obtener productos de Air Intra: ${parseError}`
+                result.errors = errors + 1
+                result.total = totalFetched
+                result.created = created
+                result.updated = updated
+                result.skipped = skipped
+                return result
+              }
+              // On later pages, treat empty result as end of data
+              console.log(`[Air Intra] Page ${page} returned 0 products (possibly end of data). Stopping.`)
+              pageSucceeded = true  // Mark as succeeded so we exit retry loop
+              consecutiveEmptyPages++
+              break
+            }
+            pageSucceeded = true
+          } else {
+            if (!Array.isArray(parsedProducts) || parsedProducts.length === 0) {
+              // Truly empty page — end of data
+              console.log(`[Air Intra] Page ${page} returned empty array. End of data.`)
+              pageSucceeded = true
+              consecutiveEmptyPages++
+              break
+            }
+            products = parsedProducts
+
+            // ==========================================
+            // ROBUSTNESS: Always run extractProductsFromCorruptedJson
+            // as a verification layer on top of the standard parse.
+            // Even when JSON.parse succeeds, some products can be lost because
+            // PHP notices injected INSIDE the JSON array can cause the parser
+            // to silently skip objects after the corruption point.
+            // ==========================================
+            if (rawResponseText) {
+              const cleanedText = stripPhpNotices(rawResponseText)
+              const extractedProducts = extractProductsFromCorruptedJson(cleanedText)
+
+              if (extractedProducts.length > products.length) {
+                const parsedSkus = new Set(
+                  products.map((p: any) => p.codigo || p.codiart || '').filter(Boolean)
+                )
+
+                let recoveredCount = 0
+                for (const extracted of extractedProducts) {
+                  const sku = extracted.codigo || extracted.codiart || ''
+                  if (sku && !parsedSkus.has(sku)) {
+                    products.push(extracted)
+                    recoveredCount++
+                  }
+                }
+
+                if (recoveredCount > 0) {
+                  totalRecoveredByExtractor += recoveredCount
+                  console.log(`[Air Intra] ⚡ Recovery on page ${page}: standard parse had ${products.length - recoveredCount}, extractor found ${recoveredCount} additional. Total: ${products.length}`)
+                }
+              } else {
+                console.log(`[Air Intra] Page ${page} verification: standard ${products.length} vs extractor ${extractedProducts.length}`)
               }
             }
-
-            if (recoveredCount > 0) {
-              console.log(`[Air Intra] ⚡ Recovery: standard parse had ${products.length - recoveredCount} products, extractor found ${recoveredCount} additional products that were lost in corrupted JSON. Total: ${products.length}`)
-            }
-          } else if (extractedProducts.length > 0 && extractedProducts.length < products.length * 0.8) {
-            // Extractor found significantly fewer products — likely the response was clean
-            // and the extractor is just less efficient. No action needed.
-            console.log(`[Air Intra] Verification OK: standard parse ${products.length} vs extractor ${extractedProducts.length} products`)
+            pageSucceeded = true
           }
+        } catch (fetchErr: any) {
+          if (retryCount < MAX_RETRIES) {
+            console.log(`[Air Intra] Fetch error on page ${page}: ${fetchErr.message}. Retrying (${retryCount + 1}/${MAX_RETRIES})...`)
+            retryCount++
+            await new Promise(r => setTimeout(r, 2000))
+            continue
+          }
+          console.error(`[Air Intra] Fetch error on page ${page} after ${MAX_RETRIES} retries:`, fetchErr)
+          errors++
+          // Skip this page and continue to next
+          pageSucceeded = true
+          break
         }
+      } // end retry loop
+
+      // If we got no products after retries, check if we should stop
+      if (!products || products.length === 0) {
+        // Two consecutive empty pages = definitely end of data
+        if (consecutiveEmptyPages >= 2 || page === 0) {
+          break
+        }
+        // One empty page might be corruption — try one more page
+        console.log(`[Air Intra] Page ${page} had 0 products. Trying next page to confirm end of data...`)
+        page++
+        continue
       }
 
+      consecutiveEmptyPages = 0  // Reset since we got products
+
       for (const product of products) {
-        totalFetched++
         try {
+          const providerSku = product.codigo || product.codiart || ''
+
+          // Skip duplicate products across pages (API bug can return duplicates)
+          if (providerSku && allFetchedSkus.has(providerSku)) {
+            skipped++
+            continue
+          }
+          if (providerSku) allFetchedSkus.add(providerSku)
+
+          totalFetched++
+
           const price = parseFloat(product.precio || '0')
           if (price <= 0) {
+            // Still create the product in DB as inactive so we know it exists
+            // This prevents it from being re-created on every sync
+            const productName = product.descrip || product.descripcion || product.titulo || ''
+            if (!productName || !providerSku) {
+              skipped++
+              continue
+            }
+
+            const existing = await db.execute({
+              sql: 'SELECT id FROM products WHERE providerId = ? AND providerSku = ?',
+              args: [supplier.id, providerSku],
+            })
+
+            if ((existing.rows as any[]).length > 0) {
+              await db.execute({
+                sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, isActive = 0, updatedAt = ? WHERE id = ?`,
+                args: [0, 0, 0, new Date().toISOString(), (existing.rows as any[])[0].id],
+              })
+              updated++
+            } else {
+              const newId = crypto.randomUUID()
+              const formattedName = formatProductName(productName)
+              const slug = generateSlug(formattedName)
+              const supplierCategory = getAirIntraSupplierCategory(product)
+              const { categoryId } = mapProductToCategory(productName, supplierCategory, supplierMappings, slugToId, idToParentId, parentSlugToChildSlugs)
+
+              const specs: Record<string, string> = {}
+              if (product.garantia) specs['Garantía'] = product.garantia
+              if (product.moneda) specs['Moneda'] = product.moneda
+              if (product.marca) specs['Marca'] = product.marca
+              if (product.rubro) specs['Rubro'] = product.rubro
+              if (product.grupo) specs['Grupo'] = product.grupo
+
+              await db.execute({
+                sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
+                      VALUES (?, ?, ?, '', ?, ?, ?, ?, 0, ?, '[]', ?, ?, ?, ?, ?)`,
+                args: [newId, formattedName, slug, 0, 0, providerSku, 0, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, supplierCategory],
+              })
+              created++
+            }
             skipped++
             continue
           }
 
-          const providerSku = product.codigo || product.codiart || ''
           const costPrice = price
           const supplierCategory = getAirIntraSupplierCategory(product)
 
@@ -1152,12 +1267,15 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
             const formattedName = formatProductName(productName)
             const slug = generateSlug(formattedName)
 
-            // Build specs from syp data (limited fields)
+            // Build specs from articulos data (richer than syp)
             const specs: Record<string, string> = {}
             if (product.garantia) specs['Garantía'] = product.garantia
             if (product.moneda) specs['Moneda'] = product.moneda
             if (product.marca) specs['Marca'] = product.marca
             if (product.rubro) specs['Rubro'] = product.rubro
+            if (product.grupo) specs['Grupo'] = product.grupo
+            if (product.tipo?.name) specs['Tipo'] = product.tipo.name
+            if (product.estado?.name) specs['Estado'] = product.estado.name
 
             await db.execute({
               sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
@@ -1187,10 +1305,20 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
         }
       }
 
-      console.log(`[Air Intra] Page ${page} processed: ${products.length} items`)
+      console.log(`[Air Intra] Page ${page} processed: ${products.length} items (total: ${totalFetched})`)
       page++
-      if (products.length < pageSize) {
-        hasMore = false
+
+      // ==========================================
+      // CRITICAL FIX: Don't stop pagination just because a page returned < 500 products!
+      // PHP notices in the JSON can corrupt pages, causing the parser to return fewer products.
+      // The old logic `if (products.length < pageSize) { hasMore = false }` was the main cause
+      // of the ~2800 missing products bug.
+      // Instead, we only stop when we get a truly empty page (0 products).
+      // The MAX_PAGES safety limit prevents infinite loops.
+      // ==========================================
+      if (products.length === 0) {
+        console.log(`[Air Intra] Page ${page - 1} had 0 products — end of data.`)
+        break
       }
       // NO delay between pages - Air Intra docs confirm pagination is immediate
     }
@@ -1236,9 +1364,11 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
 
     // Include recovery info in the message if products were recovered
     const recoveryNote = usedExtractionFallback
-      ? ' (usando extracción de objetos por JSON corrupto)'
-      : ''
-    result.message = `Sincronización completada: ${totalFetched} productos, ${created} nuevos, ${updated} actualizados, ${skipped} omitidos${recoveryNote}`
+      ? ` (usando extracción de objetos por JSON corrupto, ${totalRecoveredByExtractor} recuperados)`
+      : totalRecoveredByExtractor > 0
+        ? ` (${totalRecoveredByExtractor} productos recuperados por extractor)`
+        : ''
+    result.message = `Sincronización completada: ${totalFetched} productos, ${created} nuevos, ${updated} actualizados, ${skipped} omitidos, ${errors} errores${recoveryNote}`
 
   } catch (error: any) {
     result.message = `Error de conexión con Air Intra: ${error.message}`
