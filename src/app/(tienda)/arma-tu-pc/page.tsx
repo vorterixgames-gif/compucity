@@ -44,6 +44,7 @@ import {
   type CompatibilityFilters,
 } from '@/lib/compatibility'
 import { getVisibleSpecs } from '@/lib/product-specs'
+import { COMPUCITY_LOGO_BASE64 } from '@/lib/compucity-logo-base64'
 
 // ============================================
 // Types
@@ -450,20 +451,13 @@ export default function ArmaTuPCPage() {
     const doc = new jsPDF()
     const pageWidth = doc.internal.pageSize.getWidth()
     const margin = 20
-    let y = 20
+    let y = 10
 
-    // Header - Compucity branding
-    doc.setFillColor(58, 139, 104) // #3A8B68
-    doc.rect(0, 0, pageWidth, 35, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(22)
-    doc.setFont('helvetica', 'bold')
-    doc.text('COMPU', margin, 22)
-    doc.setTextColor(117, 173, 149) // #75AD95
-    doc.text('CITY', margin + doc.getTextWidth('COMPU'), 22)
-    doc.setFontSize(10)
-    doc.setTextColor(200, 230, 215)
-    doc.text('TU MUNDO DIGITAL', margin, 29)
+    // Header - Compucity logo image
+    // Logo: 547x220px, scale to fit header nicely
+    const logoW = 55
+    const logoH = (logoW * 220) / 547 // ~22.1
+    doc.addImage(COMPUCITY_LOGO_BASE64, 'PNG', margin, y, logoW, logoH)
 
     // Date on the right
     const dateStr = new Date().toLocaleDateString('es-AR', {
@@ -471,11 +465,17 @@ export default function ArmaTuPCPage() {
       hour: '2-digit', minute: '2-digit'
     })
     doc.setFontSize(9)
-    doc.setTextColor(200, 230, 215)
-    doc.text(dateStr, pageWidth - margin, 22, { align: 'right' })
-    doc.text('Presupuesto generado en compucity.com.ar', pageWidth - margin, 29, { align: 'right' })
+    doc.setTextColor(120, 120, 120)
+    doc.text(dateStr, pageWidth - margin, y + 6, { align: 'right' })
+    doc.text('Presupuesto generado en compucity.com.ar', pageWidth - margin, y + 12, { align: 'right' })
 
-    y = 45
+    y = y + logoH + 8
+
+    // Green separator line
+    doc.setDrawColor(58, 139, 104)
+    doc.setLineWidth(1)
+    doc.line(margin, y, pageWidth - margin, y)
+    y += 8
 
     // Title
     doc.setTextColor(30, 30, 30)
