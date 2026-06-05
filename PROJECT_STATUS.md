@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-05 (sesion 15)
+**Ultima actualizacion:** 2026-06-05 (sesion 16)
 
 ---
 
@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** af6b8a6 (feat: add PDF download to WhatsApp button in Arma tu PC)
+- **Commit actual:** 15fcb9a (fix: PC Builder socket detection - LGA1851/LGA1700 regex + Core Ultra)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -268,6 +268,25 @@ El problema recurrente tenia 3 causas encadenadas:
 - Banner de filtro activo: Indica cuando se esta filtrando por compatibilidad
 - **SODIMM (RAM notebook):** Excluidas del PC Builder (SODIMM en blacklist del slot RAM). No aparecen en la seleccion de componentes. Si alguna se colara, se marca como incompatible siempre (sin depender de motherboard seleccionada)
 
+### Deteccion de Socket (FIX sesion 16)
+- **Bug:** Intel Core Ultra 5 225F con "LGA1851" (sin espacio) en el nombre era detectado como Socket LGA 1700, bloqueando todas las mothers LGA 1851 compatibles
+- **Causa raiz:** El regex `/\bS?1851\b/` no matcheaba "LGA1851" porque `\b` no detecta boundary entre "A" y "1" (ambos son word chars). Al fallar, el fallback asignaba "1700" por defecto a todos los Intel
+- **Fix 1 - Regex:** Cambiado a `/(?:S|LGA\s*)?1851/` que matchea S1851, LGA 1851, LGA1851 y 1851 standalone. Mismo fix para 1700
+- **Fix 2 - Intel Core Ultra:** Agregada deteccion por modelo: si el nombre contiene "CORE ULTRA", siempre se asigna socket 1851 (Arrow Lake). Se ejecuta antes del fallback a 1700
+- **Archivos modificados:** `src/lib/compatibility.ts` (extractProcessorCompatibility + extractMotherboardCompatibility), `src/app/(tienda)/arma-tu-pc/page.tsx` (SLOT_FILTERS regex)
+- **Aplica en:** Procesadores y motherboards, tanto en backend (compatibilidad) como frontend (filtros manuales)
+
+### Proteccion de Slugs de Categorias (FIX sesion 16)
+- **Bug:** Cambiar el nombre de una categoria usada en Arma tu PC (ej: "Memoria RAM" -> "Memoria RAM PC") rompia el PC Builder porque el slug se regeneraba automaticamente y las queries `SELECT id FROM categories WHERE slug = ?` fallaban
+- **Fix:** API PUT `/api/categories` ya no auto-regenera el slug al cambiar el nombre. El slug solo se actualiza si se envia explicitamente en el body
+- **Admin categorias:** Campo slug ahora editable manualmente con advertencia amarilla "No cambiar si se usa en Arma tu PC"
+- **API POST (crear):** Sigue generando slug automaticamente del nombre (comportamiento normal)
+
+### Ocultar Datos Internos de Productos (IMPLEMENTADO sesion 16)
+- **Bug:** Las vistas publicas mostraban datos internos del proveedor como "Moneda DOL", "EAN", "GARANTIA" en las descripciones
+- **Fix:** Se filtraron estos campos de las vistas de cliente (detalle de producto, tarjetas de catalogo). Solo se muestra la descripcion y el precio
+- **Archivos:** API publica de productos, componente de detalle de producto
+
 ### PDF Download (IMPLEMENTADO sesion 15)
 - **Libreria:** jsPDF (client-side, no necesita server)
 - **Cuando:** Al hacer clic en cualquier boton de WhatsApp del Arma tu PC, se descarga un PDF Y se abre WhatsApp
@@ -381,11 +400,20 @@ El problema recurrente tenia 3 causas encadenadas:
 
 ---
 
-## Admin Productos - Filtros y Ordenamiento (IMPLEMENTADO sesion 7)
+## Admin Productos - Filtros y Ordenamiento (IMPLEMENTADO sesion 7, actualizado sesion 16)
 - **Filtros por columna:** Busqueda por nombre, filtro por proveedor, filtro por categoria, filtro por estado (activo/inactivo), filtro por IVA (10.5%/21%), filtro por stock (con/sin)
+- **Filtro "Sin categoria":** Opcion en el dropdown de categorias para encontrar productos sin categoria asignada (valor `"none"`)
+- **Filtro por proveedor:** Columna y dropdown de proveedor en la tabla de productos
 - **Ordenamiento:** Click en encabezados de columna para ordenar asc/desc (nombre, costo USD, precio lista, stock, IVA, marca)
 - **Indicadores visuales:** Flechas de ordenamiento, badges de filtro activo, contador de resultados
 - **Limpiar filtros:** Boton para resetear todos los filtros y ordenamiento
+
+### Seleccion Multiple y Eliminacion Masiva (IMPLEMENTADO sesion 16)
+- **Checkboxes:** Cada fila tiene un checkbox para seleccionar productos. Checkbox "seleccionar todos" en el encabezado
+- **Barra de acciones masivas:** Aparece cuando hay productos seleccionados, muestra la cantidad y boton "Eliminar"
+- **Dialogo de confirmacion:** Muestra la cantidad de productos a eliminar antes de ejecutar
+- **Eliminacion paralela:** Los DELETE se ejecutan en paralelo (Promise.all) para mejor rendimiento
+- **Mobile:** Checkboxes tambien en las tarjetas de la vista movil
 
 ---
 
@@ -467,7 +495,7 @@ scripts/deploy.sh                         — Script de deploy seguro
 ## Panel Admin (`/admin`)
 - **Dashboard:** Stats (productos, pedidos, clientes, categorias, proveedores)
 - **Productos:** CRUD completo, markup/descuento individual, IVA (10.5%/21%), salePrice, filtros por columna, ordenamiento
-- **Categorias:** Arbol de categorias con mapeos de proveedores
+- **Categorias:** Arbol de categorias con mapeos de proveedores, slug editable con advertencia de PC Builder
 - **Proveedores:** 3 proveedores, sync manual, conteo de productos activos
 - **Pedidos:** Lista de pedidos, gestion de estados
 - **Clientes:** Lista con busqueda, detalle expandible
@@ -631,6 +659,7 @@ createdAt TEXT, updatedAt TEXT
 ## Backups
 | Fecha | Archivo | Tamano | Contenido |
 |-------|---------|--------|----------|
+| 2026-06-05 (s16) | `compucity-src-backup-20260605-s16.tar.gz` | 858KB | Codigo src con socket detection fix, bulk delete, slug editable, specs ocultos |
 | 2026-06-05 (s15b) | `compucity-src-backup-20260605-s15b.tar.gz` | 967KB | Codigo src con PDF download en Arma tu PC |
 | 2026-06-05 (s15) | `compucity-src-backup-20260605-s15.tar.gz` | 852KB | Codigo src con fix SODIMM excluido del PC Builder |
 | 2026-06-05 (s14c) | `compucity-src-backup-20260605-s14c.tar.gz` | 237KB | Codigo src con fix filtros Componentes de PC (sin filtros genericos en parent) |
@@ -685,14 +714,15 @@ Todos los backups en `/home/z/my-project/download/backups/`
 1. **IVA 21% en categorías correspondientes:** Notebooks y Monitores tienen IVA 21%. El dueño puede configurar IVA 21% en otras categorías desde `/admin/categorias`. Las subcategorías heredan automáticamente de su categoría padre. Los productos con ivaRate=NULL heredan de su categoría
 2. **Credenciales Andreani:** El dueño debe proporcionar codigoCliente + contratoDomicilio
 3. **Cargar imagenes faltantes:** ~1,565 productos sin imagen (mayormente Air Intra). Usar cross-provider matching + web search
-4. ~~**SODIMM en memorias-ram:**~~ RESUELTO (sesion 15) - SODIMM agregado a BUILDER_EXCLUDE_PATTERNS del slot RAM, removido de BUILDER_INCLUDE_PATTERNS. Compatibilidad SODIMM ahora funciona siempre (no depende de motherboard seleccionada)
+4. ~~**SODIMM en memorias-ram:**~~ RESUELTO (sesion 15)
 5. **Crear banners y cupones:** Las tablas estan vacias, el dueño puede empezar a crear promociones desde `/admin/promociones`
+6. ~~**Socket detection en PC Builder:**~~ RESUELTO (sesion 16) - Regex LGA1851/LGA1700 fixeado + Intel Core Ultra detecta LGA 1851
 
 ### Media Prioridad
-6. **Recuperacion de contrasena por email:** El endpoint `/api/customer/forgot-password` existe pero necesita configuracion de servicio de email (Resend)
-7. **Verificar compatibilidad en Arma tu PC:** Testing exhaustivo del sistema de compatibilidad
-8. **Configurar markup/descuento individual:** Empezar a usar el feature nuevo en productos que lo necesiten
-9. **Correo Argentino:** Credenciales todas NULL en store_config, sin API de envio funcional
+7. **Recuperacion de contrasena por email:** El endpoint `/api/customer/forgot-password` existe pero necesita configuracion de servicio de email (Resend)
+8. **Verificar compatibilidad en Arma tu PC:** Testing exhaustivo del sistema de compatibilidad
+9. **Configurar markup/descuento individual:** Empezar a usar el feature nuevo en productos que lo necesiten
+10. **Correo Argentino:** Credenciales todas NULL en store_config, sin API de envio funcional
 
 ### Baja Prioridad
 10. **Optimizar imagenes:** Los thumbnails del catalogo podrian usar tamano reducido
@@ -702,6 +732,7 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ---
 
 ## Historial de Cambios
+- **2026-06-05 (s16):** Multiples fixes y features de admin + PC Builder. (1) Bug #3: Filtro "Sin categoria" en admin productos - opcion para encontrar productos sin categoryId asignado (valor `"none"`). (2) Feature: Seleccion multiple y eliminacion masiva de productos - checkboxes en cada fila, select all, barra de acciones, dialogo de confirmacion, DELETE paralelo. (3) Bug #4: Cambiar nombre de categoria rompia PC Builder - el slug se regeneraba automaticamente, rompiendo las referencias hardcodeadas. Fix: API PUT ya no auto-regenera slug, campo slug editable en admin categorias con advertencia "No cambiar si se usa en Arma tu PC". (4) Feature: Ocultar datos internos de productos (Moneda DOL, EAN, Garantia) de las vistas publicas - solo se muestra descripcion y precio al cliente. (5) Bug #5: Socket detection - Intel Core Ultra 5 225F detectado como LGA 1700 en vez de LGA 1851. Causa: regex `/\bS?1851\b/` no matcheaba "LGA1851" (sin espacio). Fix: regex cambiado a `/(?:S|LGA\s*)?1851/`, + deteccion por modelo (CORE ULTRA = LGA 1851 siempre). Commits: 0969b04, afe7c31, 5a55884, f794b1d, 15fcb9a. Backup src (858KB)
 - **2026-06-05 (s15):** Fix SODIMM + PDF download en Arma tu PC. SODIMM movido de BUILDER_INCLUDE_PATTERNS a BUILDER_EXCLUDE_PATTERNS del slot RAM (ya no aparecen en el PC Builder). PDF download: al hacer clic en cualquier boton de WhatsApp del Arma tu PC, se genera y descarga un PDF profesional (jsPDF client-side) con branding Compucity (header verde, COMPU+CITY, tagline), fecha, lista de componentes con precios, total de lista y efectivo, nota 96hs, footer con contacto. Los 3 botones (desktop ultimo paso, sidebar, mobile sticky) ahora descargan PDF + abren WhatsApp. Icono Download agregado. Commits: f6a94e9, af6b8a6
 - **2026-06-05 (s14):** Filtros en PC Builder + Categorías tienda + fix. PC Builder: chips clickeables para filtrar productos (Processor: AMD/Intel, Motherboard: Socket+DDR, RAM: DDR3/4/5, GPU: NVIDIA/AMD/Intel Arc, SSD: NVMe/SATA, PSU: 500W+/650W+/750W+/850W+, Cooling: AIO/Aire, Monitor: Tamaño+Resolución, Network: PCIe/USB/WiFi6, Periféricos: Mouse/Teclado/Auricular/etc.). Categorías tienda: mismos filtros en CategoryProducts para 11 categorías. FIX: eliminados filtros genéricos de "Componentes de PC" (Procesador/Motherboard/RAM/GPU/SSD/Fuente) que eran redundantes con las subcategorías - los filtros ahora solo aparecen al seleccionar una subcategoría específica (ej: DDR3/4/5 en Memorias RAM, AMD/Intel en Microprocesadores). Network blacklist: +AP GIGABIT, WALL MOUNT, CEILLING, MINIHUB, OUTDOOR, INDOOR, ISP. Commits: e020dd3, 9d1979d, 2a3a11f
 - **2026-06-05 (s13):** Fix filtros PC Builder para Placas de Red y Periféricos. Network: agregados P.REDW/PREDW/ARCHER T/P.RED para incluir placas reales, removidos TP-LINK/WIFI/WIRELESS/PCI-E amplios que matcheaban cámaras IP y sistemas Mesh. Exclusiones nuevas: CAMARA, DECO, MESH, TAPO C, CPE, RANGE EXTENDER, A SD, A HDMI, A DISPLAYPORT, CONTROLLER, CLOUD, JBL. Fix 'AP ' que matcheaba 'ADAP' falsamente (removido). Fix 'HUB' → 'HUB ' para no excluir 'Minihub' en adaptadores Ethernet. Removido RJ45 del exclude (aparece en adaptadores Ethernet legítimos). Periféricos: agregados WEB CAM, VOLANTE, WHEEL a include. Removidos 'CABLE' y 'ADAPTADOR' amplios del exclude (catcheaban "Mouse c/Cable", "Teclado con Cable", "Auricular gaming cableado"). Reemplazados con patterns específicos: CABLE KELYX, CABLE HDMI, CABLE DISPLAY, ADAPTADOR HDMI, ADAPTADOR VGA, etc. Renombrado "Periférico" → "Periféricos". Resultado: Network pasa de 16 (con cámaras/mesh) a 19 productos correctos (solo placas/adaptadores reales). Periféricos pasa de 393 a 418 productos (ahora incluye mouse/teclados cableados, webcams, volantes). Commit: 18121fb
