@@ -1,5 +1,4 @@
 {
-  "buildCommand": "next build --webpack",
   "functions": {
     "src/app/api/admin/suppliers/sync/route.ts": {
       "maxDuration": 60

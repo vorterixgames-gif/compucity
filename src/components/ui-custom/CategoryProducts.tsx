@@ -439,7 +439,7 @@ export default function CategoryProducts({
             </p>
           )}
         </div>
-      )
+      )}
 
       {/* Filter & Sort Bar - Desktop */}
       <div className="hidden md:flex items-center gap-3 mb-6 p-3 bg-gray-50 rounded-lg border border-gray-200">
