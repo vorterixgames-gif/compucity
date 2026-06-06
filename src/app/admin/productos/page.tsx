@@ -1654,9 +1654,11 @@ export default function AdminProductos() {
                 onChange={(e) => updateForm('stock', e.target.value)}
                 placeholder="0"
               />
-              {editingProduct?.stockByWarehouse && (() => {
+              {editingId && (() => {
+                const ep = products.find(p => p.id === editingId)
+                if (!ep?.stockByWarehouse) return null
                 try {
-                  const wh = JSON.parse(editingProduct.stockByWarehouse)
+                  const wh = JSON.parse(ep.stockByWarehouse)
                   const hasOtherStock = (wh.air || 0) + (wh.lug || 0) + (wh.ros || 0) + (wh.mza || 0) > 0
                   if (hasOtherStock || wh.cba !== undefined) {
                     return (
