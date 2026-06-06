@@ -114,9 +114,9 @@ const CATEGORY_KEYWORD_MAP: { keywords: string[]; categorySlug: string; name: st
   { keywords: ['ROUTER','ARCHER','DECO','MESH WIFI','TL-WR','ROU WI'], categorySlug: 'routers-wifi', name: 'Routers WiFi' },
   // PC Armadas — complete PCs that may contain RTX/DDR/SSD in name
   // NOTE: "DESKTOP" removed — too generic, matches "Desktop Switch", "Desktop Router"
-  { keywords: ['PC GAMER','PC LENOVO','PC KELYX','PC AIR','PC ARKHAM','PC GAMEMAX','PC CX','SIST. KELYX','SIST.','COMPUTADORA','BAREBONE','DESKTOP PC','ALL IN ONE','ALL-IN-ONE','POS '], categorySlug: 'pc-armadas', name: 'PC Armadas' },
+  { keywords: ['PC GAMER','PC LENOVO','PC KELYX','PC AIR','PC ARKHAM','PC GAMEMAX','PC CX','PC PERFORMANCE','PC XPG','SIST. KELYX','SIST.','COMPUTADORA','BAREBONE','DESKTOP PC','ALL IN ONE','ALL-IN-ONE','AIO 22','AIO 24','POS '], categorySlug: 'pc-armadas', name: 'PC Armadas' },
   // Notebooks — contain RTX/DDR/SSD keywords but are NOT components
-  { keywords: ['NOTEBOOK','LAPTOP','PORTATIL'], categorySlug: 'notebooks', name: 'Notebooks' },
+  { keywords: ['NOTEBOOK','LAPTOP','PORTATIL','NB CX','NB DELL','NB LENOVO'], categorySlug: 'notebooks', name: 'Notebooks' },
   // Mini PC — complete PCs that may contain component keywords
   { keywords: ['MINI PC','STICK PC','NUC','MELE','N100'], categorySlug: 'pc-armadas', name: 'Mini PC' },
   // Monitores — may contain HDMI/VGA but are NOT cables
@@ -3054,13 +3054,15 @@ export async function POST(request: Request) {
           { namePattern: "name LIKE '%MONITOR%'", wrongSlug: 'placas-de-video', correctSlug: 'monitores' },
           { namePattern: "name LIKE '%MB %' OR name LIKE '%MB+%'", wrongSlug: 'placas-de-video', correctSlug: 'motherboards' },
           // === Microprocesadores corrections ===
-          { namePattern: "name LIKE '%NOTEBOOK%' OR name LIKE '%LAPTOP%'", wrongSlug: 'microprocesadores', correctSlug: 'notebooks' },
-          { namePattern: "name LIKE '%PC GAMER%' OR name LIKE '%PC LENOVO%' OR name LIKE '%SIST.%'", wrongSlug: 'microprocesadores', correctSlug: 'pc-armadas' },
+          { namePattern: "name LIKE '%NOTEBOOK%' OR name LIKE '%LAPTOP%' OR name LIKE 'NB %' OR name LIKE 'NB CX%'", wrongSlug: 'microprocesadores', correctSlug: 'notebooks' },
+          { namePattern: "name LIKE '%PC GAMER%' OR name LIKE '%PC LENOVO%' OR name LIKE '%SIST.%' OR name LIKE 'PC %' OR name LIKE 'PC Arkham%' OR name LIKE 'PC Performance%' OR name LIKE 'PC Gamemax%' OR name LIKE 'PC Xpg%'", wrongSlug: 'microprocesadores', correctSlug: 'pc-armadas' },
           { namePattern: "name LIKE '%MOTHER%'", wrongSlug: 'microprocesadores', correctSlug: 'motherboards' },
           { namePattern: "name LIKE '%MINI PC%' OR name LIKE '%BAREBONE%'", wrongSlug: 'microprocesadores', correctSlug: 'pc-armadas' },
+          { namePattern: "name LIKE 'AIO %' OR name LIKE 'SSD PC Mini%'", wrongSlug: 'microprocesadores', correctSlug: 'pc-armadas' },
           // === Memorias RAM corrections ===
-          { namePattern: "name LIKE '%NOTEBOOK%' OR name LIKE '%LAPTOP%'", wrongSlug: 'memorias-ram', correctSlug: 'notebooks' },
+          { namePattern: "name LIKE '%NOTEBOOK%' OR name LIKE '%LAPBOOK%'", wrongSlug: 'memorias-ram', correctSlug: 'notebooks' },
           { namePattern: "name LIKE '%PC GAMER%' OR name LIKE '%PC LENOVO%'", wrongSlug: 'memorias-ram', correctSlug: 'pc-armadas' },
+          { namePattern: "name LIKE '%PROCESADOR%'", wrongSlug: 'memorias-ram', correctSlug: 'microprocesadores' },
           // === Discos SSD corrections ===
           { namePattern: "name LIKE '%EXTERNO%' OR name LIKE '%EXTERNA%' OR name LIKE '%PORTABLE%'", wrongSlug: 'discos-ssd', correctSlug: 'discos-externos' },
           { namePattern: "name LIKE '%NOTEBOOK%' OR name LIKE '%LAPTOP%'", wrongSlug: 'discos-ssd', correctSlug: 'notebooks' },
@@ -3070,8 +3072,19 @@ export async function POST(request: Request) {
           { namePattern: "name LIKE '%EXTERNO%' OR name LIKE '%EXTERNA%' OR name LIKE '%PORTABLE%'", wrongSlug: 'discos-hdd', correctSlug: 'discos-externos' },
           // === Fuentes corrections ===
           { namePattern: "name LIKE '%PC GAMER%'", wrongSlug: 'fuentes', correctSlug: 'pc-armadas' },
+          { namePattern: "name LIKE '%GABINETE%'", wrongSlug: 'fuentes', correctSlug: 'gabinetes' },
           // === Gabinetes corrections ===
           { namePattern: "name LIKE '%PC GAMER%'", wrongSlug: 'gabinetes', correctSlug: 'pc-armadas' },
+          // === Monitores corrections ===
+          { namePattern: "name LIKE '%CABLE%'", wrongSlug: 'monitores', correctSlug: 'cables-y-adaptadores' },
+          { namePattern: "name LIKE '%SOPORTE%'", wrongSlug: 'monitores', correctSlug: 'soportes-y-brazos' },
+          // === Notebooks corrections ===
+          { namePattern: "name LIKE '%FUNDA%' OR name LIKE '%MOCHILA%'", wrongSlug: 'notebooks', correctSlug: 'fundas-mochilas' },
+          { namePattern: "name LIKE '%MOTHERBOARD%'", wrongSlug: 'notebooks', correctSlug: 'motherboards' },
+          { namePattern: "name LIKE 'CABLE%NOTEBOOK%' OR name LIKE 'CABLE INTERLOCK%'", wrongSlug: 'notebooks', correctSlug: 'cables-y-adaptadores' },
+          { namePattern: "name LIKE 'FUENTE%NOTEBOOK%'", wrongSlug: 'notebooks', correctSlug: 'cargadores' },
+          { namePattern: "name LIKE 'BASE%NOTEBOOK%' OR name LIKE 'BASE GENIUS%'", wrongSlug: 'notebooks', correctSlug: 'bases' },
+          { namePattern: "name LIKE 'MONITOR%PORTATIL%' OR name LIKE 'MONITOR%USB%'", wrongSlug: 'notebooks', correctSlug: 'monitores' },
         ]
 
         let autoFixed = 0
