@@ -25,7 +25,7 @@ async function getConfig(key: string, defaultValue: number): Promise<number> {
 }
 
 // Map component slots to category slugs
-const COMPONENT_SLOTS: { slot: string; label: string; categorySlug: string }[] = [
+const COMPONENT_SLOTS: { slot: string; label: string; categorySlug: string; additionalCategorySlugs?: string[] }[] = [
   { slot: 'processor', label: 'Microprocesador', categorySlug: 'microprocesadores' },
   { slot: 'motherboard', label: 'Motherboard', categorySlug: 'motherboards' },
   { slot: 'ram', label: 'Memoria RAM', categorySlug: 'memorias-ram' },
@@ -33,7 +33,7 @@ const COMPONENT_SLOTS: { slot: string; label: string; categorySlug: string }[] =
   { slot: 'ssd', label: 'Disco SSD', categorySlug: 'discos-ssd' },
   { slot: 'hdd', label: 'Disco HDD', categorySlug: 'discos-hdd' },
   { slot: 'psu', label: 'Fuente', categorySlug: 'fuentes' },
-  { slot: 'case', label: 'Gabinete', categorySlug: 'gabinetes' },
+  { slot: 'case', label: 'Gabinete', categorySlug: 'gabinetes', additionalCategorySlugs: ['gabinetes-con-fuente'] },
   { slot: 'cooling', label: 'Refrigeración', categorySlug: 'refrigeracion' },
   { slot: 'thermal', label: 'Pasta Térmica', categorySlug: 'pastas-termicas' },
   { slot: 'monitor', label: 'Monitor', categorySlug: 'monitores' },
@@ -71,7 +71,7 @@ const BUILDER_INCLUDE_PATTERNS: Record<string, string[]> = {
   ssd: ['SSD', 'NVME', 'M.2', 'GEN4', 'GEN3', 'SOLID STATE', 'DISCO INTERNO SSD', 'DISCO CRUCIAL'],
   hdd: ['DISCO RIGIDO', 'HDD', 'IRONWOLF', 'SKYHAWK', 'HD SEAGATE INTERNO', 'HD TOSHIBA INTERNO', 'BARRACUDA', 'BLUE ', 'HARD DRIVE', 'DISCO DURO INT', 'DISCO INTERNO HDD', 'HD '],
   psu: ['FUENTE', 'POWER SUPPLY', 'PSU', 'CORSAIR RM', 'CORSAIR CX', 'CORSAIR TX', 'SEASONIC', 'EVGA ', 'COUGAR', 'THERMALTAKE SMART', 'NOX ', 'AEROCOOL', 'XPG CORE', 'GAMEMAX', 'COOLER MASTER', 'WATT', 'GIGABYTE UD', 'GIGABYTE GP', 'GIGABYTE P', 'GIGABYTE AORUS', 'ASUS TUF', 'ASUS ROG', 'ASUS PRIME', 'XPG KYBER', 'MSI MPG', '80 PLUS', '80+', 'CX ATX', 'PERFORMANCE '],
-  case: ['GABINETE', 'CHASSIS', 'TOWER', 'CASE ', 'CTE ', '5000T', '4500X', 'BLAZE FORCE', 'INFINITY GLASS', 'CORSAIR ', 'COOLER MASTER ', 'NZXT ', 'FRONTAL ', 'GAB ', 'XPG ', 'GAMEMAX', 'THERMALTAKE', 'AEROCOOL', 'DEEPCOOL', 'BITFENIX', 'SENTEY', 'NACEB', 'NOX', 'KEPLERTEK', 'GAMING', 'GABINETE', 'KIT KELYX', 'RAPTOR'],
+  case: ['GABINETE', 'CHASSIS', 'TOWER', 'CASE ', 'CTE ', '5000T', '4500X', 'BLAZE FORCE', 'INFINITY GLASS', 'CORSAIR ', 'COOLER MASTER ', 'NZXT ', 'FRONTAL ', 'GAB ', 'XPG ', 'GAMEMAX', 'THERMALTAKE', 'AEROCOOL', 'DEEPCOOL', 'BITFENIX', 'SENTEY', 'NACEB', 'NOX', 'KEPLERTEK', 'GAMING', 'KIT KELYX', 'RAPTOR', 'CON FUENTE', 'C/FUENTE', 'CF ', 'INCLUYE FUENTE'],
   cooling: ['COOLER', 'WATER COOL', 'LIQUID COOL', 'DISIPADOR', 'HEATSINK', 'SWAFAN', 'FAN COOLER', 'ICUE LINK', 'AIO ', 'AK620', 'NH-D15', 'NH-U12', 'DARK ROCK', 'HYPER ', 'FAN ', 'LIQUID', 'ASUS LIQUID', 'THERMALTAKE', 'ARCTIC', 'GAMEMAX', 'CORSAIR', 'NOCTUA', 'BE QUIET', 'TT ', 'WATERFORCE', 'XPG LEVANTE', 'AORUS WATER'],
   thermal: ['PASTA TERMICA', 'THERMAL PASTE', 'KRYONAUT', 'MX-', 'ARCTIC SILVER', 'NT-H1', 'NT-H2', 'HYDRONAUT', 'TERMICA', 'TERMICO', 'THERMAL', 'CONDUCTIVITY'],
   monitor: ['MONITOR', 'DISPLAY', 'PULGADA', 'IPS', 'VA ', 'OLED', 'CURVO', 'FLAT', 'FULL HD', 'QHD', '4K', 'UHD', 'HZ', 'REFRESH', 'GAMING', 'LED ', 'LCD', 'DELL P', 'DELL S', 'DELL U', 'LG ', 'SAMSUNG', 'BENQ', 'ASUS ', 'ACER', 'AOC', 'VIEWSONIC', 'HP P', 'HP V', 'HP E', 'KOORUI', 'GIGABYTE M', 'MSI OPTIX', 'MSI PRO', 'PHILIPS'],
@@ -156,7 +156,30 @@ export async function GET(request: NextRequest) {
         sql: 'SELECT id FROM categories WHERE parentId = ?',
         args: [categoryId],
       })
-      const categoryIds = [categoryId, ...(subCatResult.rows as any[]).map(r => r.id)]
+      let categoryIds = [categoryId, ...(subCatResult.rows as any[]).map(r => r.id)]
+
+      // Also include additional category slugs (e.g., "gabinetes-con-fuente" for case slot)
+      if (slotConfig.additionalCategorySlugs && slotConfig.additionalCategorySlugs.length > 0) {
+        const additionalCatIds = await Promise.all(
+          slotConfig.additionalCategorySlugs.map(async (slug) => {
+            const addResult = await db.execute({
+              sql: 'SELECT id FROM categories WHERE slug = ?',
+              args: [slug],
+            })
+            const addRows = addResult.rows as any[]
+            if (addRows.length > 0) {
+              // Also get subcategories of this additional category
+              const addSubResult = await db.execute({
+                sql: 'SELECT id FROM categories WHERE parentId = ?',
+                args: [addRows[0].id],
+              })
+              return [addRows[0].id, ...(addSubResult.rows as any[]).map(r => r.id)]
+            }
+            return []
+          })
+        )
+        categoryIds = [...categoryIds, ...additionalCatIds.flat()]
+      }
 
       // Get active products in this category AND its subcategories
       const placeholders = categoryIds.map(() => '?').join(',')

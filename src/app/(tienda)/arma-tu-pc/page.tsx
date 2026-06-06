@@ -129,10 +129,20 @@ const SLOT_FILTERS: Record<string, FilterOption[]> = {
     { key: 'type', label: 'AIO / Líquida', value: 'LIQUID', matchFn: (n) => /\bWATER\s*COOL\b|\bAIO\b|\bLIQUID\b|\bWATERFORCE\b|\bWATER COOL\b/i.test(n) },
     { key: 'type', label: 'Aire', value: 'AIR', matchFn: (n) => !/\bWATER\s*COOL\b|\bAIO\b|\bLIQUID\b|\bWATERFORCE\b/i.test(n) },
   ],
+  case: [
+    { key: 'type', label: 'Con Fuente', value: 'CON_FUENTE', matchFn: (n) => /\bCON FUENTE\b|\bC\/FUENTE\b|\bCF\b|\bINCLUYE FUENTE\b/i.test(n) },
+    { key: 'type', label: 'Sin Fuente', value: 'SIN_FUENTE', matchFn: (n) => !/\bCON FUENTE\b|\bC\/FUENTE\b|\bCF\b|\bINCLUYE FUENTE\b/i.test(n) },
+  ],
   monitor: [
+    { key: 'size', label: '19"', value: '19', matchFn: (n) => /\b19[\s"']\s*\b/i.test(n) && !/\b190\d\b/.test(n) },
+    { key: 'size', label: '22"', value: '22', matchFn: (n) => /\b22[\s"']\s*\b/i.test(n) && !/\b220\d\b/.test(n) },
     { key: 'size', label: '24"', value: '24', matchFn: (n) => /\b24\b/i.test(n) },
     { key: 'size', label: '27"', value: '27', matchFn: (n) => /\b27\b/i.test(n) },
     { key: 'size', label: '32"+', value: '32', matchFn: (n) => /\b3[2-9]\b|\b4[0-9]\b/i.test(n) },
+    { key: 'hz', label: '100Hz', value: '100HZ', matchFn: (n) => /\b100\s*HZ\b|\b100HZ\b/i.test(n) },
+    { key: 'hz', label: '144Hz', value: '144HZ', matchFn: (n) => /\b144\s*HZ\b|\b144HZ\b/i.test(n) },
+    { key: 'hz', label: '165Hz', value: '165HZ', matchFn: (n) => /\b165\s*HZ\b|\b165HZ\b/i.test(n) },
+    { key: 'hz', label: '180Hz', value: '180HZ', matchFn: (n) => /\b180\s*HZ\b|\b180HZ\b/i.test(n) },
     { key: 'resolution', label: 'Full HD', value: 'FHD', matchFn: (n) => /\bFULL\s*HD\b|\bFHD\b|\b1080\b/i.test(n) },
     { key: 'resolution', label: 'QHD', value: 'QHD', matchFn: (n) => /\bQHD\b|\b2K\b|\b1440\b/i.test(n) },
     { key: 'resolution', label: '4K / UHD', value: '4K', matchFn: (n) => /\b4K\b|\bUHD\b|\b2160\b/i.test(n) },
@@ -244,7 +254,8 @@ export default function ArmaTuPCPage() {
   const [manualFilters, setManualFilters] = useState<Record<string, string[]>>({})
 
   const currentSlot = SLOTS[currentStep]
-  const selectedForCurrentSlot = selectedComponents.find(c => c.slot === currentSlot.slot)
+  const selectedForCurrentSlot = selectedComponents.filter(c => c.slot === currentSlot.slot)
+  const isMultiDiskSlot = currentSlot.slot === 'ssd' || currentSlot.slot === 'hdd'
 
   // Build compatibility filters from selected components
   const compatibilityFilters = useMemo(() => {
@@ -335,10 +346,39 @@ export default function ArmaTuPCPage() {
   }, [loadProducts])
 
   const selectProduct = (product: BuilderProduct) => {
+    const slot = currentSlot.slot
     setSelectedComponents(prev => {
-      const filtered = prev.filter(c => c.slot !== currentSlot.slot)
-      return [...filtered, { slot: currentSlot.slot, product, quantity: 1 }]
+      if (slot === 'ssd' || slot === 'hdd') {
+        // Multi-disk: add new product or increment quantity of existing
+        const existing = prev.find(c => c.slot === slot && c.product.id === product.id)
+        if (existing) {
+          // Product already selected in this slot - increment quantity
+          const slotDef = SLOTS.find(s => s.slot === slot)
+          const maxQty = slotDef?.maxQty || 4
+          return prev.map(c =>
+            c.slot === slot && c.product.id === product.id
+              ? { ...c, quantity: Math.min(maxQty, c.quantity + 1) }
+              : c
+          )
+        } else {
+          // New product for this slot
+          return [...prev, { slot, product, quantity: 1 }]
+        }
+      } else {
+        // Single-product slot: replace existing selection
+        const filtered = prev.filter(c => c.slot !== slot)
+        return [...filtered, { slot, product, quantity: 1 }]
+      }
     })
+
+    // Auto-advance to next slot for non-disk slots
+    if (slot !== 'ssd' && slot !== 'hdd') {
+      setTimeout(() => {
+        if (currentStep < SLOTS.length - 1) {
+          setCurrentStep(currentStep + 1)
+        }
+      }, 300)
+    }
   }
 
   const updateQuantity = (slot: string, delta: number) => {
@@ -353,8 +393,26 @@ export default function ArmaTuPCPage() {
     )
   }
 
-  const removeProduct = (slot: string) => {
-    setSelectedComponents(prev => prev.filter(c => c.slot !== slot))
+  const updateQuantityForProduct = (slot: string, productId: string, delta: number) => {
+    setSelectedComponents(prev =>
+      prev.map(c => {
+        if (c.slot !== slot || c.product.id !== productId) return c
+        const slotDef = SLOTS.find(s => s.slot === slot)
+        const maxQty = slotDef?.maxQty || 4
+        const newQty = Math.max(1, Math.min(maxQty, c.quantity + delta))
+        return { ...c, quantity: newQty }
+      })
+    )
+  }
+
+  const removeProduct = (slot: string, productId?: string) => {
+    if (productId) {
+      // Remove a specific product from a multi-disk slot
+      setSelectedComponents(prev => prev.filter(c => !(c.slot === slot && c.product.id === productId)))
+    } else {
+      // Remove all products from the slot
+      setSelectedComponents(prev => prev.filter(c => c.slot !== slot))
+    }
   }
 
   const totalPrice = selectedComponents.reduce((sum, c) => sum + (c.product.comparePrice || c.product.price) * c.quantity, 0)
@@ -390,6 +448,7 @@ export default function ArmaTuPCPage() {
       type: 'Tipo',
       wattage: 'Potencia',
       size: 'Tamaño',
+      hz: 'Frecuencia',
       resolution: 'Resolución',
     }
     for (const opt of currentSlotFilterOptions) {
@@ -593,9 +652,8 @@ export default function ArmaTuPCPage() {
     doc.save('Compucity-PC-a-Medida.pdf')
   }
 
-  // Handle WhatsApp + PDF download
-  const handleWhatsAppWithPDF = () => {
-    generatePDF()
+  // Handle WhatsApp (no PDF)
+  const handleWhatsApp = () => {
     window.open(buildWhatsAppUrl(), '_blank')
   }
 
@@ -722,7 +780,7 @@ export default function ArmaTuPCPage() {
                     </p>
                   </div>
                 </div>
-                {selectedForCurrentSlot && (
+                {selectedForCurrentSlot.length > 0 && !isMultiDiskSlot && (
                   <button
                     onClick={() => removeProduct(currentSlot.slot)}
                     className="text-red-500 hover:text-red-700 text-sm flex items-center gap-1 transition"
@@ -731,45 +789,107 @@ export default function ArmaTuPCPage() {
                     Quitar
                   </button>
                 )}
+                {selectedForCurrentSlot.length > 0 && isMultiDiskSlot && (
+                  <button
+                    onClick={() => removeProduct(currentSlot.slot)}
+                    className="text-red-500 hover:text-red-700 text-sm flex items-center gap-1 transition"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Quitar todo
+                  </button>
+                )}
               </div>
 
               {/* Currently selected for this slot */}
-              {selectedForCurrentSlot && (
-                <div className="mt-3 bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3">
-                  <Check className="h-5 w-5 text-green-600 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-green-900 truncate">{selectedForCurrentSlot.product.name}</p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-xs text-green-700">
-                        Efectivo: {formatPrice((selectedForCurrentSlot.product.comparePrice || selectedForCurrentSlot.product.price) * selectedForCurrentSlot.quantity)}
-                        {selectedForCurrentSlot.quantity > 1 && (
-                          <span className="text-green-500 ml-1">
-                            ({selectedForCurrentSlot.quantity}x {formatPrice(selectedForCurrentSlot.product.comparePrice || selectedForCurrentSlot.product.price)} c/u)
-                          </span>
-                        )}
-                      </p>
+              {selectedForCurrentSlot.length > 0 && !isMultiDiskSlot && (() => {
+                const sel = selectedForCurrentSlot[0]
+                return (
+                  <div className="mt-3 bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3">
+                    <Check className="h-5 w-5 text-green-600 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-green-900 truncate">{sel.product.name}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-xs text-green-700">
+                          Efectivo: {formatPrice((sel.product.comparePrice || sel.product.price) * sel.quantity)}
+                          {sel.quantity > 1 && (
+                            <span className="text-green-500 ml-1">
+                              ({sel.quantity}x {formatPrice(sel.product.comparePrice || sel.product.price)} c/u)
+                            </span>
+                          )}
+                        </p>
+                      </div>
                     </div>
+                    {/* Quantity selector for slots that allow multiple */}
+                    {currentSlot.maxQty > 1 && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); updateQuantity(currentSlot.slot, -1) }}
+                          className="w-7 h-7 rounded-md bg-white border border-green-300 flex items-center justify-center text-green-700 hover:bg-green-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                          disabled={sel.quantity <= 1}
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="w-7 text-center text-sm font-bold text-green-800">{sel.quantity}</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); updateQuantity(currentSlot.slot, 1) }}
+                          className="w-7 h-7 rounded-md bg-white border border-green-300 flex items-center justify-center text-green-700 hover:bg-green-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                          disabled={sel.quantity >= currentSlot.maxQty}
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  {/* Quantity selector for slots that allow multiple */}
-                  {currentSlot.maxQty > 1 && (
-                    <div className="flex items-center gap-1 shrink-0">
+                )
+              })()}
+
+              {/* Multi-disk selected list (SSD/HDD) */}
+              {selectedForCurrentSlot.length > 0 && isMultiDiskSlot && (
+                <div className="mt-3 space-y-2">
+                  {selectedForCurrentSlot.map(sel => (
+                    <div key={sel.product.id} className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3">
+                      <Check className="h-5 w-5 text-green-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-green-900 truncate">{sel.product.name}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-xs text-green-700">
+                            Efectivo: {formatPrice((sel.product.comparePrice || sel.product.price) * sel.quantity)}
+                            {sel.quantity > 1 && (
+                              <span className="text-green-500 ml-1">
+                                ({sel.quantity}x {formatPrice(sel.product.comparePrice || sel.product.price)} c/u)
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      {/* Per-product quantity selector */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); updateQuantityForProduct(currentSlot.slot, sel.product.id, -1) }}
+                          className="w-7 h-7 rounded-md bg-white border border-green-300 flex items-center justify-center text-green-700 hover:bg-green-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                          disabled={sel.quantity <= 1}
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="w-7 text-center text-sm font-bold text-green-800">{sel.quantity}</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); updateQuantityForProduct(currentSlot.slot, sel.product.id, 1) }}
+                          className="w-7 h-7 rounded-md bg-white border border-green-300 flex items-center justify-center text-green-700 hover:bg-green-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                          disabled={sel.quantity >= currentSlot.maxQty}
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      {/* Per-product remove button */}
                       <button
-                        onClick={(e) => { e.stopPropagation(); updateQuantity(currentSlot.slot, -1) }}
-                        className="w-7 h-7 rounded-md bg-white border border-green-300 flex items-center justify-center text-green-700 hover:bg-green-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                        disabled={selectedForCurrentSlot.quantity <= 1}
+                        onClick={(e) => { e.stopPropagation(); removeProduct(currentSlot.slot, sel.product.id) }}
+                        className="text-red-400 hover:text-red-600 transition shrink-0"
+                        title="Quitar este disco"
                       >
-                        <Minus className="w-3.5 h-3.5" />
-                      </button>
-                      <span className="w-7 text-center text-sm font-bold text-green-800">{selectedForCurrentSlot.quantity}</span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); updateQuantity(currentSlot.slot, 1) }}
-                        className="w-7 h-7 rounded-md bg-white border border-green-300 flex items-center justify-center text-green-700 hover:bg-green-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                        disabled={selectedForCurrentSlot.quantity >= currentSlot.maxQty}
-                      >
-                        <Plus className="w-3.5 h-3.5" />
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
-                  )}
+                  ))}
                 </div>
               )}
             </div>
@@ -876,7 +996,7 @@ export default function ArmaTuPCPage() {
                 <>
                   {/* Compatible products */}
                   {filteredCompatible.map((product) => {
-                    const isSelected = selectedForCurrentSlot?.product.id === product.id
+                    const isSelected = selectedForCurrentSlot.some(c => c.product.id === product.id)
                     const image = safeParseFirstImage(product.images)
                     const specs = parseSpecs(product.specs)
                     const specEntries = getVisibleSpecs(specs).slice(0, 4)
@@ -984,7 +1104,7 @@ export default function ArmaTuPCPage() {
                       {showIncompatible && (
                         <div className="mt-2 space-y-2">
                           {filteredIncompatible.map((product) => {
-                            const isSelected = selectedForCurrentSlot?.product.id === product.id
+                            const isSelected = selectedForCurrentSlot.some(c => c.product.id === product.id)
                             const image = safeParseFirstImage(product.images)
                             const specs = parseSpecs(product.specs)
                             const specEntries = getVisibleSpecs(specs).slice(0, 4)
@@ -1093,19 +1213,33 @@ export default function ArmaTuPCPage() {
                   <ChevronRight className="w-4 h-4" />
                 </Button>
               ) : (
-                <Button
-                  onClick={() => {
-                    if (completedRequired) {
-                      handleWhatsAppWithPDF()
-                    }
-                  }}
-                  className="bg-green-600 hover:bg-green-700 gap-2"
-                  disabled={!completedRequired}
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  Enviar por WhatsApp
-                  <Download className="w-3.5 h-3.5 opacity-60" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    onClick={() => {
+                      if (completedRequired) {
+                        generatePDF()
+                      }
+                    }}
+                    variant="outline"
+                    className="gap-2"
+                    disabled={!completedRequired}
+                  >
+                    <Download className="w-4 h-4" />
+                    PDF
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (completedRequired) {
+                        handleWhatsApp()
+                      }
+                    }}
+                    className="bg-green-600 hover:bg-green-700 gap-2"
+                    disabled={!completedRequired}
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    WhatsApp
+                  </Button>
+                </div>
               )}
             </div>
 
@@ -1259,27 +1393,40 @@ export default function ArmaTuPCPage() {
                     <span>El armado de los equipos puede tener una demora de hasta <strong>96 horas hábiles</strong>.</span>
                   </div>
                 )}
-                <a
-                  href={completedCount > 0 ? buildWhatsAppUrl() : undefined}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`w-full flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm transition ${
-                    completedCount > 0
-                      ? 'bg-green-500 hover:bg-green-600 text-white cursor-pointer'
-                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  }`}
-                  onClick={(e) => {
-                    if (completedCount === 0) {
-                      e.preventDefault()
-                    } else {
-                      generatePDF()
-                    }
-                  }}
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  Consultar por WhatsApp
-                  <Download className="w-3.5 h-3.5 opacity-60" />
-                </a>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      if (completedCount > 0) generatePDF()
+                    }}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm transition ${
+                      completedCount > 0
+                        ? 'bg-gray-800 hover:bg-gray-900 text-white cursor-pointer'
+                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    }`}
+                    disabled={completedCount === 0}
+                  >
+                    <Download className="w-4 h-4" />
+                    Descargar PDF
+                  </button>
+                  <a
+                    href={completedCount > 0 ? buildWhatsAppUrl() : undefined}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm transition ${
+                      completedCount > 0
+                        ? 'bg-green-500 hover:bg-green-600 text-white cursor-pointer'
+                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    }`}
+                    onClick={(e) => {
+                      if (completedCount === 0) {
+                        e.preventDefault()
+                      }
+                    }}
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    Consultar por WhatsApp
+                  </a>
+                </div>
 
                 {completedCount > 0 && (
                   <button
@@ -1338,19 +1485,33 @@ export default function ArmaTuPCPage() {
                   <ChevronRight className="w-3.5 h-3.5" />
                 </Button>
               ) : (
-                <Button
-                  onClick={() => {
-                    if (completedRequired) {
-                      handleWhatsAppWithPDF()
-                    }
-                  }}
-                  className="bg-green-600 hover:bg-green-700 gap-1 flex-1 h-9 text-xs"
-                  disabled={!completedRequired}
-                >
-                  <MessageCircle className="w-3.5 h-3.5" />
-                  WhatsApp
-                  <Download className="w-3 h-3 opacity-60" />
-                </Button>
+                <div className="flex gap-1 flex-1">
+                  <Button
+                    onClick={() => {
+                      if (completedRequired) {
+                        generatePDF()
+                      }
+                    }}
+                    variant="outline"
+                    className="gap-1 h-9 text-xs flex-1"
+                    disabled={!completedRequired}
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    PDF
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (completedRequired) {
+                        handleWhatsApp()
+                      }
+                    }}
+                    className="bg-green-600 hover:bg-green-700 gap-1 h-9 text-xs flex-1"
+                    disabled={!completedRequired}
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    WhatsApp
+                  </Button>
+                </div>
               )}
             </div>
           </div>

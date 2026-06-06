@@ -55,9 +55,6 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
   const showLastUnitsBadge = stock !== undefined && stock > 0 && stock <= 3
   const showOutOfStock = stock !== undefined && stock <= 0
 
-  // Stock indicator logic
-  const showStockIndicator = stock !== undefined && stock > 0
-
   // Calculate discount percentage for sale
   const saleDiscountPercent = isOnSale ? Math.round((1 - activeSale! / price) * 100) : 0
 
@@ -167,16 +164,6 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
           )}
           {!isOnSale && hasCashDiscount && (
             <p className="text-xs text-gray-400">Lista: {formatPrice(price)}</p>
-          )}
-
-          {/* Stock indicator */}
-          {showStockIndicator && (
-            <div className="flex items-center gap-1.5 mt-1">
-              <span className={`w-1.5 h-1.5 rounded-full ${stock! > 5 ? 'bg-green-500' : 'bg-orange-400'}`} />
-              <span className={`text-[11px] font-medium ${stock! > 5 ? 'text-green-600' : 'text-orange-500'}`}>
-                {stock! > 5 ? 'En stock' : 'Pocas unidades'}
-              </span>
-            </div>
           )}
         </div>
         <button

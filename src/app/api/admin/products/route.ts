@@ -521,7 +521,20 @@ export async function PUT(request: NextRequest) {
     if (stock !== undefined) { fields.push('stock = ?'); values.push(Number(stock)) }
     if (isActive !== undefined) { fields.push('isActive = ?'); values.push(isActive ? 1 : 0) }
     if (isFeatured !== undefined) { fields.push('isFeatured = ?'); values.push(isFeatured ? 1 : 0) }
-    if (images !== undefined) { fields.push('images = ?'); values.push(images) }
+    if (images !== undefined) {
+      // Safety check: if images is empty and product had images, log a warning
+      if (images === '[]') {
+        const currentImages = await db.execute({
+          sql: 'SELECT images FROM products WHERE id = ?',
+          args: [id],
+        })
+        const currentRow = (currentImages.rows as any[])[0]
+        if (currentRow?.images && currentRow.images !== '[]') {
+          console.warn(`[products PUT] Product ${id}: images being cleared (was: ${currentRow.images?.substring(0, 100)}...)`)
+        }
+      }
+      fields.push('images = ?'); values.push(images)
+    }
     if (specs !== undefined) { fields.push('specs = ?'); values.push(specs) }
     if (providerId !== undefined) { fields.push('providerId = ?'); values.push(providerId) }
     if (providerSku !== undefined) { fields.push('providerSku = ?'); values.push(providerSku) }

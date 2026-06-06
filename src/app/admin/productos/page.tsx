@@ -478,7 +478,12 @@ export default function AdminProductos() {
     // Parse images from JSON string to array
     let imageUrls: string[] = []
     try {
-      imageUrls = product.images ? JSON.parse(product.images) : []
+      if (product.images && product.images !== 'null' && product.images !== 'undefined') {
+        const parsed = JSON.parse(product.images)
+        if (Array.isArray(parsed)) {
+          imageUrls = parsed.filter((url: string) => url && typeof url === 'string')
+        }
+      }
     } catch {
       imageUrls = []
     }
