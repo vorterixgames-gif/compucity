@@ -41,6 +41,10 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'brand', label: 'Intel', value: 'Intel', matchFn: (n) => /\bINTEL\b|\bCORE\s*I[3579]\b|\bPENTIUM\b|\bCELERON\b|\bCORE ULTRA\b/i.test(n) },
   ],
   'motherboards': [
+    { key: 'brand', label: 'Asus', value: 'ASUS', matchFn: (n) => /\bASUS\b|\bROG\b|\bPRIME\b|\bTUF\b/i.test(n) },
+    { key: 'brand', label: 'MSI', value: 'MSI', matchFn: (n) => /\bMSI\b/i.test(n) },
+    { key: 'brand', label: 'Gigabyte', value: 'GIGABYTE', matchFn: (n) => /\bGIGABYTE\b|\bAORUS\b/i.test(n) },
+    { key: 'brand', label: 'ASRock', value: 'ASROCK', matchFn: (n) => /\bASROCK\b|\bAS ROCK\b/i.test(n) },
     { key: 'socket', label: 'AM4', value: 'AM4', matchFn: (n) => /\bAM4\b|\bB550\b|\bA520\b|\bX570\b|\bB450\b|\bA320\b/i.test(n) },
     { key: 'socket', label: 'AM5', value: 'AM5', matchFn: (n) => /\bAM5\b|\bB650\b|\bB850\b|\bB840\b|\bA620\b|\bX870\b|\bX670E?\b/i.test(n) },
     { key: 'socket', label: 'LGA 1700', value: '1700', matchFn: (n) => /\b1700\b|\bB760\b|\bH610\b|\bB660\b|\bH670\b|\bZ690\b|\bZ790\b/i.test(n) },
@@ -49,6 +53,11 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'ddr', label: 'DDR5', value: 'DDR5', matchFn: (n) => /\bDDR5\b/i.test(n) },
   ],
   'memorias-ram': [
+    { key: 'brand', label: 'Kingston', value: 'KINGSTON', matchFn: (n) => /\bKINGSTON\b|\bFURY\b/i.test(n) },
+    { key: 'brand', label: 'Corsair', value: 'CORSAIR', matchFn: (n) => /\bCORSAIR\b|\bVENGEANCE\b/i.test(n) },
+    { key: 'brand', label: 'G.Skill', value: 'GSKILL', matchFn: (n) => /\bG\.?SKILL\b|\bTRIDENT\b|\bRIPJAWS\b/i.test(n) },
+    { key: 'brand', label: 'ADATA', value: 'ADATA', matchFn: (n) => /\bADATA\b|\bXPG\b/i.test(n) },
+    { key: 'brand', label: 'Crucial', value: 'CRUCIAL', matchFn: (n) => /\bCRUCIAL\b/i.test(n) },
     { key: 'ddr', label: 'DDR3', value: 'DDR3', matchFn: (n) => /\bDDR3\b/i.test(n) },
     { key: 'ddr', label: 'DDR4', value: 'DDR4', matchFn: (n) => /\bDDR4\b/i.test(n) },
     { key: 'ddr', label: 'DDR5', value: 'DDR5', matchFn: (n) => /\bDDR5\b/i.test(n) },
@@ -59,61 +68,82 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'brand', label: 'Intel Arc', value: 'INTEL_ARC', matchFn: (n) => /\bARC\s*A[37]\b/i.test(n) },
   ],
   'discos-ssd': [
+    { key: 'brand', label: 'Kingston', value: 'KINGSTON', matchFn: (n) => /\bKINGSTON\b|\bFURY\b/i.test(n) },
+    { key: 'brand', label: 'Samsung', value: 'SAMSUNG', matchFn: (n) => /\bSAMSUNG\b|\bEVO\b|\b9[79]0\b/i.test(n) && !/\bMONITOR\b/i.test(n) },
+    { key: 'brand', label: 'WD', value: 'WD', matchFn: (n) => /\bWESTERN\b|\bWD\b[ _]|\bWD\b/i.test(n) && /\bSSD\b|\bNVME\b|\bM\.2\b/i.test(n) },
+    { key: 'brand', label: 'Crucial', value: 'CRUCIAL', matchFn: (n) => /\bCRUCIAL\b/i.test(n) },
+    { key: 'brand', label: 'ADATA', value: 'ADATA', matchFn: (n) => /\bADATA\b|\bXPG\b/i.test(n) },
+    { key: 'brand', label: 'Seagate', value: 'SEAGATE', matchFn: (n) => /\bSEAGATE\b|\bFIRECUDA\b/i.test(n) && /\bSSD\b|\bNVME\b/i.test(n) },
+    { key: 'brand', label: 'Corsair', value: 'CORSAIR', matchFn: (n) => /\bCORSAIR\b/i.test(n) && /\bSSD\b|\bNVME\b|\bM\.2\b/i.test(n) },
     { key: 'type', label: 'M.2 / NVMe', value: 'NVME', matchFn: (n) => /\bNVME\b|\bM\.2\b|\bM2\b/i.test(n) },
     { key: 'type', label: 'SATA', value: 'SATA', matchFn: (n) => /\bSATA\b/i.test(n) && !/\bNVME\b|\bM\.2\b/i.test(n) },
-    { key: 'brand', label: 'Kingston', value: 'KINGSTON', matchFn: (n) => /\bKINGSTON\b/i.test(n) },
-    { key: 'brand', label: 'Samsung', value: 'SAMSUNG', matchFn: (n) => /\bSAMSUNG\b/i.test(n) },
-    { key: 'brand', label: 'Western Digital', value: 'WD', matchFn: (n) => /\bWESTERN DIGITAL\b|\bWD\b/i.test(n) },
-    { key: 'brand', label: 'Corsair', value: 'CORSAIR', matchFn: (n) => /\bCORSAIR\b/i.test(n) },
-    { key: 'brand', label: 'Crucial', value: 'CRUCIAL', matchFn: (n) => /\bCRUCIAL\b/i.test(n) },
   ],
   'discos-hdd': [
-    { key: 'brand', label: 'Seagate', value: 'SEAGATE', matchFn: (n) => /\bSEAGATE\b/i.test(n) },
-    { key: 'brand', label: 'Western Digital', value: 'WD', matchFn: (n) => /\bWESTERN DIGITAL\b|\bWD\b/i.test(n) },
+    { key: 'brand', label: 'Seagate', value: 'SEAGATE', matchFn: (n) => /\bSEAGATE\b|\bBARRACUDA\b|\bIRONWOLF\b|\bSKYHAWK\b/i.test(n) },
+    { key: 'brand', label: 'WD', value: 'WD', matchFn: (n) => /\bWESTERN\b|\bWD\b[ _]?|\bBLUE\b|\bBLACK\b|\bGOLD\b/i.test(n) && /\bHDD\b|\bDISCO\b|\bRIGIDO\b|\bINTERNAL\b/i.test(n) },
     { key: 'brand', label: 'Toshiba', value: 'TOSHIBA', matchFn: (n) => /\bTOSHIBA\b/i.test(n) },
   ],
   'fuentes': [
+    { key: 'brand', label: 'Corsair', value: 'CORSAIR', matchFn: (n) => /\bCORSAIR\b/i.test(n) },
+    { key: 'brand', label: 'Seasonic', value: 'SEASONIC', matchFn: (n) => /\bSEASONIC\b|\bFOCUS\b/i.test(n) },
+    { key: 'brand', label: 'EVGA', value: 'EVGA', matchFn: (n) => /\bEVGA\b/i.test(n) },
+    { key: 'brand', label: 'Cooler Master', value: 'COOLERMASTER', matchFn: (n) => /\bCOOLER\s*MASTER\b/i.test(n) },
+    { key: 'brand', label: 'Asus', value: 'ASUS', matchFn: (n) => /\bASUS\b|\bROG\b/i.test(n) },
+    { key: 'brand', label: 'Gigabyte', value: 'GIGABYTE', matchFn: (n) => /\bGIGABYTE\b|\bAORUS\b/i.test(n) },
+    { key: 'brand', label: 'Gamemax', value: 'GAMEMAX', matchFn: (n) => /\bGAMEMAX\b/i.test(n) },
+    { key: 'brand', label: 'XPG', value: 'XPG', matchFn: (n) => /\bXPG\b|\bCORE\s*REACTOR\b/i.test(n) },
+    { key: 'brand', label: 'Thermaltake', value: 'THERMALTAKE', matchFn: (n) => /\bTHERMALTAKE\b/i.test(n) },
+    { key: 'brand', label: 'Kelyx', value: 'KELYX', matchFn: (n) => /\bKELYX\b/i.test(n) },
     { key: 'wattage', label: 'Hasta 500W', value: 'upto500', matchFn: (n) => { const m = n.match(/(\d{3,4})\s*W/i); return m ? parseInt(m[1]) <= 500 : false } },
     { key: 'wattage', label: '550W - 650W', value: '550-650', matchFn: (n) => { const m = n.match(/(\d{3,4})\s*W/i); return m ? (parseInt(m[1]) >= 550 && parseInt(m[1]) <= 650) : false } },
     { key: 'wattage', label: '700W - 750W', value: '700-750', matchFn: (n) => { const m = n.match(/(\d{3,4})\s*W/i); return m ? (parseInt(m[1]) >= 700 && parseInt(m[1]) <= 750) : false } },
     { key: 'wattage', label: '800W - 850W', value: '800-850', matchFn: (n) => { const m = n.match(/(\d{3,4})\s*W/i); return m ? (parseInt(m[1]) >= 800 && parseInt(m[1]) <= 850) : false } },
     { key: 'wattage', label: '1000W+', value: '1000plus', matchFn: (n) => { const m = n.match(/(\d{3,4})\s*W/i); return m ? parseInt(m[1]) >= 1000 : false } },
-    { key: 'brand', label: 'Corsair', value: 'CORSAIR', matchFn: (n) => /\bCORSAIR\b/i.test(n) },
-    { key: 'brand', label: 'Seasonic', value: 'SEASONIC', matchFn: (n) => /\bSEASONIC\b/i.test(n) },
-    { key: 'brand', label: 'EVGA', value: 'EVGA', matchFn: (n) => /\bEVGA\b/i.test(n) },
-    { key: 'brand', label: 'Cooler Master', value: 'COOLER_MASTER', matchFn: (n) => /\bCOOLER MASTER\b/i.test(n) },
-    { key: 'brand', label: 'ASUS', value: 'ASUS', matchFn: (n) => /\bASUS\b/i.test(n) },
-    { key: 'brand', label: 'Gigabyte', value: 'GIGABYTE', matchFn: (n) => /\bGIGABYTE\b/i.test(n) },
-    { key: 'brand', label: 'Gamemax', value: 'GAMEMAX', matchFn: (n) => /\bGAMEMAX\b/i.test(n) },
-    { key: 'brand', label: 'XPG', value: 'XPG', matchFn: (n) => /\bXPG\b/i.test(n) },
   ],
   'gabinetes': [
     { key: 'brand', label: 'Corsair', value: 'CORSAIR', matchFn: (n) => /\bCORSAIR\b/i.test(n) },
-    { key: 'brand', label: 'Cooler Master', value: 'COOLER_MASTER', matchFn: (n) => /\bCOOLER MASTER\b/i.test(n) },
-    { key: 'brand', label: 'ThermalTake', value: 'THERMALTAKE', matchFn: (n) => /\bTHERMALTAKE\b|\bTT\b/i.test(n) },
+    { key: 'brand', label: 'Cooler Master', value: 'COOLERMASTER', matchFn: (n) => /\bCOOLER\s*MASTER\b/i.test(n) },
+    { key: 'brand', label: 'Thermaltake', value: 'THERMALTAKE', matchFn: (n) => /\bTHERMALTAKE\b|\bTT\b/i.test(n) },
     { key: 'brand', label: 'Aerocool', value: 'AEROCOOL', matchFn: (n) => /\bAEROCOOL\b/i.test(n) },
     { key: 'brand', label: 'DeepCool', value: 'DEEPCOOL', matchFn: (n) => /\bDEEPCOOL\b/i.test(n) },
     { key: 'brand', label: 'Gamemax', value: 'GAMEMAX', matchFn: (n) => /\bGAMEMAX\b/i.test(n) },
-    { key: 'brand', label: 'ASUS', value: 'ASUS', matchFn: (n) => /\bASUS\b/i.test(n) },
+    { key: 'brand', label: 'Asus', value: 'ASUS', matchFn: (n) => /\bASUS\b|\bROG\b/i.test(n) },
     { key: 'brand', label: 'NZXT', value: 'NZXT', matchFn: (n) => /\bNZXT\b/i.test(n) },
     { key: 'brand', label: 'Sentey', value: 'SENTEY', matchFn: (n) => /\bSENTEY\b/i.test(n) },
     { key: 'brand', label: 'Naceb', value: 'NACEB', matchFn: (n) => /\bNACEB\b/i.test(n) },
+    { key: 'brand', label: 'Gigabyte', value: 'GIGABYTE', matchFn: (n) => /\bGIGABYTE\b|\bAORUS\b/i.test(n) },
+    { key: 'brand', label: 'Kelyx', value: 'KELYX', matchFn: (n) => /\bKELYX\b/i.test(n) },
   ],
   'refrigeracion': [
+    { key: 'brand', label: 'Corsair', value: 'CORSAIR', matchFn: (n) => /\bCORSAIR\b/i.test(n) },
+    { key: 'brand', label: 'DeepCool', value: 'DEEPCOOL', matchFn: (n) => /\bDEEPCOOL\b/i.test(n) },
+    { key: 'brand', label: 'Noctua', value: 'NOCTUA', matchFn: (n) => /\bNOCTUA\b/i.test(n) },
+    { key: 'brand', label: 'Cooler Master', value: 'COOLERMASTER', matchFn: (n) => /\bCOOLER\s*MASTER\b/i.test(n) },
+    { key: 'brand', label: 'Thermaltake', value: 'THERMALTAKE', matchFn: (n) => /\bTHERMALTAKE\b/i.test(n) },
+    { key: 'brand', label: 'Arctic', value: 'ARCTIC', matchFn: (n) => /\bARCTIC\b/i.test(n) },
+    { key: 'brand', label: 'be quiet!', value: 'BE_QUIET', matchFn: (n) => /\bBE\s*QUIET\b/i.test(n) },
+    { key: 'brand', label: 'Gamemax', value: 'GAMEMAX', matchFn: (n) => /\bGAMEMAX\b/i.test(n) },
+    { key: 'brand', label: 'Gigabyte', value: 'GIGABYTE', matchFn: (n) => /\bGIGABYTE\b/i.test(n) && /\bCOOL\b|\bAIO\b|\bLIQUID\b|\bWATER\b/i.test(n) },
+    { key: 'brand', label: 'Asus', value: 'ASUS', matchFn: (n) => /\bASUS\b|\bROG\b/i.test(n) && /\bCOOL\b|\bAIO\b|\bLIQUID\b|\bWATER\b/i.test(n) },
     { key: 'type', label: 'AIO / Líquida', value: 'LIQUID', matchFn: (n) => /\bWATER\s*COOL\b|\bAIO\b|\bLIQUID\b|\bWATERFORCE\b/i.test(n) },
     { key: 'type', label: 'Aire', value: 'AIR', matchFn: (n) => !/\bWATER\s*COOL\b|\bAIO\b|\bLIQUID\b|\bWATERFORCE\b/i.test(n) },
-    { key: 'brand', label: 'Corsair', value: 'CORSAIR', matchFn: (n) => /\bCORSAIR\b/i.test(n) },
-    { key: 'brand', label: 'Noctua', value: 'NOCTUA', matchFn: (n) => /\bNOCTUA\b/i.test(n) },
-    { key: 'brand', label: 'Cooler Master', value: 'COOLER_MASTER', matchFn: (n) => /\bCOOLER MASTER\b/i.test(n) },
-    { key: 'brand', label: 'DeepCool', value: 'DEEPCOOL', matchFn: (n) => /\bDEEPCOOL\b/i.test(n) },
-    { key: 'brand', label: 'Arctic', value: 'ARCTIC', matchFn: (n) => /\bARCTIC\b/i.test(n) },
-    { key: 'brand', label: 'be quiet!', value: 'BE_QUIET', matchFn: (n) => /\bBE QUIET\b/i.test(n) },
-    { key: 'brand', label: 'Gamemax', value: 'GAMEMAX', matchFn: (n) => /\bGAMEMAX\b/i.test(n) },
-    { key: 'brand', label: 'ASUS', value: 'ASUS', matchFn: (n) => /\bASUS\b/i.test(n) },
   ],
   'monitores': [
-    { key: 'size', label: '19"', value: '19', matchFn: (n) => /\b19[\s"']\s*\b/i.test(n) && !/\b190\d\b/.test(n) },
-    { key: 'size', label: '22"', value: '22', matchFn: (n) => /\b22[\s"']\s*\b/i.test(n) && !/\b220\d\b/.test(n) },
+    { key: 'brand', label: 'Samsung', value: 'SAMSUNG', matchFn: (n) => /\bSAMSUNG\b|\bODYSSEY\b|\bVIEWFINITY\b/i.test(n) },
+    { key: 'brand', label: 'LG', value: 'LG', matchFn: (n) => /\bLG\b|\bULTRAGEAR\b/i.test(n) },
+    { key: 'brand', label: 'Dell', value: 'DELL', matchFn: (n) => /\bDELL\b/i.test(n) },
+    { key: 'brand', label: 'Asus', value: 'ASUS', matchFn: (n) => /\bASUS\b|\bROG\b|\bTUF\b|\bPROART\b/i.test(n) },
+    { key: 'brand', label: 'Acer', value: 'ACER', matchFn: (n) => /\bACER\b/i.test(n) },
+    { key: 'brand', label: 'AOC', value: 'AOC', matchFn: (n) => /\bAOC\b|\bAGON\b/i.test(n) },
+    { key: 'brand', label: 'HP', value: 'HP', matchFn: (n) => /\bHP\b/i.test(n) },
+    { key: 'brand', label: 'BenQ', value: 'BENQ', matchFn: (n) => /\bBENQ\b|\bZOWIE\b/i.test(n) },
+    { key: 'brand', label: 'Philips', value: 'PHILIPS', matchFn: (n) => /\bPHILIPS\b|\bEVNIA\b/i.test(n) },
+    { key: 'brand', label: 'Gigabyte', value: 'GIGABYTE', matchFn: (n) => /\bGIGABYTE\b|\bAORUS\b|\bM\d{2,3}Q\b/i.test(n) },
+    { key: 'brand', label: 'MSI', value: 'MSI', matchFn: (n) => /\bMSI\b/i.test(n) },
+    { key: 'brand', label: 'ViewSonic', value: 'VIEWSONIC', matchFn: (n) => /\bVIEWSONIC\b/i.test(n) },
+    { key: 'brand', label: 'KOORUI', value: 'KOORUI', matchFn: (n) => /\bKOORUI\b/i.test(n) },
+    { key: 'size', label: '19"', value: '19', matchFn: (n) => /\b19[\s\"\-\.]*\d|\b19\s*PULGAD/i.test(n) && !/\b19\d{2,}\b/i.test(n) },
+    { key: 'size', label: '22"', value: '22', matchFn: (n) => /\b22[\s\"\-\.]*\d|\b22\s*PULGAD/i.test(n) && !/\b22\d{2,}\b/i.test(n) },
     { key: 'size', label: '24"', value: '24', matchFn: (n) => /\b24\b/i.test(n) },
     { key: 'size', label: '27"', value: '27', matchFn: (n) => /\b27\b/i.test(n) },
     { key: 'size', label: '32"+', value: '32', matchFn: (n) => /\b3[2-9]\b|\b4[0-9]\b/i.test(n) },
@@ -124,28 +154,15 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'resolution', label: 'Full HD', value: 'FHD', matchFn: (n) => /\bFULL\s*HD\b|\bFHD\b|\b1080\b/i.test(n) },
     { key: 'resolution', label: 'QHD', value: 'QHD', matchFn: (n) => /\bQHD\b|\b2K\b|\b1440\b/i.test(n) },
     { key: 'resolution', label: '4K / UHD', value: '4K', matchFn: (n) => /\b4K\b|\bUHD\b|\b2160\b/i.test(n) },
-    { key: 'brand', label: 'Dell', value: 'DELL', matchFn: (n) => /\bDELL\b/i.test(n) },
-    { key: 'brand', label: 'Samsung', value: 'SAMSUNG', matchFn: (n) => /\bSAMSUNG\b/i.test(n) },
-    { key: 'brand', label: 'LG', value: 'LG', matchFn: (n) => /\bLG\b/i.test(n) },
-    { key: 'brand', label: 'ASUS', value: 'ASUS', matchFn: (n) => /\bASUS\b/i.test(n) },
-    { key: 'brand', label: 'Acer', value: 'ACER', matchFn: (n) => /\bACER\b/i.test(n) },
-    { key: 'brand', label: 'AOC', value: 'AOC', matchFn: (n) => /\bAOC\b/i.test(n) },
-    { key: 'brand', label: 'HP', value: 'HP', matchFn: (n) => /\bHP\b/i.test(n) },
-    { key: 'brand', label: 'BenQ', value: 'BENQ', matchFn: (n) => /\bBENQ\b/i.test(n) },
-    { key: 'brand', label: 'Philips', value: 'PHILIPS', matchFn: (n) => /\bPHILIPS\b/i.test(n) },
-    { key: 'brand', label: 'Gigabyte', value: 'GIGABYTE', matchFn: (n) => /\bGIGABYTE\b/i.test(n) },
-    { key: 'brand', label: 'MSI', value: 'MSI', matchFn: (n) => /\bMSI\b/i.test(n) },
-    { key: 'brand', label: 'ViewSonic', value: 'VIEWSONIC', matchFn: (n) => /\bVIEWSONIC\b/i.test(n) },
-    { key: 'brand', label: 'KOORUI', value: 'KOORUI', matchFn: (n) => /\bKOORUI\b/i.test(n) },
   ],
   'placas-de-red': [
+    { key: 'brand', label: 'TP-Link', value: 'TPLINK', matchFn: (n) => /\bTP[\s\-]?LINK\b|\bARCHER\b|\bTL\s*W\b/i.test(n) },
+    { key: 'brand', label: 'Asus', value: 'ASUS', matchFn: (n) => /\bASUS\b|\bROG\b/i.test(n) && /\bRED\b|\bWIFI\b|\bPCI\b|\bUSB\b/i.test(n) },
+    { key: 'brand', label: 'Intel', value: 'INTEL', matchFn: (n) => /\bINTEL\b/i.test(n) && /\bRED\b|\bWIFI\b|\bLAN\b|\bNIC\b/i.test(n) },
+    { key: 'brand', label: 'Cudy', value: 'CUDY', matchFn: (n) => /\bCUDY\b/i.test(n) },
     { key: 'type', label: 'PCIe', value: 'PCIE', matchFn: (n) => /\bPCIEX?\b|\bPCI-E\b|\bPCIX\b/i.test(n) && !/\bUSB\b/i.test(n) },
     { key: 'type', label: 'USB', value: 'USB', matchFn: (n) => /\bP\.?REDW?\s.*USB|USB.*RED|\bARCHER T\b/i.test(n) },
     { key: 'type', label: 'WiFi 6 / 6E', value: 'WIFI6', matchFn: (n) => /\bWIFI\s*6E?\b|\bAX\d{3,4}\b/i.test(n) },
-    { key: 'brand', label: 'TP-Link', value: 'TP_LINK', matchFn: (n) => /\bTP-LINK\b|\bTPLINK\b/i.test(n) },
-    { key: 'brand', label: 'Intel', value: 'INTEL', matchFn: (n) => /\bINTEL\b/i.test(n) },
-    { key: 'brand', label: 'ASUS', value: 'ASUS', matchFn: (n) => /\bASUS\b/i.test(n) },
-    { key: 'brand', label: 'Cudy', value: 'CUDY', matchFn: (n) => /\bCUDY\b/i.test(n) },
   ],
   'perifericos': [
     { key: 'type', label: 'Mouse', value: 'MOUSE', matchFn: (n) => /\bMOUSE\b/i.test(n) && !/\bMOUSEPAD\b/i.test(n) },
@@ -173,8 +190,8 @@ const FILTER_GROUP_LABELS: Record<string, string> = {
   type: 'Tipo',
   wattage: 'Potencia',
   size: 'Tamaño',
-  hz: 'Frecuencia',
   resolution: 'Resolución',
+  hz: 'Frecuencia',
 }
 
 /**
@@ -264,12 +281,13 @@ export default function CategoryProducts({
     return groups
   }, [currentCategoryFilterOptions.length, categorySlug])
 
-  const toggleCategoryFilter = (key: string, value: string) => {
+  const setCategoryFilter = (key: string, value: string) => {
     setCategoryFilters(prev => {
-      const current = prev[key] || []
-      const isActive = current.includes(value)
-      const updated = isActive ? current.filter(v => v !== value) : [...current, value]
-      return { ...prev, [key]: updated }
+      if (value === '') {
+        const { [key]: _, ...rest } = prev
+        return rest
+      }
+      return { ...prev, [key]: [value] }
     })
   }
 
@@ -378,7 +396,7 @@ export default function CategoryProducts({
         </div>
       )}
 
-      {/* Category Filter Chips (brand, DDR, socket, etc.) */}
+      {/* Category Filter Dropdowns (brand, DDR, socket, etc.) */}
       {filterGroups.length > 0 && (
         <div className="mb-4 p-3 bg-white rounded-lg border border-gray-200">
           <div className="flex items-center justify-between mb-2">
@@ -395,30 +413,25 @@ export default function CategoryProducts({
               </button>
             )}
           </div>
-          <div className="space-y-2">
-            {filterGroups.map(group => (
-              <div key={group.key}>
-                <span className="text-[11px] text-gray-400 font-medium mb-1 block">{group.label}</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {group.options.map(opt => {
-                    const isActive = (categoryFilters[opt.key] || []).includes(opt.value)
-                    return (
-                      <button
-                        key={opt.value}
-                        onClick={() => toggleCategoryFilter(opt.key, opt.value)}
-                        className={`px-2.5 py-1 rounded-full text-xs font-medium transition border ${
-                          isActive
-                            ? 'bg-compucity-green text-white border-compucity-green shadow-sm'
-                            : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-100'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    )
-                  })}
+          <div className="flex flex-wrap gap-2">
+            {filterGroups.map(group => {
+              const selectedValue = (categoryFilters[group.key] || [])[0] || ''
+              return (
+                <div key={group.key} className="relative">
+                  <select
+                    value={selectedValue}
+                    onChange={(e) => setCategoryFilter(group.key, e.target.value)}
+                    className="text-xs border border-gray-200 rounded-md pl-2.5 pr-7 py-1.5 bg-white text-gray-700 focus:outline-none focus:border-compucity-green cursor-pointer appearance-none"
+                  >
+                    <option value="">{group.label}</option>
+                    {group.options.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
           {hasCategoryFilters && (
             <p className="text-[11px] text-gray-400 mt-2">
@@ -426,7 +439,7 @@ export default function CategoryProducts({
             </p>
           )}
         </div>
-      )}
+      )
 
       {/* Filter & Sort Bar - Desktop */}
       <div className="hidden md:flex items-center gap-3 mb-6 p-3 bg-gray-50 rounded-lg border border-gray-200">
