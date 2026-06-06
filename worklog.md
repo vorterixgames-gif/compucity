@@ -163,3 +163,34 @@ Task: Implement 8 improvements to CompuCity e-commerce project
 - `npx next build` compiled successfully with no errors
 - Committed: bd8b2af
 - Pushed to GitHub: main branch
+
+---
+Task ID: 3
+Agent: main
+Task: Fix miscategorized products across ALL categories (notebooks, monitores, componentes, etc.)
+
+Work Log:
+- Investigated category mapping logic in sync route and validate-categories route
+- Wrote diagnostic script (find-miscategorized.mjs) to query all products by category and identify misplaced ones
+- Identified 66+ misplaced products across notebooks, monitores, componentes, accesorios categories
+- Key issues found:
+  - Server fans (Dell, HPE) in Monitores/Soportes y Brazos
+  - Notebook chargers, batteries, power adapters in Notebooks category
+  - Parlantes portátiles, UPS portátiles in Notebooks (PORTATIL keyword triggered notebooks)
+  - Projectors and scanners in Notebooks (PORTATIL keyword)
+  - Complete PCs (HP, Performance) in Discos SSD (SSD keyword)
+  - Notebook motherboards in PC Motherboards category
+  - KVM trays, rack drawers in Monitores
+  - Cleaning products in Notebooks/PC Armadas
+  - Fundas, bolsos, morrales in Notebooks
+- Wrote fix-miscategorized.mjs and fix-miscategorized-round2.mjs to directly fix 66 products in DB
+- Added 40+ new correction rules to:
+  - src/app/api/admin/validate-categories/route.ts (GENERAL_CORRECTIONS)
+  - src/app/api/admin/suppliers/sync/route.ts (CATEGORY_CORRECTIONS)
+- Build passed successfully
+- Pushed to GitHub: commit 2a0fe2b
+
+Stage Summary:
+- 66 products moved to correct categories in database
+- 40+ new correction rules added to prevent future miscategorization during sync
+- Key patterns caught: PORTATIL keyword causing non-notebooks to go to notebooks, MONITOR keyword in product names causing cables/KVMs to go to monitores, FAN/COOLER keywords in server products causing them to go to soportes-y-brazos
