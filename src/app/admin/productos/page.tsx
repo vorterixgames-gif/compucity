@@ -78,6 +78,7 @@ interface Product {
   costPrice: number | null
   sku: string | null
   stock: number
+  stockByWarehouse: string | null
   isActive: number
   isFeatured: number
   images: string
@@ -869,6 +870,12 @@ export default function AdminProductos() {
                     <Badge
                       variant="secondary"
                       className={product.stock > 5 ? 'bg-green-100 text-green-800' : product.stock > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}
+                      title={product.stockByWarehouse ? (() => {
+                        try {
+                          const wh = JSON.parse(product.stockByWarehouse)
+                          return `CBA: ${wh.cba ?? 0} | BA: ${wh.air ?? 0} | Lugo: ${wh.lug ?? 0} | Rosario: ${wh.ros ?? 0} | Mza: ${wh.mza ?? 0}`
+                        } catch { return '' }
+                      })() : ''}
                     >
                       Stock: {product.stock}
                     </Badge>
@@ -1121,12 +1128,30 @@ export default function AdminProductos() {
                         )}
                       </td>
                       <td className="p-2 align-middle text-center">
-                        <Badge
-                          variant="secondary"
-                          className={product.stock > 5 ? 'bg-green-100 text-green-800' : product.stock > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}
-                        >
-                          {product.stock}
-                        </Badge>
+                        <div className="flex flex-col items-center gap-0.5">
+                          <Badge
+                            variant="secondary"
+                            className={product.stock > 5 ? 'bg-green-100 text-green-800' : product.stock > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}
+                            title={product.stockByWarehouse ? (() => {
+                              try {
+                                const wh = JSON.parse(product.stockByWarehouse)
+                                return `Stock por depósito — CBA: ${wh.cba ?? 0} | BA: ${wh.air ?? 0} | Lugo: ${wh.lug ?? 0} | Rosario: ${wh.ros ?? 0} | Mendoza: ${wh.mza ?? 0}`
+                              } catch { return '' }
+                            })() : ''}
+                          >
+                            {product.stock}
+                          </Badge>
+                          {product.stockByWarehouse && (() => {
+                            try {
+                              const wh = JSON.parse(product.stockByWarehouse)
+                              const totalOther = (wh.air || 0) + (wh.lug || 0) + (wh.ros || 0) + (wh.mza || 0)
+                              if (product.stock === 0 && totalOther > 0) {
+                                return <span className="text-[10px] text-orange-500 leading-tight">+{totalOther} otros dep.</span>
+                              }
+                            } catch {}
+                            return null
+                          })()}
+                        </div>
                       </td>
                       <td className="p-2 align-middle text-center">
                         <Badge variant="secondary" className={product.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}>
@@ -1621,7 +1646,7 @@ export default function AdminProductos() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="stock">Stock</Label>
+              <Label htmlFor="stock">Stock (Córdoba)</Label>
               <Input
                 id="stock"
                 type="number"
@@ -1629,6 +1654,28 @@ export default function AdminProductos() {
                 onChange={(e) => updateForm('stock', e.target.value)}
                 placeholder="0"
               />
+              {editingProduct?.stockByWarehouse && (() => {
+                try {
+                  const wh = JSON.parse(editingProduct.stockByWarehouse)
+                  const hasOtherStock = (wh.air || 0) + (wh.lug || 0) + (wh.ros || 0) + (wh.mza || 0) > 0
+                  if (hasOtherStock || wh.cba !== undefined) {
+                    return (
+                      <div className="text-xs text-gray-500 bg-gray-50 rounded p-2 space-y-0.5">
+                        <div className="font-medium text-gray-600 mb-1">Stock por depósito:</div>
+                        <div className="flex gap-3 flex-wrap">
+                          <span className={wh.cba > 0 ? 'text-green-600 font-medium' : 'text-red-500'}>CBA: {wh.cba ?? 0}</span>
+                          <span>BA: {wh.air ?? 0}</span>
+                          <span>Lugo: {wh.lug ?? 0}</span>
+                          <span>Rosario: {wh.ros ?? 0}</span>
+                          <span>Mendoza: {wh.mza ?? 0}</span>
+                        </div>
+                        <div className="text-[10px] text-gray-400 mt-1">El stock mostrado en la tienda es solo Córdoba (CBA)</div>
+                      </div>
+                    )
+                  }
+                } catch {}
+                return null
+              })()}
             </div>
 
             {/* Category Selection - Two-level selector */}

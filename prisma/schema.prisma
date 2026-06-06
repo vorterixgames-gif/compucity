@@ -45,6 +45,7 @@ model Product {
   ivaRate      Float     @default(10.5) // porcentaje de IVA (10.5 o 21)
   sku          String?   @unique
   stock        Int       @default(0)
+  stockByWarehouse String?   // JSON: stock por depósito (air, lug, ros, cba, mza)
   isActive     Boolean   @default(true)
   isFeatured   Boolean   @default(false)
   images       String    @default("[]") // JSON array de URLs

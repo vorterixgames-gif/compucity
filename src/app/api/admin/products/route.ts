@@ -185,7 +185,7 @@ export async function GET(request: NextRequest) {
 
     // Run count query + data query + config in parallel
     const selectColumns = `p.id, p.name, p.slug, p.price, p.comparePrice, p.costPrice,
-       p.markup, p.cashDiscount, p.ivaRate, p.sku, p.stock, p.isActive, p.isFeatured,
+       p.markup, p.cashDiscount, p.ivaRate, p.sku, p.stock, p.stockByWarehouse, p.isActive, p.isFeatured,
        p.providerId, p.providerSku, p.categoryId,
        p.salePrice, p.saleStart, p.saleEnd, p.createdAt, p.updatedAt,
        c.name as categoryName, c.markup as categoryMarkup, c.cashDiscount as categoryCashDiscount,
