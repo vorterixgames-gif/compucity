@@ -1254,12 +1254,16 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
           const costPrice = price
           const markup = supplier.markup || 30
           const sellingPrice = costPrice > 0 ? costPrice * (1 + markup / 100) : 0
-          const totalStock = (product.air?.disponible || 0) +
-            (product.lug?.disponible || 0) +
-            (product.ros?.disponible || 0) +
-            (product.cba?.disponible || 0) +
-            (product.mza?.disponible || 0) +
-            (product.stock_disponible || 0)
+          // Stock por depósito - usar stock Córdoba (cba) como stock local
+          const stockByWarehouse = {
+            air: product.air?.disponible || 0,
+            lug: product.lug?.disponible || 0,
+            ros: product.ros?.disponible || 0,
+            cba: product.cba?.disponible || 0,
+            mza: product.mza?.disponible || 0,
+          }
+          const totalStock = stockByWarehouse.cba  // Solo stock Córdoba
+          const stockByWarehouseJson = JSON.stringify(stockByWarehouse)
 
           const { categoryId } = mapProductToCategory(
             productName, supplierCategory, supplierMappings, slugToId, idToParentId, parentSlugToChildSlugs
@@ -1292,8 +1296,8 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
             // UPDATE existing product
             dbOperations.push(
               db.execute({
-                sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, supplierCategory = ?, categoryId = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
-                args: [costPrice, sellingPrice, totalStock, supplierCategory, categoryId, airIntraIsActive, now, existingProduct.id],
+                sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, stockByWarehouse = ?, supplierCategory = ?, categoryId = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
+                args: [costPrice, sellingPrice, totalStock, stockByWarehouseJson, supplierCategory, categoryId, airIntraIsActive, now, existingProduct.id],
               }).then(() => { updated++ }).catch((err) => { console.error('Error updating Air Intra product:', err); errors++ })
             )
           } else if (productName && providerSku) {
@@ -1319,9 +1323,9 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
 
             dbOperations.push(
               db.execute({
-                sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
-                      VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
-                args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, airIntraIsActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, supplierCategory],
+                sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
+                      VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
+                args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, stockByWarehouseJson, airIntraIsActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, supplierCategory],
               }).then(() => {
                 created++
                 existingBySku[providerSku] = { id: newId, slug }
@@ -1423,12 +1427,16 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
 
             const costPrice = price
             const sellingPrice = costPrice > 0 ? costPrice * (1 + sypMarkup / 100) : 0
-            const totalStock = (product.air?.disponible || 0) +
-              (product.lug?.disponible || 0) +
-              (product.ros?.disponible || 0) +
-              (product.cba?.disponible || 0) +
-              (product.mza?.disponible || 0) +
-              (product.stock_disponible || 0)
+            // Stock por depósito - usar stock Córdoba (cba) como stock local
+            const stockByWarehouse = {
+              air: product.air?.disponible || 0,
+              lug: product.lug?.disponible || 0,
+              ros: product.ros?.disponible || 0,
+              cba: product.cba?.disponible || 0,
+              mza: product.mza?.disponible || 0,
+            }
+            const totalStock = stockByWarehouse.cba  // Solo stock Córdoba
+            const stockByWarehouseJson = JSON.stringify(stockByWarehouse)
 
             // syp has no rubro/grupo — use keyword-only category mapping
             const { categoryId } = mapProductToCategory(
@@ -1458,8 +1466,8 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
               // Update stock/price for product already in DB
               sypDbOps.push(
                 db.execute({
-                  sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
-                  args: [costPrice, sellingPrice, totalStock, isActive, now, existingProduct.id],
+                  sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, stockByWarehouse = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
+                  args: [costPrice, sellingPrice, totalStock, stockByWarehouseJson, isActive, now, existingProduct.id],
                 }).then(() => { sypUpdated++ }).catch((err) => { console.error('Error updating syp product:', err); errors++ })
               )
             } else {
@@ -1477,9 +1485,9 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
 
               sypDbOps.push(
                 db.execute({
-                  sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
-                        VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
-                  args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, isActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, ''],
+                  sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
+                        VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
+                  args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, stockByWarehouseJson, isActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, ''],
                 }).then(() => {
                   sypCreated++
                   created++
@@ -1612,12 +1620,16 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
       const supplierCategory = getAirIntraSupplierCategory(product)
       const costPrice = price
       const sellingPrice = costPrice > 0 ? costPrice * (1 + recoveryMarkup / 100) : 0
-      const totalStock = (product.air?.disponible || 0) +
-        (product.lug?.disponible || 0) +
-        (product.ros?.disponible || 0) +
-        (product.cba?.disponible || 0) +
-        (product.mza?.disponible || 0) +
-        (product.stock_disponible || 0)
+      // Stock por depósito - usar stock Córdoba (cba) como stock local
+      const stockByWarehouse = {
+        air: product.air?.disponible || 0,
+        lug: product.lug?.disponible || 0,
+        ros: product.ros?.disponible || 0,
+        cba: product.cba?.disponible || 0,
+        mza: product.mza?.disponible || 0,
+      }
+      const totalStock = stockByWarehouse.cba  // Solo stock Córdoba
+      const stockByWarehouseJson = JSON.stringify(stockByWarehouse)
 
       const { categoryId } = mapProductToCategory(
         productName, supplierCategory, supplierMappings, slugToId, idToParentId, parentSlugToChildSlugs
@@ -1642,8 +1654,8 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
 
       if (existingProduct) {
         await db.execute({
-          sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, supplierCategory = ?, categoryId = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
-          args: [costPrice, sellingPrice, totalStock, supplierCategory, categoryId, isActive, now, existingProduct.id],
+          sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, stockByWarehouse = ?, supplierCategory = ?, categoryId = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
+          args: [costPrice, sellingPrice, totalStock, stockByWarehouseJson, supplierCategory, categoryId, isActive, now, existingProduct.id],
         })
         return { action: 'updated' }
       } else {
@@ -1665,9 +1677,9 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
         if (product.estado?.name) specs['Estado'] = product.estado.name
 
         await db.execute({
-          sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
-                VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
-          args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, isActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, supplierCategory],
+          sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
+                VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
+          args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, stockByWarehouseJson, isActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, supplierCategory],
         })
         existingBySku[providerSku] = { id: newId, slug }
         console.log(`[Air Intra] Recovery: added "${formattedName}" (SKU: ${providerSku})`)
@@ -2141,12 +2153,16 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
           const costPrice = price
           const markup = supplier.markup || 30
           const sellingPrice = costPrice > 0 ? costPrice * (1 + markup / 100) : 0
-          const totalStock = (product.air?.disponible || 0) +
-            (product.lug?.disponible || 0) +
-            (product.ros?.disponible || 0) +
-            (product.cba?.disponible || 0) +
-            (product.mza?.disponible || 0) +
-            (product.stock_disponible || 0)
+          // Stock por depósito - usar stock Córdoba (cba) como stock local
+          const stockByWarehouse = {
+            air: product.air?.disponible || 0,
+            lug: product.lug?.disponible || 0,
+            ros: product.ros?.disponible || 0,
+            cba: product.cba?.disponible || 0,
+            mza: product.mza?.disponible || 0,
+          }
+          const totalStock = stockByWarehouse.cba  // Solo stock Córdoba
+          const stockByWarehouseJson = JSON.stringify(stockByWarehouse)
 
           const { categoryId } = mapProductToCategory(
             productName, supplierCategory, supplierMappings, slugToId, idToParentId, parentSlugToChildSlugs
@@ -2178,8 +2194,8 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
             // UPDATE existing product
             dbOperations.push(
               db.execute({
-                sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, supplierCategory = ?, categoryId = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
-                args: [costPrice, sellingPrice, totalStock, supplierCategory, categoryId, airIntraIsActive, now, existingProduct.id],
+                sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, stockByWarehouse = ?, supplierCategory = ?, categoryId = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
+                args: [costPrice, sellingPrice, totalStock, stockByWarehouseJson, supplierCategory, categoryId, airIntraIsActive, now, existingProduct.id],
               }).then(() => { updated++ }).catch((err) => { console.error('Error updating Air Intra product:', err); errors++ })
             )
           } else if (productName && providerSku) {
@@ -2205,9 +2221,9 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
 
             dbOperations.push(
               db.execute({
-                sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
-                      VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
-                args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, airIntraIsActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, supplierCategory],
+                sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
+                      VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
+                args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, stockByWarehouseJson, airIntraIsActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, supplierCategory],
               }).then(() => {
                 created++
                 existingBySku[providerSku] = { id: newId, slug }
@@ -2370,12 +2386,16 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
 
             const costPrice = price
             const sellingPrice = costPrice > 0 ? costPrice * (1 + sypMarkup / 100) : 0
-            const totalStock = (product.air?.disponible || 0) +
-              (product.lug?.disponible || 0) +
-              (product.ros?.disponible || 0) +
-              (product.cba?.disponible || 0) +
-              (product.mza?.disponible || 0) +
-              (product.stock_disponible || 0)
+            // Stock por depósito - usar stock Córdoba (cba) como stock local
+            const stockByWarehouse = {
+              air: product.air?.disponible || 0,
+              lug: product.lug?.disponible || 0,
+              ros: product.ros?.disponible || 0,
+              cba: product.cba?.disponible || 0,
+              mza: product.mza?.disponible || 0,
+            }
+            const totalStock = stockByWarehouse.cba  // Solo stock Córdoba
+            const stockByWarehouseJson = JSON.stringify(stockByWarehouse)
 
             const { categoryId } = mapProductToCategory(
               productName, '', supplierMappings, slugToId, idToParentId, parentSlugToChildSlugs
@@ -2403,8 +2423,8 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
             if (existingProduct) {
               sypDbOps.push(
                 db.execute({
-                  sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
-                  args: [costPrice, sellingPrice, totalStock, isActive, now, existingProduct.id],
+                  sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, stockByWarehouse = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
+                  args: [costPrice, sellingPrice, totalStock, stockByWarehouseJson, isActive, now, existingProduct.id],
                 }).then(() => { sypUpdated++ }).catch((err) => { console.error('Error updating syp product:', err); errors++ })
               )
             } else {
@@ -2421,9 +2441,9 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
 
               sypDbOps.push(
                 db.execute({
-                  sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
-                        VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
-                  args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, isActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, ''],
+                  sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
+                        VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
+                  args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, stockByWarehouseJson, isActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, ''],
                 }).then(() => {
                   sypCreated++
                   created++
@@ -2528,12 +2548,16 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
       const supplierCategory = getAirIntraSupplierCategory(product)
       const costPrice = price
       const sellingPrice = costPrice > 0 ? costPrice * (1 + recoveryMarkup / 100) : 0
-      const totalStock = (product.air?.disponible || 0) +
-        (product.lug?.disponible || 0) +
-        (product.ros?.disponible || 0) +
-        (product.cba?.disponible || 0) +
-        (product.mza?.disponible || 0) +
-        (product.stock_disponible || 0)
+      // Stock por depósito - usar stock Córdoba (cba) como stock local
+      const stockByWarehouse = {
+        air: product.air?.disponible || 0,
+        lug: product.lug?.disponible || 0,
+        ros: product.ros?.disponible || 0,
+        cba: product.cba?.disponible || 0,
+        mza: product.mza?.disponible || 0,
+      }
+      const totalStock = stockByWarehouse.cba  // Solo stock Córdoba
+      const stockByWarehouseJson = JSON.stringify(stockByWarehouse)
 
       const { categoryId } = mapProductToCategory(
         productName, supplierCategory, supplierMappings, slugToId, idToParentId, parentSlugToChildSlugs
@@ -2558,8 +2582,8 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
 
       if (existingProduct) {
         await db.execute({
-          sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, supplierCategory = ?, categoryId = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
-          args: [costPrice, sellingPrice, totalStock, supplierCategory, categoryId, isActive, now, existingProduct.id],
+          sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, stockByWarehouse = ?, supplierCategory = ?, categoryId = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
+          args: [costPrice, sellingPrice, totalStock, stockByWarehouseJson, supplierCategory, categoryId, isActive, now, existingProduct.id],
         })
         return { action: 'updated' }
       } else {
@@ -2581,9 +2605,9 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
         if (product.estado?.name) specs['Estado'] = product.estado.name
 
         await db.execute({
-          sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
-                VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
-          args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, isActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, supplierCategory],
+          sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
+                VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
+          args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, stockByWarehouseJson, isActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, supplierCategory],
         })
         existingBySku[providerSku] = { id: newId, slug }
         return { action: 'created' }

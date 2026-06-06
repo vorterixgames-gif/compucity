@@ -392,4 +392,16 @@ export async function ensureMigrations() {
       console.warn('[migration] Could not add ivaRate column to categories:', e)
     }
   }
+
+  // 22. Add stockByWarehouse column to products (JSON per-warehouse stock)
+  try {
+    await db.execute({ sql: 'SELECT stockByWarehouse FROM products LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({ sql: 'ALTER TABLE products ADD COLUMN stockByWarehouse TEXT' })
+      console.log('[migration] Added stockByWarehouse column to products')
+    } catch (e) {
+      console.warn('[migration] Could not add stockByWarehouse column:', e)
+    }
+  }
 }
