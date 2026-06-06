@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-06 (sesion 24)
+**Ultima actualizacion:** 2026-06-07 (sesion 25)
 
 ---
 
@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** e74ceca (fix: reducir cache del dólar a 15 min, server-side pagination admin, filtro Ingresado manualmente, fix categorías)
+- **Commit actual:** dfafd1e (batched Air Intra sync, vercel.json maxDuration 60, PROJECT_STATUS.md sesion 24)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -611,6 +611,27 @@ scripts/deploy.sh                         — Script de deploy seguro
 - **Tablas (14):** products (10,310), categories (65), suppliers (3), orders (0), order_items (0), customers (1), product_images (419), dollar_rates (1), store_config (20), supplier_category_mappings (86), admins (1), banners (0), coupons (0), password_reset_tokens (2)
 - **Último backup:** backups/compucity-backup-2026-06-05.sql (24 MB)
 
+### Limites y Uso de Plataformas (sesion 25)
+| Plataforma | Recurso | Uso actual | Limite | % Uso | Estado |
+|------------|---------|-----------|--------|-------|--------|
+| **Turso** | Almacenamiento | 22 MB | 9 GB | 0.24% | Holgado |
+| **Turso** | Filas leidas/mes | ~1M | 1B/mes | <0.1% | Holgado |
+| **Turso** | Filas escritas/mes | ~100K | 25M/mes | <0.5% | Holgado |
+| **Vercel** | Deploys/mes | ~20 | 100 | 20% | OK |
+| **Vercel** | Ancho de banda | ~500 MB | 100 GB | <1% | Holgado |
+| **Vercel** | Serverless ejecuciones | ~5K/dia | Ilimitado | - | OK |
+| **Vercel** | Timeout serverless | 10s (default) / 60s (max Hobby) | 300s (Pro) | - | Ver nota |
+
+**Nota Vercel timeout:** El plan Hobby limita las serverless functions a max 60s (`maxDuration` en vercel.json). El sync de Air Intra puede tardar 30-60+ segundos en modo full, por lo que se implemento batched sync (session 19) que divide en lotes de ~10-15s. Si se necesita mas de 60s por lote, se debe migrar a Vercel Pro ($20/mes, max 300s). Actualmente el batched sync funciona bien dentro del limite.
+
+### Backups Remotos (GoFile)
+| Fecha | Tipo | Tamano | URL |
+|-------|------|--------|-----|
+| 2026-06-06 | DB completa (SQL) | 12 MB | https://gofile.io/d/Z32GBy |
+| 2026-06-06 | Codigo fuente (tar.gz) | 931 KB | https://gofile.io/d/nAU3xx |
+
+**Nota:** Los backups locales se guardan en `/home/z/my-project/download/backups/`. Los archivos SQL son muy grandes para GitHub (24 MB), por eso se suben a GoFile como alternativa de descarga.
+
 ### Schema Products
 ```
 id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE,
@@ -780,6 +801,8 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ---
 
 ## Historial de Cambios
+- **2026-06-07 (s25):** Actualizacion PROJECT_STATUS.md con analisis de limites Vercel/Turso, backups remotos GoFile, y documentacion completa de sesion 25. Sin cambios de codigo. Commit: (pendiente push)
+- **2026-06-06 (s24):** Air Intra Batched Sync implementado + vercel.json maxDuration corregido. (1) Batched sync: divide sincronizacion en lotes de 4 paginas (~2,000 productos, ~10-15s por lote). Frontend orquesta lotes automaticamente con barra de progreso. Backend: syncAirIntraBatch() + syncAirIntraFinalize(). (2) vercel.json: maxDuration corregido de 300 a 60 (Hobby plan limita a 60s). Commits: d3e5fe9, dfafd1e
 - **2026-06-06 (s23):** Cache del dólar reducido + server-side pagination admin + backup. (1) FIX cache dolar: Next.js revalidate reducido de 1h (3600s) a 15 min (900s) en `src/lib/dollar.ts`. Cache en memoria admin reducido de 30 min a 15 min en `src/app/api/admin/products/route.ts`. API externa (DolarApi.com) ahora se consulta max cada 15 min en vez de 1h. Flujo cache: Memoria (15 min) → DB → Next.js fetch cache (15 min) → API externa → Fallback 1415. (2) Server-side pagination en admin productos (commit 0a9d109): payload reducido de ~10MB a ~50KB, filtros/ordenamiento/paginacion ejecutados en SQL server-side, cache dolar en memoria para admin. (3) Backup DB: `backups/compucity-backup-2026-06-05.sql` (24 MB, 10,310 productos, todas las 14 tablas). Commits: 0a9d109, e74ceca
 - **2026-06-06 (s22):** Filtro "Ingresado manualmente" en proveedor + FIX masivo de categorias. (1) Admin productos: opcion "Ingresado manualmente" en dropdown de Proveedor para filtrar productos sin proveedor (providerId vacio/nulo). (2) FIX categoria DESKTOP: keyword "DESKTOP" era demasiado generico en CATEGORY_KEYWORD_MAP, causando que switches "Desktop Switch" (ej: Switch 5P Tp-link Tl-sg1005d Gigabit Desktop) se categorizaran como PC Armadas. (3) Reordenamiento: SWITCH y ROUTER movidos al Grupo 1 (antes de PC Armadas) para que se detecten primero. (4) "DESKTOP" reemplazado por "DESKTOP PC" (mas especifico). (5) Nuevas correcciones automaticas: SWITCH→switches, ROUTER→routers-wifi, TP-LINK→placas-de-red, ESCRITORIO→escritorios, ANTENA→placas-de-red, USB-C HDMI→cables, ADAPTADOR TP-LINK USB→cables, TENSIOMETRO→smart-home, HIKVISION→switches. (6) DB: 30 productos recategorizados (23 switches + 1 antena + 1 escritorio + 2 USB-C HDMI + 2 adaptadores TP-Link + 1 tensiómetro). (7) Mapeo proveedor 001-0430 → switches creado para Air Intra. Commit: 0e2d6d9
 - **2026-06-05 (s21):** FIX CRITICO Air Intra sync - Productos faltantes resuelto. (1) BUG PRINCIPAL: La paginación se detenía prematuramente cuando el JSON corrupto causaba que una página devolviera <500 productos, haciendo que el sync creyera que era la última página. El endpoint `syp` solo tenía ~4,500 productos y faltaban categorías. (2) Cambio de endpoint `syp` → `articulos`: Ahora usa el endpoint `articulos` que tiene 7,499 productos (vs 4,500 de syp) e incluye datos de categoría (rubro, grupo), garantía, tipo y estado. (3) Fix paginación: Ya no se detiene por `products.length < pageSize`. Ahora usa MAX_PAGES (30) + detección de página vacía. (4) Retry logic: Hasta 2 reintentos por página fallida. (5) Batch DB operations: Pre-load de productos existentes en memoria, INSERT/UPDATE en paralelo (concurrencia 20). (6) Script standalone: `sync-air-intra-direct.mjs` para sync directo a Turso sin pasar por API route. (7) Resultado: Air Intra pasó de 1,702 a 7,511 productos (7,324 activos). Commits: da050a3, 3ed8b21, 2cf33b5
