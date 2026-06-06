@@ -35,16 +35,6 @@ const GENERAL_CORRECTIONS: {
   { namePattern: /REPUESTO/i, wrongSlugs: ['placas-de-video', 'microprocesadores', 'memorias-ram'], correctSlug: 'motherboards' },
   // RMA products
   { namePattern: /\(RMA\)/i, wrongSlugs: ['placas-de-video', 'microprocesadores', 'memorias-ram'], correctSlug: 'motherboards' },
-  // Notebooks with RTX/DDR/SSD in wrong component categories
-  { namePattern: /NOTEBOOK|LAPTOP|PORTATIL/i, wrongSlugs: ['placas-de-video', 'memorias-ram', 'discos-ssd', 'microprocesadores'], correctSlug: 'notebooks' },
-  // PC Armadas with component keywords
-  { namePattern: /PC\s+(GAMER|KELYX|LENOVO)/i, wrongSlugs: ['fuentes', 'gabinetes', 'placas-de-video', 'microprocesadores', 'memorias-ram', 'discos-ssd'], correctSlug: 'pc-armadas' },
-  // Sist. Kelyx in component categories
-  { namePattern: /SIST\./i, wrongSlugs: ['fuentes', 'gabinetes', 'microprocesadores', 'memorias-ram', 'discos-ssd'], correctSlug: 'pc-armadas' },
-  // Mini PC / Barebones in component categories
-  { namePattern: /MINI PC|BAREBONE|STICK PC/i, wrongSlugs: ['placas-de-video', 'microprocesadores', 'memorias-ram', 'discos-ssd', 'fuentes'], correctSlug: 'pc-armadas' },
-  // Video cards in wrong categories (should be in placas-de-video)
-  { namePattern: /(?:Vga|Placa de Video).*(?:RTX|GTX|GEFORCE|RADEON)/i, wrongSlugs: ['memorias-ram', 'discos-ssd', 'cables-y-adaptadores'], correctSlug: 'placas-de-video' },
   // Cables/adapters mis-categorized as video cards
   { namePattern: /CABLE|ADAPTADOR/i, wrongSlugs: ['placas-de-video'], correctSlug: 'cables-y-adaptadores' },
   // Monitors in wrong categories
@@ -55,6 +45,81 @@ const GENERAL_CORRECTIONS: {
   { namePattern: /EXTERNO|EXTERNA|PORTABLE/i, wrongSlugs: ['discos-ssd', 'discos-hdd'], correctSlug: 'discos-externos' },
   // Pendrives in SSD category
   { namePattern: /PENDRIVE|FLASH DRIVE|PEN DRIVE/i, wrongSlugs: ['discos-ssd'], correctSlug: 'pendrives' },
+
+  // === PC Armadas corrections ===
+  // PC Armadas with component keywords
+  { namePattern: /PC\s+(GAMER|KELYX|LENOVO|PERFORMANCE)/i, wrongSlugs: ['fuentes', 'gabinetes', 'placas-de-video', 'microprocesadores', 'memorias-ram', 'discos-ssd'], correctSlug: 'pc-armadas' },
+  // Sist. Kelyx in component categories
+  { namePattern: /SIST\./i, wrongSlugs: ['fuentes', 'gabinetes', 'microprocesadores', 'memorias-ram', 'discos-ssd'], correctSlug: 'pc-armadas' },
+  // Mini PC / Barebones in component categories
+  { namePattern: /MINI PC|BAREBONE|STICK PC/i, wrongSlugs: ['placas-de-video', 'microprocesadores', 'memorias-ram', 'discos-ssd', 'fuentes'], correctSlug: 'pc-armadas' },
+  // Complete PCs (HP, etc.) in discos-ssd — they have SSD in the name but are complete PCs
+  { namePattern: /^PC\s+(HP|Performance|CX)/i, wrongSlugs: ['discos-ssd', 'memorias-ram', 'microprocesadores', 'fuentes', 'gabinetes'], correctSlug: 'pc-armadas' },
+
+  // === Notebooks corrections — prevent accessories from being categorized as notebooks ===
+  // Notebook power supplies / chargers should be in cargadores, not notebooks
+  { namePattern: /^Alimentacion\s+Notebook/i, wrongSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno', 'tablets'], correctSlug: 'cargadores' },
+  { namePattern: /^Fuente\s+(Notebook|Alimentacion)/i, wrongSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno', 'cargadores'], correctSlug: 'cargadores' },
+  // Notebook chargers (universal, etc.)
+  { namePattern: /^Cargador/i, wrongSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'], correctSlug: 'cargadores' },
+  // Notebook batteries → cargadores
+  { namePattern: /^Bateria\s+P\/?notebook/i, wrongSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'], correctSlug: 'cargadores' },
+  // Notebook stands / soportes → bases or soportes
+  { namePattern: /^Soporte.*(?:Notebook|Laptop|Portatil)/i, wrongSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'], correctSlug: 'bases' },
+  // Auriculares for notebooks → auriculares
+  { namePattern: /^Auriculares?\s+.*(?:Notebook|Laptop)/i, wrongSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'], correctSlug: 'auriculares' },
+  // Fundas / bolsos / mochilas for notebooks → fundas-mochilas
+  { namePattern: /^(?:Bolso|Funda|Mochila).*(?:Notebook|Laptop|Portatil)/i, wrongSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'], correctSlug: 'fundas-mochilas' },
+  // Cleaning products for notebooks → should not be in notebooks
+  { namePattern: /Limpia\s+(?:Notebooks|Lcd|Monitores)/i, wrongSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno', 'monitores', 'oficina-mon', 'gamer-mon'], correctSlug: 'cables-y-adaptadores' },
+  { namePattern: /Limpieza.*(?:Notebook|Computacion)/i, wrongSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno', 'pc-armadas'], correctSlug: 'cables-y-adaptadores' },
+  // Parlantes portátiles → parlantes (not notebooks, "portátil" keyword triggered notebooks)
+  { namePattern: /^Parlante\s+.*Portatil/i, wrongSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'], correctSlug: 'parlantes' },
+  // UPS portátiles → ups (not notebooks)
+  { namePattern: /^Ups.*Portatil/i, wrongSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'], correctSlug: 'ups' },
+  // Bisagras / spare parts for notebooks → should not be in notebooks
+  { namePattern: /^Bisagra\s+Notebook/i, wrongSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'], correctSlug: 'cables-y-adaptadores' },
+  // Cajas for notebooks → not notebooks
+  { namePattern: /^Caja\s+P\/?notebook/i, wrongSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'], correctSlug: 'cables-y-adaptadores' },
+  // Citizen PN60 (printer paper) in notebooks
+  { namePattern: /^Citizen\s+Pn/i, wrongSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'], correctSlug: 'toners-y-cartuchos' },
+
+  // === Monitores corrections — server fans, KVM trays wrongly placed ===
+  // Server fans (Dell, HPE) in monitores/soportes-y-brazos
+  { namePattern: /(?:Standard\s+Fan|Fan\s+(?:Kit|Cuskit|Customer))/i, wrongSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon', 'soportes-y-brazos'], correctSlug: 'refrigeracion' },
+  { namePattern: /^Dell\s+(?:Standar|Standard)\s+Fan/i, wrongSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon', 'soportes-y-brazos'], correctSlug: 'refrigeracion' },
+  { namePattern: /^Hpe?\s+\w+\s+Gen\d+.*Fan/i, wrongSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon', 'soportes-y-brazos'], correctSlug: 'refrigeracion' },
+  { namePattern: /^Fan\s+Kit\s+Hpe/i, wrongSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon', 'soportes-y-brazos'], correctSlug: 'refrigeracion' },
+  { namePattern: /^Poweredge.*Standard\s+Fan/i, wrongSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon', 'soportes-y-brazos'], correctSlug: 'refrigeracion' },
+  // Rack KVM drawers (Monitor + Keyboard + Mouse in 1U rack)
+  { namePattern: /Rack\s+(?:Lcd|Led)\s+Monitor\s+Keyboard/i, wrongSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon'], correctSlug: 'soportes-y-brazos' },
+  // Bandejas KVM for rack
+  { namePattern: /^Bandeja.*Monitor.*Teclado/i, wrongSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon'], correctSlug: 'soportes-y-brazos' },
+
+  // === Motherboards corrections — notebook motherboards shouldn't be in PC motherboards ===
+  { namePattern: /Mother(?:board)?\s+(?:P\/?|Para\s+)?Notebook/i, wrongSlugs: ['motherboards'], correctSlug: 'cables-y-adaptadores' },
+  { namePattern: /^Motherboard\s+Notebook$/i, wrongSlugs: ['motherboards'], correctSlug: 'cables-y-adaptadores' },
+
+  // === Projectors/Scanners with "Portatil" keyword → not notebooks ===
+  { namePattern: /^Proyector/i, wrongSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno', 'gamer-y-diseno'], correctSlug: 'impresion' },
+  { namePattern: /^Scanner/i, wrongSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno', 'gamer-y-diseno'], correctSlug: 'impresion' },
+
+  // === "Notebook XXW" chargers that look like notebooks ===
+  { namePattern: /^Notebook\s+\d+W\s+(Automatic|Multiples)/i, wrongSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno', 'gamer-y-diseno'], correctSlug: 'cargadores' },
+  { namePattern: /^Notebook\s+P\/auto/i, wrongSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno', 'gamer-y-diseno'], correctSlug: 'cargadores' },
+  { namePattern: /^Dell\s+P\/notebook\s+\d+W/i, wrongSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno', 'gamer-y-diseno'], correctSlug: 'cargadores' },
+
+  // === Morral / Mochila for notebooks → fundas-mochilas ===
+  { namePattern: /^Morral\s+P\/?notebook/i, wrongSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno', 'gamer-y-diseno'], correctSlug: 'fundas-mochilas' },
+
+  // === Compitt Kit cleaning → not notebooks ===
+  { namePattern: /^Compitt\s+Kit/i, wrongSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno', 'gamer-y-diseno'], correctSlug: 'cables-y-adaptadores' },
+
+  // === APC Netbotz Rack Monitor (environmental monitoring, not display) ===
+  { namePattern: /Netbotz\s+Rack\s+Monitor/i, wrongSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon'], correctSlug: 'placas-de-red' },
+
+  // === Plotter stands → impresion ===
+  { namePattern: /Soporte\s+Plotter/i, wrongSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon', 'soportes-y-brazos'], correctSlug: 'impresion' },
 ]
 
 export async function POST(request: Request) {

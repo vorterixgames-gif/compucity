@@ -499,6 +499,192 @@ function mapProductToCategory(
       targetSlug: 'switches',
       sourceSlugs: ['refrigeracion', 'placas-de-red'],
     },
+    // === NEW: Prevent notebook accessories from going to notebooks category ===
+    {
+      // Notebook power adapters → cargadores
+      nameKeyword: 'ALIMENTACION NOTEBOOK',
+      targetSlug: 'cargadores',
+      sourceSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno', 'tablets'],
+    },
+    {
+      // "Fuente Notebook" → cargadores (not notebooks)
+      nameKeyword: 'FUENTE NOTEBOOK',
+      targetSlug: 'cargadores',
+      sourceSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'],
+    },
+    {
+      // "Fuente Alimentacion Notebook" → cargadores
+      nameKeyword: 'FUENTE ALIMENTACION',
+      targetSlug: 'cargadores',
+      sourceSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'],
+    },
+    {
+      // Cargador Universal → cargadores (not notebooks)
+      nameKeyword: 'CARGADOR UNIVERSAL',
+      targetSlug: 'cargadores',
+      sourceSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'],
+    },
+    {
+      // Notebook batteries → cargadores
+      nameKeyword: 'BATERIA P/NOTEBOOK',
+      targetSlug: 'cargadores',
+      sourceSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'],
+    },
+    {
+      // Soporte for laptops → bases (not notebooks)
+      nameKeyword: 'SOPORTE P/ LAPTOP',
+      targetSlug: 'bases',
+      sourceSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'],
+    },
+    {
+      // Auriculares for notebooks → auriculares (not notebooks)
+      nameKeyword: 'AURICULAR',
+      targetSlug: 'auriculares',
+      sourceSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'],
+    },
+    {
+      // Bolso/funda/mochila for notebooks → fundas-mochilas
+      nameKeyword: 'BOLSO P/LAPTOP',
+      targetSlug: 'fundas-mochilas',
+      sourceSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'],
+    },
+    {
+      // Parlante Portatil → parlantes (not notebooks - "portatil" triggers notebooks)
+      nameKeyword: 'PARLANTE',
+      targetSlug: 'parlantes',
+      sourceSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'],
+    },
+    {
+      // UPS Portatil → ups (not notebooks - "portatil" triggers notebooks)
+      nameKeyword: 'UPS',
+      targetSlug: 'ups',
+      sourceSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'],
+    },
+    {
+      // Bisagra Notebook → not notebooks (spare part)
+      nameKeyword: 'BISAGRA NOTEBOOK',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'],
+    },
+    {
+      // Caja P/Notebook → not notebooks
+      nameKeyword: 'CAJA P/NOTEBOOK',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'],
+    },
+    {
+      // Limpia Notebooks / Limpieza → not notebooks
+      nameKeyword: 'LIMPIA NOTEBOOKS',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'],
+    },
+    {
+      // Limpieza para equipos → not notebooks/pc-armadas
+      nameKeyword: 'LIMPIEZA',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno', 'pc-armadas'],
+    },
+    {
+      // Citizen PN (printer paper) → toners-y-cartuchos
+      nameKeyword: 'CITIZEN PN',
+      targetSlug: 'toners-y-cartuchos',
+      sourceSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno'],
+    },
+    // === NEW: Prevent server fans from going to monitores ===
+    {
+      // Dell Standard Fan Cuskit → refrigeracion (not monitores)
+      nameKeyword: 'STANDAR FAN',
+      targetSlug: 'refrigeracion',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon', 'soportes-y-brazos'],
+    },
+    {
+      nameKeyword: 'STANDARD FAN',
+      targetSlug: 'refrigeracion',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon', 'soportes-y-brazos'],
+    },
+    {
+      nameKeyword: 'FAN CUSKIT',
+      targetSlug: 'refrigeracion',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon', 'soportes-y-brazos'],
+    },
+    {
+      nameKeyword: 'FAN KIT',
+      targetSlug: 'refrigeracion',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon', 'soportes-y-brazos'],
+    },
+    {
+      nameKeyword: 'FAN CUSTOMER',
+      targetSlug: 'refrigeracion',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon', 'soportes-y-brazos'],
+    },
+    {
+      // Bandeja Gabitel Monitor Teclado → soportes-y-brazos (not monitores)
+      nameKeyword: 'BANDEJA',
+      targetSlug: 'soportes-y-brazos',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon'],
+    },
+    {
+      // APC Rack LCD Monitor → soportes-y-brazos (KVM rack drawer)
+      nameKeyword: 'RACK LCD MONITOR',
+      targetSlug: 'soportes-y-brazos',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon'],
+    },
+    // === NEW: PC Performance in discos-ssd ===
+    {
+      nameKeyword: 'PC PERFORMANCE',
+      targetSlug: 'pc-armadas',
+      sourceSlugs: ['discos-ssd', 'memorias-ram', 'microprocesadores', 'fuentes', 'gabinetes'],
+    },
+    {
+      nameKeyword: 'PC HP',
+      targetSlug: 'pc-armadas',
+      sourceSlugs: ['discos-ssd', 'memorias-ram', 'microprocesadores', 'fuentes', 'gabinetes'],
+    },
+    // === NEW: Motherboard Notebook in motherboards ===
+    {
+      nameKeyword: 'MOTHERBOARD NOTEBOOK',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['motherboards'],
+    },
+    {
+      nameKeyword: 'MOTHERBOARD P/NOTEBOOK',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['motherboards'],
+    },
+    {
+      nameKeyword: 'MOTHERBOARD PARA NOTEBOOK',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['motherboards'],
+    },
+    // === NEW: Projectors/Scanners with "Portatil" keyword → not notebooks ===
+    {
+      nameKeyword: 'PROYECTOR',
+      targetSlug: 'impresion',
+      sourceSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno', 'gamer-y-diseno'],
+    },
+    {
+      nameKeyword: 'SCANNER',
+      targetSlug: 'impresion',
+      sourceSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno', 'gamer-y-diseno'],
+    },
+    // === NEW: "Notebook XXW" chargers that look like notebooks ===
+    {
+      nameKeyword: 'NOTEBOOK P/AUTO',
+      targetSlug: 'cargadores',
+      sourceSlugs: ['notebooks', 'gamer', 'oficina', 'ultrabooks', 'diseno', 'gamer-y-diseno'],
+    },
+    // APC Netbotz Rack Monitor (environmental monitoring, not display)
+    {
+      nameKeyword: 'NETBOTZ RACK MONITOR',
+      targetSlug: 'placas-de-red',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon'],
+    },
+    // Plotter stands
+    {
+      nameKeyword: 'SOPORTE PLOTTER',
+      targetSlug: 'impresion',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon', 'soportes-y-brazos'],
+    },
   ]
 
   // Apply corrections regardless of mapping method
