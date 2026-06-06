@@ -184,9 +184,9 @@ export async function GET(request: NextRequest) {
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
     // Run count query + data query + config in parallel
-    const selectColumns = `p.id, p.name, p.slug, p.price, p.comparePrice, p.costPrice,
+    const selectColumns = `p.id, p.name, p.slug, p.description, p.price, p.comparePrice, p.costPrice,
        p.markup, p.cashDiscount, p.ivaRate, p.sku, p.stock, p.stockByWarehouse, p.isActive, p.isFeatured,
-       p.providerId, p.providerSku, p.categoryId,
+       p.images, p.specs, p.providerId, p.providerSku, p.categoryId, p.supplierCategory,
        p.salePrice, p.saleStart, p.saleEnd, p.createdAt, p.updatedAt,
        c.name as categoryName, c.markup as categoryMarkup, c.cashDiscount as categoryCashDiscount,
        s.name as providerName`
