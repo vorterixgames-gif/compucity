@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-07 (sesion 25)
+**Ultima actualizacion:** 2026-06-07 (sesion 26)
 
 ---
 
@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** dfafd1e (batched Air Intra sync, vercel.json maxDuration 60, PROJECT_STATUS.md sesion 24)
+- **Commit actual:** b4c90a8 (stock por deposito Cordoba - sin stock local = sin stock en tienda)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -72,7 +72,19 @@
 - **Mensaje informativo:** El resultado del sync ahora indica si se uso la extraccion de objetos como fallback
 - **Commit:** 94bdbd4
 
-### Estado actual de productos (2026-06-06 sesion 23)
+### MEJORA sesion 26: Stock por deposito - Solo Cordoba cuenta
+- **Problema:** Air Intra tiene 5 depositos (Buenos Aires, Lugo, Rosario, Cordoba, Mendoza). El sync sumaba el stock de TODOS los depositos, entonces un producto con 5 en BA y 0 en Cordoba mostraba "En stock" cuando no habia disponibilidad local
+- **Solucion:** El campo `stock` ahora usa solo el stock del deposito de Cordoba (`cba`). Si no hay stock en Cordoba, el producto aparece como "Sin stock" en toda la tienda
+- **Depositos de Air Intra:** `air` (Buenos Aires), `lug` (Lugo), `ros` (Rosario), `cba` (Cordoba), `mza` (Mendoza)
+- **Nuevo campo DB:** `stockByWarehouse TEXT` - JSON con stock por deposito, ej: `{"air":5,"lug":0,"ros":2,"cba":0,"mza":0}`
+- **Migracion:** #22 - `ALTER TABLE products ADD COLUMN stockByWarehouse TEXT`
+- **Archivos modificados:** `src/lib/db.ts` (migracion #22), `src/app/api/admin/suppliers/sync/route.ts` (6 ubicaciones de totalStock cambiadas)
+- **Elit:** Sin cambios - solo devuelve `stock_total`, no tiene desglose por deposito
+- **Invid:** Sin cambios - no tiene datos de depositos
+- **Frontend:** Sin cambios - el Filtro Global de Stock ya oculta productos con `stock <= 0`
+- **Importante:** HAY QUE RE-SINCRONIZAR Air Intra para que el stock se actualice con la nueva logica. Hasta que se haga la sync, los productos existentes mantienen el stock total anterior
+
+### Estado actual de productos (2026-06-07 sesion 26)
 | Proveedor | Total en DB | Con imagen | product_images |
 |-----------|------------|------------|----------------|
 | Air Intra | ~5,800 | 191 | - |
@@ -801,7 +813,8 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ---
 
 ## Historial de Cambios
-- **2026-06-07 (s25):** Actualizacion PROJECT_STATUS.md con analisis de limites Vercel/Turso, backups remotos GoFile, y documentacion completa de sesion 25. Sin cambios de codigo. Commit: (pendiente push)
+- **2026-06-07 (s26):** Stock por deposito Cordoba (cba) - sin stock local = sin stock en tienda. (1) Nuevo campo DB: `stockByWarehouse TEXT` en products (migracion #22). Guarda JSON con stock por deposito de Air Intra: `{"air":5,"lug":0,"ros":2,"cba":0,"mza":0}`. (2) Sync Air Intra: `stock` ahora usa `cba.disponible` en vez de sumar todos los depositos. Si no hay stock en Cordoba, el producto aparece como "Sin stock". 6 ubicaciones de totalStock modificadas en route.ts. (3) Elit e Invid sin cambios (no tienen datos por deposito). (4) IMPORTANTE: Hay que re-sincronizar Air Intra para actualizar el stock con la nueva logica. Commit: b4c90a8
+- **2026-06-07 (s25):** Actualizacion PROJECT_STATUS.md con analisis de limites Vercel/Turso, backups remotos GoFile, y documentacion completa de sesion 25. Sin cambios de codigo. Commit: 561c898
 - **2026-06-06 (s24):** Air Intra Batched Sync implementado + vercel.json maxDuration corregido. (1) Batched sync: divide sincronizacion en lotes de 4 paginas (~2,000 productos, ~10-15s por lote). Frontend orquesta lotes automaticamente con barra de progreso. Backend: syncAirIntraBatch() + syncAirIntraFinalize(). (2) vercel.json: maxDuration corregido de 300 a 60 (Hobby plan limita a 60s). Commits: d3e5fe9, dfafd1e
 - **2026-06-06 (s23):** Cache del dólar reducido + server-side pagination admin + backup. (1) FIX cache dolar: Next.js revalidate reducido de 1h (3600s) a 15 min (900s) en `src/lib/dollar.ts`. Cache en memoria admin reducido de 30 min a 15 min en `src/app/api/admin/products/route.ts`. API externa (DolarApi.com) ahora se consulta max cada 15 min en vez de 1h. Flujo cache: Memoria (15 min) → DB → Next.js fetch cache (15 min) → API externa → Fallback 1415. (2) Server-side pagination en admin productos (commit 0a9d109): payload reducido de ~10MB a ~50KB, filtros/ordenamiento/paginacion ejecutados en SQL server-side, cache dolar en memoria para admin. (3) Backup DB: `backups/compucity-backup-2026-06-05.sql` (24 MB, 10,310 productos, todas las 14 tablas). Commits: 0a9d109, e74ceca
 - **2026-06-06 (s22):** Filtro "Ingresado manualmente" en proveedor + FIX masivo de categorias. (1) Admin productos: opcion "Ingresado manualmente" en dropdown de Proveedor para filtrar productos sin proveedor (providerId vacio/nulo). (2) FIX categoria DESKTOP: keyword "DESKTOP" era demasiado generico en CATEGORY_KEYWORD_MAP, causando que switches "Desktop Switch" (ej: Switch 5P Tp-link Tl-sg1005d Gigabit Desktop) se categorizaran como PC Armadas. (3) Reordenamiento: SWITCH y ROUTER movidos al Grupo 1 (antes de PC Armadas) para que se detecten primero. (4) "DESKTOP" reemplazado por "DESKTOP PC" (mas especifico). (5) Nuevas correcciones automaticas: SWITCH→switches, ROUTER→routers-wifi, TP-LINK→placas-de-red, ESCRITORIO→escritorios, ANTENA→placas-de-red, USB-C HDMI→cables, ADAPTADOR TP-LINK USB→cables, TENSIOMETRO→smart-home, HIKVISION→switches. (6) DB: 30 productos recategorizados (23 switches + 1 antena + 1 escritorio + 2 USB-C HDMI + 2 adaptadores TP-Link + 1 tensiómetro). (7) Mapeo proveedor 001-0430 → switches creado para Air Intra. Commit: 0e2d6d9
