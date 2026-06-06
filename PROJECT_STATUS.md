@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-07 (sesion 26)
+**Ultima actualizacion:** 2026-06-07 (sesion 27)
 
 ---
 
@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** b4c90a8 (stock por deposito Cordoba - sin stock local = sin stock en tienda)
+- **Commit actual:** 2ad746c (filtros desplegables, 8 mejoras PC builder, limpieza masiva categorias)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -270,7 +270,7 @@ Donde markup, cashDiscount e ivaRate siguen prioridad: Producto individual → C
 | ssd | Disco SSD | discos-ssd | Si | 4 |
 | hdd | Disco HDD | discos-hdd | No | 2 |
 | psu | Fuente | fuentes | Si | 1 |
-| case | Gabinete | gabinetes | Si | 1 |
+| case | Gabinete | gabinetes + gabinetes-con-fuente | Si | 1 |
 | cooling | Refrigeracion | refrigeracion | No | 1 |
 | thermal | Pasta Termica | pastas-termicas | No | 1 |
 | monitor | Monitor | monitores | No | 2 |
@@ -337,9 +337,9 @@ El problema recurrente tenia 3 causas encadenadas:
 - **Fix:** Se filtraron estos campos de las vistas de cliente (detalle de producto, tarjetas de catalogo). Solo se muestra la descripcion y el precio
 - **Archivos:** API publica de productos, componente de detalle de producto
 
-### PDF Download (IMPLEMENTADO sesion 15, MEJORA sesion 20)
+### PDF Download (IMPLEMENTADO sesion 15, MEJORA sesion 20, SEPARADO sesion 27)
 - **Libreria:** jsPDF (client-side, no necesita server)
-- **Cuando:** Al hacer clic en cualquier boton de WhatsApp del Arma tu PC, se descarga un PDF Y se abre WhatsApp
+- **Cuando:** Boton separado "Descargar PDF" en Arma tu PC (ya NO se descarga automaticamente al tocar WhatsApp)
 - **Contenido del PDF:**
   - Header con logo real de Compucity (imagen PNG, 55x22mm) a la izquierda
   - Fecha, hora y URL a la derecha del header
@@ -349,9 +349,8 @@ El problema recurrente tenia 3 causas encadenadas:
   - Nota de 96 horas hábiles
   - Footer con datos de contacto y paginacion
 - **Nombre del archivo:** `Compucity-PC-a-Medida.pdf`
-- **3 botones modificados:** Desktop ultimo paso, sidebar "Consultar por WhatsApp", mobile sticky bar
-- **Icono:** Download agregado junto al icono de WhatsApp en los botones
 - **MEJORA sesion 20:** Header del PDF reemplazado de texto (COMPU+CITY) a logo real de Compucity usando base64 encoding. Layout: logo izquierda + fecha/url derecha + separador verde
+- **MEJORA sesion 27:** PDF y WhatsApp separados en botones distintos - "Descargar PDF" (oscuro) y "Consultar por WhatsApp" (verde). Desktop: botones separados en sidebar y paso final. Mobile: botones separados en barra sticky
 - **Archivos:** `src/lib/compucity-logo-base64.ts` (logo en base64), `public/images/logo-compucity-pdf.png` (copia PNG)
 
 ### Sistema de Filtros Manuales (IMPLEMENTADO sesion 14)
@@ -369,16 +368,18 @@ El problema recurrente tenia 3 causas encadenadas:
 | SSD | Tipo: M.2/NVMe, SATA |
 | PSU | Potencia: 500W+, 650W+, 750W+, 850W+ |
 | Cooling | Tipo: AIO/Liquida, Aire |
-| Monitor | Tamaño: 24", 27", 32"+ · Resolucion: Full HD, QHD, 4K/UHD |
+| Case | Tipo: Con Fuente, Sin Fuente |
+| Monitor | Tamaño: 19", 22", 24", 27", 32"+ · Resolucion: Full HD, QHD, 4K/UHD · Frecuencia: 100Hz, 144Hz, 165Hz, 180Hz |
 | Network | Tipo: PCIe, USB, WiFi 6/6E |
 | Perifericos | Tipo: Mouse, Teclado, Auricular, Webcam, Microfono, Volante, Parlante, Joystick |
 
-### Selector de Cantidades
-- RAM: 1 a 4 unidades
-- SSD: 1 a 4 unidades
-- HDD: 1 a 2 unidades
-- Los precios se multiplican automaticamente por la cantidad
+### Selector de Cantidades (MEJORA sesion 27 - discos multiples)
+- RAM: 1 a 4 unidades (un solo producto)
+- SSD: 1 a 4 unidades, **permite modelos diferentes** (ej: 1x SSD 500GB + 1x SSD 1TB)
+- HDD: 1 a 2 unidades, **permite modelos diferentes**
+- Los precios se multiplican automaticamente por la cantidad de cada disco
 - WhatsApp muestra "2x Kingston 16GB DDR4 - $50.000 c/u = $100.000"
+- **Comportamiento:** Seleccionar un SSD/HDD ya elegido incrementa la cantidad; seleccionar uno nuevo lo agrega como entrada separada con su propia cantidad +/- y boton eliminar
 
 ### Layout Mobile (2 pasos)
 - **Paso 1:** Seleccion de componentes con stepper horizontal scrolleable
@@ -434,6 +435,25 @@ El problema recurrente tenia 3 causas encadenadas:
 | discos-externos | Discos Externos | 38 |
 | micro-sd | Micro SD | 36 |
 | ups | UPS | 31 |
+
+### Filtros por Categoria en Tienda (IMPLEMENTADO sesion 14, ACTUALIZADO sesion 27)
+- **Componente:** `src/components/ui-custom/CategoryProducts.tsx`
+- **Tipo:** Filtros desplegables `<select>` por grupo (marca, tipo, tamaño, resolucion, frecuencia, Hz)
+- **Config:** `CATEGORY_FILTERS` - define grupos de filtros y opciones por slug de categoria
+- **Logica:** Single-select por grupo (elegir una opcion limpia la anterior). AND entre grupos, OR dentro del mismo grupo
+- **Categorias con filtro de marca (dropdown):**
+
+| Slug | Marcas disponibles |
+|------|-------------------|
+| discos-ssd | Kingston, Samsung, Western Digital, Corsair, Crucial |
+| discos-hdd | Seagate, Western Digital, Toshiba |
+| fuentes | Corsair, Seasonic, EVGA, Cooler Master, ASUS, Gigabyte, Gamemax, XPG |
+| gabinetes | Corsair, Cooler Master, ThermalTake, Aerocool, DeepCool, Gamemax, ASUS, NZXT, Sentey, Naceb |
+| refrigeracion | Corsair, Noctua, Cooler Master, DeepCool, Arctic, be quiet!, Gamemax, ASUS |
+| monitores | Dell, Samsung, LG, ASUS, Acer, AOC, HP, BenQ, Philips, Gigabyte, MSI, ViewSonic, KOORUI |
+| placas-de-red | TP-Link, Intel, ASUS, Cudy |
+
+- **Monitores tiene filtros adicionales:** Tamaño (19", 22", 24", 27", 32"+), Resolucion (Full HD, QHD, 4K/UHD), Frecuencia (100Hz, 144Hz, 165Hz, 180Hz)
 
 ---
 
@@ -792,27 +812,36 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ## Tareas Pendientes
 
 ### Alta Prioridad
-1. **IVA 21% en categorías correspondientes:** Notebooks y Monitores tienen IVA 21%. El dueño puede configurar IVA 21% en otras categorías desde `/admin/categorias`. Las subcategorías heredan automáticamente de su categoría padre. Los productos con ivaRate=NULL heredan de su categoría
-2. **Credenciales Andreani:** El dueño debe proporcionar codigoCliente + contratoDomicilio
-3. **Cargar imagenes faltantes:** ~1,565 productos sin imagen (mayormente Air Intra). Usar cross-provider matching + web search
-4. ~~**SODIMM en memorias-ram:**~~ RESUELTO (sesion 15)
+1. **Re-sincronizar Air Intra:** El stock por deposito (solo Cordoba) se implemento en sesion 26 pero los productos existentes mantienen el stock total anterior. HAY QUE RE-SINCRONIZAR para que el stock se actualice con la nueva logica
+2. **Verificar categorizacion en TODAS las categorias:** Se corrigieron 66+ productos en sesion 27, pero puede haber mas productos mal categorizados que no se detectaron. El usuario reporto productos incorrectos en Notebooks y Monitores. Revisar cada categoria sistematicamente
+3. **Credenciales Andreani:** El dueño debe proporcionar codigoCliente + contratoDomicilio
+4. **Cargar imagenes faltantes:** ~1,565 productos sin imagen (mayormente Air Intra). Usar cross-provider matching + web search
 5. **Crear banners y cupones:** Las tablas estan vacias, el dueño puede empezar a crear promociones desde `/admin/promociones`
-6. ~~**Socket detection en PC Builder:**~~ RESUELTO (sesion 16) - Regex LGA1851/LGA1700 fixeado + Intel Core Ultra detecta LGA 1851
 
 ### Media Prioridad
-7. **Recuperacion de contrasena por email:** El endpoint `/api/customer/forgot-password` existe pero necesita configuracion de servicio de email (Resend)
-8. **Verificar compatibilidad en Arma tu PC:** Testing exhaustivo del sistema de compatibilidad
-9. **Configurar markup/descuento individual:** Empezar a usar el feature nuevo en productos que lo necesiten
-10. **Correo Argentino:** Credenciales todas NULL en store_config, sin API de envio funcional
+6. **Recuperacion de contrasena por email:** El endpoint `/api/customer/forgot-password` existe pero necesita configuracion de servicio de email (Resend)
+7. **Verificar compatibilidad en Arma tu PC:** Testing exhaustivo del sistema de compatibilidad
+8. **Configurar markup/descuento individual:** Empezar a usar el feature nuevo en productos que lo necesiten
+9. **Correo Argentino:** Credenciales todas NULL en store_config, sin API de envio funcional
 
 ### Baja Prioridad
 10. **Optimizar imagenes:** Los thumbnails del catalogo podrian usar tamano reducido
 11. **SEO:** Meta tags, sitemap dinamico, structured data
 12. **Limpiar claves duplicadas en store_config:** slogan/whatsapp estan duplicados con store_slogan/whatsapp_number
 
+### Tareas Completadas (sesion 27)
+- ~~**Discos multiples en PC Builder:**~~ RESUELTO - SSD/HDD permiten modelos diferentes con cantidad individual
+- ~~**Gabinetes con Fuente en PC Builder:**~~ RESUELTO - Slot gabinete incluye subcategoria gabinetes-con-fuente
+- ~~**Auto-avance en PC Builder:**~~ RESUELTO - Seleccionar un componente avanza al siguiente slot (excepto SSD/HDD)
+- ~~**Separar PDF de WhatsApp:**~~ RESUELTO - Botones independientes para cada accion
+- ~~**Remover stock visible en tienda:**~~ RESUELTO - Solo overlay "Sin stock" permanece
+- ~~**Filtros desplegables de marca:**~~ RESUELTO - <select> dropdowns en 7 categorias
+- ~~**Fix imagenes al editar producto:**~~ RESUELTO - Null guards en parsing de images
+
 ---
 
 ## Historial de Cambios
+- **2026-06-07 (s27):** 8 mejoras + filtros desplegables + limpieza masiva categorias. (1) PC Builder: SSD/HDD permiten multiples modelos diferentes (cada disco con su propio +/- y eliminar). (2) PC Builder: Gabinete incluye subcategoria "Gabinetes con Fuente" (additionalCategorySlugs). (3) PC Builder: Auto-avance al siguiente slot despues de seleccionar (excepto SSD/HDD que permiten agregar mas). (4) PC Builder: PDF y WhatsApp separados en botones distintos. (5) ProductCard: Removido indicador de stock visible al publico (solo queda overlay "Sin stock" cuando stock<=0). (6) Filtros: Monitores agrega 19", 22", 100Hz, 144Hz, 165Hz, 180Hz. (7) Filtros desplegables: Marcas convertidas de pills a <select> dropdowns en discos SSD, HDD, fuentes, gabinetes, refrigeracion, monitores y placas de red. (8) Fix bug: Editar producto de proveedor causaba que la imagen desapareciera (parsing de images con null guards). (9) LIMPIEZA MASIVA CATEGORIAS: 66 productos mal categorizados corregidos (cables/fans en Monitores, chargers/baterias en Notebooks, PCs completas en Discos SSD, etc.). 40+ nuevas reglas de correccion automatica en sync y validate-categories para prevenir futuras miscategorizaciones. Commits: bd8b2af, e387267, 8e22577, f4e65c7, 0bda50d, 2a0fe2b
 - **2026-06-07 (s26):** Stock por deposito Cordoba (cba) - sin stock local = sin stock en tienda. (1) Nuevo campo DB: `stockByWarehouse TEXT` en products (migracion #22). Guarda JSON con stock por deposito de Air Intra: `{"air":5,"lug":0,"ros":2,"cba":0,"mza":0}`. (2) Sync Air Intra: `stock` ahora usa `cba.disponible` en vez de sumar todos los depositos. Si no hay stock en Cordoba, el producto aparece como "Sin stock". 6 ubicaciones de totalStock modificadas en route.ts. (3) Elit e Invid sin cambios (no tienen datos por deposito). (4) IMPORTANTE: Hay que re-sincronizar Air Intra para actualizar el stock con la nueva logica. Commit: b4c90a8
 - **2026-06-07 (s25):** Actualizacion PROJECT_STATUS.md con analisis de limites Vercel/Turso, backups remotos GoFile, y documentacion completa de sesion 25. Sin cambios de codigo. Commit: 561c898
 - **2026-06-06 (s24):** Air Intra Batched Sync implementado + vercel.json maxDuration corregido. (1) Batched sync: divide sincronizacion en lotes de 4 paginas (~2,000 productos, ~10-15s por lote). Frontend orquesta lotes automaticamente con barra de progreso. Backend: syncAirIntraBatch() + syncAirIntraFinalize(). (2) vercel.json: maxDuration corregido de 300 a 60 (Hobby plan limita a 60s). Commits: d3e5fe9, dfafd1e
