@@ -74,3 +74,23 @@ Implemented batched sync for Air Intra supplier to avoid Vercel Hobby plan's 60-
 ## Build Verification
 - `npx next build` compiled successfully with no errors
 - Pre-existing lint warnings (not caused by these changes) exist in the codebase
+
+---
+Task ID: 2
+Agent: main
+Task: Update PROJECT_STATUS.md with session 25 changes (Vercel/Turso limits, GoFile backups)
+
+Work Log:
+- Read existing PROJECT_STATUS.md from cloned repo (810 lines)
+- Identified missing content: Vercel/Turso limits analysis, GoFile backup URLs
+- Added "Limites y Uso de Plataformas" table with Turso and Vercel resource usage
+- Added "Backups Remotos (GoFile)" table with DB and source code backup URLs
+- Updated session number from 24 to 25
+- Updated commit actual to dfafd1e
+- Added session 24 and 25 entries to Historial de Cambios
+- Committed and pushed to GitHub (commit 561c898)
+
+Stage Summary:
+- PROJECT_STATUS.md updated with session 25 info
+- Pushed to GitHub: 561c898 "docs: update PROJECT_STATUS.md sesion 25 - limites Vercel/Turso, backups GoFile"
+- No code changes in this task
