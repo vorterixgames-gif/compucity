@@ -242,3 +242,22 @@ Stage Summary:
 - 14 orphan products cleaned up (BACKUP, OFFICE, SKU-based providerIds → NULL)
 - Added auto-resolution safeguard in products API to prevent future orphan providerIds
 - All products now have valid providerId (matching a supplier) or NULL (no supplier)
+
+---
+Task ID: 5
+Agent: main
+Task: Fix brand filters disappearing when selecting subcategory in monitores
+
+Work Log:
+- Identified the bug: in CategoryProducts.tsx, filters are looked up via CATEGORY_FILTERS[categorySlug]
+- When viewing /categoria/monitores, categorySlug='monitores' → CATEGORY_FILTERS['monitores'] exists → filters work
+- When clicking subcategory like Gamer, navigates to /categoria/gamer-mon → categorySlug='gamer-mon' → CATEGORY_FILTERS['gamer-mon'] doesn't exist → no filters shown
+- Added `filterSlug` logic: if current slug has no filter definitions, fall back to parentCategory.slug
+- Updated 3 places: filter option lookup, filterGroups useMemo deps, applyCategoryFilters call
+- Build verified successfully
+
+Stage Summary:
+- Fixed subcategory filter inheritance in CategoryProducts.tsx
+- Subcategories (gamer-mon, oficina-mon, diseno-mon, soportes-y-brazos) now inherit monitores filters
+- Same fix applies to any category with subcategories (all categories with filters work)
+- This is a general fix, not specific to monitores

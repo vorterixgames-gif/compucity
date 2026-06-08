@@ -461,8 +461,16 @@ export default function CategoryProducts({
   const hasCategoryFilters = Object.values(categoryFilters).some(v => v.length > 0)
   const hasActiveFilters = priceMin !== '' || priceMax !== '' || onlyInStock || hasCategoryFilters
 
+  // Determine which slug to use for filters: prefer current slug, fall back to parent slug
+  // This ensures subcategories (e.g. gamer-mon) inherit parent (monitores) filters
+  const filterSlug = (CATEGORY_FILTERS[categorySlug] && CATEGORY_FILTERS[categorySlug].length > 0)
+    ? categorySlug
+    : (parentCategory?.slug && CATEGORY_FILTERS[parentCategory.slug]?.length > 0)
+      ? parentCategory.slug
+      : categorySlug
+
   // Get filter groups for current category
-  const currentCategoryFilterOptions = CATEGORY_FILTERS[categorySlug] || []
+  const currentCategoryFilterOptions = CATEGORY_FILTERS[filterSlug] || []
   const filterGroups = useMemo(() => {
     const groups: { key: string; label: string; options: CategoryFilterOption[] }[] = []
     const keyMap = new Map<string, CategoryFilterOption[]>()
@@ -474,7 +482,7 @@ export default function CategoryProducts({
       groups.push({ key, label: FILTER_GROUP_LABELS[key] || key, options })
     }
     return groups
-  }, [currentCategoryFilterOptions.length, categorySlug])
+  }, [currentCategoryFilterOptions.length, filterSlug])
 
   const setCategoryFilter = (key: string, value: string) => {
     setCategoryFilters(prev => {
@@ -497,7 +505,7 @@ export default function CategoryProducts({
     let result = [...products]
 
     // Category keyword filters (brand, DDR, socket, etc.)
-    result = applyCategoryFilters(result, categoryFilters, categorySlug)
+    result = applyCategoryFilters(result, categoryFilters, filterSlug)
 
     // Price filter
     const min = parsePriceInput(priceMin)
@@ -535,7 +543,7 @@ export default function CategoryProducts({
     }
 
     return result
-  }, [products, sort, priceMin, priceMax, onlyInStock, categoryFilters, categorySlug])
+  }, [products, sort, priceMin, priceMax, onlyInStock, categoryFilters, filterSlug])
 
   return (
     <div className="flex-1">
