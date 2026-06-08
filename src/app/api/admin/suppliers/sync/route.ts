@@ -765,7 +765,7 @@ function getElitSupplierCategory(product: any): string {
   return product.categoria || product.rubro || product.familia || product.grupo || product.linea || ''
 }
 
-async function syncInvid(supplier: any): Promise<SyncResult> {
+export async function syncInvid(supplier: any): Promise<SyncResult> {
   const baseUrl = supplier.apiBaseUrl || 'https://www.invidcomputers.com'
   const result: SyncResult = { ok: false, total: 0, created: 0, updated: 0, skipped: 0, errors: 0, message: '' }
 
@@ -2980,7 +2980,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
   return result
 }
 
-async function syncElit(supplier: any): Promise<SyncResult> {
+export async function syncElit(supplier: any): Promise<SyncResult> {
   const baseUrl = supplier.apiBaseUrl || 'https://clientes.elit.com.ar'
   const result: SyncResult = { ok: false, total: 0, created: 0, updated: 0, skipped: 0, errors: 0, message: '' }
 
