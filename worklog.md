@@ -261,3 +261,29 @@ Stage Summary:
 - Subcategories (gamer-mon, oficina-mon, diseno-mon, soportes-y-brazos) now inherit monitores filters
 - Same fix applies to any category with subcategories (all categories with filters work)
 - This is a general fix, not specific to monitores
+
+---
+Task ID: 6
+Agent: main
+Task: Fix brand filters disappearing on subcategory + add daily auto-sync
+
+Work Log:
+- Fixed subcategory filter inheritance in CategoryProducts.tsx (filterSlug fallback to parentCategory.slug)
+- Fixed "Only plain objects" React warning in category page (cleaned DB row objects)
+- Removed non-monitor brand filters (Epson, Genius, KOORUI) from monitores, added CX
+- Investigated missing Redragon products: Elit supplier last synced June 1, stock was 0 in DB but had stock in API
+- Updated 28 Redragon products with correct stock from Elit API
+- Ran full Elit sync: 844 products updated
+- Created /api/cron/sync endpoint for automated daily stock/price sync (Elit + Invid)
+- Added Vercel cron config (vercel.json) for daily execution at 6AM UTC (3AM Argentina)
+- Added CRON_SECRET env var for endpoint security
+- Synced and pushed all changes to GitHub
+
+Stage Summary:
+- Subcategory filters now inherit from parent category (e.g., gamer-mon inherits monitores filters)
+- Epson, Genius, KOORUI removed from monitor filters; CX added
+- Redragon products now visible with stock on the site
+- Daily auto-sync configured via Vercel Cron (runs at 3AM Argentina time)
+- CRON_SECRET=80428819bc440c44d1896b5ade813792 must be added to Vercel environment variables manually
+- Cron endpoint: GET /api/cron/sync?secret=CRON_SECRET
+- Full sync (with new products) still requires manual trigger from /admin/proveedores
