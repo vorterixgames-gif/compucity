@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-07 (sesion 27)
+**Ultima actualizacion:** 2026-06-08 (sesion 28)
 
 ---
 
@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** 2ad746c (filtros desplegables, 8 mejoras PC builder, limpieza masiva categorias)
+- **Commit actual:** 5d0989d (filtros capacidad SSD/HDD/externos, dropdowns PC builder, HDD filters PC builder)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -353,11 +353,12 @@ El problema recurrente tenia 3 causas encadenadas:
 - **MEJORA sesion 27:** PDF y WhatsApp separados en botones distintos - "Descargar PDF" (oscuro) y "Consultar por WhatsApp" (verde). Desktop: botones separados en sidebar y paso final. Mobile: botones separados en barra sticky
 - **Archivos:** `src/lib/compucity-logo-base64.ts` (logo en base64), `public/images/logo-compucity-pdf.png` (copia PNG)
 
-### Sistema de Filtros Manuales (IMPLEMENTADO sesion 14)
+### Sistema de Filtros Manuales (IMPLEMENTADO sesion 14, MEJORA sesion 28)
 - **Filtros por categoria:** Cada slot tiene filtros relevantes que el usuario puede activar/desactivar
 - **Logica:** AND entre grupos de filtros, OR dentro del mismo grupo
 - **Auto-reset:** Los filtros se limpian automaticamente al cambiar de slot
-- **UI:** Chips clickeables debajo de la barra de busqueda, con icono SlidersHorizontal
+- **UI:** Desplegables `<select>` dropdown (MEJORA sesion 28 - antes eran chips clickeables)
+- **Funcion helper:** `extractCapacityGB()` - Parsea capacidad de almacenamiento desde nombres de productos (1TB, 256GB, 1.92TB, etc.)
 
 | Slot | Filtros Disponibles |
 |------|-------------------|
@@ -365,8 +366,9 @@ El problema recurrente tenia 3 causas encadenadas:
 | Motherboard | Socket: AM4, AM5, LGA 1700, LGA 1851 · Memoria: DDR4, DDR5 |
 | RAM | Memoria: DDR3, DDR4, DDR5 |
 | GPU | Marca: NVIDIA, AMD, Intel Arc |
-| SSD | Tipo: M.2/NVMe, SATA |
-| PSU | Potencia: 500W+, 650W+, 750W+, 850W+ |
+| SSD | Marca: Kingston, WD, Hiksemi, ADATA/XPG, Lexar, Crucial, Memox, Samsung, MSI · Tipo: M.2/NVMe, SATA · Capacidad: Hasta 256GB, 480-512GB, 960GB-1TB, 2TB, 4TB+ |
+| HDD | Marca: Seagate, WD, Toshiba · Capacidad: 1TB, 2TB, 4TB, 6-8TB, 10-12TB, 16TB+ |
+| PSU | Potencia: Hasta 500W, 550-650W, 700-750W, 800-850W, 1000W+ |
 | Cooling | Tipo: AIO/Liquida, Aire |
 | Case | Tipo: Con Fuente, Sin Fuente |
 | Monitor | Tamaño: 19", 22", 24", 27", 32"+ · Resolucion: Full HD, QHD, 4K/UHD · Frecuencia: 100Hz, 144Hz, 165Hz, 180Hz |
@@ -436,24 +438,38 @@ El problema recurrente tenia 3 causas encadenadas:
 | micro-sd | Micro SD | 36 |
 | ups | UPS | 31 |
 
-### Filtros por Categoria en Tienda (IMPLEMENTADO sesion 14, ACTUALIZADO sesion 27)
+### Filtros por Categoria en Tienda (IMPLEMENTADO sesion 14, ACTUALIZADO sesiones 27-28)
 - **Componente:** `src/components/ui-custom/CategoryProducts.tsx`
-- **Tipo:** Filtros desplegables `<select>` por grupo (marca, tipo, tamaño, resolucion, frecuencia, Hz)
+- **Tipo:** Filtros desplegables `<select>` por grupo (marca, tipo, capacidad, tamaño, resolucion, frecuencia, Hz)
 - **Config:** `CATEGORY_FILTERS` - define grupos de filtros y opciones por slug de categoria
 - **Logica:** Single-select por grupo (elegir una opcion limpia la anterior). AND entre grupos, OR dentro del mismo grupo
-- **Categorias con filtro de marca (dropdown):**
+- **Funcion helper:** `extractCapacityGB()` - Parsea capacidad de almacenamiento desde nombres de productos (1TB, 256GB, 1.92TB, etc.)
+- **Nuevo grupo de filtro:** `capacity` (Capacidad) - disponible en discos-ssd, discos-hdd, discos-externos
+- **Categorias con filtros (dropdown):**
 
-| Slug | Marcas disponibles |
+| Slug | Filtros disponibles |
 |------|-------------------|
-| discos-ssd | Kingston, Samsung, Western Digital, Corsair, Crucial |
-| discos-hdd | Seagate, Western Digital, Toshiba |
-| fuentes | Corsair, Seasonic, EVGA, Cooler Master, ASUS, Gigabyte, Gamemax, XPG |
-| gabinetes | Corsair, Cooler Master, ThermalTake, Aerocool, DeepCool, Gamemax, ASUS, NZXT, Sentey, Naceb |
-| refrigeracion | Corsair, Noctua, Cooler Master, DeepCool, Arctic, be quiet!, Gamemax, ASUS |
-| monitores | Dell, Samsung, LG, ASUS, Acer, AOC, HP, BenQ, Philips, Gigabyte, MSI, ViewSonic, KOORUI |
-| placas-de-red | TP-Link, Intel, ASUS, Cudy |
+| discos-ssd | Marca: 20 marcas (Kingston, WD, Hiksemi, ADATA/XPG, Lexar, Crucial, Memox, Samsung, MSI, Patriot, Seagate, Corsair, Kioxia, Silicon Power, Leven, PNY, SOLIDIGM, **SanDisk**, **Team Group**, **Biwin**) · Tipo: M.2/NVMe, SATA · **Capacidad: Hasta 256GB, 480-512GB, 960GB-1TB, 2TB, 4TB+** |
+| discos-hdd | Marca: Seagate, WD, Toshiba · **Capacidad: 1TB, 2TB, 4TB, 6-8TB, 10-12TB, 16TB+** |
+| discos-externos | Marca: ADATA, WD, Seagate, Kingston, Hiksemi, Crucial, Toshiba · **Capacidad: Hasta 512GB, 1TB, 2TB, 4TB+** |
+| fuentes | Marca: Corsair, Seasonic, EVGA, Cooler Master, ASUS, Gigabyte, Gamemax, XPG · Potencia: Hasta 500W, 550-650W, 700-750W, 800-850W, 1000W+ |
+| gabinetes | Marca: Corsair, Cooler Master, ThermalTake, Aerocool, DeepCool, Gamemax, ASUS, NZXT, Sentey, Naceb, Kelyx |
+| refrigeracion | Marca: Corsair, Noctua, Cooler Master, DeepCool, Arctic, be quiet!, Gamemax, ASUS, XPG, Thermaltake, Kelyx · Tipo: AIO/Liquida, Aire |
+| monitores | Marca: 18 marcas · Tamaño: 19", 22", 24", 27", 32"+ · Resolucion: Full HD, QHD, 4K/UHD · Frecuencia: 100Hz, 144Hz, 165Hz, 180Hz |
+| placas-de-red | Marca: TP-Link, Intel, ASUS, Cudy · Tipo: PCIe, USB, WiFi 6/6E |
+| memorias-ram | Marca: 9 marcas · Memoria: DDR3, DDR4, DDR5 |
+| microprocesadores | Marca: AMD, Intel |
+| motherboards | Socket: AM4, AM5, LGA 1700, LGA 1851 · Memoria: DDR4, DDR5 |
+| placas-de-video | Marca: Gigabyte, MSI, ASUS, NVIDIA, AMD, PNY, Intel Arc |
 
-- **Monitores tiene filtros adicionales:** Tamaño (19", 22", 24", 27", 32"+), Resolucion (Full HD, QHD, 4K/UHD), Frecuencia (100Hz, 144Hz, 165Hz, 180Hz)
+### MEJORA sesion 28: Filtros de capacidad + marcas faltantes + dropdowns PC Builder
+- **Capacidad en SSD:** Hasta 256GB, 480-512GB, 960GB-1TB, 2TB, 4TB+ (funcion `extractCapacityGB` parsea 1TB, 256GB, 960GB, 1.92TB, etc.)
+- **Capacidad en HDD:** 1TB, 2TB, 4TB, 6-8TB, 10-12TB, 16TB+
+- **Capacidad en Externos:** Hasta 512GB, 1TB, 2TB, 4TB+
+- **Marcas nuevas en SSD:** SanDisk, Team Group, Biwin
+- **Regex mejorados:** Kingston (+A400/KC3000/KC600/DC600/NV3), ADATA/XPG (+GAMMIX/LEGEND/SPECTRIX/SU650/SU630), Lexar (+NM610/NM790/NQ100/NQ780), Crucial (+BX500/P310/E100), MSI (+SPATIUM), Patriot (+P300/P210), WD/HDD (+RED/PURPLE)
+- **PC Builder:** Filtros convertidos de chips a desplegables `<select>`. SSD con marca+tipo+capacidad. HDD con marca+capacidad. Agregado `capacity` a keyLabels
+- **Archivos:** `src/components/ui-custom/CategoryProducts.tsx`, `src/app/(tienda)/arma-tu-pc/page.tsx`
 
 ---
 
