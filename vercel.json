@@ -2,6 +2,15 @@
   "functions": {
     "src/app/api/admin/suppliers/sync/route.ts": {
       "maxDuration": 60
+    },
+    "src/app/api/cron/sync/route.ts": {
+      "maxDuration": 300
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/sync?secret=80428819bc440c44d1896b5ade813792",
+      "schedule": "0 6 * * *"
+    }
+  ]
 }
