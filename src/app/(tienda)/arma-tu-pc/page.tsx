@@ -153,6 +153,17 @@ const SLOT_FILTERS: Record<string, FilterOption[]> = {
     { key: 'capacity', label: '2TB', value: '2tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 1900 && c <= 2100 } },
     { key: 'capacity', label: '4TB+', value: '4tbplus', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 3800 } },
   ],
+  hdd: [
+    { key: 'brand', label: 'Seagate', value: 'SEAGATE', matchFn: (n) => /\bSEAGATE\b|\bBARRACUDA\b|\bIRONWOLF\b|\bSKYHAWK\b/i.test(n) },
+    { key: 'brand', label: 'WD', value: 'WD', matchFn: (n) => /\bWESTERN\b|\bWD\b[ _]?|\bBLUE\b|\bBLACK\b|\bGOLD\b|\bRED\b|\bRED PLUS\b|\bPURPLE\b/i.test(n) && /\bHDD\b|\bDISCO\b|\bRIGIDO\b|\bINTERNAL\b/i.test(n) },
+    { key: 'brand', label: 'Toshiba', value: 'TOSHIBA', matchFn: (n) => /\bTOSHIBA\b/i.test(n) },
+    { key: 'capacity', label: '1TB', value: '1tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 900 && c <= 1100 } },
+    { key: 'capacity', label: '2TB', value: '2tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 1900 && c <= 2100 } },
+    { key: 'capacity', label: '4TB', value: '4tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 3800 && c <= 4200 } },
+    { key: 'capacity', label: '6TB - 8TB', value: '6-8tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 5800 && c <= 8200 } },
+    { key: 'capacity', label: '10TB - 12TB', value: '10-12tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 9800 && c <= 12500 } },
+    { key: 'capacity', label: '16TB+', value: '16tbplus', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 15800 } },
+  ],
   psu: [
     { key: 'wattage', label: 'Hasta 500W', value: 'upto500', matchFn: (n) => { const m = n.match(/(\d{3,4})\s*W/i); return m ? parseInt(m[1]) <= 500 : false; } },
     { key: 'wattage', label: '550W - 650W', value: '550-650', matchFn: (n) => { const m = n.match(/(\d{3,4})\s*W/i); return m ? (parseInt(m[1]) >= 550 && parseInt(m[1]) <= 650) : false; } },
