@@ -91,6 +91,26 @@ interface FilterOption {
   matchFn: (name: string) => boolean  // function to check if product name matches
 }
 
+/**
+ * Extract the primary storage capacity in GB from a product name.
+ * Handles patterns like: 1TB, 1 TB, 2TB, 256GB, 480GB, 960GB, 1.92TB, etc.
+ * Returns null if no recognizable storage capacity found.
+ */
+function extractCapacityGB(name: string): number | null {
+  const n = name.replace(/,/g, '.').replace(/(SSD|HDD|DISCO)(\d)/gi, '$1 $2')
+  const tbMatch = n.match(/\b(\d+\.?\d*)\s*TB?\b/i)
+  if (tbMatch) {
+    const val = parseFloat(tbMatch[1])
+    if (val >= 0.1 && val <= 100) return val * 1000
+  }
+  const gbMatch = n.match(/\b(\d{2,4})\s*GB(?!\s*[\/PS])/i)
+  if (gbMatch) {
+    const val = parseInt(gbMatch[1])
+    if (val >= 32 && val <= 16384) return val
+  }
+  return null
+}
+
 const SLOT_FILTERS: Record<string, FilterOption[]> = {
   processor: [
     { key: 'brand', label: 'AMD', value: 'AMD', matchFn: (n) => /\bAMD\b|\bRYZEN\b|\bATHLON\b/i.test(n) },
@@ -115,8 +135,22 @@ const SLOT_FILTERS: Record<string, FilterOption[]> = {
     { key: 'brand', label: 'Intel Arc', value: 'INTEL_ARC', matchFn: (n) => /\bARC\s*A[37]\b/i.test(n) },
   ],
   ssd: [
+    { key: 'brand', label: 'Kingston', value: 'KINGSTON', matchFn: (n) => /\bKINGSTON\b|\bFURY\b|\bA400\b|\bKC3000\b|\bKC600\b|\bNV3\b/i.test(n) },
+    { key: 'brand', label: 'WD', value: 'WD', matchFn: (n) => /\bWESTERN\b|\bWD\b/i.test(n) && /\bSSD\b|\bNVME\b|\bM\.2\b|\bGREEN\b|\bBLUE\b|\bBLACK\b|\bRED\b/i.test(n) },
+    { key: 'brand', label: 'Hiksemi', value: 'HIKSEMI', matchFn: (n) => /\bHIKSEMI\b/i.test(n) },
+    { key: 'brand', label: 'ADATA / XPG', value: 'ADATA', matchFn: (n) => /\bADATA\b|\bXPG\b|\bGAMMIX\b|\bLEGEND\b|\bSPECTRIX\b/i.test(n) },
+    { key: 'brand', label: 'Lexar', value: 'LEXAR', matchFn: (n) => /\bLEXAR\b/i.test(n) },
+    { key: 'brand', label: 'Crucial', value: 'CRUCIAL', matchFn: (n) => /\bCRUCIAL\b/i.test(n) },
+    { key: 'brand', label: 'Memox', value: 'MEMOX', matchFn: (n) => /\bMEMOX\b/i.test(n) },
+    { key: 'brand', label: 'Samsung', value: 'SAMSUNG', matchFn: (n) => /\bSAMSUNG\b|\bEVO\b|\b9[79]0\b/i.test(n) && !/\bMONITOR\b/i.test(n) },
+    { key: 'brand', label: 'MSI', value: 'MSI', matchFn: (n) => /\bMSI\b|\bSPATIUM\b/i.test(n) && /\bSSD\b|\bNVME\b|\bM\.2\b/i.test(n) },
     { key: 'type', label: 'M.2 / NVMe', value: 'NVME', matchFn: (n) => /\bNVME\b|\bM\.2\b|\bM2\b/i.test(n) },
     { key: 'type', label: 'SATA', value: 'SATA', matchFn: (n) => /\bSATA\b/i.test(n) && !/\bNVME\b|\bM\.2\b/i.test(n) },
+    { key: 'capacity', label: 'Hasta 256GB', value: 'upto256', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c <= 256 } },
+    { key: 'capacity', label: '480GB - 512GB', value: '480-512', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 480 && c <= 600 } },
+    { key: 'capacity', label: '960GB - 1TB', value: '960-1tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 960 && c <= 1100 } },
+    { key: 'capacity', label: '2TB', value: '2tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 1900 && c <= 2100 } },
+    { key: 'capacity', label: '4TB+', value: '4tbplus', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 3800 } },
   ],
   psu: [
     { key: 'wattage', label: 'Hasta 500W', value: 'upto500', matchFn: (n) => { const m = n.match(/(\d{3,4})\s*W/i); return m ? parseInt(m[1]) <= 500 : false; } },
@@ -450,6 +484,7 @@ export default function ArmaTuPCPage() {
       size: 'Tamaño',
       hz: 'Frecuencia',
       resolution: 'Resolución',
+      capacity: 'Capacidad',
     }
     for (const opt of currentSlotFilterOptions) {
       if (!keyMap.has(opt.key)) keyMap.set(opt.key, [])

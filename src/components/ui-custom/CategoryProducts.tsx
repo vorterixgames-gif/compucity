@@ -76,16 +76,16 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'brand', label: 'Intel Arc', value: 'INTEL_ARC', matchFn: (n) => /\bARC\s*A[37]\b/i.test(n) },
   ],
   'discos-ssd': [
-    { key: 'brand', label: 'Kingston', value: 'KINGSTON', matchFn: (n) => /\bKINGSTON\b|\bFURY\b/i.test(n) },
+    { key: 'brand', label: 'Kingston', value: 'KINGSTON', matchFn: (n) => /\bKINGSTON\b|\bFURY\b|\bA400\b|\bKC3000\b|\bKC600\b|\bDC600\b|\bNV3\b/i.test(n) },
     { key: 'brand', label: 'WD', value: 'WD', matchFn: (n) => /\bWESTERN\b|\bWD[A-Z]|\bWD\b/i.test(n) && /\bSSD\b|\bNVME\b|\bM\.2\b|\bGREEN\b|\bBLUE\b|\bBLACK\b|\bRED\b/i.test(n) },
     { key: 'brand', label: 'Hiksemi', value: 'HIKSEMI', matchFn: (n) => /\bHIKSEMI\b/i.test(n) },
-    { key: 'brand', label: 'ADATA / XPG', value: 'ADATA', matchFn: (n) => /\bADATA\b|\bXPG\b/i.test(n) },
-    { key: 'brand', label: 'Lexar', value: 'LEXAR', matchFn: (n) => /\bLEXAR\b/i.test(n) },
-    { key: 'brand', label: 'Crucial', value: 'CRUCIAL', matchFn: (n) => /\bCRUCIAL\b/i.test(n) },
+    { key: 'brand', label: 'ADATA / XPG', value: 'ADATA', matchFn: (n) => /\bADATA\b|\bXPG\b|\bGAMMIX\b|\bLEGEND\b|\bSPECTRIX\b|\bSU650\b|\bSU630\b/i.test(n) },
+    { key: 'brand', label: 'Lexar', value: 'LEXAR', matchFn: (n) => /\bLEXAR\b|\bNM610\b|\bNM790\b|\bNQ100\b|\bNQ780\b/i.test(n) },
+    { key: 'brand', label: 'Crucial', value: 'CRUCIAL', matchFn: (n) => /\bCRUCIAL\b|\bBX500\b|\bP310\b|\bE100\b/i.test(n) },
     { key: 'brand', label: 'Memox', value: 'MEMOX', matchFn: (n) => /\bMEMOX\b/i.test(n) },
     { key: 'brand', label: 'Samsung', value: 'SAMSUNG', matchFn: (n) => /\bSAMSUNG\b|\bEVO\b|\b9[79]0\b/i.test(n) && !/\bMONITOR\b/i.test(n) },
-    { key: 'brand', label: 'MSI', value: 'MSI_SSD', matchFn: (n) => /\bMSI\b/i.test(n) && /\bSSD\b|\bNVME\b|\bM\.2\b/i.test(n) },
-    { key: 'brand', label: 'Patriot', value: 'PATRIOT', matchFn: (n) => /\bPATRIOT\b/i.test(n) },
+    { key: 'brand', label: 'MSI', value: 'MSI_SSD', matchFn: (n) => /\bMSI\b|\bSPATIUM\b/i.test(n) && /\bSSD\b|\bNVME\b|\bM\.2\b|\bS270\b/i.test(n) },
+    { key: 'brand', label: 'Patriot', value: 'PATRIOT', matchFn: (n) => /\bPATRIOT\b|\bP300\b|\bP210\b/i.test(n) },
     { key: 'brand', label: 'Seagate', value: 'SEAGATE', matchFn: (n) => /\bSEAGATE\b|\bFIRECUDA\b/i.test(n) && /\bSSD\b|\bNVME\b/i.test(n) },
     { key: 'brand', label: 'Corsair', value: 'CORSAIR', matchFn: (n) => /\bCORSAIR\b/i.test(n) && /\bSSD\b|\bNVME\b|\bM\.2\b/i.test(n) },
     { key: 'brand', label: 'Kioxia', value: 'KIOXIA', matchFn: (n) => /\bKIOXIA\b/i.test(n) },
@@ -93,13 +93,27 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'brand', label: 'Leven', value: 'LEVEN', matchFn: (n) => /\bLEVEN\b/i.test(n) },
     { key: 'brand', label: 'PNY', value: 'PNY', matchFn: (n) => /\bPNY\b/i.test(n) },
     { key: 'brand', label: 'SOLIDIGM', value: 'SOLIDIGM', matchFn: (n) => /\bSOLIDIGM\b/i.test(n) },
+    { key: 'brand', label: 'SanDisk', value: 'SANDISK', matchFn: (n) => /\bSANDISK\b/i.test(n) },
+    { key: 'brand', label: 'Team Group', value: 'TEAM_GROUP', matchFn: (n) => /\bTEAM\s*GROUP\b/i.test(n) },
+    { key: 'brand', label: 'Biwin', value: 'BIWIN', matchFn: (n) => /\bBIWIN\b/i.test(n) },
     { key: 'type', label: 'M.2 / NVMe', value: 'NVME', matchFn: (n) => /\bNVME\b|\bM\.2\b|\bM2\b/i.test(n) },
     { key: 'type', label: 'SATA', value: 'SATA', matchFn: (n) => /\bSATA\b/i.test(n) && !/\bNVME\b|\bM\.2\b/i.test(n) },
+    { key: 'capacity', label: 'Hasta 256GB', value: 'upto256', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c <= 256 } },
+    { key: 'capacity', label: '480GB - 512GB', value: '480-512', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 480 && c <= 600 } },
+    { key: 'capacity', label: '960GB - 1TB', value: '960-1tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 960 && c <= 1100 } },
+    { key: 'capacity', label: '2TB', value: '2tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 1900 && c <= 2100 } },
+    { key: 'capacity', label: '4TB+', value: '4tbplus', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 3800 } },
   ],
   'discos-hdd': [
     { key: 'brand', label: 'Seagate', value: 'SEAGATE', matchFn: (n) => /\bSEAGATE\b|\bBARRACUDA\b|\bIRONWOLF\b|\bSKYHAWK\b/i.test(n) },
-    { key: 'brand', label: 'WD', value: 'WD', matchFn: (n) => /\bWESTERN\b|\bWD\b[ _]?|\bBLUE\b|\bBLACK\b|\bGOLD\b/i.test(n) && /\bHDD\b|\bDISCO\b|\bRIGIDO\b|\bINTERNAL\b/i.test(n) },
+    { key: 'brand', label: 'WD', value: 'WD', matchFn: (n) => /\bWESTERN\b|\bWD\b[ _]?|\bBLUE\b|\bBLACK\b|\bGOLD\b|\bRED\b|\bRED PLUS\b|\bPURPLE\b/i.test(n) && /\bHDD\b|\bDISCO\b|\bRIGIDO\b|\bINTERNAL\b/i.test(n) },
     { key: 'brand', label: 'Toshiba', value: 'TOSHIBA', matchFn: (n) => /\bTOSHIBA\b/i.test(n) },
+    { key: 'capacity', label: '1TB', value: '1tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 900 && c <= 1100 } },
+    { key: 'capacity', label: '2TB', value: '2tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 1900 && c <= 2100 } },
+    { key: 'capacity', label: '4TB', value: '4tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 3800 && c <= 4200 } },
+    { key: 'capacity', label: '6TB - 8TB', value: '6-8tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 5800 && c <= 8200 } },
+    { key: 'capacity', label: '10TB - 12TB', value: '10-12tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 9800 && c <= 12500 } },
+    { key: 'capacity', label: '16TB+', value: '16tbplus', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 15800 } },
   ],
   'fuentes': [
     { key: 'brand', label: 'Gigabyte', value: 'GIGABYTE', matchFn: (n) => /\bGIGABYTE\b|\bAORUS\b/i.test(n) && /\bFUENTE\b|\bPSU\b|\bPOWER\b|\bW\b/i.test(n) },
@@ -297,8 +311,12 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'brand', label: 'Seagate', value: 'SEAGATE', matchFn: (n) => /\bSEAGATE\b|\bEXPANSION\b|\bONE TOUCH\b/i.test(n) },
     { key: 'brand', label: 'Kingston', value: 'KINGSTON', matchFn: (n) => /\bKINGSTON\b/i.test(n) },
     { key: 'brand', label: 'Hiksemi', value: 'HIKSEMI', matchFn: (n) => /\bHIKSEMI\b/i.test(n) },
-    { key: 'brand', label: 'Crucial', value: 'CRUCIAL', matchFn: (n) => /\bCRUCIAL\b|bX9\b|\bX8\b/i.test(n) },
+    { key: 'brand', label: 'Crucial', value: 'CRUCIAL', matchFn: (n) => /\bCRUCIAL\b|\bX9\b|\bX8\b/i.test(n) },
     { key: 'brand', label: 'Toshiba', value: 'TOSHIBA', matchFn: (n) => /\bTOSHIBA\b|\bCANVIO\b/i.test(n) },
+    { key: 'capacity', label: 'Hasta 512GB', value: 'upto512', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c <= 600 } },
+    { key: 'capacity', label: '1TB', value: '1tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 900 && c <= 1100 } },
+    { key: 'capacity', label: '2TB', value: '2tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 1900 && c <= 2100 } },
+    { key: 'capacity', label: '4TB+', value: '4tbplus', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 3800 } },
   ],
   'perifericos': [
     { key: 'type', label: 'Mouse', value: 'MOUSE', matchFn: (n) => /\bMOUSE\b/i.test(n) && !/\bMOUSEPAD\b/i.test(n) },
@@ -336,6 +354,39 @@ const FILTER_GROUP_LABELS: Record<string, string> = {
   size: 'Tamaño',
   resolution: 'Resolución',
   hz: 'Frecuencia',
+  capacity: 'Capacidad',
+}
+
+/**
+ * Extract the primary storage capacity in GB from a product name.
+ * Handles patterns like: 1TB, 1 TB, 2TB, 256GB, 480GB, 960GB, 1.92TB, etc.
+ * Returns null if no recognizable storage capacity found.
+ */
+function extractCapacityGB(name: string): number | null {
+  // Normalize: replace commas with dots for decimal values
+  // Also add space before TB/GB if missing (e.g. "SSD1TB" -> "SSD 1TB")
+  const n = name.replace(/,/g, '.').replace(/(SSD|HDD|DISCO)(\d)/gi, '$1 $2')
+  
+  // Try TB patterns first (more specific)
+  // Match: 1TB, 1 TB, 1.92TB, 1.92 TB, 1T (when followed by space/end for short forms)
+  const tbMatch = n.match(/\b(\d+\.?\d*)\s*TB?\b/i)
+  if (tbMatch) {
+    const val = parseFloat(tbMatch[1])
+    // Sanity check: TB values should be between 0.1 and 100
+    if (val >= 0.1 && val <= 100) return val * 1000
+  }
+  
+  // Try GB patterns
+  // Match: 256GB, 256 GB, 512GB, 960GB, 480GB, etc.
+  // Avoid matching speed values like "6.0GB/S" or "6GBPS"
+  const gbMatch = n.match(/\b(\d{2,4})\s*GB(?!\s*[\/PS])/i)
+  if (gbMatch) {
+    const val = parseInt(gbMatch[1])
+    // Sanity check: GB values for storage should be between 32 and 16384
+    if (val >= 32 && val <= 16384) return val
+  }
+  
+  return null
 }
 
 /**
