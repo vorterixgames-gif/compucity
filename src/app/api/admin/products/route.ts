@@ -3,6 +3,40 @@ import { db } from '@/lib/db'
 import { fetchDollarRate, getStoreConfigNumber, calculateProductPrices, CategoryMarkup } from '@/lib/dollar'
 import { getCurrentAdmin } from '@/lib/admin-auth'
 
+/**
+ * Resolve a providerId to a valid supplier UUID.
+ * If the providerId is already a valid supplier UUID, return it as-is.
+ * If it matches a supplier name (case-insensitive), return the supplier's UUID.
+ * If no match is found, return null (no supplier).
+ *
+ * This prevents orphan products when providerId is set to a supplier name instead of UUID.
+ */
+async function resolveProviderId(providerId: string | null | undefined): Promise<string | null> {
+  if (!providerId || providerId.trim() === '') return null
+
+  // Check if it's a valid supplier UUID directly
+  const directMatch = await db.execute({
+    sql: 'SELECT id FROM suppliers WHERE id = ?',
+    args: [providerId],
+  })
+  if (directMatch.rows.length > 0) return providerId
+
+  // Try to match by supplier name (case-insensitive)
+  const nameMatch = await db.execute({
+    sql: 'SELECT id FROM suppliers WHERE LOWER(name) = LOWER(?)',
+    args: [providerId],
+  })
+  if (nameMatch.rows.length > 0) {
+    const resolvedId = (nameMatch.rows[0] as any).id
+    console.warn(`[resolveProviderId] Resolved providerId "${providerId}" to supplier UUID "${resolvedId}"`)
+    return resolvedId
+  }
+
+  // No match found — this is an invalid providerId, set to null
+  console.warn(`[resolveProviderId] No supplier found for providerId "${providerId}", setting to null`)
+  return null
+}
+
 async function getConfig(key: string, defaultValue: number): Promise<number> {
   const result = await db.execute({
     sql: 'SELECT value FROM store_config WHERE key = ?',
@@ -291,6 +325,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Resolve providerId: if it's a supplier name instead of UUID, auto-resolve it
+    const resolvedProviderId = await resolveProviderId(providerId)
+
     // Either costPrice (USD) or price (ARS) must be provided
     const hasCostPrice = costPrice && Number(costPrice) > 0
     const hasManualPrice = price !== undefined && Number(price) > 0
@@ -391,7 +428,7 @@ export async function POST(request: NextRequest) {
         isActive !== undefined ? (isActive ? 1 : 0) : 1,
         isFeatured !== undefined ? (isFeatured ? 1 : 0) : 0,
         images || '[]', specs || '{}',
-        providerId || null, providerSku || null,
+        resolvedProviderId, providerSku || null,
         categoryId || null, now, now,
       ],
     })
@@ -425,6 +462,9 @@ export async function PUT(request: NextRequest) {
     if (!id) {
       return NextResponse.json({ error: 'ID es requerido' }, { status: 400 })
     }
+
+    // Resolve providerId: if it's a supplier name instead of UUID, auto-resolve it
+    const resolvedProviderId = providerId !== undefined ? await resolveProviderId(providerId) : undefined
 
     const now = new Date().toISOString()
 
@@ -550,7 +590,7 @@ export async function PUT(request: NextRequest) {
       }
     }
     if (specs !== undefined) { fields.push('specs = ?'); values.push(specs) }
-    if (providerId !== undefined) { fields.push('providerId = ?'); values.push(providerId) }
+    if (providerId !== undefined) { fields.push('providerId = ?'); values.push(resolvedProviderId) }
     if (providerSku !== undefined) { fields.push('providerSku = ?'); values.push(providerSku) }
     if (categoryId !== undefined) { fields.push('categoryId = ?'); values.push(categoryId) }
     if (markup !== undefined) { fields.push('markup = ?'); values.push(markup != null && markup !== '' ? Number(markup) : null) }

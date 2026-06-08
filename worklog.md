@@ -219,3 +219,26 @@ Stage Summary:
 - Script available at /home/z/my-project/scripts/web-search-images.mjs for continued processing
 - Remaining products are mostly Air Intra (no API images available) and categorized products
 - 582 products without category need categorization first for better image matching
+
+---
+Task ID: 4
+Agent: main
+Task: Fix supplier filter not working in admin products page (Eikon and orphan providerIds)
+
+Work Log:
+- Investigated the supplier filter in /admin/productos page
+- Found that 60 Eikon products had providerId = "Eikon" (the supplier name) instead of the UUID "c5771fab-eb45-4081-9cfc-b4636bd118d7"
+- The SQL JOIN (products LEFT JOIN suppliers ON providerId = suppliers.id) couldn't match, so the filter returned 0 results
+- Found 14 additional orphan products with invalid providerIds: "BACKUP" (6), "OFFICE" (6), "KF432C16BB2A-16_250" (1), "WDS500G4G0E_250" (1)
+- Fixed Eikon products: UPDATE products SET providerId = 'c5771fab-eb45-4081-9cfc-b4636bd118d7' WHERE providerId = 'Eikon' (60 rows)
+- Fixed orphan products: set providerId to NULL for all 14 orphan products (no matching supplier)
+- Added resolveProviderId() function in /src/app/api/admin/products/route.ts that auto-resolves supplier names to UUIDs
+- Applied resolveProviderId in both POST and PUT handlers to prevent future orphan providerIds
+- When a providerId doesn't match any supplier UUID, the function tries matching by name (case-insensitive)
+- If no match at all, sets providerId to NULL with a console warning
+
+Stage Summary:
+- 60 Eikon products now correctly linked to their supplier (filter works)
+- 14 orphan products cleaned up (BACKUP, OFFICE, SKU-based providerIds → NULL)
+- Added auto-resolution safeguard in products API to prevent future orphan providerIds
+- All products now have valid providerId (matching a supplier) or NULL (no supplier)
