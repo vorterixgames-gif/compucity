@@ -138,6 +138,21 @@ const SLOT_FILTERS: Record<string, FilterOption[]> = {
     { key: 'brand', label: 'NVIDIA', value: 'NVIDIA', matchFn: (n) => /\bRTX\b|\bGTX\b|\bGEFORCE\b|\bNVIDIA\b|\bQUADRO\b|\bGT 1030\b/i.test(n) },
     { key: 'brand', label: 'AMD', value: 'AMD', matchFn: (n) => /\bRADEON\b|\bRX\s\d/i.test(n) },
     { key: 'brand', label: 'Intel Arc', value: 'INTEL_ARC', matchFn: (n) => /\bARC\s*A[37]\b/i.test(n) },
+    { key: 'vram', label: '4GB', value: '4gb', matchFn: (n) => /\b4\s*GB\b/i.test(n) && /\bRTX\b|\bGTX\b|\bRADEON\b|\bGEFORCE\b|\bGT\b|\bQUADRO\b|\bARC\b/i.test(n) },
+    { key: 'vram', label: '6GB', value: '6gb', matchFn: (n) => /\b6\s*GB\b/i.test(n) && /\bRTX\b|\bGTX\b|\bRADEON\b|\bGEFORCE\b|\bARC\b/i.test(n) },
+    { key: 'vram', label: '8GB', value: '8gb', matchFn: (n) => /\b8\s*GB\b/i.test(n) && /\bRTX\b|\bGTX\b|\bRADEON\b|\bGEFORCE\b|\bQUADRO\b|\bARC\b/i.test(n) },
+    { key: 'vram', label: '12GB', value: '12gb', matchFn: (n) => /\b12\s*GB\b/i.test(n) && /\bRTX\b|\bGTX\b|\bRADEON\b|\bGEFORCE\b|\bQUADRO\b/i.test(n) },
+    { key: 'vram', label: '16GB', value: '16gb', matchFn: (n) => /\b16\s*GB\b/i.test(n) && /\bRTX\b|\bGTX\b|\bRADEON\b|\bGEFORCE\b|\bQUADRO\b/i.test(n) },
+    { key: 'vram', label: '24GB', value: '24gb', matchFn: (n) => /\b24\s*GB\b/i.test(n) && /\bRTX\b|\bGTX\b|\bRADEON\b|\bGEFORCE\b|\bQUADRO\b/i.test(n) },
+    { key: 'series', label: 'RTX 5090', value: 'rtx5090', matchFn: (n) => /RTX\s*5090/i.test(n) },
+    { key: 'series', label: 'RTX 5080', value: 'rtx5080', matchFn: (n) => /RTX\s*5080/i.test(n) },
+    { key: 'series', label: 'RTX 5070', value: 'rtx5070', matchFn: (n) => /RTX\s*5070/i.test(n) },
+    { key: 'series', label: 'RTX 5060', value: 'rtx5060', matchFn: (n) => /RTX\s*5060/i.test(n) },
+    { key: 'series', label: 'RTX 5050', value: 'rtx5050', matchFn: (n) => /RTX\s*5050/i.test(n) },
+    { key: 'series', label: 'RTX 3050', value: 'rtx3050', matchFn: (n) => /RTX\s*3050/i.test(n) },
+    { key: 'series', label: 'RX 9070 XT', value: 'rx9070xt', matchFn: (n) => /RX\s*9070/i.test(n) },
+    { key: 'series', label: 'RX 9060 XT', value: 'rx9060xt', matchFn: (n) => /RX\s*9060/i.test(n) },
+    { key: 'series', label: 'RX 7600', value: 'rx7600', matchFn: (n) => /RX\s*7600/i.test(n) },
   ],
   ssd: [
     { key: 'brand', label: 'Kingston', value: 'KINGSTON', matchFn: (n) => /\bKINGSTON\b|\bFURY\b|\bA400\b|\bKC3000\b|\bKC600\b|\bNV3\b/i.test(n) },
@@ -501,6 +516,8 @@ export default function ArmaTuPCPage() {
       hz: 'Frecuencia',
       resolution: 'Resolución',
       capacity: 'Capacidad',
+      vram: 'VRAM',
+      series: 'Serie',
     }
     for (const opt of currentSlotFilterOptions) {
       if (!keyMap.has(opt.key)) keyMap.set(opt.key, [])
