@@ -685,6 +685,230 @@ function mapProductToCategory(
       targetSlug: 'impresion',
       sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon', 'soportes-y-brazos'],
     },
+    // === NEW: Prevent non-monitor products with "MONITOR" keyword from going to monitores ===
+    {
+      // "De Monitor Color" / "De Monitor Vga" are cables, not monitors
+      nameKeyword: 'DE MONITOR',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon'],
+    },
+    {
+      // "P/Monitor" or "P/Monitores" are cable/accessory bags
+      nameKeyword: 'P/MONITOR',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon'],
+    },
+    {
+      // "P/ Monitores" with space variant
+      nameKeyword: 'P/ MONITORES',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon'],
+    },
+    {
+      // "Monitor-pc Usb" cables
+      nameKeyword: 'MONITOR-PC USB',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon'],
+    },
+    {
+      // "Multiseñal de Monitor" KVM switches
+      nameKeyword: 'MULTISE',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon'],
+    },
+    {
+      // "Case Monitor" display cases (not monitors)
+      nameKeyword: 'CASE MONITOR',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon'],
+    },
+    {
+      // APC SNMP/Tarjeta Monitoreo (rack monitoring, not display)
+      nameKeyword: 'SNMP CARD',
+      targetSlug: 'placas-de-red',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon'],
+    },
+    {
+      nameKeyword: 'SENSOR MONITOREO',
+      targetSlug: 'placas-de-red',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon'],
+    },
+    {
+      // "Monitor Plastic Black" generic plastic part
+      nameKeyword: 'MONITOR PLASTIC',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon'],
+    },
+    {
+      // "HP Shelf Monitor" rack shelf
+      nameKeyword: 'SHELF MONITOR',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon'],
+    },
+    {
+      // Baby monitors (Ezviz BM1 Rabbit)
+      nameKeyword: 'BABY CALL MONITOR',
+      targetSlug: 'hogar-inteligente',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon'],
+    },
+    {
+      // "Monitor 15M/15H" cables
+      nameKeyword: 'MONITOR 15M',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon'],
+    },
+    {
+      // Aruba antennas with "MNT" (mount) in name
+      nameKeyword: 'AP-ANT-MNT',
+      targetSlug: 'placas-de-red',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon', 'soportes-y-brazos'],
+    },
+    {
+      // Aruba Cx rack mount kits
+      nameKeyword: 'ARUBA CX 10000',
+      targetSlug: 'placas-de-red',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon', 'soportes-y-brazos'],
+    },
+    {
+      // Aruba AP mount brackets
+      nameKeyword: 'AP-MNT',
+      targetSlug: 'placas-de-red',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon', 'soportes-y-brazos'],
+    },
+    {
+      // "Palo Selfie" in soportes-y-brazos
+      nameKeyword: 'SELFIE',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['soportes-y-brazos'],
+    },
+    {
+      // Oracle/SQL licenses
+      nameKeyword: 'ORACLE DATABASE',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['soportes-y-brazos'],
+    },
+    {
+      nameKeyword: 'SQL SERVER',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['soportes-y-brazos'],
+    },
+    {
+      nameKeyword: 'WINSSVR',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['soportes-y-brazos'],
+    },
+    {
+      // Dell/HP server heatsinks and bezels
+      nameKeyword: 'HEATSINK',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon', 'soportes-y-brazos'],
+    },
+    {
+      nameKeyword: 'BEZEL',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon', 'soportes-y-brazos'],
+    },
+    {
+      // "Canaleta Furukawa" cable trays
+      nameKeyword: 'CANAleta FURUKAWA',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon', 'soportes-y-brazos'],
+    },
+    {
+      // "Cctv Soporte" camera mounts
+      nameKeyword: 'CCTV SOPORTE',
+      targetSlug: 'hogar-inteligente',
+      sourceSlugs: ['soportes-y-brazos'],
+    },
+    {
+      // "Soporte Dahua" security accessories
+      nameKeyword: 'SOPORTE DAHUA',
+      targetSlug: 'hogar-inteligente',
+      sourceSlugs: ['soportes-y-brazos'],
+    },
+    {
+      // Printer sensor arms
+      nameKeyword: 'BRAZO SENSOR',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['soportes-y-brazos'],
+    },
+    {
+      // Samsung TV replacement stands (BN96 parts)
+      nameKeyword: 'ASSY STAND',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['soportes-y-brazos'],
+    },
+    {
+      // "Cover-stand" TV replacement parts
+      nameKeyword: 'COVER-STAND',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['soportes-y-brazos'],
+    },
+    {
+      // "Pad Poroso" printer parts
+      nameKeyword: 'PAD POROSO',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['soportes-y-brazos'],
+    },
+    {
+      // "Electro Canal" electrical conduits
+      nameKeyword: 'ELECTRO CANAL',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['soportes-y-brazos'],
+    },
+    {
+      // "No Vender" products
+      nameKeyword: 'NO VENDER',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['soportes-y-brazos'],
+    },
+    {
+      // "HP X410 Rack Mount Kit" server parts
+      nameKeyword: 'RACK MOUNTING KIT',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon', 'soportes-y-brazos'],
+    },
+    {
+      nameKeyword: 'RACK MOUNT KIT',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['monitores', 'oficina-mon', 'gamer-mon', 'diseno-mon', 'soportes-y-brazos'],
+    },
+    {
+      // "Hpe Sy480" server drive kits
+      nameKeyword: 'HPE SY480',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['soportes-y-brazos'],
+    },
+    {
+      // "Dell Soporte Para Disco" server disk brackets
+      nameKeyword: 'SOPORTE PARA DISCO',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['soportes-y-brazos'],
+    },
+    {
+      // "Soporte Pared Epson" projector mounts
+      nameKeyword: 'SOPORTE PARED EPSON',
+      targetSlug: 'impresion',
+      sourceSlugs: ['soportes-y-brazos'],
+    },
+    {
+      // "Aspiracion Localizada" industrial arm
+      nameKeyword: 'ASPIRACION LOCALIZADA',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['soportes-y-brazos'],
+    },
+    {
+      // "Soporte Instalacion Poste" telecom pole mounts
+      nameKeyword: 'SOPORTE INSTALACION',
+      targetSlug: 'cables-y-adaptadores',
+      sourceSlugs: ['soportes-y-brazos'],
+    },
+    {
+      // "Soporte Ezviz" camera accessories
+      nameKeyword: 'SOPORTE EZVIZ',
+      targetSlug: 'hogar-inteligente',
+      sourceSlugs: ['soportes-y-brazos'],
+    },
   ]
 
   // Apply corrections regardless of mapping method
