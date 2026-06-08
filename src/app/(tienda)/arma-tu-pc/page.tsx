@@ -32,6 +32,7 @@ import {
   Plug,
   SlidersHorizontal,
   Download,
+  ChevronDown,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -496,13 +497,24 @@ export default function ArmaTuPCPage() {
     return groups
   }, [currentSlot.slot])
 
-  // Toggle a manual filter value
+  // Toggle a manual filter value (kept for backward compat)
   const toggleFilter = (key: string, value: string) => {
     setManualFilters(prev => {
       const current = prev[key] || []
       const isActive = current.includes(value)
       const updated = isActive ? current.filter(v => v !== value) : [...current, value]
       return { ...prev, [key]: updated }
+    })
+  }
+
+  // Set a single-select filter value for a group (dropdown style)
+  const setSelectFilter = (key: string, value: string) => {
+    setManualFilters(prev => {
+      if (value === '') {
+        const { [key]: _, ...rest } = prev
+        return rest
+      }
+      return { ...prev, [key]: [value] }
     })
   }
 
@@ -977,31 +989,25 @@ export default function ArmaTuPCPage() {
                     </button>
                   )}
                 </div>
-                <div className="space-y-2">
-                  {filterGroups.map(group => (
-                    <div key={group.key}>
-                      <span className="text-[11px] text-gray-400 font-medium mb-1 block">{group.label}</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {group.options.map(opt => {
-                          const isActive = (manualFilters[opt.key] || []).includes(opt.value)
-                          return (
-                            <button
-                              key={opt.value}
-                              onClick={() => toggleFilter(opt.key, opt.value)}
-                              className={`px-2.5 py-1 rounded-full text-xs font-medium transition border ${
-                                isActive
-                                  ? 'bg-compucity-green text-white border-compucity-green shadow-sm'
-                                  : 'bg-gray-50 text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-100'
-                              }`
-                              }
-                            >
-                              {opt.label}
-                            </button>
-                          )
-                        })}
+                <div className="flex flex-wrap gap-2">
+                  {filterGroups.map(group => {
+                    const selectedValue = (manualFilters[group.key] || [])[0] || ''
+                    return (
+                      <div key={group.key} className="relative">
+                        <select
+                          value={selectedValue}
+                          onChange={(e) => setSelectFilter(group.key, e.target.value)}
+                          className="text-xs border border-gray-200 rounded-md pl-2.5 pr-7 py-1.5 bg-white text-gray-700 focus:outline-none focus:border-compucity-green cursor-pointer appearance-none"
+                        >
+                          <option value="">{group.label}</option>
+                          {group.options.map(opt => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
                 {hasActiveFilters && (
                   <p className="text-[11px] text-gray-400 mt-2">
