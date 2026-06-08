@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-09 (sesion 29)
+**Ultima actualizacion:** 2026-06-09 (sesion 30)
 
 ---
 
@@ -470,6 +470,41 @@ El problema recurrente tenia 3 causas encadenadas:
 - **Regex mejorados:** Kingston (+A400/KC3000/KC600/DC600/NV3), ADATA/XPG (+GAMMIX/LEGEND/SPECTRIX/SU650/SU630), Lexar (+NM610/NM790/NQ100/NQ780), Crucial (+BX500/P310/E100), MSI (+SPATIUM), Patriot (+P300/P210), WD/HDD (+RED/PURPLE)
 - **PC Builder:** Filtros convertidos de chips a desplegables `<select>`. SSD con marca+tipo+capacidad. HDD con marca+capacidad. Agregado `capacity` a keyLabels
 - **Archivos:** `src/components/ui-custom/CategoryProducts.tsx`, `src/app/(tienda)/arma-tu-pc/page.tsx`
+
+### MEJORA sesion 30: Filtros de marca para TODAS las categorias y subcategorias
+- **Antes:** Solo 25 categorias tenian filtros definidos en `CATEGORY_FILTERS`. Muchas categorias con productos activos (cables, oficina, UPS, micro-sd, joysticks, etc.) no tenian filtros de marca
+- **Despues:** TODAS las categorias con productos activos ahora tienen filtros de marca. Se agregaron 24 nuevas categorias a `CATEGORY_FILTERS`
+- **Categorias nuevas con filtros:**
+  - cables-y-adaptadores (9 marcas + tipo: Cable/Adaptador/Conversor/Hub)
+  - oficina (5 marcas)
+  - ups (5 marcas + VA: Hasta 1000VA/1000-2000VA/2000-3000VA/3000VA+)
+  - memoria-ram-notebook (7 marcas + DDR3/DDR4/DDR5)
+  - fundas-mochilas (4 marcas + tipo: Funda/Mochila)
+  - micro-sd (5 marcas + capacidad: 32GB/64GB/128GB/256GB/512GB+)
+  - hogar-inteligente (4 marcas + tipo: Camara/Alarma/Cerradura/Robot)
+  - joysticks (8 marcas: Redragon, Genius, Cooler Master, Raptor, Logitech, Microsoft, Sony, Noganet)
+  - cargadores (6 marcas + tipo: Notebook/Celular/Fuente)
+  - sillas-gamer (5 marcas)
+  - soportes-y-brazos (5 marcas + tipo: Monitor/TV/Notebook)
+  - mousepads (4 marcas)
+  - kits-gamer (4 marcas)
+  - microfonos (7 marcas)
+  - tablets (4 marcas)
+  - escaneres (4 marcas + tipo: Escritorio/Portatil)
+  - nas (3 marcas + tipo: 2 Bahias/4 Bahias)
+  - pc-armadas (4 marcas)
+  - smarts-tv (3 marcas + tamaño + resolucion)
+  - bases (3 marcas)
+  - escritorios (1 marca)
+  - pastas-termicas (4 marcas)
+  - sistema-continuo (4 marcas + tipo: Multifuncion/Impresora sola)
+  - gabinete-con-fuente (6 marcas)
+  - mini-pc (5 marcas)
+  - oficina-pc (4 marcas + tipo: PC/AIO)
+  - gamer-y-diseno (7 marcas)
+- **Mejora perifericos:** Se agrego filtro de marca (7 marcas) a la categoria perifericos que antes solo tenia tipo
+- **Herencia subcategorias:** Las subcategorias sin filtros propios siguen heredando del padre via `filterSlug` (ej: gamer-mon hereda de monitores)
+- **Archivo modificado:** `src/components/ui-custom/CategoryProducts.tsx`
 
 ### FIX sesion 29: Filtros heredados en subcategorias + marcas incorrectas en monitores + sync diario automatico
 - **Bug filtros subcategoria:** Al seleccionar una subcategoria (Gamer, Diseño, Oficina) en monitores, los filtros de marca/tamaño/resolucion/frecuencia desaparecian. La causa era que `CATEGORY_FILTERS` se indexaba por `categorySlug` (ej: `gamer-mon`), pero solo existian definiciones para el slug padre (`monitores`).
