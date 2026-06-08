@@ -129,6 +129,10 @@ const SLOT_FILTERS: Record<string, FilterOption[]> = {
     { key: 'ddr', label: 'DDR3', value: 'DDR3', matchFn: (n) => /\bDDR3\b/i.test(n) },
     { key: 'ddr', label: 'DDR4', value: 'DDR4', matchFn: (n) => /\bDDR4\b/i.test(n) },
     { key: 'ddr', label: 'DDR5', value: 'DDR5', matchFn: (n) => /\bDDR5\b/i.test(n) },
+    { key: 'capacity', label: '8GB', value: '8gb', matchFn: (n) => /\b8\s*GB\b/i.test(n) },
+    { key: 'capacity', label: '16GB', value: '16gb', matchFn: (n) => /\b16\s*GB\b/i.test(n) },
+    { key: 'capacity', label: '32GB', value: '32gb', matchFn: (n) => /\b32\s*GB\b/i.test(n) },
+    { key: 'capacity', label: '48GB+', value: '48gbplus', matchFn: (n) => { const m = n.match(/\b(\d+)\s*GB\b/i); return m ? parseInt(m[1]) >= 48 : false } },
   ],
   gpu: [
     { key: 'brand', label: 'NVIDIA', value: 'NVIDIA', matchFn: (n) => /\bRTX\b|\bGTX\b|\bGEFORCE\b|\bNVIDIA\b|\bQUADRO\b|\bGT 1030\b/i.test(n) },
