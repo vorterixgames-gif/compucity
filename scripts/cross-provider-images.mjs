@@ -79,10 +79,15 @@ async function main() {
   console.log('=== Optimized Cross-Provider Image Copy ===\n')
   await ensureImageTable()
 
+  // Allow batch limit via CLI arg: node cross-provider-images.mjs 200
+  const BATCH_LIMIT = parseInt(process.argv[2]) || 0 // 0 = no limit
+
   // Step 1: Get Air Intra products without images
   console.log('Loading Air Intra products...')
-  const airIntra = await db.execute(`SELECT id, name FROM products WHERE providerId = 'air-intra-1780331633566' AND (images = '[]' OR images IS NULL) AND isActive = 1 AND stock > 0 AND categoryId IS NOT NULL`)
-  console.log(`  ${airIntra.rows.length} products need images`)
+  let airIntraQuery = `SELECT id, name FROM products WHERE providerId = 'air-intra-1780331633566' AND (images = '[]' OR images IS NULL) AND isActive = 1 AND stock > 0 AND categoryId IS NOT NULL`
+  const airIntraFull = await db.execute(airIntraQuery)
+  const airIntra = BATCH_LIMIT > 0 ? { rows: airIntraFull.rows.slice(0, BATCH_LIMIT) } : airIntraFull
+  console.log(`  ${airIntraFull.rows.length} products need images (processing ${airIntra.rows.length} this batch)`)
 
   // Step 2: Build inverted index from Elit/Invid
   console.log('Building inverted index from Elit/Invid...')
@@ -171,13 +176,14 @@ async function main() {
       console.log(`✓ [${enriched}] ${ai.name} -> ${bestMatch.supplier} (score:${bestScore}) ${imageData.width}x${imageData.height} ${sizeKB}KB`)
     }
 
-    await new Promise(r => setTimeout(r, 100))
+    await new Promise(r => setTimeout(r, 50)) // 50ms delay between products
   }
 
   console.log('\n========================================')
   console.log(`Enriched: ${enriched}`)
   console.log(`Failed: ${failed}`)
   console.log(`No match: ${noMatch}`)
+  console.log(`Processed: ${airIntra.rows.length} / ${airIntraFull.rows.length}`)
 
   const remaining = await db.execute(`SELECT COUNT(*) as count FROM products WHERE providerId = 'air-intra-1780331633566' AND (images = '[]' OR images IS NULL) AND isActive = 1`)
   console.log(`Air Intra still without images: ${remaining.rows[0].count}`)
