@@ -194,3 +194,28 @@ Stage Summary:
 - 66 products moved to correct categories in database
 - 40+ new correction rules added to prevent future miscategorization during sync
 - Key patterns caught: PORTATIL keyword causing non-notebooks to go to notebooks, MONITOR keyword in product names causing cables/KVMs to go to monitores, FAN/COOLER keywords in server products causing them to go to soportes-y-brazos
+
+---
+Task ID: 1
+Agent: main
+Task: Enrich product images - find correct images for products without images
+
+Work Log:
+- Queried database: 1,192 active products with stock but without images (1,146 Air Intra, 30 Elit, 16 Invid)
+- Tried Air Intra API: articulos endpoint does NOT provide images (no imagenes/imagen/foto/img fields)
+- Tried Elit API: 5 remaining products without images, API returned 404 for search endpoints
+- Invid products: all resolved (0 without images now)
+- Cross-provider matching: extracted brand + model tokens, matched 49 Air Intra products to Elit/Invid donors
+- Web search enrichment: processed ~52 products via z-ai-web-dev-sdk web_search + page_reader
+- Successfully enriched ~250 total products with images (cross-provider + web search)
+- API rate limit hit after ~60 web searches; script ready to continue when rate resets
+
+Stage Summary:
+- Started: 1,192 products without images (with stock)
+- Current: 942 products without images (with stock)
+- Enriched: ~250 products
+- Image coverage improved from ~75% to 81.1% (4,034 with images / 4,976 total with stock)
+- Main blocker: API rate limit on z-ai-web-dev-sdk (429 Too Many Requests)
+- Script available at /home/z/my-project/scripts/web-search-images.mjs for continued processing
+- Remaining products are mostly Air Intra (no API images available) and categorized products
+- 582 products without category need categorization first for better image matching
