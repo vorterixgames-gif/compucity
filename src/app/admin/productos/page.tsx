@@ -1834,13 +1834,18 @@ export default function AdminProductos() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="providerId">ID Proveedor</Label>
-              <Input
-                id="providerId"
-                value={form.providerId}
-                onChange={(e) => updateForm('providerId', e.target.value)}
-                placeholder="ID del proveedor"
-              />
+              <Label htmlFor="providerId">Proveedor</Label>
+              <Select value={form.providerId || 'none'} onValueChange={(v) => updateForm('providerId', v === 'none' ? '' : v)}>
+                <SelectTrigger id="providerId">
+                  <SelectValue placeholder="Seleccionar proveedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin proveedor</SelectItem>
+                  {suppliers.map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
