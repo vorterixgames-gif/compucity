@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-08 (sesion 28)
+**Ultima actualizacion:** 2026-06-09 (sesion 29)
 
 ---
 
@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** 5d0989d (filtros capacidad SSD/HDD/externos, dropdowns PC builder, HDD filters PC builder)
+- **Commit actual:** 001bab5 (cron sync diario, filtros subcategoria, fix monitores, sync Elit)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -455,7 +455,7 @@ El problema recurrente tenia 3 causas encadenadas:
 | fuentes | Marca: Corsair, Seasonic, EVGA, Cooler Master, ASUS, Gigabyte, Gamemax, XPG · Potencia: Hasta 500W, 550-650W, 700-750W, 800-850W, 1000W+ |
 | gabinetes | Marca: Corsair, Cooler Master, ThermalTake, Aerocool, DeepCool, Gamemax, ASUS, NZXT, Sentey, Naceb, Kelyx |
 | refrigeracion | Marca: Corsair, Noctua, Cooler Master, DeepCool, Arctic, be quiet!, Gamemax, ASUS, XPG, Thermaltake, Kelyx · Tipo: AIO/Liquida, Aire |
-| monitores | Marca: 18 marcas · Tamaño: 19", 22", 24", 27", 32"+ · Resolucion: Full HD, QHD, 4K/UHD · Frecuencia: 100Hz, 144Hz, 165Hz, 180Hz |
+| monitores | Marca: 15 marcas (Asus, LG, Dell, Gigabyte, AOC, Philips, Samsung, MSI, HP, Lenovo, Hikvision, Gamemax, Acer, BenQ, ViewSonic, CX) · Tamaño: 19", 22", 24", 27", 32"+ · Resolucion: Full HD, QHD, 4K/UHD · Frecuencia: 100Hz, 144Hz, 165Hz, 180Hz · **Herencia de subcategoria** |
 | placas-de-red | Marca: TP-Link, Intel, ASUS, Cudy · Tipo: PCIe, USB, WiFi 6/6E |
 | memorias-ram | Marca: 9 marcas · Memoria: DDR3, DDR4, DDR5 |
 | microprocesadores | Marca: AMD, Intel |
@@ -470,6 +470,18 @@ El problema recurrente tenia 3 causas encadenadas:
 - **Regex mejorados:** Kingston (+A400/KC3000/KC600/DC600/NV3), ADATA/XPG (+GAMMIX/LEGEND/SPECTRIX/SU650/SU630), Lexar (+NM610/NM790/NQ100/NQ780), Crucial (+BX500/P310/E100), MSI (+SPATIUM), Patriot (+P300/P210), WD/HDD (+RED/PURPLE)
 - **PC Builder:** Filtros convertidos de chips a desplegables `<select>`. SSD con marca+tipo+capacidad. HDD con marca+capacidad. Agregado `capacity` a keyLabels
 - **Archivos:** `src/components/ui-custom/CategoryProducts.tsx`, `src/app/(tienda)/arma-tu-pc/page.tsx`
+
+### FIX sesion 29: Filtros heredados en subcategorias + marcas incorrectas en monitores + sync diario automatico
+- **Bug filtros subcategoria:** Al seleccionar una subcategoria (Gamer, Diseño, Oficina) en monitores, los filtros de marca/tamaño/resolucion/frecuencia desaparecian. La causa era que `CATEGORY_FILTERS` se indexaba por `categorySlug` (ej: `gamer-mon`), pero solo existian definiciones para el slug padre (`monitores`).
+- **Fix:** Se agrego `filterSlug` con logica de fallback: si el slug actual no tiene filtros definidos, usa el slug del `parentCategory`. Aplica a TODAS las categorias con subcategorias.
+- **Bug marcas monitores:** Los filtros de Epson y Genius aparecian en monitores pero sus productos en esa categoria eran un soporte de proyector y una base para notebook, respectivamente (no monitores). KOORUI no tenia stock.
+- **Fix:** Se eliminaron Epson, Genius y KOORUI de los filtros de monitores. Se agrego CX (marca real de monitores con 3 productos).
+- **Bug React "Only plain objects":** Los objetos de la DB (con campos extra como image, parentId, etc.) se pasaban directamente como props a Client Components.
+- **Fix:** Se limpiaron los objetos parentCategory y subcategories antes de pasarlos como props.
+- **Bug productos Redragon sin stock:** El proveedor Elit no se sincronizaba desde el 1/6, entonces 26 productos Redragon con stock en la API mostraban stock=0 en el sitio.
+- **Fix:** Se ejecuto sync manual de Elit (844 productos actualizados) y se actualizo el stock de los 28 productos Redragon.
+- **MEJORA sync diario automatico:** Se creo endpoint `GET /api/cron/sync?secret=CRON_SECRET` que sincroniza stock/precios de Elit e Invid automaticamente. Configurado via Vercel Cron Jobs para ejecutarse todos los dias a las 6AM UTC (3AM Argentina). Variable de entorno `CRON_SECRET` requerida en Vercel.
+- **Archivos modificados:** `src/components/ui-custom/CategoryProducts.tsx` (filterSlug fallback), `src/app/(tienda)/categoria/[slug]/page.tsx` (clean DB objects), `src/app/api/cron/sync/route.ts` (nuevo), `src/app/api/admin/suppliers/sync/route.ts` (export syncElit/syncInvid), `vercel.json` (cron config), `.env` (CRON_SECRET)
 
 ---
 
