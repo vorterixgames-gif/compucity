@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-09 (sesion 30)
+**Ultima actualizacion:** 2026-06-09 (sesion 31)
 
 ---
 
@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** 001bab5 (cron sync diario, filtros subcategoria, fix monitores, sync Elit)
+- **Commit actual:** 89e5c65 (filtros avanzados RAM/GPU/Notebooks, limpieza monitores, exclusiones sync)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -364,8 +364,8 @@ El problema recurrente tenia 3 causas encadenadas:
 |------|-------------------|
 | Processor | Marca: AMD, Intel |
 | Motherboard | Socket: AM4, AM5, LGA 1700, LGA 1851 · Memoria: DDR4, DDR5 |
-| RAM | Memoria: DDR3, DDR4, DDR5 |
-| GPU | Marca: NVIDIA, AMD, Intel Arc |
+| RAM | Memoria: DDR3, DDR4, DDR5 · **Capacidad: 4GB, 8GB, 16GB, 32GB, 64GB+** |
+| GPU | Marca: NVIDIA, AMD, Intel Arc · **VRAM: 4GB, 6GB, 8GB, 10GB, 12GB, 16GB, 24GB** · **Serie: RTX 3050/3060/4060/4060Ti/4070/4070S/4070TiS/4080S/5060/5060Ti/5070/5070Ti/5080, RX 6600/6700/7600/7700/7800/7900, Arc A750/A770** |
 | SSD | Marca: Kingston, WD, Hiksemi, ADATA/XPG, Lexar, Crucial, Memox, Samsung, MSI · Tipo: M.2/NVMe, SATA · Capacidad: Hasta 256GB, 480-512GB, 960GB-1TB, 2TB, 4TB+ |
 | HDD | Marca: Seagate, WD, Toshiba · Capacidad: 1TB, 2TB, 4TB, 6-8TB, 10-12TB, 16TB+ |
 | PSU | Potencia: Hasta 500W, 550-650W, 700-750W, 800-850W, 1000W+ |
@@ -457,10 +457,13 @@ El problema recurrente tenia 3 causas encadenadas:
 | refrigeracion | Marca: Corsair, Noctua, Cooler Master, DeepCool, Arctic, be quiet!, Gamemax, ASUS, XPG, Thermaltake, Kelyx · Tipo: AIO/Liquida, Aire |
 | monitores | Marca: 15 marcas (Asus, LG, Dell, Gigabyte, AOC, Philips, Samsung, MSI, HP, Lenovo, Hikvision, Gamemax, Acer, BenQ, ViewSonic, CX) · Tamaño: 19", 22", 24", 27", 32"+ · Resolucion: Full HD, QHD, 4K/UHD · Frecuencia: 100Hz, 144Hz, 165Hz, 180Hz · **Herencia de subcategoria** |
 | placas-de-red | Marca: TP-Link, Intel, ASUS, Cudy · Tipo: PCIe, USB, WiFi 6/6E |
-| memorias-ram | Marca: 9 marcas · Memoria: DDR3, DDR4, DDR5 |
+| memorias-ram | Marca: 9 marcas · Memoria: DDR3, DDR4, DDR5 · **Capacidad: 4GB, 8GB, 16GB, 32GB, 64GB+** |
 | microprocesadores | Marca: AMD, Intel |
 | motherboards | Socket: AM4, AM5, LGA 1700, LGA 1851 · Memoria: DDR4, DDR5 |
-| placas-de-video | Marca: Gigabyte, MSI, ASUS, NVIDIA, AMD, PNY, Intel Arc |
+| placas-de-video | Marca: Gigabyte, MSI, ASUS, NVIDIA, AMD, PNY, Intel Arc, **PowerColor**, **Sapphire**, **INNO3D** · **VRAM: 4GB, 6GB, 8GB, 10GB, 12GB, 16GB, 24GB** · **Serie: RTX 3050, RTX 3060, RTX 4060, RTX 4060 Ti, RTX 4070, RTX 4070 Super, RTX 4070 Ti Super, RTX 4080 Super, RTX 5060, RTX 5060 Ti, RTX 5070, RTX 5070 Ti, RTX 5080, RX 6600, RX 6700, RX 7600, RX 7700, RX 7800, RX 7900, Intel Arc A750/A770** |
+| notebooks | Marca: 8 marcas (Lenovo, ASUS, HP, Dell, Acer, Gigabyte, MSI, Bangho) · **Procesador: Intel Core i3, Intel Core i5, Intel Core i7, Intel Core i9, Ryzen 3, Ryzen 5, Ryzen 7, Ryzen 9** · **RAM: 4GB, 8GB, 12GB, 16GB, 32GB, 64GB** · **Pantalla: 11-12\", 13-14\", 15-16\", 17\"+** · **Placa de Video: Sin GPU dedicada, RTX 3050/4050/4060/4070, RX 6600/7600** · **Herencia de subcategoria** |
+| oficina | Marca: 5 marcas · **Procesador: Intel Core i3, Intel Core i5, Intel Core i7, Ryzen 3, Ryzen 5, Ryzen 7** · **RAM: 4GB, 8GB, 12GB, 16GB** · **Pantalla: 13-14\", 15-16\", 17\"+** · **Tipo: Notebook, Otro** |
+| gamer-y-diseno | Marca: 7 marcas · **Procesador: Intel Core i5, Intel Core i7, Intel Core i9, Ryzen 5, Ryzen 7, Ryzen 9** · **RAM: 8GB, 16GB, 32GB, 64GB** · **Pantalla: 13-14\", 15-16\", 17\"+** · **Placa de Video: Sin GPU dedicada, RTX 3050/4050/4060/4070, RX 6600/7600** |
 
 ### MEJORA sesion 28: Filtros de capacidad + marcas faltantes + dropdowns PC Builder
 - **Capacidad en SSD:** Hasta 256GB, 480-512GB, 960GB-1TB, 2TB, 4TB+ (funcion `extractCapacityGB` parsea 1TB, 256GB, 960GB, 1.92TB, etc.)
@@ -505,6 +508,14 @@ El problema recurrente tenia 3 causas encadenadas:
 - **Mejora perifericos:** Se agrego filtro de marca (7 marcas) a la categoria perifericos que antes solo tenia tipo
 - **Herencia subcategorias:** Las subcategorias sin filtros propios siguen heredando del padre via `filterSlug` (ej: gamer-mon hereda de monitores)
 - **Archivo modificado:** `src/components/ui-custom/CategoryProducts.tsx`
+
+### MEJORA sesion 31: Filtros avanzados RAM/GPU/Notebooks + limpieza monitores
+- **RAM capacidad:** Filtros de capacidad (4GB, 8GB, 16GB, 32GB, 64GB+) en memorias-ram y memoria-ram-notebook. Usa `extractCapacityGB()` con regex para GB en nombres de productos. Disponible en tienda y PC Builder
+- **GPU VRAM + Serie:** Filtros de VRAM (4GB-24GB) y Serie (RTX 3050-5080, RX 6600-7900, Arc A750/A770) en placas-de-video. VRAM matchFn valida keywords GPU (RTX/GTX/RADEON) para no confundir con RAM de notebooks. Marcas nuevas: PowerColor, Sapphire, INNO3D
+- **Notebooks filtros completos:** Procesador granular (i3/i5/i7/i9/Ryzen 3/5/7/9), RAM, pantalla, GPU en notebooks, oficina y gamer-y-diseno. Procesador usa matchFn por modelo para filtrar correctamente
+- **FIX monitores:** 77 productos mal categorizados eliminados (TVs, notebooks, all-in-ones, proyectores, cables, soportes, camaras, etc.). Se agregaron 35+ reglas de exclusion en validate-categories y CATEGORY_CORRECTIONS del sync para prevenir que la sync de proveedores vuelva a contaminar la categoria
+- **FILTER_GROUP_LABELS:** Nuevos labels: vram='VRAM', series='Serie', processor='Procesador', ram='RAM', screen='Pantalla', gpu='Placa de Video'
+- **Archivos:** `src/components/ui-custom/CategoryProducts.tsx`, `src/app/(tienda)/arma-tu-pc/page.tsx`
 
 ### FIX sesion 29: Filtros heredados en subcategorias + marcas incorrectas en monitores + sync diario automatico
 - **Bug filtros subcategoria:** Al seleccionar una subcategoria (Gamer, Diseño, Oficina) en monitores, los filtros de marca/tamaño/resolucion/frecuencia desaparecian. La causa era que `CATEGORY_FILTERS` se indexaba por `categorySlug` (ej: `gamer-mon`), pero solo existian definiciones para el slug padre (`monitores`).
@@ -818,6 +829,7 @@ createdAt TEXT, updatedAt TEXT
 ## Backups
 | Fecha | Archivo | Tamano | Contenido |
 |-------|---------|--------|----------|
+| 2026-06-09 (s31) | `compucity-src-backup-20260609-s31.tar.gz` | ~1.2MB | Filtros avanzados RAM/GPU/Notebooks + limpieza monitores + exclusiones sync |
 | 2026-06-06 (s22) | `compucity-src-backup-20260606-s22.tar.gz` | ~1.1MB | Filtro proveedor manual + fix categorias (switches/routers en PC Armadas) + 30 productos recategorizados |
 | 2026-06-05 (s20) | `compucity-src-backup-20260605-s20.tar.gz` | ~1.1MB | Logo real en PDF del PC Builder + base64 encoding |
 | 2026-06-05 (s19) | `compucity-src-backup-20260605-s19.tar.gz` | ~14MB | Sync robusto Air Intra - verificacion doble + post-sync check |
@@ -904,6 +916,7 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ---
 
 ## Historial de Cambios
+- **2026-06-09 (s31):** Filtros avanzados para RAM, GPU y Notebooks + limpieza monitores + exclusiones sync. (1) RAM: Filtros de capacidad (4GB/8GB/16GB/32GB/64GB+) en memorias-ram y memoria-ram-notebook (tienda + PC Builder). (2) GPU/Placas de Video: Filtros de VRAM (4GB-24GB) y Serie (RTX 3050-5080, RX 6600-7900, Arc A750/A770) en placas-de-video y PC Builder GPU slot. Marcas nuevas: PowerColor, Sapphire, INNO3D. VRAM matchFn valida que el producto sea GPU (keywords RTX/GTX/RADEON) para no confundir con RAM de notebooks. (3) Notebooks: Filtros completos de procesador (i3/i5/i7/i9/Ryzen 3/5/7/9), RAM, pantalla y GPU en notebooks, oficina y gamer-y-diseno. Procesador usa matchFn granular por modelo. (4) FIX MONITORES: 77 productos mal categorizados eliminados (TVs, notebooks, all-in-ones, proyectores, cables, soportes, etc.). 35+ nuevas reglas de exclusion en validate-categories + sync CATEGORY_CORRECTIONS para prevenir recurrencia. La sync de proveedores ya no volvera a contaminar la categoria monitores. Commits: 29b90bf, 2f14b97, b1418bc, 7535f61, 89e5c65
 - **2026-06-07 (s27):** 8 mejoras + filtros desplegables + limpieza masiva categorias. (1) PC Builder: SSD/HDD permiten multiples modelos diferentes (cada disco con su propio +/- y eliminar). (2) PC Builder: Gabinete incluye subcategoria "Gabinetes con Fuente" (additionalCategorySlugs). (3) PC Builder: Auto-avance al siguiente slot despues de seleccionar (excepto SSD/HDD que permiten agregar mas). (4) PC Builder: PDF y WhatsApp separados en botones distintos. (5) ProductCard: Removido indicador de stock visible al publico (solo queda overlay "Sin stock" cuando stock<=0). (6) Filtros: Monitores agrega 19", 22", 100Hz, 144Hz, 165Hz, 180Hz. (7) Filtros desplegables: Marcas convertidas de pills a <select> dropdowns en discos SSD, HDD, fuentes, gabinetes, refrigeracion, monitores y placas de red. (8) Fix bug: Editar producto de proveedor causaba que la imagen desapareciera (parsing de images con null guards). (9) LIMPIEZA MASIVA CATEGORIAS: 66 productos mal categorizados corregidos (cables/fans en Monitores, chargers/baterias en Notebooks, PCs completas en Discos SSD, etc.). 40+ nuevas reglas de correccion automatica en sync y validate-categories para prevenir futuras miscategorizaciones. Commits: bd8b2af, e387267, 8e22577, f4e65c7, 0bda50d, 2a0fe2b
 - **2026-06-07 (s26):** Stock por deposito Cordoba (cba) - sin stock local = sin stock en tienda. (1) Nuevo campo DB: `stockByWarehouse TEXT` en products (migracion #22). Guarda JSON con stock por deposito de Air Intra: `{"air":5,"lug":0,"ros":2,"cba":0,"mza":0}`. (2) Sync Air Intra: `stock` ahora usa `cba.disponible` en vez de sumar todos los depositos. Si no hay stock en Cordoba, el producto aparece como "Sin stock". 6 ubicaciones de totalStock modificadas en route.ts. (3) Elit e Invid sin cambios (no tienen datos por deposito). (4) IMPORTANTE: Hay que re-sincronizar Air Intra para actualizar el stock con la nueva logica. Commit: b4c90a8
 - **2026-06-07 (s25):** Actualizacion PROJECT_STATUS.md con analisis de limites Vercel/Turso, backups remotos GoFile, y documentacion completa de sesion 25. Sin cambios de codigo. Commit: 561c898
