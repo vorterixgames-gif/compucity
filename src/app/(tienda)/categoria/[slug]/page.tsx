@@ -52,7 +52,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
       sql: 'SELECT id, name, slug FROM categories WHERE parentId = ? AND enabled = 1 ORDER BY name',
       args: [currentCategory.id],
     })
-    subcategories = subResult.rows as any[]
+    subcategories = (subResult.rows as any[]).map(r => ({ id: String(r.id), name: String(r.name), slug: String(r.slug) }))
 
     // Check if this is a subcategory → get parent and siblings
     if (currentCategory.parentId && subcategories.length === 0) {
@@ -60,7 +60,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
         sql: 'SELECT id, name, slug FROM categories WHERE id = ? AND enabled = 1',
         args: [currentCategory.parentId],
       })
-      parentCategory = (parentResult.rows as any[])[0] || null
+      parentCategory = (parentResult.rows as any[]).map(r => ({ id: String(r.id), name: String(r.name), slug: String(r.slug) }))[0] || null
 
       // Get siblings (other enabled subcategories of the same parent)
       if (parentCategory) {
@@ -68,7 +68,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
           sql: 'SELECT id, name, slug FROM categories WHERE parentId = ? AND enabled = 1 ORDER BY name',
           args: [parentCategory.id],
         })
-        subcategories = siblingsResult.rows as any[]
+        subcategories = (siblingsResult.rows as any[]).map(r => ({ id: String(r.id), name: String(r.name), slug: String(r.slug) }))
       }
     } else if (subcategories.length > 0) {
       parentCategory = currentCategory
@@ -132,7 +132,7 @@ export default async function CategoryPage({ params, searchParams }: Props) {
           }))}
           subcategories={subcategories}
           currentCategory={currentCategory ? { id: currentCategory.id, name: currentCategory.name, slug: currentCategory.slug } : null}
-          parentCategory={parentCategory}
+          parentCategory={parentCategory ? { id: parentCategory.id, name: parentCategory.name, slug: parentCategory.slug } : null}
           categorySlug={slug}
           categoryName={categoryName}
           searchQuery={q ?? null}
