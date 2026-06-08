@@ -522,18 +522,32 @@ export async function PUT(request: NextRequest) {
     if (isActive !== undefined) { fields.push('isActive = ?'); values.push(isActive ? 1 : 0) }
     if (isFeatured !== undefined) { fields.push('isFeatured = ?'); values.push(isFeatured ? 1 : 0) }
     if (images !== undefined) {
-      // Safety check: if images is empty and product had images, log a warning
+      // Safety check: if images is empty and product had images, PRESERVE existing images
+      // This prevents accidental image loss when admin edits a product without touching images
+      // To explicitly clear images, the client must send clearImages: true
       if (images === '[]') {
         const currentImages = await db.execute({
           sql: 'SELECT images FROM products WHERE id = ?',
           args: [id],
         })
         const currentRow = (currentImages.rows as any[])[0]
-        if (currentRow?.images && currentRow.images !== '[]') {
-          console.warn(`[products PUT] Product ${id}: images being cleared (was: ${currentRow.images?.substring(0, 100)}...)`)
+        if (currentRow?.images && currentRow.images !== '[]' && currentRow.images !== 'null') {
+          // Check if client explicitly wants to clear images
+          if (body.clearImages === true) {
+            console.warn(`[products PUT] Product ${id}: images EXPLICITLY cleared (was: ${currentRow.images?.substring(0, 100)}...)`)
+            fields.push('images = ?'); values.push(images)
+          } else {
+            // Preserve existing images - don't include images in the update
+            console.warn(`[products PUT] Product ${id}: images would be cleared but PRESERVED (was: ${currentRow.images?.substring(0, 100)}...). Send clearImages: true to explicitly remove.`)
+          }
+        } else {
+          // Product already has no images, safe to set
+          fields.push('images = ?'); values.push(images)
         }
+      } else {
+        // Non-empty images array - always update
+        fields.push('images = ?'); values.push(images)
       }
-      fields.push('images = ?'); values.push(images)
     }
     if (specs !== undefined) { fields.push('specs = ?'); values.push(specs) }
     if (providerId !== undefined) { fields.push('providerId = ?'); values.push(providerId) }

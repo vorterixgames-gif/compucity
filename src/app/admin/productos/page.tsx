@@ -584,6 +584,10 @@ export default function AdminProductos() {
       const imagesJson = JSON.stringify(form.imageUrls)
       console.log('[productos] Saving with images:', form.imageUrls, '-> JSON:', imagesJson)
 
+      // Track if user explicitly removed all images (allows backend to distinguish
+      // accidental clear from intentional removal)
+      const clearImages = editingId && form.imageUrls.length === 0
+
       const payload = {
         ...(editingId ? { id: editingId } : {}),
         name: form.name.trim(),
@@ -596,6 +600,7 @@ export default function AdminProductos() {
         isActive: form.isActive,
         isFeatured: form.isFeatured,
         images: imagesJson,
+        clearImages,
         specs: form.specs,
         providerId: form.providerId.trim() || null,
         providerSku: form.providerSku.trim() || null,
