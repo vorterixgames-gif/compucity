@@ -3,6 +3,7 @@ import BrandLogos from '@/components/layout/BrandLogos'
 import ProductCard from '@/components/ui-custom/ProductCard'
 import HeroSection from '@/components/ui-custom/HeroSection'
 import PromoBanners from '@/components/ui-custom/PromoBanners'
+import FeaturedProductsCarousel from '@/components/ui-custom/FeaturedProductsCarousel'
 import { getFeaturedProducts, getAllActiveProducts, getTopProductsByCategorySlug } from '@/lib/queries'
 import { ensureMigrations } from '@/lib/db'
 import Link from 'next/link'
@@ -99,29 +100,15 @@ export default async function HomePage() {
       {/* Brand Logos */}
       <BrandLogos />
 
-      {/* Category Icons */}
-      <CategoryIcons />
-
       {/* ==========================================
-          PRODUCTOS DESTACADOS
+          PRODUCTOS DESTACADOS - Carrusel
           ========================================== */}
       {featured.length > 0 && (
-        <section className="py-10 bg-gradient-to-b from-compucity-green-50/30 to-white">
-          <div className="max-w-7xl mx-auto px-4">
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-3">
-                <div className="w-1 h-8 bg-compucity-green-500 rounded-full" />
-                <h2 className="text-2xl md:text-3xl font-bold text-compucity-green-900">Productos Destacados</h2>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
-              {featured.map((product) => (
-                <ProductCard key={product.id} id={product.id} name={product.name} slug={product.slug} price={product.price} comparePrice={product.comparePrice} image={safeParseFirstImage(product.images)} stock={product.stock} isFeatured={true} salePrice={product.salePrice} saleStart={product.saleStart} saleEnd={product.saleEnd} />
-              ))}
-            </div>
-          </div>
-        </section>
+        <FeaturedProductsCarousel products={featured} />
       )}
+
+      {/* Category Icons */}
+      <CategoryIcons />
 
       {/* ==========================================
           ROW 1 - Notebooks
