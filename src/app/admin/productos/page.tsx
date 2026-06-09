@@ -282,6 +282,9 @@ export default function AdminProductos() {
   const [calculatedCashPrice, setCalculatedCashPrice] = useState<number | null>(null)
   const [imageUploading, setImageUploading] = useState(false)
   const [generatingDescription, setGeneratingDescription] = useState(false)
+  const [generatingAiId, setGeneratingAiId] = useState<string | null>(null)
+  const [batchAiLoading, setBatchAiLoading] = useState(false)
+  const [batchAiResult, setBatchAiResult] = useState<string | null>(null)
 
   const loadProducts = useCallback(async (opts?: { page?: number; limit?: number; search?: string; filters?: Filters; sortColumn?: SortColumn; sortDirection?: SortDirection }) => {
     const currentPage = opts?.page ?? pagination.page
@@ -659,7 +662,41 @@ export default function AdminProductos() {
           <h1 className="text-2xl font-bold text-gray-900">Productos</h1>
           <p className="text-sm text-gray-500">{pagination.total.toLocaleString('es-AR')} productos en total</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            className="gap-2"
+            disabled={batchAiLoading}
+            onClick={async () => {
+              setBatchAiLoading(true)
+              setBatchAiResult(null)
+              try {
+                const res = await fetch('/api/generate-description', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ batch: true }),
+                })
+                const data = await res.json()
+                if (data.ok) {
+                  setBatchAiResult(`${data.updated} descripciones generadas de ${data.total} productos`)
+                  loadProducts()
+                } else {
+                  setBatchAiResult(`Error: ${data.error}`)
+                }
+              } catch (error) {
+                setBatchAiResult('Error de conexión')
+              } finally {
+                setBatchAiLoading(false)
+                setTimeout(() => setBatchAiResult(null), 5000)
+              }
+            }}
+          >
+            {batchAiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {batchAiLoading ? 'Generando...' : 'Descripciones IA'}
+          </Button>
+          {batchAiResult && (
+            <span className="text-xs text-compucity-green font-medium">{batchAiResult}</span>
+          )}
           <a
             href="/api/admin/export/products"
             target="_blank"
@@ -973,6 +1010,30 @@ export default function AdminProductos() {
 
                 {/* Actions row */}
                 <div className="flex items-center justify-end gap-1 pt-1 border-t">
+                  {!product.description && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={generatingAiId === product.id}
+                      onClick={async () => {
+                        setGeneratingAiId(product.id)
+                        try {
+                          const res = await fetch('/api/generate-description', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ productId: product.id }),
+                          })
+                          const data = await res.json()
+                          if (data.ok) loadProducts()
+                        } catch {} finally { setGeneratingAiId(null) }
+                      }}
+                      className="h-7 text-xs gap-1 text-violet-600 hover:text-violet-700 border-violet-200 hover:border-violet-300"
+                      title="Generar descripción con IA"
+                    >
+                      {generatingAiId === product.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                      IA
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
@@ -1197,6 +1258,29 @@ export default function AdminProductos() {
                       </td>
                       <td className="p-2 align-middle text-center">
                         <div className="flex items-center justify-center gap-0.5">
+                          {!product.description && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={generatingAiId === product.id}
+                              onClick={async () => {
+                                setGeneratingAiId(product.id)
+                                try {
+                                  const res = await fetch('/api/generate-description', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ productId: product.id }),
+                                  })
+                                  const data = await res.json()
+                                  if (data.ok) loadProducts()
+                                } catch {} finally { setGeneratingAiId(null) }
+                              }}
+                              title="Generar descripción con IA"
+                              className="h-7 w-7 text-violet-500 hover:text-violet-700"
+                            >
+                              {generatingAiId === product.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
