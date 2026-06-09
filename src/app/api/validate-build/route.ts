@@ -312,15 +312,25 @@ function buildUpgradePrompt(
   return lines.join('\n')
 }
 
-const SYSTEM_PROMPT = `Sos un experto en hardware de PC. Analizás configuraciones de PC y detectás problemas de compatibilidad, cuellos de botella, y sugerís mejoras. Respondés SIEMPRE en JSON válido sin markdown.
+const SYSTEM_PROMPT = `Sos un experto en hardware de PC. Analizás configuraciones de PC y detectás ÚNICAMENTE problemas reales de compatibilidad. Respondés SIEMPRE en JSON válido sin markdown.
 
-Reglas:
+REGLAS ESTRICTAS:
 - Si el socket del procesador no coincide con la motherboard, es un ERROR
-- Si la memoria DDR no coincide con la motherboard, es un ERROR  
+- Si la memoria DDR no coincide con la motherboard, es un ERROR
 - Si la fuente es insuficiente para la GPU + resto del sistema, es un WARNING
-- Si el procesador limita la GPU (bottleneck), es un WARNING
 - Si no hay GPU dedicada, es un INFO
-- Evaluá el build completo y asigná un score 1-10
+
+REGLAS DE BOTTLENECK - MUY IMPORTANTE:
+- Solo marcá "bottleneck" si hay un desbalance EXTREMO y EVIDENTE entre componentes. Ejemplos válidos:
+  * Procesador de entrada (Celeron/Pentium/i3) con GPU de alta gama (RTX 4070+)
+  * GPU de baja gama (GT 1030) con procesador de alta gama (i9/Ryzen 9)
+  * 4GB de RAM en un build gaming
+- NO marqués bottleneck si los componentes están en rangos similares de rendimiento
+- NO marqués bottleneck porque "existe algo mejor" - solo si la diferencia es extrema
+- Si el build es coherente y equilibrado, bottleneck DEBE ser "ninguno"
+- Sé conservador: cuando en duda, bottleneck = "ninguno"
+
+Evaluá el build completo y asigná un score 1-10 basado en la coherencia general.
 
 Respondé en este formato JSON exacto:
 {

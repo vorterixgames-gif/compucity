@@ -93,3 +93,25 @@ Session 32 Summary:
 - Features: PC Builder AI analysis + Product description generation
 - Both use z-ai-web-dev-sdk (backend only)
 - Feature flag: ai_enabled in store_config
+---
+Task ID: 1
+Agent: main
+Task: Fix AI panel aesthetics and recommendation loop in Arma tu PC
+
+Work Log:
+- Replaced all purple/indigo colors in AI analysis panel with Compucity green brand colors (bg-compucity-green-*, text-compucity-green-*)
+- Changed "Analizar mi build con IA" button gradient from purple/indigo to Compucity green
+- Updated upgrade product cards to use Compucity green borders, text, and hover states
+- Updated use_case badge from purple to Compucity green
+- Fixed AI recommendation loop by rewriting the system prompt to be conservative about bottleneck detection
+- Added strict rules: only flag bottleneck for EXTREME mismatches (e.g., Celeron with RTX 4070+), not "could be better"
+- When user applies an upgrade product, analysis is preserved (not cleared) and shows "Mejora aplicada" confirmation
+- Hidden bottleneck/upgrade sections after upgrade is applied, showing only confirmation + "Re-analizar" button
+- Used React.useRef to track applied upgrade IDs so the useEffect doesn't clear analysis on component change
+
+Stage Summary:
+- AI panel now matches Compucity brand aesthetics (green instead of purple/indigo)
+- AI no longer flags minor imbalances as bottlenecks, preventing the infinite recommendation loop
+- When user clicks "Usar" on a recommended upgrade, analysis stays visible with confirmation message
+- User can manually click "Re-analizar" to verify the build after applying a recommendation
+- Build compiles successfully

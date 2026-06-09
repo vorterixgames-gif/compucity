@@ -417,9 +417,16 @@ export default function ArmaTuPCPage() {
     loadProducts()
   }, [loadProducts])
 
-  // Clear AI analysis when components change
+  // Clear AI analysis when components change, BUT NOT when applying an upgrade recommendation
+  const appliedUpgradeIdsRef = React.useRef<Set<string>>(new Set())
   useEffect(() => {
-    setAiAnalysis(null)
+    // Don't clear analysis if the change was from applying an AI upgrade
+    const wasUpgradeApplied = selectedComponents.some(c => appliedUpgradeIdsRef.current.has(c.product.id))
+    if (!wasUpgradeApplied) {
+      setAiAnalysis(null)
+    }
+    // After processing, clear the ref for next time
+    appliedUpgradeIdsRef.current.clear()
   }, [selectedComponents])
 
   const selectProduct = (product: BuilderProduct) => {
@@ -1466,7 +1473,7 @@ export default function ArmaTuPCPage() {
                         </div>
                         <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{aiAnalysis.summary}</p>
                         {aiAnalysis.use_case && (
-                          <span className="inline-block mt-1.5 text-[10px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 font-medium">
+                          <span className="inline-block mt-1.5 text-[10px] px-2 py-0.5 rounded-full bg-compucity-green-50 text-compucity-green-600 font-medium">
                             {aiAnalysis.use_case === 'gaming' ? 'Gaming' : aiAnalysis.use_case === 'oficina' ? 'Oficina' : aiAnalysis.use_case === 'edicion' ? 'Edicion' : 'General'}
                           </span>
                         )}
@@ -1502,8 +1509,8 @@ export default function ArmaTuPCPage() {
                       </div>
                     )}
 
-                    {/* Bottleneck highlight */}
-                    {aiAnalysis.bottleneck && aiAnalysis.bottleneck !== 'ninguno' && (
+                    {/* Bottleneck highlight - only show if upgrade not yet applied */}
+                    {!aiAnalysis._upgradeApplied && aiAnalysis.bottleneck && aiAnalysis.bottleneck !== 'ninguno' && (
                       <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl px-3 py-2.5">
                         <div className="flex items-center gap-1.5 mb-1">
                           <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
@@ -1515,8 +1522,8 @@ export default function ArmaTuPCPage() {
                       </div>
                     )}
 
-                    {/* Upgrade suggestion */}
-                    {aiAnalysis.upgrade_suggestion && (
+                    {/* Upgrade suggestion - only show if upgrade not yet applied */}
+                    {!aiAnalysis._upgradeApplied && aiAnalysis.upgrade_suggestion && (
                       <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl px-3 py-2.5">
                         <div className="flex items-center gap-1.5 mb-1">
                           <Zap className="w-3.5 h-3.5 text-green-500" />
@@ -1526,12 +1533,25 @@ export default function ArmaTuPCPage() {
                       </div>
                     )}
 
-                    {/* Upgrade products as clickable cards with images */}
-                    {aiAnalysis.upgrade_products && aiAnalysis.upgrade_products.length > 0 && (
+                    {/* Upgrade applied confirmation */}
+                    {aiAnalysis._upgradeApplied && (
+                      <div className="bg-gradient-to-r from-compucity-green-50 to-compucity-green-100 border border-compucity-green-200 rounded-xl px-3 py-2.5">
+                        <div className="flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-compucity-green-600" />
+                          <span className="text-xs font-bold text-compucity-green-800">Mejora aplicada</span>
+                        </div>
+                        <p className="text-[11px] text-compucity-green-700 leading-snug mt-0.5">
+                          Se reemplazó por <strong>{aiAnalysis._appliedProductName}</strong>. Podés volver a analizar para verificar el build.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Upgrade products as clickable cards with images - only show if no upgrade applied yet */}
+                    {!aiAnalysis._upgradeApplied && aiAnalysis.upgrade_products && aiAnalysis.upgrade_products.length > 0 && (
                       <div>
                         <div className="flex items-center gap-1.5 mb-2">
-                          <ShoppingCart className="w-3.5 h-3.5 text-indigo-500" />
-                          <span className="text-xs font-bold text-indigo-800">Alternativas en la tienda</span>
+                          <ShoppingCart className="w-3.5 h-3.5 text-compucity-green-500" />
+                          <span className="text-xs font-bold text-compucity-green-800">Alternativas en la tienda</span>
                         </div>
                         <div className="space-y-2">
                           {aiAnalysis.upgrade_products.map((product: any, i: number) => {
@@ -1560,34 +1580,41 @@ export default function ArmaTuPCPage() {
                                     specs: product.specs || '{}',
                                     _calculated: true,
                                   }
+                                  // Mark this product as an AI-applied upgrade so we don't clear the analysis
+                                  appliedUpgradeIdsRef.current.add(product.id)
                                   setSelectedComponents(prev => {
                                     const filtered = prev.filter(c => c.slot !== targetSlot)
                                     return [...filtered, { slot: targetSlot, product: builderProduct, quantity: 1 }]
                                   })
-                                  setAiAnalysis(null)
+                                  // Update the analysis to show the upgrade was applied instead of clearing it
+                                  setAiAnalysis((prev: any) => prev ? {
+                                    ...prev,
+                                    _upgradeApplied: true,
+                                    _appliedProductName: product.name,
+                                  } : null)
                                 }}
-                                className="w-full flex items-center gap-3 p-2.5 bg-white border border-indigo-200 rounded-xl hover:border-indigo-400 hover:shadow-md transition-all text-left group"
+                                className="w-full flex items-center gap-3 p-2.5 bg-white border border-compucity-green-200 rounded-xl hover:border-compucity-green-400 hover:shadow-md transition-all text-left group"
                               >
                                 {/* Product image */}
                                 <div className="w-12 h-12 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
                                   {productImage ? (
                                     <img src={productImage} alt="" className="w-full h-full object-contain p-1" />
                                   ) : (
-                                    <span className="text-indigo-400 font-bold text-sm">#{i + 1}</span>
+                                    <span className="text-compucity-green-400 font-bold text-sm">#{i + 1}</span>
                                   )}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-semibold text-gray-800 truncate group-hover:text-indigo-700 transition">{product.name}</p>
+                                  <p className="text-xs font-semibold text-gray-800 truncate group-hover:text-compucity-green-700 transition">{product.name}</p>
                                   {product.reason && (
                                     <p className="text-[10px] text-gray-500 mt-0.5 line-clamp-1">{product.reason}</p>
                                   )}
-                                  <p className="text-xs font-bold text-indigo-600 mt-0.5">
+                                  <p className="text-xs font-bold text-compucity-green-600 mt-0.5">
                                     {formatPrice(displayPrice)}
                                     {product.comparePrice && <span className="text-[9px] text-gray-400 font-normal ml-1">efectivo</span>}
                                   </p>
                                 </div>
                                 <div className="shrink-0">
-                                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-semibold group-hover:bg-indigo-100 transition">
+                                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-compucity-green-50 text-compucity-green-600 rounded-lg text-[10px] font-semibold group-hover:bg-compucity-green-100 transition">
                                     <Check className="w-3 h-3" />
                                     Usar
                                   </span>
@@ -1599,13 +1626,28 @@ export default function ArmaTuPCPage() {
                       </div>
                     )}
 
-                    {/* Re-analyze button */}
-                    <button
-                      onClick={() => setAiAnalysis(null)}
-                      className="w-full text-center text-[11px] text-gray-400 hover:text-gray-600 transition py-1"
-                    >
-                      Cerrar analisis
-                    </button>
+                    {/* Re-analyze / Close button */}
+                    <div className="flex gap-2">
+                      {aiAnalysis._upgradeApplied && (
+                        <button
+                          onClick={() => {
+                            setAiAnalysis(null)
+                            // Trigger re-analysis after a short delay
+                            setTimeout(() => analyzeBuild(), 100)
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold bg-compucity-green-50 text-compucity-green-700 hover:bg-compucity-green-100 transition border border-compucity-green-200"
+                        >
+                          <Brain className="w-3.5 h-3.5" />
+                          Re-analizar
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setAiAnalysis(null)}
+                        className={`${aiAnalysis._upgradeApplied ? '' : 'w-full'} text-center text-[11px] text-gray-400 hover:text-gray-600 transition py-1`}
+                      >
+                        Cerrar analisis
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="px-5 py-3">
@@ -1615,7 +1657,7 @@ export default function ArmaTuPCPage() {
                       className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
                         selectedComponents.length < 3 || aiLoading
                           ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                          : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]'
+                          : 'bg-gradient-to-r from-compucity-green-600 to-compucity-green-700 hover:from-compucity-green-700 hover:to-compucity-green-800 text-white shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]'
                       }`}
                     >
                       {aiLoading ? (
