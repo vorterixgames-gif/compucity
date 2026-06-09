@@ -212,8 +212,8 @@ async function fetchProductsForSlot(
   slotKey: string,
   categorySlug: string,
   additionalSlugs: string[] = [],
-  minPrice?: number,
-  maxPrice?: number,
+  _minPrice?: number,  // unused — price filtering done in ARS after calculatePrices
+  _maxPrice?: number,  // unused — price filtering done in ARS after calculatePrices
   compatFilters?: { socket?: string; ddr?: string }
 ): Promise<ProductRow[]> {
   try {
@@ -257,15 +257,9 @@ async function fetchProductsForSlot(
     `
     const args: any[] = [...categoryIds]
 
-    // Price range filter
-    if (minPrice !== undefined && minPrice > 0) {
-      query += ' AND p.price >= ?'
-      args.push(minPrice)
-    }
-    if (maxPrice !== undefined && maxPrice > 0) {
-      query += ' AND p.price <= ?'
-      args.push(maxPrice)
-    }
+    // NOTE: Price filtering is done AFTER calculatePrices() converts USD → ARS.
+    // The p.price column stores USD values, so SQL-level price filters would
+    // compare ARS budgets against USD prices and exclude everything.
 
     // Compatibility filters for motherboards
     if (slotKey === 'motherboard' && compatFilters?.socket) {
@@ -289,7 +283,7 @@ async function fetchProductsForSlot(
       args.push(`%${compatFilters.ddr}%`)
     }
 
-    query += ' ORDER BY p.price ASC LIMIT 30'
+    query += ' ORDER BY p.price ASC LIMIT 60'
 
     const result = await db.execute({ sql: query, args })
     const products = (result.rows as any[]).filter(p => !isExcludedFromBuilder(slotKey, p.name))
@@ -348,6 +342,26 @@ async function calculatePrices(products: ProductRow[]): Promise<Map<string, { pr
 }
 
 // ============================================
+// ARS Price Filtering (after calculatePrices)
+// ============================================
+
+function filterByArsPrice(
+  products: ProductRow[],
+  priceMap: Map<string, { price: number; comparePrice: number }>,
+  minArs?: number,
+  maxArs?: number
+): ProductRow[] {
+  return products.filter(p => {
+    const prices = priceMap.get(p.id)
+    if (!prices) return false
+    const arsPrice = prices.comparePrice || prices.price
+    if (minArs && arsPrice < minArs) return false
+    if (maxArs && arsPrice > maxArs) return false
+    return true
+  })
+}
+
+// ============================================
 // Build Configuration
 // ============================================
 
@@ -380,16 +394,28 @@ async function buildConfiguration(
   const processorAlloc = allocations['processor']
   if (!processorAlloc) return null
 
-  const processorProducts = await fetchProductsForSlot(
-    'processor', 'microprocesadores', [],
-    processorAlloc.min * 0.5, processorAlloc.max
+  const processorProductsRaw = await fetchProductsForSlot(
+    'processor', 'microprocesadores', []
   )
 
-  if (processorProducts.length === 0) return null
+  if (processorProductsRaw.length === 0) {
+    console.warn('[pc-assistant] No processor products found in DB')
+    return null
+  }
 
-  const processorPrices = await calculatePrices(processorProducts)
-  // Pick the product closest to our allocation (prefer slightly above for better value)
-  const processor = pickBestProduct(processorProducts, processorPrices, processorAlloc.min, processorAlloc.max)
+  const processorPrices = await calculatePrices(processorProductsRaw)
+  // Filter by ARS price range AFTER conversion
+  const processorProducts = filterByArsPrice(processorProductsRaw, processorPrices, processorAlloc.min * 0.5, processorAlloc.max)
+  console.log(`[pc-assistant] Processors: ${processorProductsRaw.length} raw → ${processorProducts.length} in ARS range [${Math.round(processorAlloc.min * 0.5)}-${Math.round(processorAlloc.max)}]`)
+
+  // Pick the product closest to our allocation; if none in ideal range, relax constraints
+  const processor = processorProducts.length > 0
+    ? pickBestProduct(processorProducts, processorPrices, processorAlloc.min, processorAlloc.max)
+    : (() => {
+        // Fallback: pick cheapest available within 1.5x max
+        const relaxed = filterByArsPrice(processorProductsRaw, processorPrices, undefined, processorAlloc.max * 1.5)
+        return relaxed.length > 0 ? relaxed[0] : null
+      })()
   if (!processor) return null
 
   const processorPriceInfo = processorPrices.get(processor.id)!
@@ -414,16 +440,27 @@ async function buildConfiguration(
   const mbAlloc = allocations['motherboard']
   if (!mbAlloc) return null
 
-  const mbProducts = await fetchProductsForSlot(
+  const mbProductsRaw = await fetchProductsForSlot(
     'motherboard', 'motherboards', [],
-    mbAlloc.min * 0.5, mbAlloc.max,
+    undefined, undefined,
     processorSocket ? { socket: processorSocket } : undefined
   )
 
-  if (mbProducts.length === 0) return null
+  if (mbProductsRaw.length === 0) {
+    console.warn('[pc-assistant] No motherboard products found for socket:', processorSocket)
+    return null
+  }
 
-  const mbPrices = await calculatePrices(mbProducts)
-  const motherboard = pickBestProduct(mbProducts, mbPrices, mbAlloc.min * 0.5, mbAlloc.max)
+  const mbPrices = await calculatePrices(mbProductsRaw)
+  const mbProducts = filterByArsPrice(mbProductsRaw, mbPrices, mbAlloc.min * 0.3, mbAlloc.max)
+  console.log(`[pc-assistant] Motherboards: ${mbProductsRaw.length} raw → ${mbProducts.length} in ARS range`)
+
+  const motherboard = mbProducts.length > 0
+    ? pickBestProduct(mbProducts, mbPrices, mbAlloc.min * 0.3, mbAlloc.max)
+    : (() => {
+        const relaxed = filterByArsPrice(mbProductsRaw, mbPrices, undefined, mbAlloc.max * 1.5)
+        return relaxed.length > 0 ? relaxed[0] : null
+      })()
   if (!motherboard) return null
 
   const mbPriceInfo = mbPrices.get(motherboard.id)!
@@ -448,16 +485,27 @@ async function buildConfiguration(
   const ramAlloc = allocations['ram']
   if (!ramAlloc) return null
 
-  const ramProducts = await fetchProductsForSlot(
+  const ramProductsRaw = await fetchProductsForSlot(
     'ram', 'memorias-ram', [],
-    ramAlloc.min * 0.3, ramAlloc.max,
+    undefined, undefined,
     motherboardDdr ? { ddr: motherboardDdr } : undefined
   )
 
-  if (ramProducts.length === 0) return null
+  if (ramProductsRaw.length === 0) {
+    console.warn('[pc-assistant] No RAM products found for DDR:', motherboardDdr)
+    return null
+  }
 
-  const ramPrices = await calculatePrices(ramProducts)
-  const ram = pickBestProduct(ramProducts, ramPrices, ramAlloc.min * 0.3, ramAlloc.max)
+  const ramPrices = await calculatePrices(ramProductsRaw)
+  const ramProducts = filterByArsPrice(ramProductsRaw, ramPrices, ramAlloc.min * 0.2, ramAlloc.max)
+  console.log(`[pc-assistant] RAM: ${ramProductsRaw.length} raw → ${ramProducts.length} in ARS range`)
+
+  const ram = ramProducts.length > 0
+    ? pickBestProduct(ramProducts, ramPrices, ramAlloc.min * 0.2, ramAlloc.max)
+    : (() => {
+        const relaxed = filterByArsPrice(ramProductsRaw, ramPrices, undefined, ramAlloc.max * 1.5)
+        return relaxed.length > 0 ? relaxed[0] : null
+      })()
   if (!ram) return null
 
   const ramPriceInfo = ramPrices.get(ram.id)!
@@ -481,14 +529,21 @@ async function buildConfiguration(
     const gpuAlloc = allocations['gpu']
     if (!gpuAlloc) return null
 
-    const gpuProducts = await fetchProductsForSlot(
-      'gpu', 'placas-de-video', [],
-      gpuAlloc.min * 0.5, gpuAlloc.max
+    const gpuProductsRaw = await fetchProductsForSlot(
+      'gpu', 'placas-de-video', []
     )
 
-    if (gpuProducts.length > 0) {
-      const gpuPrices = await calculatePrices(gpuProducts)
-      const gpu = pickBestProduct(gpuProducts, gpuPrices, gpuAlloc.min * 0.3, gpuAlloc.max)
+    if (gpuProductsRaw.length > 0) {
+      const gpuPrices = await calculatePrices(gpuProductsRaw)
+      const gpuProducts = filterByArsPrice(gpuProductsRaw, gpuPrices, gpuAlloc.min * 0.2, gpuAlloc.max)
+      console.log(`[pc-assistant] GPU: ${gpuProductsRaw.length} raw → ${gpuProducts.length} in ARS range`)
+
+      const gpu = gpuProducts.length > 0
+        ? pickBestProduct(gpuProducts, gpuPrices, gpuAlloc.min * 0.2, gpuAlloc.max)
+        : (() => {
+            const relaxed = filterByArsPrice(gpuProductsRaw, gpuPrices, undefined, gpuAlloc.max * 1.5)
+            return relaxed.length > 0 ? relaxed[0] : null
+          })()
 
       if (gpu) {
         const gpuPriceInfo = gpuPrices.get(gpu.id)!
@@ -516,15 +571,22 @@ async function buildConfiguration(
   const ssdAlloc = allocations['ssd']
   if (!ssdAlloc) return null
 
-  const ssdProducts = await fetchProductsForSlot(
-    'ssd', 'discos-ssd', [],
-    ssdAlloc.min * 0.3, ssdAlloc.max
+  const ssdProductsRaw = await fetchProductsForSlot(
+    'ssd', 'discos-ssd', []
   )
 
-  if (ssdProducts.length === 0) return null
+  if (ssdProductsRaw.length === 0) return null
 
-  const ssdPrices = await calculatePrices(ssdProducts)
-  const ssd = pickBestProduct(ssdProducts, ssdPrices, ssdAlloc.min * 0.3, ssdAlloc.max)
+  const ssdPrices = await calculatePrices(ssdProductsRaw)
+  const ssdProducts = filterByArsPrice(ssdProductsRaw, ssdPrices, ssdAlloc.min * 0.2, ssdAlloc.max)
+  console.log(`[pc-assistant] SSD: ${ssdProductsRaw.length} raw → ${ssdProducts.length} in ARS range`)
+
+  const ssd = ssdProducts.length > 0
+    ? pickBestProduct(ssdProducts, ssdPrices, ssdAlloc.min * 0.2, ssdAlloc.max)
+    : (() => {
+        const relaxed = filterByArsPrice(ssdProductsRaw, ssdPrices, undefined, ssdAlloc.max * 1.5)
+        return relaxed.length > 0 ? relaxed[0] : null
+      })()
   if (!ssd) return null
 
   const ssdPriceInfo = ssdPrices.get(ssd.id)!
@@ -547,18 +609,26 @@ async function buildConfiguration(
   const psuAlloc = allocations['psu']
   if (!psuAlloc) return null
 
-  const psuProducts = await fetchProductsForSlot(
-    'psu', 'fuentes', [],
-    psuAlloc.min * 0.5, psuAlloc.max
+  const psuProductsRaw = await fetchProductsForSlot(
+    'psu', 'fuentes', []
   )
 
-  if (psuProducts.length === 0) return null
+  if (psuProductsRaw.length === 0) return null
 
-  const psuPrices = await calculatePrices(psuProducts)
+  const psuPrices = await calculatePrices(psuProductsRaw)
+  const psuProducts = filterByArsPrice(psuProductsRaw, psuPrices, psuAlloc.min * 0.3, psuAlloc.max)
+  console.log(`[pc-assistant] PSU: ${psuProductsRaw.length} raw → ${psuProducts.length} in ARS range`)
+
   // If we know the GPU wattage, prefer PSUs that can handle it
   const psu = gpuMinWattage
-    ? pickPsuWithWattage(psuProducts, psuPrices, psuAlloc.min * 0.5, psuAlloc.max, gpuMinWattage)
-    : pickBestProduct(psuProducts, psuPrices, psuAlloc.min * 0.5, psuAlloc.max)
+    ? pickPsuWithWattage(psuProducts.length > 0 ? psuProducts : psuProductsRaw, psuPrices, psuAlloc.min * 0.3, psuAlloc.max, gpuMinWattage)
+    : (psuProducts.length > 0
+        ? pickBestProduct(psuProducts, psuPrices, psuAlloc.min * 0.3, psuAlloc.max)
+        : (() => {
+            const relaxed = filterByArsPrice(psuProductsRaw, psuPrices, undefined, psuAlloc.max * 1.5)
+            return relaxed.length > 0 ? relaxed[0] : null
+          })()
+      )
 
   if (!psu) return null
 
@@ -582,14 +652,21 @@ async function buildConfiguration(
   const caseAlloc = allocations['case']
   if (!caseAlloc) return null
 
-  const caseProducts = await fetchProductsForSlot(
-    'case', 'gabinetes', ['gabinetes-con-fuente'],
-    caseAlloc.min * 0.3, caseAlloc.max
+  const caseProductsRaw = await fetchProductsForSlot(
+    'case', 'gabinetes', ['gabinetes-con-fuente']
   )
 
-  if (caseProducts.length > 0) {
-    const casePrices = await calculatePrices(caseProducts)
-    const caseProduct = pickBestProduct(caseProducts, casePrices, caseAlloc.min * 0.3, caseAlloc.max)
+  if (caseProductsRaw.length > 0) {
+    const casePrices = await calculatePrices(caseProductsRaw)
+    const caseProducts = filterByArsPrice(caseProductsRaw, casePrices, caseAlloc.min * 0.2, caseAlloc.max)
+    console.log(`[pc-assistant] Case: ${caseProductsRaw.length} raw → ${caseProducts.length} in ARS range`)
+
+    const caseProduct = caseProducts.length > 0
+      ? pickBestProduct(caseProducts, casePrices, caseAlloc.min * 0.2, caseAlloc.max)
+      : (() => {
+          const relaxed = filterByArsPrice(caseProductsRaw, casePrices, undefined, caseAlloc.max * 1.5)
+          return relaxed.length > 0 ? relaxed[0] : null
+        })()
 
     if (caseProduct) {
       const casePriceInfo = casePrices.get(caseProduct.id)!
@@ -614,14 +691,20 @@ async function buildConfiguration(
   if (profile.cooling > 0) {
     const coolingAlloc = allocations['cooling']
     if (coolingAlloc) {
-      const coolingProducts = await fetchProductsForSlot(
-        'cooling', 'refrigeracion', [],
-        coolingAlloc.min * 0.3, coolingAlloc.max
+      const coolingProductsRaw = await fetchProductsForSlot(
+        'cooling', 'refrigeracion', []
       )
 
-      if (coolingProducts.length > 0) {
-        const coolingPrices = await calculatePrices(coolingProducts)
-        const cooling = pickBestProduct(coolingProducts, coolingPrices, coolingAlloc.min * 0.2, coolingAlloc.max)
+      if (coolingProductsRaw.length > 0) {
+        const coolingPrices = await calculatePrices(coolingProductsRaw)
+        const coolingProducts = filterByArsPrice(coolingProductsRaw, coolingPrices, coolingAlloc.min * 0.1, coolingAlloc.max)
+
+        const cooling = coolingProducts.length > 0
+          ? pickBestProduct(coolingProducts, coolingPrices, coolingAlloc.min * 0.1, coolingAlloc.max)
+          : (() => {
+              const relaxed = filterByArsPrice(coolingProductsRaw, coolingPrices, undefined, coolingAlloc.max * 1.5)
+              return relaxed.length > 0 ? relaxed[0] : null
+            })()
 
         if (cooling) {
           const coolingPriceInfo = coolingPrices.get(cooling.id)!
@@ -649,6 +732,7 @@ async function buildConfiguration(
 
 // Pick the best product within a price range
 // Strategy: prefer the product closest to the middle of the range (best value)
+// All prices (minPrice, maxPrice, priceMap values) are in ARS
 function pickBestProduct(
   products: ProductRow[],
   priceMap: Map<string, { price: number; comparePrice: number }>,
@@ -662,15 +746,30 @@ function pickBestProduct(
   let bestProduct: ProductRow | null = null
   let bestScore = Infinity
 
+  // Also track the cheapest as a fallback
+  let cheapestProduct: ProductRow | null = null
+  let cheapestPrice = Infinity
+
   for (const p of products) {
     const prices = priceMap.get(p.id)
     if (!prices) continue
 
     const price = prices.comparePrice || prices.price
-    if (price < minPrice * 0.3) continue // Too cheap, probably wrong product
+
+    // Track cheapest product as fallback
+    if (price < cheapestPrice) {
+      cheapestPrice = price
+      cheapestProduct = p
+    }
+
+    // Skip products that are way too cheap (probably wrong category match)
+    if (minPrice > 0 && price < minPrice * 0.15) continue
+
+    // Skip products over the max budget (but with 20% tolerance)
+    if (maxPrice > 0 && price > maxPrice * 1.2) continue
 
     // Score: prefer products near the midpoint, slightly favoring higher-priced (better quality)
-    const score = Math.abs(price - midPrice * 0.9) // Slightly below midpoint for value
+    const score = Math.abs(price - midPrice * 0.9)
 
     if (score < bestScore) {
       bestScore = score
@@ -678,9 +777,9 @@ function pickBestProduct(
     }
   }
 
-  // If no product within ideal range, just pick the first one (cheapest available)
-  if (!bestProduct && products.length > 0) {
-    bestProduct = products[0]
+  // If no product scored well, use the cheapest available
+  if (!bestProduct) {
+    bestProduct = cheapestProduct
   }
 
   return bestProduct
