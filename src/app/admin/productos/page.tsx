@@ -24,7 +24,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Sparkles,
-  Camera,
+
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -286,38 +286,6 @@ export default function AdminProductos() {
   const [generatingAiId, setGeneratingAiId] = useState<string | null>(null)
   const [batchAiLoading, setBatchAiLoading] = useState(false)
   const [batchAiResult, setBatchAiResult] = useState<string | null>(null)
-  const [enrichImagesLoading, setEnrichImagesLoading] = useState(false)
-  const [enrichImagesResult, setEnrichImagesResult] = useState<string | null>(null)
-  const [enrichingImageId, setEnrichingImageId] = useState<string | null>(null)
-  const [enrichSingleResult, setEnrichSingleResult] = useState<string | null>(null)
-
-  const handleEnrichSingleImage = async (productId: string, productName: string) => {
-    setEnrichingImageId(productId)
-    setEnrichSingleResult(null)
-    try {
-      const res = await fetch('/api/admin/suppliers/enrich-images', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ batchSize: 1, productIds: [productId] }),
-      })
-      const data = await res.json()
-      if (data.ok) {
-        if (data.enriched > 0) {
-          setEnrichSingleResult(`Foto encontrada para ${productName}`)
-          loadProducts()
-        } else {
-          setEnrichSingleResult(`No se encontró foto para ${productName}`)
-        }
-      } else {
-        setEnrichSingleResult(`Error: ${data.error || 'desconocido'}`)
-      }
-    } catch {
-      setEnrichSingleResult('Error de conexión')
-    } finally {
-      setEnrichingImageId(null)
-      setTimeout(() => setEnrichSingleResult(null), 5000)
-    }
-  }
 
   const loadProducts = useCallback(async (opts?: { page?: number; limit?: number; search?: string; filters?: Filters; sortColumn?: SortColumn; sortDirection?: SortDirection }) => {
     const currentPage = opts?.page ?? pagination.page
@@ -737,47 +705,7 @@ export default function AdminProductos() {
           {batchAiResult && (
             <span className={`text-xs font-medium ${batchAiResult.startsWith('Error') ? 'text-red-500' : 'text-compucity-green'}`}>{batchAiResult}</span>
           )}
-          <Button
-            variant="outline"
-            className="gap-2"
-            disabled={enrichImagesLoading}
-            onClick={async () => {
-              setEnrichImagesLoading(true)
-              setEnrichImagesResult(null)
-              try {
-                const res = await fetch('/api/admin/suppliers/enrich-images', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ batchSize: 20, providerType: 'all' }),
-                })
-                const data = await res.json()
-                if (data.ok) {
-                  if (data.enriched === 0 && data.failed === 0) {
-                    setEnrichImagesResult('Todos los productos ya tienen foto')
-                  } else {
-                    setEnrichImagesResult(`${data.enriched} fotos agregadas de ${data.processed} productos. Quedan ${data.remaining} sin foto.`)
-                  }
-                  if (data.enriched > 0) loadProducts()
-                } else {
-                  setEnrichImagesResult(`Error: ${data.error}`)
-                }
-              } catch (error) {
-                setEnrichImagesResult('Error de conexión')
-              } finally {
-                setEnrichImagesLoading(false)
-                setTimeout(() => setEnrichImagesResult(null), 8000)
-              }
-            }}
-          >
-            {enrichImagesLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
-            {enrichImagesLoading ? 'Buscando...' : 'Fotos IA'}
-          </Button>
-          {enrichImagesResult && (
-            <span className={`text-xs font-medium ${enrichImagesResult.startsWith('Error') ? 'text-red-500' : 'text-compucity-green'}`}>{enrichImagesResult}</span>
-          )}
-          {enrichSingleResult && (
-            <span className={`text-xs font-medium ${enrichSingleResult.startsWith('Error') || enrichSingleResult.startsWith('No se') ? 'text-red-500' : 'text-compucity-green'}`}>{enrichSingleResult}</span>
-          )}
+
           <a
             href="/api/admin/export/products"
             target="_blank"
@@ -1115,19 +1043,7 @@ export default function AdminProductos() {
                       IA
                     </Button>
                   )}
-                  {(!product.images || product.images === '[]') && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={enrichingImageId === product.id}
-                      onClick={() => handleEnrichSingleImage(product.id, product.name)}
-                      className="h-7 text-xs gap-1 text-blue-600 hover:text-blue-700 border-blue-200 hover:border-blue-300"
-                      title="Buscar foto con IA"
-                    >
-                      {enrichingImageId === product.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
-                      Foto
-                    </Button>
-                  )}
+
                   <Button
                     variant="outline"
                     size="sm"
@@ -1375,18 +1291,7 @@ export default function AdminProductos() {
                               {generatingAiId === product.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                             </Button>
                           )}
-                          {(!product.images || product.images === '[]') && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              disabled={enrichingImageId === product.id}
-                              onClick={() => handleEnrichSingleImage(product.id, product.name)}
-                              title="Buscar foto con IA"
-                              className="h-7 w-7 text-blue-500 hover:text-blue-700"
-                            >
-                              {enrichingImageId === product.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
-                            </Button>
-                          )}
+
                           <Button
                             variant="ghost"
                             size="icon"
