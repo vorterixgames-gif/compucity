@@ -220,62 +220,74 @@ export async function POST(request: Request) {
         const cleanName = name.replace(/\s*\((Elit|Air Intra|Invid|Vorterix)\)\s*/g, '').trim()
 
         let imageUrl: string | null = null
+        let imageSource: string = ''
 
         // ============================================================
-        // Strategy 1: Google Images search — get image URLs directly
-        // Search Google Images and try to extract image URLs from results
+        // Strategy 1: Microlink.io — extract product image from e-commerce pages
+        // Microlink uses a headless browser to bypass Cloudflare/bot protection
+        // and extract og:image metadata. Works great with Amazon, etc.
         // ============================================================
-        const imageSearchQueries = [
-          `${cleanName} product image`,
-          `${cleanName} ${brand} producto foto`,
+        const microlinkSearches = [
+          `${cleanName} amazon`,
+          `${cleanName} ${brand} buy`,
           `${cleanName} comprar`,
         ]
 
-        for (const searchQuery of imageSearchQueries) {
+        for (const searchQuery of microlinkSearches) {
           if (imageUrl) break
-          console.log(`[enrich-images] Google Images search: "${searchQuery}"`)
+          console.log(`[enrich-images] Microlink search: "${searchQuery}"`)
 
           let searchResults: any[]
           try {
-            const raw = await zai.functions.invoke('web_search', { query: searchQuery, num: 10 })
+            const raw = await zai.functions.invoke('web_search', { query: searchQuery, num: 8 })
             searchResults = Array.isArray(raw) ? raw : []
           } catch { continue }
 
           if (searchResults.length === 0) continue
 
-          // Try to find image URLs directly in search result snippets/metadata
           for (const result of searchResults) {
             if (imageUrl) break
-            const snippet = result.snippet || ''
             const url = result.url || ''
             const hostName = result.host_name || ''
 
-            // Skip non-useful domains
-            if (['youtube', 'facebook', 'twitter', 'instagram', 'tiktok', 'reddit', 'wikipedia'].some(d => hostName.includes(d))) continue
+            // Skip non-product domains
+            if (['youtube', 'facebook', 'twitter', 'instagram', 'tiktok', 'reddit', 'wikipedia', 'pinterest'].some(d => hostName.includes(d))) continue
+            if (!url.startsWith('http')) continue
 
-            // Check if the search result URL itself is an image
-            if (/\.(jpg|jpeg|png|webp)(\?.*)?$/i.test(url) && !url.includes('logo') && !url.includes('icon')) {
-              imageUrl = url
-              console.log(`[enrich-images] Direct image URL from search: ${imageUrl.substring(0, 100)}`)
-              break
-            }
+            // Try Microlink.io API to extract og:image
+            try {
+              const microlinkUrl = `https://api.microlink.io/?url=${encodeURIComponent(url)}`
+              const mlRes = await fetch(microlinkUrl, { signal: AbortSignal.timeout(12000) })
 
-            // Try to find image URLs in snippet (sometimes Google includes them)
-            const snippetImgMatch = snippet.match(/https?:\/\/[^\s"']+\.(jpg|jpeg|png|webp)(\?[^\s"']*)?/i)
-            if (snippetImgMatch) {
-              const candidateUrl = snippetImgMatch[0]
-              if (!candidateUrl.includes('logo') && !candidateUrl.includes('icon') && !candidateUrl.includes('favicon') && candidateUrl.length > 30) {
-                imageUrl = candidateUrl
-                console.log(`[enrich-images] Image URL from snippet: ${imageUrl.substring(0, 100)}`)
-                break
-              }
+              if (!mlRes.ok) continue
+
+              const mlData = await mlRes.json()
+              if (mlData.status !== 'success') continue
+
+              const extractedImage = mlData.data?.image?.url
+              if (!extractedImage) continue
+
+              // Validate the image URL is not a logo/icon/banner
+              const imgLower = extractedImage.toLowerCase()
+              if (imgLower.includes('logo') || imgLower.includes('icon') || imgLower.includes('favicon') ||
+                  imgLower.includes('banner') || imgLower.includes('sprite') || imgLower.endsWith('.svg')) continue
+
+              // Skip generic site thumbnails (e.g. MercadoLibre logo, CompraGamer banner)
+              if (imgLower.includes('meta_banner') || imgLower.includes('logo__small') ||
+                  imgLower.includes('ui-navigation') || imgLower.includes('placeholder')) continue
+
+              imageUrl = extractedImage.startsWith('//') ? 'https:' + extractedImage : extractedImage
+              imageSource = `microlink/${hostName}`
+              console.log(`[enrich-images] ✓ Microlink from ${hostName}: ${imageUrl.substring(0, 100)}`)
+            } catch (err: any) {
+              console.log(`[enrich-images] Microlink error for ${hostName}: ${err.message?.substring(0, 60)}`)
             }
           }
         }
 
         // ============================================================
-        // Strategy 2: Direct fetch() to read page HTML (replaces page_reader)
-        // Many e-commerce sites serve og:image in static HTML for SEO
+        // Strategy 2: Direct fetch() for accessible sites
+        // Some sites don't use Cloudflare and serve og:image in static HTML
         // ============================================================
         if (!imageUrl) {
           const pageSearchQueries = [
@@ -286,7 +298,7 @@ export async function POST(request: Request) {
 
           for (const searchQuery of pageSearchQueries) {
             if (imageUrl) break
-            console.log(`[enrich-images] Page search: "${searchQuery}"`)
+            console.log(`[enrich-images] Direct fetch search: "${searchQuery}"`)
 
             let searchResults: any[]
             try {
@@ -304,7 +316,6 @@ export async function POST(request: Request) {
               if (['youtube', 'facebook', 'twitter', 'instagram', 'tiktok', 'pinterest', 'reddit', 'wikipedia'].some(d => hostName.includes(d))) continue
 
               try {
-                // Use direct fetch() instead of broken page_reader
                 const pageRes = await fetch(url, {
                   headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -323,14 +334,15 @@ export async function POST(request: Request) {
                 const html = await pageRes.text()
                 if (!html || html.length < 200) continue
 
-                // Try og:image first (most reliable for e-commerce)
+                // Try og:image
                 const ogMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i)
                   || html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i)
                 if (ogMatch?.[1]) {
                   const c = ogMatch[1].replace(/&amp;/g, '&')
-                  if (!c.includes('logo') && !c.includes('icon') && !c.includes('favicon') && !c.endsWith('.svg') && c.length > 20) {
+                  if (!c.includes('logo') && !c.includes('icon') && !c.includes('favicon') && !c.includes('meta_banner') && !c.endsWith('.svg') && c.length > 20) {
                     imageUrl = c.startsWith('//') ? 'https:' + c : c
-                    console.log(`[enrich-images] og:image from ${hostName}: ${imageUrl.substring(0, 100)}`)
+                    imageSource = `direct/${hostName}`
+                    console.log(`[enrich-images] ✓ og:image from ${hostName}: ${imageUrl.substring(0, 100)}`)
                     break
                   }
                 }
@@ -342,24 +354,9 @@ export async function POST(request: Request) {
                   const c = twMatch[1].replace(/&amp;/g, '&')
                   if (!c.includes('logo') && !c.includes('icon') && !c.includes('favicon') && !c.endsWith('.svg') && c.length > 20) {
                     imageUrl = c.startsWith('//') ? 'https:' + c : c
-                    console.log(`[enrich-images] twitter:image from ${hostName}: ${imageUrl.substring(0, 100)}`)
+                    imageSource = `direct-twitter/${hostName}`
+                    console.log(`[enrich-images] ✓ twitter:image from ${hostName}: ${imageUrl.substring(0, 100)}`)
                     break
-                  }
-                }
-
-                // Fallback: img tags with product-like src
-                for (const imgMatch of [...html.matchAll(/<img[^>]*src=["']([^"']+)["']/gi)]) {
-                  const src = imgMatch[1].replace(/&amp;/g, '&')
-                  if (src.length < 25 || src.endsWith('.svg') || src.endsWith('.gif')) continue
-                  if (['icon', 'logo', 'banner', 'pixel', 'avatar', 'favicon', 'sprite', '1x1', 'placeholder', 'loading', 'lazy'].some(k => src.toLowerCase().includes(k))) continue
-                  if (['product', 'gallery', 'zoom', 'large', 'full', 'original', '/image', '/img', '/photo', 'cdn', 'catalog', '.jpg', '.jpeg', '.png', '.webp'].some(k => src.toLowerCase().includes(k))) {
-                    if (src.startsWith('//')) imageUrl = 'https:' + src
-                    else if (src.startsWith('/')) imageUrl = `https://${hostName}${src}`
-                    else if (src.startsWith('http')) imageUrl = src
-                    if (imageUrl) {
-                      console.log(`[enrich-images] img from ${hostName}: ${imageUrl.substring(0, 100)}`)
-                      break
-                    }
                   }
                 }
               } catch (err: any) {
@@ -370,66 +367,7 @@ export async function POST(request: Request) {
         }
 
         // ============================================================
-        // Strategy 3: Google Images direct search — construct image URL from
-        // known CDN patterns for popular Argentine tech retailers
-        // ============================================================
-        if (!imageUrl) {
-          console.log(`[enrich-images] Trying retailer CDN search for: "${cleanName}"`)
-          const retailerSearches = [
-            `site:compragamer.com ${cleanName}`,
-            `site:venex.com.ar ${cleanName}`,
-            `site:fullh4rd.com.ar ${cleanName}`,
-            `site:gezatek.com.ar ${cleanName}`,
-            `site:tiendamia.com ${cleanName}`,
-          ]
-
-          for (const rq of retailerSearches) {
-            if (imageUrl) break
-            try {
-              const raw = await zai.functions.invoke('web_search', { query: rq, num: 3 })
-              const results = Array.isArray(raw) ? raw : []
-
-              for (const result of results) {
-                if (imageUrl) break
-                const url = result.url || ''
-                const hostName = result.host_name || ''
-                if (!url.startsWith('http')) continue
-
-                // Try to fetch the page directly to get og:image
-                try {
-                  const pageRes = await fetch(url, {
-                    headers: {
-                      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                      'Accept': 'text/html',
-                    },
-                    signal: AbortSignal.timeout(8000),
-                    redirect: 'follow',
-                  })
-                  if (!pageRes.ok) continue
-
-                  const html = await pageRes.text()
-
-                  // Extract og:image
-                  const ogMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i)
-                    || html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i)
-                  if (ogMatch?.[1]) {
-                    const c = ogMatch[1].replace(/&amp;/g, '&')
-                    if (!c.includes('logo') && !c.includes('icon') && !c.includes('favicon') && !c.endsWith('.svg') && c.length > 20) {
-                      imageUrl = c.startsWith('//') ? 'https:' + c : c
-                      console.log(`[enrich-images] og:image from retailer ${hostName}: ${imageUrl.substring(0, 100)}`)
-                      break
-                    }
-                  }
-                } catch {
-                  // Skip this retailer on error
-                }
-              }
-            } catch { continue }
-          }
-        }
-
-        // ============================================================
-        // Strategy 4: AI Image Generation — guaranteed to produce something
+        // Strategy 3: AI Image Generation — guaranteed to produce something
         // ============================================================
         if (!imageUrl) {
           try {
@@ -506,7 +444,7 @@ export async function POST(request: Request) {
         })
 
         enriched++
-        console.log(`[enrich-images] ✓ ${name}: ${imageData.width}x${imageData.height}, ${(imageData.size / 1024).toFixed(1)}KB WebP`)
+        console.log(`[enrich-images] ✓ ${name} [${imageSource}]: ${imageData.width}x${imageData.height}, ${(imageData.size / 1024).toFixed(1)}KB WebP`)
 
         // Small delay between products to be respectful
         await new Promise(resolve => setTimeout(resolve, 300))
