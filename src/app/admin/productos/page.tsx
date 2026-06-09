@@ -678,8 +678,15 @@ export default function AdminProductos() {
                 })
                 const data = await res.json()
                 if (data.ok) {
-                  setBatchAiResult(`${data.updated} descripciones generadas de ${data.total} productos`)
-                  loadProducts()
+                  const hasErrors = data.errors && data.errors.length > 0
+                  if (data.total === 0) {
+                    setBatchAiResult('Todos los productos ya tienen descripción')
+                  } else if (hasErrors) {
+                    setBatchAiResult(`${data.updated} de ${data.total} descripciones generadas (${data.errors.length} errores)`)
+                  } else {
+                    setBatchAiResult(`${data.updated} descripciones generadas de ${data.total} productos`)
+                  }
+                  if (data.updated > 0) loadProducts()
                 } else {
                   setBatchAiResult(`Error: ${data.error}`)
                 }
@@ -687,7 +694,7 @@ export default function AdminProductos() {
                 setBatchAiResult('Error de conexión')
               } finally {
                 setBatchAiLoading(false)
-                setTimeout(() => setBatchAiResult(null), 5000)
+                setTimeout(() => setBatchAiResult(null), 8000)
               }
             }}
           >
@@ -695,7 +702,7 @@ export default function AdminProductos() {
             {batchAiLoading ? 'Generando...' : 'Descripciones IA'}
           </Button>
           {batchAiResult && (
-            <span className="text-xs text-compucity-green font-medium">{batchAiResult}</span>
+            <span className={`text-xs font-medium ${batchAiResult.startsWith('Error') ? 'text-red-500' : 'text-compucity-green'}`}>{batchAiResult}</span>
           )}
           <a
             href="/api/admin/export/products"
