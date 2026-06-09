@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-10 (sesion 33)
+**Ultima actualizacion:** 2026-06-10 (sesion 34)
 
 ---
 
@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** bdaacbb (Citi: asistente IA renombrado, boton Arma tu setup, Build Analyzer eliminado)
+- **Commit actual:** 356084b (subcategorias en filtro admin, fotos IA removidas, descripciones IA con ZAI SDK)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -84,16 +84,20 @@
 - **Frontend:** Sin cambios - el Filtro Global de Stock ya oculta productos con `stock <= 0`
 - **Importante:** HAY QUE RE-SINCRONIZAR Air Intra para que el stock se actualice con la nueva logica. Hasta que se haga la sync, los productos existentes mantienen el stock total anterior
 
-### Estado actual de productos (2026-06-07 sesion 26)
-| Proveedor | Total en DB | Con imagen | product_images |
-|-----------|------------|------------|----------------|
-| Air Intra | ~5,800 | 191 | - |
-| Elit | ~2,500 | 2,498 | - |
-| Invid | ~1,400 | 1,400 | - |
-| Manual | 1 | 1 | - |
-| **Total DB** | **~10,310** | - | **419** |
+### Estado actual de productos (2026-06-10 sesion 34)
+| Metrica | Cantidad |
+|---------|----------|
+| Total productos en DB | 10,100 |
+| Activos con stock | 4,551 |
+| Con imagen | 4,568 |
+| Con descripcion | 2,454 |
+| product_images (tabla) | 851 |
+| Categorias | 71 |
+| Proveedores | 4 |
+| Clientes | 2 |
+| Admins | 1 |
 
-**Nota:** Los totales incluyen productos inactivos y duplicados. El backup del 2026-06-06 tiene 10,310 registros en tabla products (muchos con stock=0 o isActive=0).
+**Backup:** download/backup-stats-2026-06-10-s34.json
 
 ---
 
@@ -890,7 +894,7 @@ Todos los backups en `/home/z/my-project/download/backups/`
 1. **Re-sincronizar Air Intra:** El stock por deposito (solo Cordoba) se implemento en sesion 26 pero los productos existentes mantienen el stock total anterior. HAY QUE RE-SINCRONIZAR para que el stock se actualice con la nueva logica
 2. **Verificar categorizacion en TODAS las categorias:** Se corrigieron 66+ productos en sesion 27, pero puede haber mas productos mal categorizados que no se detectaron. El usuario reporto productos incorrectos en Notebooks y Monitores. Revisar cada categoria sistematicamente
 3. **Credenciales Andreani:** El dueño debe proporcionar codigoCliente + contratoDomicilio
-4. **Cargar imagenes faltantes:** ~1,565 productos sin imagen (mayormente Air Intra). Usar cross-provider matching + web search
+4. **Cargar imagenes faltantes:** ~5,532 productos sin imagen (mayormente Air Intra). Busqueda IA falló en produccion. Pendiente alternativa viable
 5. **Crear banners y cupones:** Las tablas estan vacias, el dueño puede empezar a crear promociones desde `/admin/promociones`
 
 ### Citi - Asistente IA de Compucity (IMPLEMENTADO sesion 32, ACTUALIZADO sesion 33)
@@ -913,18 +917,33 @@ Todos los backups en `/home/z/my-project/download/backups/`
 - **Eliminado:** API `/api/validate-build` (609 lineas), boton "Analizar con IA", panel de resultados, upgrade cards
 - **Problema previo (FIX sesion 32):** Loop infinito donde IA recomendaba upgrade → usuario lo seleccionaba → IA volvia a detectar bottleneck → recomendaba otro upgrade. Solucionado con prompt conservador + estado frontend que preservaba analisis al aplicar upgrades
 
-#### Descripciones Automaticas de Productos (PENDIENTE)
-- **Problema:** Muchos productos tienen descripciones vacias, en ingles, o genericas del proveedor
-- **Solucion propuesta:** LLM genera descripciones en español, SEO-friendly, a partir del titulo + specs tecnicas
-- **Integracion:** Boton en admin "Generar descripcion con IA" o automatico en el sync para productos sin descripcion
-- **LLM:** Grok (gratuito)
+#### Descripciones Automaticas de Productos (IMPLEMENTADO sesion 34)
+- **Boton batch:** "Descripciones IA" en barra superior de admin productos
+- **Boton individual:** Icono "IA" por producto en la tabla
+- **API:** `POST /api/generate-description` → z-ai-web-dev-sdk (primary) / Groq (fallback)
+- **Resultado:** 2,454 descripciones generadas (de ~10,100 productos totales)
+- **Prompt:** Genera descripcion en español, SEO-friendly, a partir del titulo + specs tecnicas del producto
+- **SDK:** z-ai-web-dev-sdk configurado via env vars (ZAI_BASE_URL, ZAI_API_KEY, etc.), no usa config file
+- **Groq fallback:** Si ZAI falla, intenta con Groq API (GROQ_API_KEY en .env.local)
+- **Nota:** Groq API key original expiro, reemplazado por z-ai-web-dev-sdk como primario
+
+#### Busqueda de Fotos IA (REMOVIDO sesion 34)
+- **Razon:** Ninguna estrategia funciono de forma confiable en Vercel
+- **Estrategias intentadas:**
+  1. `page_reader` (z-ai-web-dev-sdk) → errores 502 constantes
+  2. `fetch()` directo a e-commerce → 403 bloqueado por Cloudflare
+  3. Google Images via web_search → sin URLs de imagen en resultados
+  4. Microlink.io → funciona en test local pero timeout en Vercel (12s por call)
+  5. AI image generation → no funciono en produccion (posible timeout SDK)
+- **Botones removidos:** "Fotos IA" (batch) + "Foto" (individual por producto)
+- **API route conservada:** `/api/admin/suppliers/enrich-images` para uso futuro
 
 #### Costos
 | Concepto | Costo mensual |
 |----------|--------------|
 | Vercel | $0 (ya lo usan) |
 | Turso | $0 (consultas extra insignificantes) |
-| LLM (Grok) | $0 (gratuito) |
+| LLM (z-ai-web-dev-sdk) | $0 (incluido) |
 | **Total** | **$0** |
 
 ### Media Prioridad
@@ -950,6 +969,7 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ---
 
 ## Historial de Cambios
+- **2026-06-10 (s34):** Descripciones IA funcionando + subcategorias en filtro admin + fotos IA removidas. (1) FIX Descripciones IA: Reemplazado Groq (API key expirada) por z-ai-web-dev-sdk como proveedor primario. ZAI usa env vars (ZAI_BASE_URL, ZAI_API_KEY, etc.) en vez de config file. Groq queda como fallback. Resultado: 2,454 descripciones generadas exitosamente. (2) Intento de busqueda de fotos IA: Se probaron 5 estrategias (page_reader, fetch directo, Google Images, Microlink.io, AI generation) pero ninguna funciono de forma confiable en Vercel. Botones "Fotos IA" y "Foto" removidos del admin. API route conservada para futuro. (3) Filtro subcategorias: El dropdown de categoria en admin productos ahora muestra subcategorias indentadas con └ debajo de cada categoria padre. Permite filtrar por subcategoria especifica. Dropdown mas ancho (w-56). (4) Limpieza: import Camera, estados enrichImages/handleEnrichSingleImage removidos. Commits: b503412, 356084b, 5c3e610
 - **2026-06-10 (s33):** Citi IA: asistente renombrado + boton Arma tu setup + Build Analyzer eliminado. (1) Boton flotante: renombrado de "Asistente IA" a "Arma tu setup". (2) Nombre del asistente: renombrado a "Citi" (de Compucity). Se presenta como "¡Hola! Soy Citi de Compucity". Header del chat muestra "Citi". (3) Prompts backend: system prompt y descripciones de builds ahora dicen "Sos Citi" en vez de "Sos un asistente". (4) Build Analyzer eliminado: API /api/validate-build (609 lineas), boton "Analizar con IA", panel de resultados, upgrade cards. Solo queda Citi como asistente IA. (5) Fix previo sesion 32: loop infinito de recomendaciones IA solucionado con prompt conservador + estado frontend. (6) Estetica: todos los colores purple/indigo reemplazados por Compucity green. Commit: bdaacbb
 - **2026-06-09 (s31):** Filtros avanzados para RAM, GPU y Notebooks + limpieza monitores + exclusiones sync. (1) RAM: Filtros de capacidad (4GB/8GB/16GB/32GB/64GB+) en memorias-ram y memoria-ram-notebook (tienda + PC Builder). (2) GPU/Placas de Video: Filtros de VRAM (4GB-24GB) y Serie (RTX 3050-5080, RX 6600-7900, Arc A750/A770) en placas-de-video y PC Builder GPU slot. Marcas nuevas: PowerColor, Sapphire, INNO3D. VRAM matchFn valida que el producto sea GPU (keywords RTX/GTX/RADEON) para no confundir con RAM de notebooks. (3) Notebooks: Filtros completos de procesador (i3/i5/i7/i9/Ryzen 3/5/7/9), RAM, pantalla y GPU en notebooks, oficina y gamer-y-diseno. Procesador usa matchFn granular por modelo. (4) FIX MONITORES: 77 productos mal categorizados eliminados (TVs, notebooks, all-in-ones, proyectores, cables, soportes, etc.). 35+ nuevas reglas de exclusion en validate-categories + sync CATEGORY_CORRECTIONS para prevenir recurrencia. La sync de proveedores ya no volvera a contaminar la categoria monitores. Commits: 29b90bf, 2f14b97, b1418bc, 7535f61, 89e5c65
 - **2026-06-07 (s27):** 8 mejoras + filtros desplegables + limpieza masiva categorias. (1) PC Builder: SSD/HDD permiten multiples modelos diferentes (cada disco con su propio +/- y eliminar). (2) PC Builder: Gabinete incluye subcategoria "Gabinetes con Fuente" (additionalCategorySlugs). (3) PC Builder: Auto-avance al siguiente slot despues de seleccionar (excepto SSD/HDD que permiten agregar mas). (4) PC Builder: PDF y WhatsApp separados en botones distintos. (5) ProductCard: Removido indicador de stock visible al publico (solo queda overlay "Sin stock" cuando stock<=0). (6) Filtros: Monitores agrega 19", 22", 100Hz, 144Hz, 165Hz, 180Hz. (7) Filtros desplegables: Marcas convertidas de pills a <select> dropdowns en discos SSD, HDD, fuentes, gabinetes, refrigeracion, monitores y placas de red. (8) Fix bug: Editar producto de proveedor causaba que la imagen desapareciera (parsing de images con null guards). (9) LIMPIEZA MASIVA CATEGORIAS: 66 productos mal categorizados corregidos (cables/fans en Monitores, chargers/baterias en Notebooks, PCs completas en Discos SSD, etc.). 40+ nuevas reglas de correccion automatica en sync y validate-categories para prevenir futuras miscategorizaciones. Commits: bd8b2af, e387267, 8e22577, f4e65c7, 0bda50d, 2a0fe2b
