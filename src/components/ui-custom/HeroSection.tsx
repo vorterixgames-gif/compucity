@@ -26,8 +26,8 @@ const slides = [
     title: 'Notebooks y\nlaptops',
     titleAccent: 'laptops',
     description: 'Dejate asesorar por Citi y encontrá la notebook ideal. Gaming, oficina, estudio o diseño.',
-    cta: { label: 'Encontrá tu notebook', href: '/elige-tu-notebook', icon: Laptop, primary: true },
-    ctaSecondary: { label: 'Ver todas las notebooks', href: '/categoria/notebooks' },
+    cta: { label: 'Ver notebooks', href: '/categoria/notebooks', icon: Laptop, primary: true },
+    ctaSecondary: { label: 'Gamer y Diseño', href: '/categoria/gamer-y-diseno' },
     gradient: 'from-compucity-green-950/95 via-compucity-green-800/80 to-compucity-green-950/30',
   },
   {
