@@ -1,5 +1,6 @@
 import CategoryProducts from '@/components/ui-custom/CategoryProducts'
 import Breadcrumbs from '@/components/ui-custom/Breadcrumbs'
+import NotebookChatBanner from '@/components/ui-custom/NotebookChatBanner'
 import NotebookAssistantChat from '@/components/notebook-assistant-chat'
 import { getEnabledCategories, getProductsByCategory, getAllActiveProducts, searchProducts } from '@/lib/queries'
 import { db } from '@/lib/db'
@@ -79,6 +80,10 @@ export default async function CategoryPage({ params, searchParams }: Props) {
   // Build parent categories list for sidebar (only enabled root categories)
   const parentCategories = categories.filter(c => !c.parentId)
 
+  // Notebook-related categories that should show the chatbot banner
+  const NOTEBOOK_CATEGORIES = new Set(['notebooks', 'gamer-y-diseno', 'oficina'])
+  const isNotebookCategory = NOTEBOOK_CATEGORIES.has(slug)
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       {/* Breadcrumb */}
@@ -92,6 +97,9 @@ export default async function CategoryPage({ params, searchParams }: Props) {
             : [{ label: categoryName }]
         }
       />
+
+      {/* Notebook Chat Banner - only on notebook-related categories */}
+      {isNotebookCategory && <NotebookChatBanner />}
 
       <div className="flex flex-col md:flex-row gap-8">
         {/* Sidebar */}
@@ -140,8 +148,8 @@ export default async function CategoryPage({ params, searchParams }: Props) {
         />
       </div>
 
-      {/* Notebook assistant chatbot - only on notebooks category */}
-      {slug === 'notebooks' && <NotebookAssistantChat />}
+      {/* Notebook assistant chatbot - on notebook-related categories */}
+      {isNotebookCategory && <NotebookAssistantChat />}
     </div>
   )
 }
