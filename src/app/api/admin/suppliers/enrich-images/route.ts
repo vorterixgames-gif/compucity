@@ -216,161 +216,133 @@ export async function POST(request: Request) {
           partNumber = specsObj['Part Number'] || ''
         } catch {}
 
-        // Build search query - keep it focused on product image search
-        let searchQuery = name
-        if (brand && !name.toUpperCase().includes(brand.toUpperCase())) {
-          searchQuery = `${brand} ${name}`
-        }
+        // Clean product name: remove supplier suffix like "(Elit)", "(Air Intra)"
+        const cleanName = name.replace(/\s*\((Elit|Air Intra|Invid|Vorterix)\)\s*/g, '').trim()
 
-        console.log(`[enrich-images] Searching: "${searchQuery}"`)
-
-        // Search the web for product images
-        const searchResults = await zai.functions.invoke('web_search', {
-          query: `${searchQuery} product image`,
-          num: 5,
-        })
-
-        if (!searchResults || !Array.isArray(searchResults) || searchResults.length === 0) {
-          failed++
-          errors.push(`${name}: sin resultados de búsqueda`)
-          continue
-        }
-
-        // Strategy: Find an image URL from search results
-        // First try og:image from official brand pages, then from retail sites
         let imageUrl: string | null = null
 
-        // Priority 1: Try official brand domains
-        const brandDomains = [
-          'asus.com', 'rog.asus.com', 'logitech.com', 'corsair.com', 'razer.com',
-          'msi.com', 'gigabyte.com', 'lenovo.com', 'hp.com', 'dell.com',
-          'kingston.com', 'hyperx.com', 'steelseries.com', 'coolermaster.com',
-          'nzxt.com', 'bequiet.com', 'thermaltake.com', 'tplink.com', 'netgear.com',
-          'intel.com', 'amd.com', 'nvidia.com', 'asrock.com', 'adata.com',
-          'crucial.com', 'wd.com', 'seagate.com', 'samsung.com', 'lg.com',
-          'tp-link.com', 'apc.com', 'geniusnet.com', 'gamemax.com',
+        // Strategy 1: Search with multiple queries, try all results
+        const searchQueries = [
+          `${cleanName} comprar`,
+          `${cleanName} ${brand} product`,
+          cleanName,
         ]
 
-        // Priority 2: Retail sites with good images
-        const retailDomains = [
-          'mercadolibre.com.ar', 'amazon.com', 'newegg.com', 'linio.com',
-          'fravega.com', 'garbarino.com', 'comeros.com.ar',
-        ]
+        // Domains to skip entirely
+        const skipDomains = ['youtube.com', 'facebook.com', 'twitter.com', 'instagram.com', 'tiktok.com', 'pinterest.com', 'reddit.com', 'wikipedia.org']
 
-        const allPreferredDomains = [...brandDomains, ...retailDomains]
+        for (const searchQuery of searchQueries) {
+          if (imageUrl) break
+          console.log(`[enrich-images] Searching: "${searchQuery}"`)
 
-        for (const result of searchResults as any[]) {
-          const url = result.url || ''
-          const hostName = result.host_name || ''
-
-          const isPreferred = allPreferredDomains.some(d => hostName.includes(d))
-          if (!isPreferred) continue
-
+          let searchResults: any[]
           try {
-            // Use web-reader to get page content and extract og:image
-            const pageResult = await zai.functions.invoke('page_reader', { url })
-            const html = pageResult?.data?.html || pageResult?.html || ''
-
-            if (html) {
-              // Look for og:image meta tag (most reliable)
-              const ogMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i)
-                || html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i)
-
-              if (ogMatch && ogMatch[1]) {
-                imageUrl = ogMatch[1].replace(/&amp;/g, '&')
-                // Validate it's an image URL
-                if (
-                  imageUrl.includes('.jpg') || imageUrl.includes('.jpeg') ||
-                  imageUrl.includes('.png') || imageUrl.includes('.webp') ||
-                  imageUrl.includes('/image') || imageUrl.includes('/img') ||
-                  imageUrl.includes('/photo') || imageUrl.includes('/product') ||
-                  imageUrl.includes('format=') || imageUrl.includes('cdn')
-                ) {
-                  console.log(`[enrich-images] Found og:image from ${hostName}: ${imageUrl}`)
-                  break
-                }
-                imageUrl = null // Not a valid image URL, reset
-              }
-
-              // Fallback: look for product images in img tags
-              if (!imageUrl) {
-                const imgMatches = [...html.matchAll(/<img[^>]*src=["']([^"']+)["']/gi)]
-                for (const imgMatch of imgMatches) {
-                  const src = imgMatch[1].replace(/&amp;/g, '&')
-                  // Skip logos, icons, banners, tracking pixels
-                  if (
-                    src.includes('icon') || src.includes('logo') ||
-                    src.includes('banner') || src.includes('pixel') ||
-                    src.includes('avatar') || src.includes('favicon') ||
-                    src.includes('sprite') || src.includes('1x1') ||
-                    src.endsWith('.svg') || src.endsWith('.gif')
-                  ) continue
-
-                  // Prefer product-like image URLs
-                  if (
-                    src.includes('product') || src.includes('gallery') ||
-                    src.includes('zoom') || src.includes('large') ||
-                    src.includes('full') || src.includes('original') ||
-                    (src.includes('.jpg') && src.length > 30)
-                  ) {
-                    if (src.startsWith('//')) imageUrl = 'https:' + src
-                    else if (src.startsWith('/')) imageUrl = `https://${hostName}${src}`
-                    else if (src.startsWith('http')) imageUrl = src
-                    if (imageUrl) break
-                  }
-                }
-                if (imageUrl) {
-                  console.log(`[enrich-images] Found img from ${hostName}: ${imageUrl}`)
-                  break
-                }
-              }
-            }
-          } catch (err: any) {
-            console.log(`[enrich-images] Error reading ${url}: ${err.message}`)
+            const raw = await zai.functions.invoke('web_search', { query: searchQuery, num: 10 })
+            searchResults = Array.isArray(raw) ? raw : []
+          } catch {
+            continue
           }
-        }
 
-        // Priority 3: Try any search result if no image from preferred domains
-        if (!imageUrl) {
-          for (const result of searchResults as any[]) {
+          if (searchResults.length === 0) continue
+
+          // Try each result page
+          for (const result of searchResults) {
+            if (imageUrl) break
             const url = result.url || ''
             const hostName = result.host_name || ''
 
-            // Skip non-HTTP results
             if (!url.startsWith('http')) continue
-            // Skip already tried preferred domains
-            if (allPreferredDomains.some(d => hostName.includes(d))) continue
-            // Skip irrelevant domains
-            if (
-              hostName.includes('youtube') || hostName.includes('facebook') ||
-              hostName.includes('twitter') || hostName.includes('instagram') ||
-              hostName.includes('tiktok') || hostName.includes('pinterest')
-            ) continue
+            if (skipDomains.some(d => hostName.includes(d))) continue
 
             try {
               const pageResult = await zai.functions.invoke('page_reader', { url })
               const html = pageResult?.data?.html || pageResult?.html || ''
+              if (!html) continue
 
-              if (html) {
-                const ogMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i)
-                  || html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i)
+              // Try og:image first (most reliable)
+              const ogMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i)
+                || html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i)
 
-                if (ogMatch && ogMatch[1]) {
-                  const candidate = ogMatch[1].replace(/&amp;/g, '&')
-                  // Validate it looks like a product image
-                  if (
-                    !candidate.includes('logo') && !candidate.includes('icon') &&
-                    !candidate.includes('avatar') && !candidate.endsWith('.svg')
-                  ) {
-                    imageUrl = candidate
-                    console.log(`[enrich-images] Found og:image from ${hostName}: ${imageUrl}`)
+              if (ogMatch && ogMatch[1]) {
+                const candidate = ogMatch[1].replace(/&amp;/g, '&')
+                // Skip obviously non-product images
+                if (
+                  !candidate.includes('logo') && !candidate.includes('icon') &&
+                  !candidate.includes('avatar') && !candidate.includes('favicon') &&
+                  !candidate.endsWith('.svg') && !candidate.endsWith('.gif') &&
+                  candidate.length > 20
+                ) {
+                  imageUrl = candidate
+                  console.log(`[enrich-images] Found og:image from ${hostName}: ${imageUrl}`)
+                  break
+                }
+              }
+
+              // Fallback: look for any large product image in img tags
+              const imgMatches = [...html.matchAll(/<img[^>]*src=["']([^"']+)["']/gi)]
+              for (const imgMatch of imgMatches) {
+                const src = imgMatch[1].replace(/&amp;/g, '&')
+                if (
+                  src.includes('icon') || src.includes('logo') ||
+                  src.includes('banner') || src.includes('pixel') ||
+                  src.includes('avatar') || src.includes('favicon') ||
+                  src.includes('sprite') || src.includes('1x1') ||
+                  src.endsWith('.svg') || src.endsWith('.gif') ||
+                  src.length < 25
+                ) continue
+
+                // Accept any image that looks like a product photo
+                if (
+                  src.includes('product') || src.includes('gallery') ||
+                  src.includes('zoom') || src.includes('large') ||
+                  src.includes('full') || src.includes('original') ||
+                  src.includes('/image') || src.includes('/img') ||
+                  src.includes('/photo') || src.includes('cdn') ||
+                  src.includes('format=') || src.includes('catalog') ||
+                  src.includes('.jpg') || src.includes('.jpeg') ||
+                  src.includes('.png') || src.includes('.webp')
+                ) {
+                  if (src.startsWith('//')) imageUrl = 'https:' + src
+                  else if (src.startsWith('/')) imageUrl = `https://${hostName}${src}`
+                  else if (src.startsWith('http')) imageUrl = src
+                  if (imageUrl) {
+                    console.log(`[enrich-images] Found img from ${hostName}: ${imageUrl}`)
                     break
                   }
                 }
               }
-            } catch {
-              // Skip this result
+            } catch (err: any) {
+              console.log(`[enrich-images] Error reading ${url}: ${err.message}`)
             }
+          }
+        }
+
+        // Strategy 2: If no image found, ask AI to help find an image URL
+        if (!imageUrl) {
+          try {
+            console.log(`[enrich-images] Asking AI for image URL: "${cleanName}"`)
+            const aiResult = await zai.chat.completions.create({
+              messages: [
+                {
+                  role: 'system',
+                  content: 'You help find product image URLs. Given a product name, return ONLY a direct URL to a product image from the official brand site or a major retailer. If you cannot find one, respond with "NONE". No explanations, no markdown, just the URL or NONE.',
+                },
+                {
+                  role: 'user',
+                  content: `Find an image URL for: ${cleanName}${brand ? ` (Brand: ${brand})` : ''}`,
+                },
+              ],
+              temperature: 0.3,
+              max_tokens: 200,
+            })
+
+            const aiContent = aiResult.choices?.[0]?.message?.content?.trim() || ''
+            if (aiContent && aiContent !== 'NONE' && aiContent.startsWith('http')) {
+              imageUrl = aiContent.replace(/[\s"]/g, '')
+              console.log(`[enrich-images] AI suggested image: ${imageUrl}`)
+            }
+          } catch (err: any) {
+            console.log(`[enrich-images] AI image search failed: ${err.message}`)
           }
         }
 
