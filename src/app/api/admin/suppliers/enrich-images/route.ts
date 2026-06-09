@@ -193,9 +193,15 @@ export async function POST(request: Request) {
     let failed = 0
     const errors: string[] = []
 
-    // Use z-ai-web-dev-sdk for web search
-    const ZAI = (await import('z-ai-web-dev-sdk')).default
-    const zai = await ZAI.create()
+    // Use z-ai-web-dev-sdk for web search (configured via env vars)
+    const ZAIMod = (await import('z-ai-web-dev-sdk')).default
+    const zai = new ZAIMod({
+      baseUrl: process.env.ZAI_BASE_URL || '',
+      apiKey: process.env.ZAI_API_KEY || '',
+      chatId: process.env.ZAI_CHAT_ID || '',
+      userId: process.env.ZAI_USER_ID || '',
+      token: process.env.ZAI_TOKEN || '',
+    })
 
     for (const product of products.rows as any[]) {
       try {

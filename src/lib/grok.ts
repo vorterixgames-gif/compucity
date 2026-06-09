@@ -24,12 +24,23 @@ interface ChatResult {
   raw: any
 }
 
-// Singleton ZAI instance
-let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null
+// Singleton ZAI instance — created directly from env vars (no config file needed)
+let zaiInstance: ZAI | null = null
 
-async function getZai() {
+function getZai(): ZAI {
   if (!zaiInstance) {
-    zaiInstance = await ZAI.create()
+    const baseUrl = process.env.ZAI_BASE_URL
+    const apiKey = process.env.ZAI_API_KEY
+    if (!baseUrl || !apiKey) {
+      throw new Error('ZAI_BASE_URL and ZAI_API_KEY environment variables are required')
+    }
+    zaiInstance = new ZAI({
+      baseUrl,
+      apiKey,
+      chatId: process.env.ZAI_CHAT_ID || '',
+      userId: process.env.ZAI_USER_ID || '',
+      token: process.env.ZAI_TOKEN || '',
+    })
   }
   return zaiInstance
 }
@@ -72,7 +83,7 @@ async function groqFallback(options: ChatOptions): Promise<ChatResult> {
 
 /**
  * Call AI chat completions.
- * Primary: z-ai-web-dev-sdk (always available in this environment)
+ * Primary: z-ai-web-dev-sdk (configured via env vars, no file needed)
  * Fallback: Groq API (if GROQ_API_KEY is valid)
  */
 export async function grokChat(options: ChatOptions): Promise<ChatResult> {
@@ -80,7 +91,7 @@ export async function grokChat(options: ChatOptions): Promise<ChatResult> {
 
   // Try z-ai-web-dev-sdk first
   try {
-    const zai = await getZai()
+    const zai = getZai()
     const completion = await zai.chat.completions.create({
       messages: options.messages,
       temperature,
