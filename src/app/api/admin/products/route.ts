@@ -137,6 +137,7 @@ export async function GET(request: NextRequest) {
     const stockStatus = sp.get('stockStatus') || ''
     const activeStatus = sp.get('activeStatus') || ''
     const onSale = sp.get('onSale') || ''
+    const featuredStatus = sp.get('featuredStatus') || ''
 
     // Parse sort params
     const sortKey = sp.get('sort') || ''
@@ -213,6 +214,13 @@ export async function GET(request: NextRequest) {
       conditions.push(`p.salePrice IS NOT NULL AND p.salePrice > 0`)
     } else if (onSale === 'no') {
       conditions.push(`p.salePrice IS NULL OR p.salePrice = 0`)
+    }
+
+    // Featured status filter
+    if (featuredStatus === 'featured') {
+      conditions.push(`p.isFeatured = 1`)
+    } else if (featuredStatus === 'notFeatured') {
+      conditions.push(`p.isFeatured != 1`)
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''

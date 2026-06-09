@@ -1144,6 +1144,7 @@ export default function CategoryProducts({
               comparePrice={product.comparePrice}
               image={product.images ? JSON.parse(product.images)[0] : null}
               stock={product.stock}
+              isFeatured={product.isFeatured === 1}
               salePrice={product.salePrice}
               saleStart={product.saleStart}
               saleEnd={product.saleEnd}

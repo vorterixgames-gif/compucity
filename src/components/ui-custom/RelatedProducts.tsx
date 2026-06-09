@@ -13,6 +13,7 @@ interface RelatedProduct {
   comparePrice: number | null
   image: string | null
   stock: number
+  isFeatured?: number
   salePrice?: number | null
   saleStart?: string | null
   saleEnd?: string | null
@@ -75,6 +76,7 @@ export default function RelatedProducts({ categoryId, productId }: RelatedProduc
               comparePrice={product.comparePrice}
               image={product.image}
               stock={product.stock}
+              isFeatured={product.isFeatured === 1}
               salePrice={product.salePrice}
               saleStart={product.saleStart}
               saleEnd={product.saleEnd}

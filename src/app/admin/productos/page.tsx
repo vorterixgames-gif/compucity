@@ -140,6 +140,7 @@ interface Filters {
   stockStatus: string // 'all' | 'inStock' | 'lowStock' | 'outOfStock'
   activeStatus: string // 'all' | 'active' | 'inactive'
   onSale: string // 'all' | 'yes' | 'no'
+  featuredStatus: string // 'all' | 'featured' | 'notFeatured'
 }
 
 interface DollarConfig {
@@ -261,6 +262,7 @@ export default function AdminProductos() {
     stockStatus: 'all',
     activeStatus: 'all',
     onSale: 'all',
+    featuredStatus: 'all',
   })
   const [showFilters, setShowFilters] = useState(false)
 
@@ -310,6 +312,7 @@ export default function AdminProductos() {
       if (currentFilters.stockStatus && currentFilters.stockStatus !== 'all') params.set('stockStatus', currentFilters.stockStatus)
       if (currentFilters.activeStatus && currentFilters.activeStatus !== 'all') params.set('activeStatus', currentFilters.activeStatus)
       if (currentFilters.onSale && currentFilters.onSale !== 'all') params.set('onSale', currentFilters.onSale)
+      if (currentFilters.featuredStatus && currentFilters.featuredStatus !== 'all') params.set('featuredStatus', currentFilters.featuredStatus)
       if (currentSortCol) params.set('sort', currentSortCol)
       if (currentSortDir) params.set('sortDir', currentSortDir)
 
@@ -848,12 +851,24 @@ export default function AdminProductos() {
               </Select>
             </div>
 
+            <div className="space-y-1">
+              <Label className="text-xs text-gray-500">Destacado</Label>
+              <Select value={filters.featuredStatus} onValueChange={(v) => { setFilters(prev => ({ ...prev, featuredStatus: v })); loadProducts({ filters: { ...filters, featuredStatus: v }, page: 1 }) }}>
+                <SelectTrigger className="w-36 h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="featured">Destacados</SelectItem>
+                  <SelectItem value="notFeatured">No destacados</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {activeFilterCount > 0 && (
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-8 text-red-500 hover:text-red-700 mt-4"
-                onClick={() => { const cleared = { category: 'all', supplier: 'all', stockStatus: 'all', activeStatus: 'all', onSale: 'all' }; setFilters(cleared); loadProducts({ filters: cleared, page: 1 }) }}
+                onClick={() => { const cleared = { category: 'all', supplier: 'all', stockStatus: 'all', activeStatus: 'all', onSale: 'all', featuredStatus: 'all' }; setFilters(cleared); loadProducts({ filters: cleared, page: 1 }) }}
               >
                 <X className="w-3 h-3 mr-1" />
                 Limpiar filtros
@@ -964,6 +979,11 @@ export default function AdminProductos() {
                     <Badge variant="secondary" className={product.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}>
                       {product.isActive ? 'Activo' : 'Inactivo'}
                     </Badge>
+                    {product.isFeatured ? (
+                      <Badge variant="secondary" className="bg-compucity-green-50 text-compucity-green">
+                        ★ Destacado
+                      </Badge>
+                    ) : null}
                   </div>
                 </div>
 
@@ -1092,7 +1112,8 @@ export default function AdminProductos() {
                   <col style={{ width: '4%' }} />
                   <col style={{ width: '4%' }} />
                   <col style={{ width: '4%' }} />
-                  <col style={{ width: '9%' }} />
+                  <col style={{ width: '4%' }} />
+                  <col style={{ width: '8%' }} />
                 </colgroup>
                 <thead>
                   <tr className="border-b bg-gray-50/80">
@@ -1128,6 +1149,7 @@ export default function AdminProductos() {
                     <th className="h-10 px-2 text-center align-middle font-medium text-gray-600 cursor-pointer select-none hover:bg-gray-100 transition-colors" onClick={() => handleSort('isActive')}>
                       <div className="flex items-center justify-center gap-1">Activo <SortIcon column="isActive" /></div>
                     </th>
+                    <th className="h-10 px-2 text-center align-middle font-medium text-gray-600">Dest.</th>
                     <th className="h-10 px-2 text-center align-middle font-medium text-gray-600">Acciones</th>
                   </tr>
                 </thead>
@@ -1274,6 +1296,11 @@ export default function AdminProductos() {
                       <td className="p-2 align-middle text-center">
                         <Badge variant="secondary" className={product.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}>
                           {product.isActive ? 'Sí' : 'No'}
+                        </Badge>
+                      </td>
+                      <td className="p-2 align-middle text-center">
+                        <Badge variant="secondary" className={product.isFeatured ? 'bg-compucity-green-50 text-compucity-green' : 'bg-gray-100 text-gray-600'}>
+                          {product.isFeatured ? '★' : '—'}
                         </Badge>
                       </td>
                       <td className="p-2 align-middle text-center">

@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-10 (sesion 34)
+**Ultima actualizacion:** 2026-06-10 (sesion 35)
 
 ---
 
@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** 356084b (subcategorias en filtro admin, fotos IA removidas, descripciones IA con ZAI SDK)
+- **Commit actual:** (por definir) (productos destacados en tienda + filtro destacado en admin + subcategorias en filtro admin)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -97,7 +97,7 @@
 | Clientes | 2 |
 | Admins | 1 |
 
-**Backup:** download/backup-stats-2026-06-10-s34.json
+**Backup:** download/backups/compucity_turso_backup_2026-06-09T18-34-51.json (34MB, todas las 15 tablas)
 
 ---
 
@@ -535,6 +535,36 @@ El problema recurrente tenia 3 causas encadenadas:
 
 ---
 
+## Productos Destacados (IMPLEMENTADO sesion 35)
+
+### Funcionalidad completa
+- **Campo DB:** `products.isFeatured INTEGER` (0 o 1, por defecto 0)
+- **Query:** `getFeaturedProducts()` - Trae productos con `isFeatured = 1 AND isActive = 1 AND stock > 0`, max 8, ordenados por imagen primero y luego por fecha
+- **Badge visual:** Badge verde "DESTACADO" en el ProductCard (solo si no esta en oferta)
+
+### Seccion en la Home de la Tienda
+- **Ubicacion:** Despues de CategoryIcons, antes de Notebooks
+- **Componente:** Seccion "Productos Destacados" con grid 2/3/4 columnas
+- **Condicion:** Solo se muestra si hay productos destacados (`featured.length > 0`)
+- **Estilo:** Fondo gradiente verde claro, badge "DESTACADO" en cada tarjeta
+
+### Badge "DESTACADO" en ProductCard
+- Se muestra en TODAS las vistas de la tienda (home, categorias, favoritos, relacionados)
+- Prop `isFeatured` pasada a `<ProductCard>` en todos los componentes
+- Logica: Se muestra solo si `isFeatured=true` Y no hay oferta activa (oferta tiene prioridad)
+
+### Filtro en Admin Productos
+- **Filtro "Destacado":** Dropdown con opciones Todos / Destacados / No destacados
+- **Columna "Dest.":** En la tabla desktop muestra ★ (verde) para destacados, — para no destacados
+- **Badge movil:** "★ Destacado" en la vista de tarjetas en mobile
+- **API backend:** Parametro `featuredStatus` (featured/notFeatured) en `GET /api/admin/products`
+- **Switch en formulario:** "Producto destacado" ya existia en el formulario de edicion
+
+### Dashboard
+- Muestra "X destacados" en las estadisticas del admin dashboard
+
+---
+
 ## Filtro Global de Stock
 - Productos sin stock (`stock <= 0`) NO se muestran en toda la tienda: home, categorias, buscador, productos relacionados, Arma tu PC
 - Queries afectadas: `getAllActiveProducts`, `getFeaturedProducts`, `getProductsByCategory`, `searchProducts`, `getTopProductsByCategorySlug`, related-products API, pc-builder count
@@ -969,6 +999,7 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ---
 
 ## Historial de Cambios
+- **2026-06-10 (s35):** Productos Destacados activado en tienda + filtro/columna en admin + backup DB. (1) Seccion "Productos Destacados" en la home de la tienda: se muestra despues de CategoryIcons, grid 2/3/4 columnas, solo si hay destacados. Badge verde "DESTACADO" en cada ProductCard. (2) Prop isFeatured pasada a TODOS los ProductCard de la tienda (home, categorias, favoritos, relacionados). (3) Filtro "Destacado" en admin productos: dropdown Todos/Destacados/No destacados, columna "Dest." con ★ en tabla desktop, badge movil. API backend soporta parametro featuredStatus. (4) Backup completo de DB Turso: download/backups/compucity_turso_backup_2026-06-09T18-34-51.json (34MB, 15 tablas, 10,100 productos).
 - **2026-06-10 (s34):** Descripciones IA funcionando + subcategorias en filtro admin + fotos IA removidas. (1) FIX Descripciones IA: Reemplazado Groq (API key expirada) por z-ai-web-dev-sdk como proveedor primario. ZAI usa env vars (ZAI_BASE_URL, ZAI_API_KEY, etc.) en vez de config file. Groq queda como fallback. Resultado: 2,454 descripciones generadas exitosamente. (2) Intento de busqueda de fotos IA: Se probaron 5 estrategias (page_reader, fetch directo, Google Images, Microlink.io, AI generation) pero ninguna funciono de forma confiable en Vercel. Botones "Fotos IA" y "Foto" removidos del admin. API route conservada para futuro. (3) Filtro subcategorias: El dropdown de categoria en admin productos ahora muestra subcategorias indentadas con └ debajo de cada categoria padre. Permite filtrar por subcategoria especifica. Dropdown mas ancho (w-56). (4) Limpieza: import Camera, estados enrichImages/handleEnrichSingleImage removidos. Commits: b503412, 356084b, 5c3e610
 - **2026-06-10 (s33):** Citi IA: asistente renombrado + boton Arma tu setup + Build Analyzer eliminado. (1) Boton flotante: renombrado de "Asistente IA" a "Arma tu setup". (2) Nombre del asistente: renombrado a "Citi" (de Compucity). Se presenta como "¡Hola! Soy Citi de Compucity". Header del chat muestra "Citi". (3) Prompts backend: system prompt y descripciones de builds ahora dicen "Sos Citi" en vez de "Sos un asistente". (4) Build Analyzer eliminado: API /api/validate-build (609 lineas), boton "Analizar con IA", panel de resultados, upgrade cards. Solo queda Citi como asistente IA. (5) Fix previo sesion 32: loop infinito de recomendaciones IA solucionado con prompt conservador + estado frontend. (6) Estetica: todos los colores purple/indigo reemplazados por Compucity green. Commit: bdaacbb
 - **2026-06-09 (s31):** Filtros avanzados para RAM, GPU y Notebooks + limpieza monitores + exclusiones sync. (1) RAM: Filtros de capacidad (4GB/8GB/16GB/32GB/64GB+) en memorias-ram y memoria-ram-notebook (tienda + PC Builder). (2) GPU/Placas de Video: Filtros de VRAM (4GB-24GB) y Serie (RTX 3050-5080, RX 6600-7900, Arc A750/A770) en placas-de-video y PC Builder GPU slot. Marcas nuevas: PowerColor, Sapphire, INNO3D. VRAM matchFn valida que el producto sea GPU (keywords RTX/GTX/RADEON) para no confundir con RAM de notebooks. (3) Notebooks: Filtros completos de procesador (i3/i5/i7/i9/Ryzen 3/5/7/9), RAM, pantalla y GPU en notebooks, oficina y gamer-y-diseno. Procesador usa matchFn granular por modelo. (4) FIX MONITORES: 77 productos mal categorizados eliminados (TVs, notebooks, all-in-ones, proyectores, cables, soportes, etc.). 35+ nuevas reglas de exclusion en validate-categories + sync CATEGORY_CORRECTIONS para prevenir recurrencia. La sync de proveedores ya no volvera a contaminar la categoria monitores. Commits: 29b90bf, 2f14b97, b1418bc, 7535f61, 89e5c65
