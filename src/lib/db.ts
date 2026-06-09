@@ -404,4 +404,19 @@ export async function ensureMigrations() {
       console.warn('[migration] Could not add stockByWarehouse column:', e)
     }
   }
+
+  // 23. Insert ai_enabled feature flag into store_config (default: true)
+  try {
+    await db.execute({
+      sql: "INSERT OR IGNORE INTO store_config (id, key, value, updatedAt) VALUES (?, 'ai_enabled', ?, ?)",
+      args: [
+        'cfg-ai-enabled',
+        JSON.stringify({ value: true }),
+        new Date().toISOString(),
+      ],
+    })
+    console.log('[migration] Ensured ai_enabled config exists in store_config')
+  } catch (e) {
+    console.warn('[migration] Could not insert ai_enabled config:', e)
+  }
 }

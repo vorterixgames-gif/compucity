@@ -23,6 +23,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Sparkles,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -280,6 +281,7 @@ export default function AdminProductos() {
   const [calculatedListPrice, setCalculatedListPrice] = useState<number | null>(null)
   const [calculatedCashPrice, setCalculatedCashPrice] = useState<number | null>(null)
   const [imageUploading, setImageUploading] = useState(false)
+  const [generatingDescription, setGeneratingDescription] = useState(false)
 
   const loadProducts = useCallback(async (opts?: { page?: number; limit?: number; search?: string; filters?: Filters; sortColumn?: SortColumn; sortDirection?: SortDirection }) => {
     const currentPage = opts?.page ?? pagination.page
@@ -1306,7 +1308,45 @@ export default function AdminProductos() {
             </div>
 
             <div className="sm:col-span-2 space-y-2">
-              <Label htmlFor="description">Descripción</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="description">Descripción</Label>
+                {editingId && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs gap-1.5 text-compucity-green hover:text-compucity-green-dark"
+                    disabled={generatingDescription || !form.name.trim()}
+                    onClick={async () => {
+                      setGeneratingDescription(true)
+                      try {
+                        const res = await fetch('/api/generate-description', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ productId: editingId }),
+                        })
+                        const data = await res.json()
+                        if (data.ok && data.description) {
+                          updateForm('description', data.description)
+                        } else {
+                          console.error('Error generating description:', data.error)
+                        }
+                      } catch (error) {
+                        console.error('Error generating description:', error)
+                      } finally {
+                        setGeneratingDescription(false)
+                      }
+                    }}
+                  >
+                    {generatingDescription ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-3.5 h-3.5" />
+                    )}
+                    {generatingDescription ? 'Generando...' : 'Generar con IA'}
+                  </Button>
+                )}
+              </div>
               <Textarea
                 id="description"
                 value={form.description}

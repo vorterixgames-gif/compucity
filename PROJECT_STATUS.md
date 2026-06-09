@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-09 (sesion 31)
+**Ultima actualizacion:** 2026-06-09 (sesion 32)
 
 ---
 
@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** 89e5c65 (filtros avanzados RAM/GPU/Notebooks, limpieza monitores, exclusiones sync)
+- **Commit actual:** 89e5c65 (filtros avanzados RAM/GPU/Notebooks, limpieza monitores, exclusiones sync) + IA features (sin commitear)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -893,8 +893,8 @@ Todos los backups en `/home/z/my-project/download/backups/`
 4. **Cargar imagenes faltantes:** ~1,565 productos sin imagen (mayormente Air Intra). Usar cross-provider matching + web search
 5. **Crear banners y cupones:** Las tablas estan vacias, el dueño puede empezar a crear promociones desde `/admin/promociones`
 
-### PENDIENTE - Integracion de IA (aprobacion del dueño pendiente)
-**Estado:** Esperando confirmacion del dueño. Discutido en sesion 31.
+### PENDIENTE - Integracion de IA (IMPLEMENTADO sesion 32)
+**Estado:** IMPLEMENTADO. Pendiente deploy a produccion y testing en vivo.
 **Prioridades elegidas:** PC Builder inteligente + Descripciones automaticas
 
 #### Feature 1: PC Builder con IA de Compatibilidad

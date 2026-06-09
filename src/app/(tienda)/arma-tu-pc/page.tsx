@@ -33,6 +33,9 @@ import {
   SlidersHorizontal,
   Download,
   ChevronDown,
+  CheckCircle2,
+  XCircle,
+  Brain,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -317,6 +320,9 @@ export default function ArmaTuPCPage() {
   const [activeFilters, setActiveFilters] = useState<CompatibilityFilters>({})
   const [showMobileSummary, setShowMobileSummary] = useState(false)
   const [manualFilters, setManualFilters] = useState<Record<string, string[]>>({})
+  const [aiAnalysis, setAiAnalysis] = useState<any>(null)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
 
   const currentSlot = SLOTS[currentStep]
   const selectedForCurrentSlot = selectedComponents.filter(c => c.slot === currentSlot.slot)
@@ -410,6 +416,11 @@ export default function ArmaTuPCPage() {
     loadProducts()
   }, [loadProducts])
 
+  // Clear AI analysis when components change
+  useEffect(() => {
+    setAiAnalysis(null)
+  }, [selectedComponents])
+
   const selectProduct = (product: BuilderProduct) => {
     const slot = currentSlot.slot
     setSelectedComponents(prev => {
@@ -477,6 +488,35 @@ export default function ArmaTuPCPage() {
     } else {
       // Remove all products from the slot
       setSelectedComponents(prev => prev.filter(c => c.slot !== slot))
+    }
+  }
+
+  const analyzeBuild = async () => {
+    if (selectedComponents.length < 3) return
+    setAiLoading(true)
+    setAiError(null)
+    try {
+      const res = await fetch('/api/validate-build', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          components: selectedComponents.map(c => ({
+            slot: c.slot,
+            name: c.product.name,
+            price: c.product.price,
+          }))
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setAiError(data.error || 'Error al analizar el build')
+        return
+      }
+      setAiAnalysis(data)
+    } catch {
+      setAiError('No se pudo conectar con el servicio de IA')
+    } finally {
+      setAiLoading(false)
     }
   }
 
@@ -1379,6 +1419,136 @@ export default function ArmaTuPCPage() {
                   </div>
                 </div>
               )}
+
+              {/* AI Build Analysis */}
+              <div className="px-5 py-3 border-b">
+                {aiAnalysis ? (
+                  <div className="space-y-2">
+                    {/* Score + Status */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {aiAnalysis.compatible ? (
+                          <CheckCircle2 className="w-5 h-5 text-green-500" />
+                        ) : (
+                          <XCircle className="w-5 h-5 text-red-500" />
+                        )}
+                        <span className="text-sm font-bold">
+                          {aiAnalysis.compatible ? 'Build compatible' : 'Problemas detectados'}
+                        </span>
+                      </div>
+                      <div className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                        aiAnalysis.score >= 8 ? 'bg-green-100 text-green-700' :
+                        aiAnalysis.score >= 5 ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-red-100 text-red-700'
+                      }`}>
+                        {aiAnalysis.score}/10
+                      </div>
+                    </div>
+                    
+                    {/* Summary */}
+                    <p className="text-xs text-gray-600">{aiAnalysis.summary}</p>
+                    
+                    {/* Use case tag */}
+                    {aiAnalysis.use_case && (
+                      <span className="inline-block text-[10px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 font-medium">
+                        Uso ideal: {aiAnalysis.use_case === 'gaming' ? 'Gaming' : aiAnalysis.use_case === 'oficina' ? 'Oficina' : aiAnalysis.use_case === 'edicion' ? 'Edición' : 'General'}
+                      </span>
+                    )}
+                    
+                    {/* Bottleneck */}
+                    {aiAnalysis.bottleneck && aiAnalysis.bottleneck !== 'ninguno' && (
+                      <div className="flex items-start gap-1.5 text-xs bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-medium text-amber-800">Cuello de botella: {aiAnalysis.bottleneck}</span>
+                          {aiAnalysis.bottleneck_detail && (
+                            <p className="text-amber-700 mt-0.5">{aiAnalysis.bottleneck_detail}</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Issues list */}
+                    {aiAnalysis.issues && aiAnalysis.issues.length > 0 && (
+                      <div className="space-y-1.5">
+                        {aiAnalysis.issues.map((issue: any, i: number) => (
+                          <div key={i} className={`flex items-start gap-1.5 text-xs rounded-lg px-2.5 py-1.5 ${
+                            issue.severity === 'error' ? 'bg-red-50 border border-red-200' :
+                            issue.severity === 'warning' ? 'bg-amber-50 border border-amber-200' :
+                            'bg-blue-50 border border-blue-200'
+                          }`}>
+                            {issue.severity === 'error' ? (
+                              <XCircle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
+                            ) : issue.severity === 'warning' ? (
+                              <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                            ) : (
+                              <Info className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
+                            )}
+                            <div>
+                              <span className={`font-medium ${
+                                issue.severity === 'error' ? 'text-red-800' :
+                                issue.severity === 'warning' ? 'text-amber-800' :
+                                'text-blue-800'
+                              }`}>{issue.component}</span>
+                              <p className="text-gray-600 mt-0.5">{issue.message}</p>
+                              {issue.suggestion && (
+                                <p className="text-green-600 mt-0.5 font-medium">💡 {issue.suggestion}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Upgrade suggestion */}
+                    {aiAnalysis.upgrade_suggestion && (
+                      <div className="flex items-start gap-1.5 text-xs bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5">
+                        <Zap className="w-3.5 h-3.5 text-green-500 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-medium text-green-800">Mejora sugerida</span>
+                          <p className="text-green-700 mt-0.5">{aiAnalysis.upgrade_suggestion}</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Re-analyze button */}
+                    <button
+                      onClick={() => setAiAnalysis(null)}
+                      className="text-[10px] text-gray-400 hover:text-gray-600 transition"
+                    >
+                      Cerrar análisis
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={analyzeBuild}
+                    disabled={selectedComponents.length < 3 || aiLoading}
+                    className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition ${
+                      selectedComponents.length < 3 || aiLoading
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white shadow-sm'
+                    }`}
+                  >
+                    {aiLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Analizando...
+                      </>
+                    ) : (
+                      <>
+                        <Brain className="w-4 h-4" />
+                        Analizar mi build con IA
+                      </>
+                    )}
+                  </button>
+                )}
+                {aiError && (
+                  <p className="text-xs text-red-500 mt-1">{aiError}</p>
+                )}
+                {!aiAnalysis && selectedComponents.length < 3 && (
+                  <p className="text-[10px] text-gray-400 mt-1">Seleccioná al menos 3 componentes para analizar</p>
+                )}
+              </div>
 
               {/* Selected Components List */}
               <div className="p-4 space-y-2 max-h-[50vh] overflow-y-auto">
