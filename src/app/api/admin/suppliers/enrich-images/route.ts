@@ -4,7 +4,7 @@ import { getCurrentAdmin } from '@/lib/admin-auth'
 
 const MAX_IMAGE_WIDTH = 800
 const WEBP_QUALITY = 75
-const MAX_IMAGE_SIZE_KB = 150 // Target max size in KB
+const MAX_IMAGE_SIZE_KB = 150
 
 async function ensureImageTable() {
   await db.execute(`
@@ -19,10 +19,6 @@ async function ensureImageTable() {
   `)
 }
 
-/**
- * Download an image from a URL and convert it to WebP.
- * Returns base64-encoded WebP data, or null on failure.
- */
 async function downloadAndConvertToWebp(imageUrl: string): Promise<{
   data: string
   size: number
@@ -52,26 +48,19 @@ async function downloadAndConvertToWebp(imageUrl: string): Promise<{
 
     const sharp = (await import('sharp')).default
 
-    let pipeline = sharp(buffer)
-      .resize(MAX_IMAGE_WIDTH, MAX_IMAGE_WIDTH, {
-        fit: 'inside',
-        withoutEnlargement: true,
-      })
+    const webpBuffer = await sharp(buffer)
+      .resize(MAX_IMAGE_WIDTH, MAX_IMAGE_WIDTH, { fit: 'inside', withoutEnlargement: true })
       .webp({ quality: WEBP_QUALITY, effort: 6 })
+      .toBuffer()
 
-    const webpBuffer = await pipeline.toBuffer()
     const metadata = await sharp(webpBuffer).metadata()
 
     let finalBuffer = webpBuffer
     if (webpBuffer.length > MAX_IMAGE_SIZE_KB * 1024) {
       const reducedBuffer = await sharp(buffer)
-        .resize(MAX_IMAGE_WIDTH, MAX_IMAGE_WIDTH, {
-          fit: 'inside',
-          withoutEnlargement: true,
-        })
+        .resize(MAX_IMAGE_WIDTH, MAX_IMAGE_WIDTH, { fit: 'inside', withoutEnlargement: true })
         .webp({ quality: 50, effort: 6 })
         .toBuffer()
-
       if (reducedBuffer.length < webpBuffer.length) {
         finalBuffer = reducedBuffer
       }
@@ -84,54 +73,75 @@ async function downloadAndConvertToWebp(imageUrl: string): Promise<{
       height: metadata.height || 0,
     }
   } catch (err: any) {
-    console.log(`[enrich-images] Download/convert error for ${imageUrl}: ${err.message}`)
+    console.log(`[enrich-images] Download error: ${err.message}`)
     return null
   }
 }
 
 /**
- * Extract product image URL from a web page using Microlink.io API.
- * Microlink uses a headless browser that bypasses Cloudflare/bot protection.
+ * Generate an AI product image and save it to the database.
+ * Returns true if successful, false otherwise.
  */
-async function extractImageViaMicrolink(pageUrl: string): Promise<string | null> {
+async function generateAndSaveAIImage(
+  productName: string,
+  brand: string,
+  productId: string,
+  zai: any
+): Promise<{ ok: boolean; width?: number; height?: number; sizeKB?: number; error?: string }> {
   try {
-    const mlUrl = `https://api.microlink.io/?url=${encodeURIComponent(pageUrl)}`
-    const mlRes = await fetch(mlUrl, { signal: AbortSignal.timeout(15000) })
+    const prompt = `Professional product photo of ${productName}${brand ? ` by ${brand}` : ''}, isolated on white background, studio lighting, e-commerce style, high quality product photography, no text, no watermark`
 
-    if (!mlRes.ok) return null
+    console.log(`[enrich-images] AI generating: "${prompt.substring(0, 80)}..."`)
 
-    const mlData = await mlRes.json()
-    if (mlData.status !== 'success') return null
+    const aiImage = await zai.images.generations.create({
+      prompt,
+      size: '1024x1024',
+    })
 
-    const extractedImage = mlData.data?.image?.url
-    if (!extractedImage) return null
-
-    // Validate the image URL is not a logo/icon/banner
-    const imgLower = extractedImage.toLowerCase()
-    if (imgLower.includes('logo') || imgLower.includes('icon') || imgLower.includes('favicon') ||
-        imgLower.includes('banner') || imgLower.includes('sprite') || imgLower.endsWith('.svg') ||
-        imgLower.includes('meta_banner') || imgLower.includes('logo__small') ||
-        imgLower.includes('ui-navigation') || imgLower.includes('placeholder')) {
-      return null
+    const base64Data = aiImage.data?.[0]?.base64
+    if (!base64Data) {
+      return { ok: false, error: 'No base64 data in AI response' }
     }
 
-    return extractedImage.startsWith('//') ? 'https:' + extractedImage : extractedImage
-  } catch {
-    return null
+    const sharp = (await import('sharp')).default
+    const buffer = Buffer.from(base64Data, 'base64')
+
+    const webpBuffer = await sharp(buffer)
+      .resize(MAX_IMAGE_WIDTH, MAX_IMAGE_WIDTH, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: WEBP_QUALITY, effort: 6 })
+      .toBuffer()
+
+    const metadata = await sharp(webpBuffer).metadata()
+
+    const imageId = crypto.randomUUID()
+    await db.execute({
+      sql: `INSERT INTO product_images (id, data, size, width, height, createdAt) VALUES (?, ?, ?, ?, ?, datetime('now'))`,
+      args: [imageId, webpBuffer.toString('base64'), webpBuffer.length, metadata.width || 0, metadata.height || 0],
+    })
+
+    const imagePath = `/api/image/${imageId}`
+    await db.execute({
+      sql: 'UPDATE products SET images = ?, updatedAt = ? WHERE id = ?',
+      args: [JSON.stringify([imagePath]), new Date().toISOString(), productId],
+    })
+
+    return {
+      ok: true,
+      width: metadata.width || 0,
+      height: metadata.height || 0,
+      sizeKB: Math.round(webpBuffer.length / 1024),
+    }
+  } catch (err: any) {
+    console.log(`[enrich-images] AI generation error: ${err.message}`)
+    return { ok: false, error: err.message?.substring(0, 100) }
   }
 }
 
 /**
  * POST /api/admin/suppliers/enrich-images
  *
- * Enriches products that have no images by searching the web
- * for product images using the product name and brand.
- * Images are downloaded, converted to WebP, compressed, and stored
- * in the product_images table for local serving.
- *
- * Body: { batchSize?: number, providerType?: string }
- *   - batchSize: number of products to process (default: 10, max: 30)
- *   - providerType: 'air_intra' | 'all' (default: 'air_intra')
+ * Strategy: AI FIRST (reliable), web search as bonus (for real photos)
+ * This ensures every product gets an image, even if web search fails.
  */
 export async function POST(request: Request) {
   try {
@@ -146,7 +156,7 @@ export async function POST(request: Request) {
 
     await ensureImageTable()
 
-    // Build query based on input: specific productIds, or search by provider
+    // Build query
     let query: string
     let args: any[]
 
@@ -163,11 +173,8 @@ export async function POST(request: Request) {
                FROM products p
                JOIN suppliers s ON p.providerId = s.id
                WHERE (p.images = '[]' OR p.images IS NULL OR p.images = '')
-                 AND p.isActive = 1
-                 AND p.stock > 0
-                 AND p.categoryId IS NOT NULL
-               ORDER BY p.updatedAt ASC
-               LIMIT ?`
+                 AND p.isActive = 1 AND p.stock > 0 AND p.categoryId IS NOT NULL
+               ORDER BY p.updatedAt ASC LIMIT ?`
       args = [batchSize]
     } else {
       query = `SELECT p.id, p.name, p.sku, p.providerSku, p.specs, s.apiType
@@ -175,11 +182,8 @@ export async function POST(request: Request) {
                JOIN suppliers s ON p.providerId = s.id
                WHERE s.apiType = ?
                  AND (p.images = '[]' OR p.images IS NULL OR p.images = '')
-                 AND p.isActive = 1
-                 AND p.stock > 0
-                 AND p.categoryId IS NOT NULL
-               ORDER BY p.updatedAt ASC
-               LIMIT ?`
+                 AND p.isActive = 1 AND p.stock > 0 AND p.categoryId IS NOT NULL
+               ORDER BY p.updatedAt ASC LIMIT ?`
       args = [providerType, batchSize]
     }
 
@@ -187,34 +191,26 @@ export async function POST(request: Request) {
 
     if (products.rows.length === 0) {
       return NextResponse.json({
-        ok: true,
-        enriched: 0,
-        remaining: 0,
+        ok: true, enriched: 0, remaining: 0,
         message: 'Todos los productos ya tienen imágenes',
       })
     }
 
-    // Count remaining products without images
+    // Count remaining
     let countQuery: string
     let countArgs: any[]
 
     if (body.productIds && Array.isArray(body.productIds) && body.productIds.length > 0) {
-      countQuery = `SELECT COUNT(*) as total FROM products
-                    WHERE (images = '[]' OR images IS NULL OR images = '')
-                      AND isActive = 1`
+      countQuery = `SELECT COUNT(*) as total FROM products WHERE (images = '[]' OR images IS NULL OR images = '') AND isActive = 1`
       countArgs = []
     } else if (providerType === 'all') {
-      countQuery = `SELECT COUNT(*) as total FROM products p
-                    JOIN suppliers s ON p.providerId = s.id
-                    WHERE s.apiType = ?
-                      AND (p.images = '[]' OR p.images IS NULL OR p.images = '')
+      countQuery = `SELECT COUNT(*) as total FROM products p JOIN suppliers s ON p.providerId = s.id
+                    WHERE s.apiType = ? AND (p.images = '[]' OR p.images IS NULL OR p.images = '')
                       AND p.isActive = 1 AND p.stock > 0 AND p.categoryId IS NOT NULL`
       countArgs = [providerType]
     } else {
-      countQuery = `SELECT COUNT(*) as total FROM products p
-                    JOIN suppliers s ON p.providerId = s.id
-                    WHERE s.apiType = ?
-                      AND (p.images = '[]' OR p.images IS NULL OR p.images = '')
+      countQuery = `SELECT COUNT(*) as total FROM products p JOIN suppliers s ON p.providerId = s.id
+                    WHERE s.apiType = ? AND (p.images = '[]' OR p.images IS NULL OR p.images = '')
                       AND p.isActive = 1 AND p.stock > 0 AND p.categoryId IS NOT NULL`
       countArgs = [providerType]
     }
@@ -225,9 +221,8 @@ export async function POST(request: Request) {
     let enriched = 0
     let failed = 0
     const errors: string[] = []
-    const debugLog: string[] = []
 
-    // Use z-ai-web-dev-sdk for web search (configured via env vars)
+    // Init ZAI
     const ZAIMod = (await import('z-ai-web-dev-sdk')).default
     const zai = new ZAIMod({
       baseUrl: process.env.ZAI_BASE_URL || '',
@@ -241,181 +236,94 @@ export async function POST(request: Request) {
       try {
         const { id, name, specs } = product
 
-        // Parse specs to get brand for better search
         let brand = ''
         try {
           const specsObj = JSON.parse(specs || '{}')
           brand = specsObj['Marca'] || ''
         } catch {}
 
-        // Clean product name: remove supplier suffix
         const cleanName = name.replace(/\s*\((Elit|Air Intra|Invid|Vorterix)\)\s*/g, '').trim()
 
-        let imageUrl: string | null = null
-        let imageSource: string = ''
-        const productLog: string[] = [`[enrich] Product: "${cleanName}"`]
+        console.log(`[enrich-images] Processing: "${cleanName}"`)
 
         // ============================================================
-        // Strategy 1: ONE web_search → find Amazon/product page → Microlink
-        // Ultra-efficient: 1 search + max 2 Microlink calls
+        // Strategy 1: AI Image Generation — MOST RELIABLE
+        // We know ZAI SDK works on Vercel (descriptions use it daily)
         // ============================================================
-        const searchQuery = `${cleanName} amazon`
-        productLog.push(`  S1: search "${searchQuery}"`)
+        const aiResult = await generateAndSaveAIImage(cleanName, brand, id, zai)
 
+        if (aiResult.ok) {
+          enriched++
+          console.log(`[enrich-images] ✓ AI: ${name} ${aiResult.width}x${aiResult.height} ${aiResult.sizeKB}KB`)
+          continue
+        }
+
+        // ============================================================
+        // Strategy 2: Web search + Microlink (bonus for real photos)
+        // Only try if AI generation failed
+        // ============================================================
+        let foundRealImage = false
         try {
-          const raw = await zai.functions.invoke('web_search', { query: searchQuery, num: 5 })
+          const searchQuery = `${cleanName} amazon`
+          console.log(`[enrich-images] Trying web search for real photo: "${searchQuery}"`)
+
+          const raw = await zai.functions.invoke('web_search', { query: searchQuery, num: 3 })
           const searchResults = Array.isArray(raw) ? raw : []
-          productLog.push(`  S1: got ${searchResults.length} results`)
 
-          // Collect candidate URLs, prioritizing Amazon
+          // Sort Amazon URLs first
           const candidates = searchResults
-            .filter((r: any) => {
-              const host = r.host_name || ''
-              return r.url?.startsWith('http') &&
-                !['youtube', 'facebook', 'twitter', 'instagram', 'tiktok', 'reddit', 'wikipedia', 'pinterest'].some(d => host.includes(d))
-            })
-            .sort((a: any, b: any) => {
-              // Prioritize Amazon URLs
-              const aIsAmazon = (a.host_name || '').includes('amazon') ? 1 : 0
-              const bIsAmazon = (b.host_name || '').includes('amazon') ? 1 : 0
-              return bIsAmazon - aIsAmazon
-            })
+            .filter((r: any) => r.url?.startsWith('http') && !['youtube', 'facebook', 'twitter', 'instagram', 'tiktok', 'reddit'].some(d => (r.host_name || '').includes(d)))
+            .sort((a: any, b: any) => ((b.host_name || '').includes('amazon') ? 1 : 0) - ((a.host_name || '').includes('amazon') ? 1 : 0))
 
-          // Try Microlink on top 2 candidates only (fast!)
-          for (let i = 0; i < Math.min(2, candidates.length); i++) {
-            if (imageUrl) break
-            const candidate = candidates[i]
-            const hostName = candidate.host_name || ''
-            productLog.push(`  S1: Microlink on ${hostName}`)
+          for (const candidate of candidates.slice(0, 2)) {
+            try {
+              const mlUrl = `https://api.microlink.io/?url=${encodeURIComponent(candidate.url)}`
+              const mlRes = await fetch(mlUrl, { signal: AbortSignal.timeout(12000) })
+              if (!mlRes.ok) continue
 
-            const mlImage = await extractImageViaMicrolink(candidate.url)
-            if (mlImage) {
-              imageUrl = mlImage
-              imageSource = `microlink/${hostName}`
-              productLog.push(`  S1: ✓ Found image via Microlink`)
-            } else {
-              productLog.push(`  S1: ✗ No image from Microlink`)
-            }
+              const mlData = await mlRes.json()
+              if (mlData.status !== 'success') continue
+
+              const extractedImage = mlData.data?.image?.url
+              if (!extractedImage) continue
+
+              const imgLower = extractedImage.toLowerCase()
+              if (imgLower.includes('logo') || imgLower.includes('icon') || imgLower.includes('favicon') ||
+                  imgLower.includes('banner') || imgLower.includes('sprite') || imgLower.endsWith('.svg') ||
+                  imgLower.includes('meta_banner') || imgLower.includes('placeholder')) continue
+
+              const imageUrl = extractedImage.startsWith('//') ? 'https:' + extractedImage : extractedImage
+
+              // Download and save
+              const imageData = await downloadAndConvertToWebp(imageUrl)
+              if (imageData) {
+                // Remove the AI image we just saved and replace with real photo
+                // (the product already has an AI image from strategy 1, but since AI failed, this is fine)
+                const imageId = crypto.randomUUID()
+                await db.execute({
+                  sql: `INSERT INTO product_images (id, data, size, width, height, createdAt) VALUES (?, ?, ?, ?, ?, datetime('now'))`,
+                  args: [imageId, imageData.data, imageData.size, imageData.width, imageData.height],
+                })
+                await db.execute({
+                  sql: 'UPDATE products SET images = ?, updatedAt = ? WHERE id = ?',
+                  args: [JSON.stringify([`/api/image/${imageId}`]), new Date().toISOString(), id],
+                })
+
+                enriched++
+                foundRealImage = true
+                console.log(`[enrich-images] ✓ Real photo via Microlink/${candidate.host_name}: ${name}`)
+                break
+              }
+            } catch { continue }
           }
         } catch (err: any) {
-          productLog.push(`  S1: Search error: ${err.message?.substring(0, 60)}`)
+          console.log(`[enrich-images] Web search error: ${err.message?.substring(0, 60)}`)
         }
 
-        // ============================================================
-        // Strategy 2: Second search with broader terms + Microlink
-        // ============================================================
-        if (!imageUrl) {
-          const searchQuery2 = `${cleanName} ${brand} buy product`
-          productLog.push(`  S2: search "${searchQuery2}"`)
-
-          try {
-            const raw2 = await zai.functions.invoke('web_search', { query: searchQuery2, num: 3 })
-            const searchResults2 = Array.isArray(raw2) ? raw2 : []
-            productLog.push(`  S2: got ${searchResults2.length} results`)
-
-            for (const result of searchResults2) {
-              if (imageUrl) break
-              const hostName = result.host_name || ''
-              if (!result.url?.startsWith('http')) continue
-              if (['youtube', 'facebook', 'twitter', 'instagram', 'tiktok', 'reddit', 'wikipedia', 'pinterest'].some(d => hostName.includes(d))) continue
-
-              productLog.push(`  S2: Microlink on ${hostName}`)
-              const mlImage = await extractImageViaMicrolink(result.url)
-              if (mlImage) {
-                imageUrl = mlImage
-                imageSource = `microlink2/${hostName}`
-                productLog.push(`  S2: ✓ Found image via Microlink`)
-              }
-            }
-          } catch (err: any) {
-            productLog.push(`  S2: Search error: ${err.message?.substring(0, 60)}`)
-          }
-        }
-
-        // ============================================================
-        // Strategy 3: AI Image Generation — guaranteed to produce something
-        // ============================================================
-        if (!imageUrl) {
-          try {
-            productLog.push(`  S3: AI image generation`)
-            const prompt = `Professional product photo of ${cleanName}${brand ? ` by ${brand}` : ''}, isolated on white background, studio lighting, e-commerce style, high quality product photography, no text, no watermark`
-
-            const aiImage = await zai.images.generations.create({
-              prompt,
-              size: '1024x1024',
-            })
-
-            const base64Data = aiImage.data?.[0]?.base64
-            if (base64Data) {
-              const sharp = (await import('sharp')).default
-              const buffer = Buffer.from(base64Data, 'base64')
-
-              const webpBuffer = await sharp(buffer)
-                .resize(MAX_IMAGE_WIDTH, MAX_IMAGE_WIDTH, { fit: 'inside', withoutEnlargement: true })
-                .webp({ quality: WEBP_QUALITY, effort: 6 })
-                .toBuffer()
-
-              const metadata = await sharp(webpBuffer).metadata()
-
-              const imageId = crypto.randomUUID()
-              await db.execute({
-                sql: `INSERT INTO product_images (id, data, size, width, height, createdAt) VALUES (?, ?, ?, ?, ?, datetime('now'))`,
-                args: [imageId, webpBuffer.toString('base64'), webpBuffer.length, metadata.width || 0, metadata.height || 0],
-              })
-
-              const imagePath = `/api/image/${imageId}`
-              await db.execute({
-                sql: 'UPDATE products SET images = ?, updatedAt = ? WHERE id = ?',
-                args: [JSON.stringify([imagePath]), new Date().toISOString(), id],
-              })
-
-              enriched++
-              productLog.push(`  S3: ✓ AI generated ${metadata.width}x${metadata.height}`)
-              console.log(productLog.join('\n'))
-              continue // Skip the normal download flow below
-            }
-          } catch (err: any) {
-            productLog.push(`  S3: AI generation failed: ${err.message?.substring(0, 80)}`)
-          }
-        }
-
-        if (!imageUrl) {
+        if (!foundRealImage) {
           failed++
-          errors.push(`${name}: no se encontró imagen`)
-          productLog.push(`  RESULT: FAILED - no image found`)
-          console.log(productLog.join('\n'))
-          continue
+          errors.push(`${name}: ${aiResult.error || 'sin imagen'}`)
         }
-
-        // Download and convert to WebP
-        const imageData = await downloadAndConvertToWebp(imageUrl)
-
-        if (!imageData) {
-          failed++
-          errors.push(`${name}: error descargando/convirtiendo imagen`)
-          productLog.push(`  RESULT: FAILED - download/convert error`)
-          console.log(productLog.join('\n'))
-          continue
-        }
-
-        // Store in product_images table
-        const imageId = crypto.randomUUID()
-        await db.execute({
-          sql: `INSERT INTO product_images (id, data, size, width, height, createdAt)
-                VALUES (?, ?, ?, ?, ?, datetime('now'))`,
-          args: [imageId, imageData.data, imageData.size, imageData.width, imageData.height],
-        })
-
-        // Update the product with the local image path
-        const imagePath = `/api/image/${imageId}`
-        await db.execute({
-          sql: 'UPDATE products SET images = ?, updatedAt = ? WHERE id = ?',
-          args: [JSON.stringify([imagePath]), new Date().toISOString(), id],
-        })
-
-        enriched++
-        productLog.push(`  RESULT: ✓ [${imageSource}] ${imageData.width}x${imageData.height}, ${(imageData.size / 1024).toFixed(1)}KB`)
-        console.log(productLog.join('\n'))
 
         // Small delay between products
         await new Promise(resolve => setTimeout(resolve, 300))
@@ -423,7 +331,7 @@ export async function POST(request: Request) {
       } catch (err: any) {
         failed++
         errors.push(`${product.name}: ${err.message}`)
-        console.error(`[enrich-images] Error processing product:`, err)
+        console.error(`[enrich-images] Error:`, err)
       }
     }
 
@@ -434,22 +342,17 @@ export async function POST(request: Request) {
       failed,
       remaining: totalRemaining - enriched,
       errors: errors.length > 0 ? errors.slice(0, 5) : undefined,
-      message: `${enriched} productos enriquecidos con imágenes, ${failed} sin resultado. Quedan ${totalRemaining - enriched} productos sin imagen.`,
+      message: `${enriched} productos con imágenes, ${failed} fallidos. Quedan ${totalRemaining - enriched} sin imagen.`,
     })
 
   } catch (error: any) {
     console.error('[enrich-images] Fatal error:', error)
-    return NextResponse.json(
-      { ok: false, error: error.message },
-      { status: 500 }
-    )
+    return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
   }
 }
 
 // ============================================
 // CROSS-PROVIDER IMAGE COPY
-// Copies images from Elit/Invid to matching Air Intra products
-// using brand + model keyword matching
 // ============================================
 
 function extractBrandAndModelTerms(name: string): { brand: string; tokens: string[] } {
@@ -485,7 +388,6 @@ export async function PUT(request: Request) {
     const body = await request.json().catch(() => ({}))
     const batchSize = Math.min(Math.max(body.batchSize || 20, 1), 50)
 
-    // Step 1: Get Air Intra products needing images (in stock, with category)
     const airIntra = await db.execute({
       sql: `SELECT id, name FROM products
             WHERE providerId = 'air-intra-1780331633566'
@@ -499,7 +401,6 @@ export async function PUT(request: Request) {
       return NextResponse.json({ ok: true, enriched: 0, message: 'Todos los productos tienen imágenes' })
     }
 
-    // Step 2: Build inverted index from Elit/Invid
     const withImages = await db.execute({
       sql: `SELECT p.name, p.images FROM products p
             JOIN suppliers s ON p.providerId = s.id
@@ -507,7 +408,6 @@ export async function PUT(request: Request) {
               AND p.images != '[]' AND p.images IS NOT NULL AND p.isActive = 1`,
     })
 
-    // token -> [{ url, brand, name }]
     const invertedIndex = new Map<string, { url: string; brand: string; name: string }[]>()
 
     for (const row of withImages.rows as any[]) {
@@ -520,7 +420,6 @@ export async function PUT(request: Request) {
       }
     }
 
-    // Step 3: Match and process
     let enriched = 0
     let noMatch = 0
     let failed = 0
@@ -529,7 +428,6 @@ export async function PUT(request: Request) {
       const { brand: aiBrand, tokens: aiTokens } = extractBrandAndModelTerms(ai.name)
       if (aiTokens.length === 0) { noMatch++; continue }
 
-      // Find best match
       const candidateScores = new Map<string, { score: number; url: string; brand: string }>()
       for (const token of aiTokens) {
         const candidates = invertedIndex.get(token)
@@ -542,7 +440,6 @@ export async function PUT(request: Request) {
         }
       }
 
-      // Get best candidate (score >= 2)
       let bestMatch: { url: string; brand: string; score: number } | null = null
       for (const c of candidateScores.values()) {
         if (c.score >= 2 && (!bestMatch || c.score > bestMatch.score)) bestMatch = c
@@ -550,11 +447,9 @@ export async function PUT(request: Request) {
 
       if (!bestMatch) { noMatch++; continue }
 
-      // Download and convert
       const imageData = await downloadAndConvertToWebp(bestMatch.url)
       if (!imageData) { failed++; continue }
 
-      // Store
       const imageId = crypto.randomUUID()
       await db.execute({
         sql: `INSERT INTO product_images (id, data, size, width, height, createdAt) VALUES (?, ?, ?, ?, ?, datetime('now'))`,
@@ -568,16 +463,12 @@ export async function PUT(request: Request) {
       enriched++
     }
 
-    // Count remaining
     const remaining = await db.execute({
       sql: `SELECT COUNT(*) as c FROM products WHERE providerId = 'air-intra-1780331633566' AND (images = '[]' OR images IS NULL OR images = '') AND isActive = 1`,
     })
 
     return NextResponse.json({
-      ok: true,
-      enriched,
-      noMatch,
-      failed,
+      ok: true, enriched, noMatch, failed,
       remaining: (remaining.rows[0] as any).c,
       message: `Cross-copy: ${enriched} enriquecidos, ${noMatch} sin match, ${failed} fallidos. Quedan ${(remaining.rows[0] as any).c} sin imagen.`,
     })
