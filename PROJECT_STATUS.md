@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-09 (sesion 32)
+**Ultima actualizacion:** 2026-06-10 (sesion 33)
 
 ---
 
@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** 89e5c65 (filtros avanzados RAM/GPU/Notebooks, limpieza monitores, exclusiones sync) + IA features (sin commitear)
+- **Commit actual:** bdaacbb (Citi: asistente IA renombrado, boton Arma tu setup, Build Analyzer eliminado)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -893,45 +893,39 @@ Todos los backups en `/home/z/my-project/download/backups/`
 4. **Cargar imagenes faltantes:** ~1,565 productos sin imagen (mayormente Air Intra). Usar cross-provider matching + web search
 5. **Crear banners y cupones:** Las tablas estan vacias, el dueño puede empezar a crear promociones desde `/admin/promociones`
 
-### PENDIENTE - Integracion de IA (IMPLEMENTADO sesion 32)
-**Estado:** IMPLEMENTADO. Pendiente deploy a produccion y testing en vivo.
-**Prioridades elegidas:** PC Builder inteligente + Descripciones automaticas
+### Citi - Asistente IA de Compucity (IMPLEMENTADO sesion 32, ACTUALIZADO sesion 33)
+**Estado:** EN PRODUCCION
 
-#### Feature 1: PC Builder con IA de Compatibilidad
-- **Que hace hoy:** El PC Builder ya tiene compatibilidad basica por reglas (socket, DDR, wattaje) en `src/lib/compatibility.ts`. Las reglas deterministas (AM5->AM5, DDR5->DDR5) funcionan bien y NO se tocan.
-- **Que agregaria la IA:** Capa 2 encima de las reglas para lo que las reglas no pueden resolver:
-  - Deteccion de cuellos de botella (procesador limita placa de video, etc.)
-  - Sugerencias de upgrade con costo-beneficio ("por $X mas te conviene esta placa")
-  - Validacion real de suficiencia de fuente (no solo TDP, sino picos, conectores, eficiencia)
-  - Explicaciones en lenguaje natural ("Tu procesador limita la placa de video en juegos 4K")
-  - Puntuacion del build (1-10) con detalle
-- **Arquitectura:** API Route `POST /api/validate-build` → manda specs al LLM → devuelve JSON con compatible/issues/bottleneck/score
-- **Disparador:** Boton manual "Analizar mi build" (no automatico, para controlar llamadas)
-- **Regla clave:** Reglas simples primero (gratis, 0ms), IA solo para lo complejo
-- **UI propuesta:** Panel lateral con semaforo (verde/amarillo/rojo), score, observaciones y sugerencias de upgrade
-- **LLM:** Grok (gratuito, ya usado en proyecto Paulero Studio del dev). Alternativa: z-ai-web-dev-sdk si Grok no alcanza
+#### Asistente IA - Chat Flotante "Citi"
+- **Nombre:** Citi (de Compu**CITY**)
+- **Boton flotante:** "Arma tu setup" (verde Compucity, posicionado abajo a la derecha)
+- **Componente:** `src/components/pc-assistant-chat.tsx`
+- **API:** `POST /api/pc-assistant` → Groq (LLM) + DB de productos → 3 configs de PC
+- **Flujo:** Pregunta uso (gaming/trabajo/diseño) + presupuesto → genera 3 opciones (Economica, Recomendada, Premium) → usuario carga una al builder
+- **Estetica:** Colores Compucity green (no purple/indigo), Sparkles icon
+- **Compatibilidad automatica:** Socket (CPU->Mother), DDR (Mother->RAM), Wattaje (GPU->PSU)
+- **Budget profiles:** gaming (32% GPU), oficina (0% GPU), edicion (20% GPU), general (18% GPU)
+- **Prompt conservador:** Solo marca cuellos de botella EXTREMOS (Celeron + RTX 4070+, 4GB RAM gaming)
+- **Feature flag:** `ai_enabled` en store_config para habilitar/deshabilitar
 
-#### Feature 2: Descripciones Automaticas de Productos
+#### Build Analyzer (ELIMINADO sesion 33)
+- **Razon:** Redundante con el filtrado automatico de compatibilidad + el asistente Citi genera configs balanceadas
+- **Eliminado:** API `/api/validate-build` (609 lineas), boton "Analizar con IA", panel de resultados, upgrade cards
+- **Problema previo (FIX sesion 32):** Loop infinito donde IA recomendaba upgrade → usuario lo seleccionaba → IA volvia a detectar bottleneck → recomendaba otro upgrade. Solucionado con prompt conservador + estado frontend que preservaba analisis al aplicar upgrades
+
+#### Descripciones Automaticas de Productos (PENDIENTE)
 - **Problema:** Muchos productos tienen descripciones vacias, en ingles, o genericas del proveedor
-- **Solucion:** LLM genera descripciones en español, SEO-friendly, a partir del titulo + specs tecnicas
-- **Costo:** Se genera una vez por producto (no por vista). ~600K tokens para 2000 productos iniciales, luego ~30K/mes para productos nuevos del sync
+- **Solucion propuesta:** LLM genera descripciones en español, SEO-friendly, a partir del titulo + specs tecnicas
 - **Integracion:** Boton en admin "Generar descripcion con IA" o automatico en el sync para productos sin descripcion
-- **LLM:** Grok (gratuito). Temperature 0.7-0.8, max_tokens 200-400
+- **LLM:** Grok (gratuito)
 
-#### Costos Estimados
+#### Costos
 | Concepto | Costo mensual |
 |----------|--------------|
-| Vercel | $0 (ya lo usan, sin cambios) |
-| Turso | $0 (ya lo usan, consultas extra insignificantes) |
-| LLM (Grok) | $0 (gratuito, mismo que Paulero Studio) |
+| Vercel | $0 (ya lo usan) |
+| Turso | $0 (consultas extra insignificantes) |
+| LLM (Grok) | $0 (gratuito) |
 | **Total** | **$0** |
-
-#### Consideraciones
-- **Rate limits de Grok:** Verificar limites de consultas/minuto. Para trafico normal de e-commerce probablemente alcanza
-- **Latencia:** 2-3s por consulta de IA. Para el PC Builder (boton manual) es aceptable. Para descripciones (batch) no importa
-- **Plan B:** Si Grok cambia condiciones, usar z-ai-web-dev-sdk como fallback ($5-15/mes estimado)
-- **Feature flag:** Implementar con flag para poder desactivar sin deploy si algo falla
-- **Prueba piloto:** 2 semanas, medir impacto, si no suma se saca
 
 ### Media Prioridad
 6. **Recuperacion de contrasena por email:** El endpoint `/api/customer/forgot-password` existe pero necesita configuracion de servicio de email (Resend)
@@ -956,6 +950,7 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ---
 
 ## Historial de Cambios
+- **2026-06-10 (s33):** Citi IA: asistente renombrado + boton Arma tu setup + Build Analyzer eliminado. (1) Boton flotante: renombrado de "Asistente IA" a "Arma tu setup". (2) Nombre del asistente: renombrado a "Citi" (de Compucity). Se presenta como "¡Hola! Soy Citi de Compucity". Header del chat muestra "Citi". (3) Prompts backend: system prompt y descripciones de builds ahora dicen "Sos Citi" en vez de "Sos un asistente". (4) Build Analyzer eliminado: API /api/validate-build (609 lineas), boton "Analizar con IA", panel de resultados, upgrade cards. Solo queda Citi como asistente IA. (5) Fix previo sesion 32: loop infinito de recomendaciones IA solucionado con prompt conservador + estado frontend. (6) Estetica: todos los colores purple/indigo reemplazados por Compucity green. Commit: bdaacbb
 - **2026-06-09 (s31):** Filtros avanzados para RAM, GPU y Notebooks + limpieza monitores + exclusiones sync. (1) RAM: Filtros de capacidad (4GB/8GB/16GB/32GB/64GB+) en memorias-ram y memoria-ram-notebook (tienda + PC Builder). (2) GPU/Placas de Video: Filtros de VRAM (4GB-24GB) y Serie (RTX 3050-5080, RX 6600-7900, Arc A750/A770) en placas-de-video y PC Builder GPU slot. Marcas nuevas: PowerColor, Sapphire, INNO3D. VRAM matchFn valida que el producto sea GPU (keywords RTX/GTX/RADEON) para no confundir con RAM de notebooks. (3) Notebooks: Filtros completos de procesador (i3/i5/i7/i9/Ryzen 3/5/7/9), RAM, pantalla y GPU en notebooks, oficina y gamer-y-diseno. Procesador usa matchFn granular por modelo. (4) FIX MONITORES: 77 productos mal categorizados eliminados (TVs, notebooks, all-in-ones, proyectores, cables, soportes, etc.). 35+ nuevas reglas de exclusion en validate-categories + sync CATEGORY_CORRECTIONS para prevenir recurrencia. La sync de proveedores ya no volvera a contaminar la categoria monitores. Commits: 29b90bf, 2f14b97, b1418bc, 7535f61, 89e5c65
 - **2026-06-07 (s27):** 8 mejoras + filtros desplegables + limpieza masiva categorias. (1) PC Builder: SSD/HDD permiten multiples modelos diferentes (cada disco con su propio +/- y eliminar). (2) PC Builder: Gabinete incluye subcategoria "Gabinetes con Fuente" (additionalCategorySlugs). (3) PC Builder: Auto-avance al siguiente slot despues de seleccionar (excepto SSD/HDD que permiten agregar mas). (4) PC Builder: PDF y WhatsApp separados en botones distintos. (5) ProductCard: Removido indicador de stock visible al publico (solo queda overlay "Sin stock" cuando stock<=0). (6) Filtros: Monitores agrega 19", 22", 100Hz, 144Hz, 165Hz, 180Hz. (7) Filtros desplegables: Marcas convertidas de pills a <select> dropdowns en discos SSD, HDD, fuentes, gabinetes, refrigeracion, monitores y placas de red. (8) Fix bug: Editar producto de proveedor causaba que la imagen desapareciera (parsing de images con null guards). (9) LIMPIEZA MASIVA CATEGORIAS: 66 productos mal categorizados corregidos (cables/fans en Monitores, chargers/baterias en Notebooks, PCs completas en Discos SSD, etc.). 40+ nuevas reglas de correccion automatica en sync y validate-categories para prevenir futuras miscategorizaciones. Commits: bd8b2af, e387267, 8e22577, f4e65c7, 0bda50d, 2a0fe2b
 - **2026-06-07 (s26):** Stock por deposito Cordoba (cba) - sin stock local = sin stock en tienda. (1) Nuevo campo DB: `stockByWarehouse TEXT` en products (migracion #22). Guarda JSON con stock por deposito de Air Intra: `{"air":5,"lug":0,"ros":2,"cba":0,"mza":0}`. (2) Sync Air Intra: `stock` ahora usa `cba.disponible` en vez de sumar todos los depositos. Si no hay stock en Cordoba, el producto aparece como "Sin stock". 6 ubicaciones de totalStock modificadas en route.ts. (3) Elit e Invid sin cambios (no tienen datos por deposito). (4) IMPORTANTE: Hay que re-sincronizar Air Intra para actualizar el stock con la nueva logica. Commit: b4c90a8
