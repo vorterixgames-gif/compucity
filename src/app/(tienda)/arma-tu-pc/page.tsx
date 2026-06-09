@@ -1422,61 +1422,65 @@ export default function ArmaTuPCPage() {
               )}
 
               {/* AI Build Analysis */}
-              <div className="px-5 py-3 border-b">
+              <div className="border-b">
                 {aiAnalysis ? (
-                  <div className="space-y-2">
-                    {/* Score + Status */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {aiAnalysis.compatible ? (
-                          <CheckCircle2 className="w-5 h-5 text-green-500" />
-                        ) : (
-                          <XCircle className="w-5 h-5 text-red-500" />
-                        )}
-                        <span className="text-sm font-bold">
-                          {aiAnalysis.compatible ? 'Build compatible' : 'Problemas detectados'}
-                        </span>
-                      </div>
-                      <div className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                        aiAnalysis.score >= 8 ? 'bg-green-100 text-green-700' :
-                        aiAnalysis.score >= 5 ? 'bg-yellow-100 text-yellow-700' :
-                        'bg-red-100 text-red-700'
-                      }`}>
-                        {aiAnalysis.score}/10
-                      </div>
-                    </div>
-                    
-                    {/* Summary */}
-                    <p className="text-xs text-gray-600">{aiAnalysis.summary}</p>
-                    
-                    {/* Use case tag */}
-                    {aiAnalysis.use_case && (
-                      <span className="inline-block text-[10px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 font-medium">
-                        Uso ideal: {aiAnalysis.use_case === 'gaming' ? 'Gaming' : aiAnalysis.use_case === 'oficina' ? 'Oficina' : aiAnalysis.use_case === 'edicion' ? 'Edición' : 'General'}
-                      </span>
-                    )}
-                    
-                    {/* Bottleneck */}
-                    {aiAnalysis.bottleneck && aiAnalysis.bottleneck !== 'ninguno' && (
-                      <div className="flex items-start gap-1.5 text-xs bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-                        <div>
-                          <span className="font-medium text-amber-800">Cuello de botella: {aiAnalysis.bottleneck}</span>
-                          {aiAnalysis.bottleneck_detail && (
-                            <p className="text-amber-700 mt-0.5">{aiAnalysis.bottleneck_detail}</p>
-                          )}
+                  <div className="px-5 py-4 space-y-3">
+                    {/* Score Ring + Status Header */}
+                    <div className="flex items-center gap-4">
+                      {/* Visual Score Ring */}
+                      <div className="relative w-16 h-16 shrink-0">
+                        <svg className="w-16 h-16 -rotate-90" viewBox="0 0 36 36">
+                          <path
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none"
+                            stroke="#e5e7eb"
+                            strokeWidth="3"
+                          />
+                          <path
+                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                            fill="none"
+                            stroke={aiAnalysis.score >= 8 ? '#22c55e' : aiAnalysis.score >= 5 ? '#f59e0b' : '#ef4444'}
+                            strokeWidth="3"
+                            strokeDasharray={`${aiAnalysis.score * 10}, 100`}
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className={`text-lg font-bold ${
+                            aiAnalysis.score >= 8 ? 'text-green-600' :
+                            aiAnalysis.score >= 5 ? 'text-amber-600' :
+                            'text-red-600'
+                          }`}>{aiAnalysis.score}</span>
                         </div>
                       </div>
-                    )}
-                    
-                    {/* Issues list */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          {aiAnalysis.compatible ? (
+                            <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+                          ) : (
+                            <XCircle className="w-4 h-4 text-red-500 shrink-0" />
+                          )}
+                          <span className="text-sm font-bold text-gray-900">
+                            {aiAnalysis.compatible ? 'Build compatible' : 'Problemas detectados'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{aiAnalysis.summary}</p>
+                        {aiAnalysis.use_case && (
+                          <span className="inline-block mt-1.5 text-[10px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 font-medium">
+                            {aiAnalysis.use_case === 'gaming' ? 'Gaming' : aiAnalysis.use_case === 'oficina' ? 'Oficina' : aiAnalysis.use_case === 'edicion' ? 'Edicion' : 'General'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Issues as compact chips */}
                     {aiAnalysis.issues && aiAnalysis.issues.length > 0 && (
                       <div className="space-y-1.5">
                         {aiAnalysis.issues.map((issue: any, i: number) => (
-                          <div key={i} className={`flex items-start gap-1.5 text-xs rounded-lg px-2.5 py-1.5 ${
-                            issue.severity === 'error' ? 'bg-red-50 border border-red-200' :
-                            issue.severity === 'warning' ? 'bg-amber-50 border border-amber-200' :
-                            'bg-blue-50 border border-blue-200'
+                          <div key={i} className={`flex items-start gap-2 rounded-lg px-3 py-2 ${
+                            issue.severity === 'error' ? 'bg-red-50 border border-red-100' :
+                            issue.severity === 'warning' ? 'bg-amber-50 border border-amber-100' :
+                            'bg-blue-50 border border-blue-100'
                           }`}>
                             {issue.severity === 'error' ? (
                               <XCircle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
@@ -1485,134 +1489,154 @@ export default function ArmaTuPCPage() {
                             ) : (
                               <Info className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
                             )}
-                            <div>
-                              <span className={`font-medium ${
-                                issue.severity === 'error' ? 'text-red-800' :
-                                issue.severity === 'warning' ? 'text-amber-800' :
-                                'text-blue-800'
+                            <div className="min-w-0 flex-1">
+                              <span className={`text-xs font-semibold ${
+                                issue.severity === 'error' ? 'text-red-700' :
+                                issue.severity === 'warning' ? 'text-amber-700' :
+                                'text-blue-700'
                               }`}>{issue.component}</span>
-                              <p className="text-gray-600 mt-0.5">{issue.message}</p>
-                              {issue.suggestion && (
-                                <p className="text-green-600 mt-0.5 font-medium">💡 {issue.suggestion}</p>
-                              )}
+                              <p className="text-[11px] text-gray-600 mt-0.5 leading-snug">{issue.message}</p>
                             </div>
                           </div>
                         ))}
                       </div>
                     )}
-                    
+
+                    {/* Bottleneck highlight */}
+                    {aiAnalysis.bottleneck && aiAnalysis.bottleneck !== 'ninguno' && (
+                      <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                          <span className="text-xs font-bold text-amber-800">Cuello de botella: {aiAnalysis.bottleneck}</span>
+                        </div>
+                        {aiAnalysis.bottleneck_detail && (
+                          <p className="text-[11px] text-amber-700 leading-snug">{aiAnalysis.bottleneck_detail}</p>
+                        )}
+                      </div>
+                    )}
+
                     {/* Upgrade suggestion */}
                     {aiAnalysis.upgrade_suggestion && (
-                      <div className="flex items-start gap-1.5 text-xs bg-green-50 border border-green-200 rounded-lg px-2.5 py-1.5">
-                        <Zap className="w-3.5 h-3.5 text-green-500 shrink-0 mt-0.5" />
-                        <div>
-                          <span className="font-medium text-green-800">Mejora sugerida</span>
-                          <p className="text-green-700 mt-0.5">{aiAnalysis.upgrade_suggestion}</p>
+                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl px-3 py-2.5">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Zap className="w-3.5 h-3.5 text-green-500" />
+                          <span className="text-xs font-bold text-green-800">Mejora sugerida</span>
+                        </div>
+                        <p className="text-[11px] text-green-700 leading-snug">{aiAnalysis.upgrade_suggestion}</p>
+                      </div>
+                    )}
+
+                    {/* Upgrade products as clickable cards with images */}
+                    {aiAnalysis.upgrade_products && aiAnalysis.upgrade_products.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <ShoppingCart className="w-3.5 h-3.5 text-indigo-500" />
+                          <span className="text-xs font-bold text-indigo-800">Alternativas en la tienda</span>
+                        </div>
+                        <div className="space-y-2">
+                          {aiAnalysis.upgrade_products.map((product: any, i: number) => {
+                            const displayPrice = product.comparePrice || product.price
+                            const productImage = safeParseFirstImage(product.images)
+                            return (
+                              <button
+                                key={i}
+                                onClick={() => {
+                                  const slotMap: Record<string, string> = {
+                                    procesador: 'processor',
+                                    'placa de video': 'gpu',
+                                    ram: 'ram',
+                                    almacenamiento: 'ssd',
+                                  }
+                                  const targetSlot = slotMap[aiAnalysis.bottleneck] || 'processor'
+                                  const builderProduct: BuilderProduct = {
+                                    id: product.id,
+                                    name: product.name,
+                                    slug: product.slug || '',
+                                    price: product.price,
+                                    comparePrice: product.comparePrice || null,
+                                    costPrice: null,
+                                    images: product.images || '[]',
+                                    stock: product.stock || 0,
+                                    specs: product.specs || '{}',
+                                    _calculated: true,
+                                  }
+                                  setSelectedComponents(prev => {
+                                    const filtered = prev.filter(c => c.slot !== targetSlot)
+                                    return [...filtered, { slot: targetSlot, product: builderProduct, quantity: 1 }]
+                                  })
+                                  setAiAnalysis(null)
+                                }}
+                                className="w-full flex items-center gap-3 p-2.5 bg-white border border-indigo-200 rounded-xl hover:border-indigo-400 hover:shadow-md transition-all text-left group"
+                              >
+                                {/* Product image */}
+                                <div className="w-12 h-12 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
+                                  {productImage ? (
+                                    <img src={productImage} alt="" className="w-full h-full object-contain p-1" />
+                                  ) : (
+                                    <span className="text-indigo-400 font-bold text-sm">#{i + 1}</span>
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-semibold text-gray-800 truncate group-hover:text-indigo-700 transition">{product.name}</p>
+                                  {product.reason && (
+                                    <p className="text-[10px] text-gray-500 mt-0.5 line-clamp-1">{product.reason}</p>
+                                  )}
+                                  <p className="text-xs font-bold text-indigo-600 mt-0.5">
+                                    {formatPrice(displayPrice)}
+                                    {product.comparePrice && <span className="text-[9px] text-gray-400 font-normal ml-1">efectivo</span>}
+                                  </p>
+                                </div>
+                                <div className="shrink-0">
+                                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-semibold group-hover:bg-indigo-100 transition">
+                                    <Check className="w-3 h-3" />
+                                    Usar
+                                  </span>
+                                </div>
+                              </button>
+                            )
+                          })}
                         </div>
                       </div>
                     )}
 
-                    {/* Upgrade products - suggested alternatives */}
-                    {aiAnalysis.upgrade_products && aiAnalysis.upgrade_products.length > 0 && (
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-1.5 text-xs font-medium text-blue-800">
-                          <ShoppingCart className="w-3.5 h-3.5" />
-                          Alternativas en la tienda
-                        </div>
-                        {aiAnalysis.upgrade_products.map((product: any, i: number) => {
-                          const displayPrice = product.comparePrice || product.price
-                          return (
-                            <button
-                              key={i}
-                              onClick={() => {
-                                // Map bottleneck back to slot
-                                const slotMap: Record<string, string> = {
-                                  procesador: 'processor',
-                                  'placa de video': 'gpu',
-                                  ram: 'ram',
-                                  almacenamiento: 'ssd',
-                                }
-                                const targetSlot = slotMap[aiAnalysis.bottleneck] || 'processor'
-                                const builderProduct: BuilderProduct = {
-                                  id: product.id,
-                                  name: product.name,
-                                  slug: product.slug || '',
-                                  price: product.price,
-                                  comparePrice: product.comparePrice || null,
-                                  costPrice: null,
-                                  images: product.images || '[]',
-                                  stock: product.stock || 0,
-                                  specs: product.specs || '{}',
-                                  _calculated: true,
-                                }
-                                // Replace the component in the selected list
-                                setSelectedComponents(prev => {
-                                  const filtered = prev.filter(c => c.slot !== targetSlot)
-                                  return [...filtered, { slot: targetSlot, product: builderProduct, quantity: 1 }]
-                                })
-                                setAiAnalysis(null)
-                              }}
-                              className="w-full flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition text-xs group text-left"
-                            >
-                              <div className="w-7 h-7 rounded-md bg-blue-100 flex items-center justify-center shrink-0">
-                                <span className="text-blue-600 font-bold text-[10px]">#{i + 1}</span>
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-blue-900 font-medium truncate group-hover:text-blue-700">{product.name}</p>
-                                {product.reason && (
-                                  <p className="text-blue-600 text-[10px] mt-0.5 line-clamp-1">{product.reason}</p>
-                                )}
-                              </div>
-                              <div className="text-right shrink-0">
-                                <span className="text-blue-700 font-bold">
-                                  {formatPrice(displayPrice)}
-                                </span>
-                                {product.comparePrice && (
-                                  <p className="text-[9px] text-gray-400">efectivo</p>
-                                )}
-                              </div>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )}
-                    
                     {/* Re-analyze button */}
                     <button
                       onClick={() => setAiAnalysis(null)}
-                      className="text-[10px] text-gray-400 hover:text-gray-600 transition"
+                      className="w-full text-center text-[11px] text-gray-400 hover:text-gray-600 transition py-1"
                     >
-                      Cerrar análisis
+                      Cerrar analisis
                     </button>
                   </div>
                 ) : (
-                  <button
-                    onClick={analyzeBuild}
-                    disabled={selectedComponents.length < 3 || aiLoading}
-                    className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition ${
-                      selectedComponents.length < 3 || aiLoading
-                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 text-white shadow-sm'
-                    }`}
-                  >
-                    {aiLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Analizando...
-                      </>
-                    ) : (
-                      <>
-                        <Brain className="w-4 h-4" />
-                        Analizar mi build con IA
-                      </>
+                  <div className="px-5 py-3">
+                    <button
+                      onClick={analyzeBuild}
+                      disabled={selectedComponents.length < 3 || aiLoading}
+                      className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                        selectedComponents.length < 3 || aiLoading
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]'
+                      }`}
+                    >
+                      {aiLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Analizando...
+                        </>
+                      ) : (
+                        <>
+                          <Brain className="w-4 h-4" />
+                          Analizar mi build con IA
+                        </>
+                      )}
+                    </button>
+                    {aiError && (
+                      <p className="text-xs text-red-500 mt-2 text-center">{aiError}</p>
                     )}
-                  </button>
-                )}
-                {aiError && (
-                  <p className="text-xs text-red-500 mt-1">{aiError}</p>
-                )}
-                {!aiAnalysis && selectedComponents.length < 3 && (
-                  <p className="text-[10px] text-gray-400 mt-1">Seleccioná al menos 3 componentes para analizar</p>
+                    {!aiAnalysis && selectedComponents.length < 3 && (
+                      <p className="text-[10px] text-gray-400 mt-1.5 text-center">Selecciona al menos 3 componentes para analizar</p>
+                    )}
+                  </div>
                 )}
               </div>
 
