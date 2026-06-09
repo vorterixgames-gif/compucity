@@ -187,7 +187,7 @@ export default function NotebookAssistantChat() {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-28 right-5 md:bottom-6 md:right-6 z-50 flex items-center gap-2 p-4 md:px-5 md:py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 group"
+          className="fixed bottom-28 right-5 md:bottom-6 md:right-6 z-50 flex items-center gap-2 p-4 md:px-5 md:py-3.5 bg-gradient-to-r from-compucity-green-600 to-compucity-green-700 hover:from-compucity-green-700 hover:to-compucity-green-800 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 group"
           aria-label="Encontrá tu notebook con Citi"
         >
           <Laptop className="w-5 h-5 group-hover:animate-pulse" />
@@ -199,14 +199,14 @@ export default function NotebookAssistantChat() {
       {isOpen && (
         <div className="fixed bottom-6 right-6 z-50 w-[420px] max-w-[calc(100vw-2rem)] h-[620px] max-h-[calc(100vh-3rem)] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-5 py-4 flex items-center justify-between shrink-0">
+          <div className="bg-gradient-to-r from-compucity-green-600 to-compucity-green-700 text-white px-5 py-4 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
                 <Laptop className="w-5 h-5" />
               </div>
               <div>
                 <h3 className="font-semibold text-sm">Citi Notebooks</h3>
-                <p className="text-[11px] text-blue-200">Te ayudo a encontrar tu notebook ideal</p>
+                <p className="text-[11px] text-compucity-green-200">Te ayudo a encontrar tu notebook ideal</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
@@ -236,8 +236,8 @@ export default function NotebookAssistantChat() {
                 {/* Avatar */}
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
                   msg.role === 'user'
-                    ? 'bg-blue-100 text-blue-600'
-                    : 'bg-blue-50 text-blue-600'
+                    ? 'bg-compucity-green-100 text-compucity-green-600'
+                    : 'bg-compucity-green-50 text-compucity-green-600'
                 }`}>
                   {msg.role === 'user' ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
                 </div>
@@ -245,7 +245,7 @@ export default function NotebookAssistantChat() {
                 {/* Message Bubble */}
                 <div className={`max-w-[80%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${
                   msg.role === 'user'
-                    ? 'bg-blue-600 text-white rounded-tr-md'
+                    ? 'bg-compucity-green-600 text-white rounded-tr-md'
                     : 'bg-white text-gray-700 border border-gray-200 rounded-tl-md shadow-sm'
                 }`}>
                   {msg.content}
@@ -256,7 +256,7 @@ export default function NotebookAssistantChat() {
             {/* Loading indicator */}
             {loading && (
               <div className="flex gap-2.5">
-                <div className="w-7 h-7 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <div className="w-7 h-7 rounded-full bg-compucity-green-50 text-compucity-green-600 flex items-center justify-center shrink-0">
                   <Bot className="w-3.5 h-3.5" />
                 </div>
                 <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-md px-4 py-3 shadow-sm">
@@ -271,7 +271,7 @@ export default function NotebookAssistantChat() {
             {/* Recommended Notebooks */}
             {notebooks && notebooks.length > 0 && (
               <div className="space-y-3 pt-2">
-                <div className="flex items-center gap-2 text-sm font-medium text-blue-700">
+                <div className="flex items-center gap-2 text-sm font-medium text-compucity-green-700">
                   <Laptop className="w-4 h-4" />
                   Opciones para vos
                 </div>
@@ -284,10 +284,10 @@ export default function NotebookAssistantChat() {
                   return (
                     <div
                       key={bi}
-                      className="bg-white border border-blue-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition"
+                      className="bg-white border border-compucity-green-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition"
                     >
                       {/* Notebook Header */}
-                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border-b border-blue-200">
+                      <div className="bg-gradient-to-r from-compucity-green-50 to-compucity-green-100 px-4 py-3 border-b border-compucity-green-200">
                         <div className="flex items-center gap-3">
                           {/* Image */}
                           {image ? (
@@ -303,12 +303,12 @@ export default function NotebookAssistantChat() {
                           )}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="text-xs font-semibold px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full">
+                              <span className="text-xs font-semibold px-2 py-0.5 bg-compucity-green-100 text-compucity-green-700 rounded-full">
                                 {nb.tier}
                               </span>
                             </div>
                             <h4 className="font-semibold text-sm text-gray-800 mt-1 truncate">{nb.name}</h4>
-                            <p className="text-xs text-blue-600 mt-0.5">{nb.reason}</p>
+                            <p className="text-xs text-compucity-green-600 mt-0.5">{nb.reason}</p>
                           </div>
                         </div>
                       </div>
@@ -352,7 +352,7 @@ export default function NotebookAssistantChat() {
                       {/* Price + Add to Cart */}
                       <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between">
                         <div>
-                          <div className="text-sm font-bold text-blue-700">
+                          <div className="text-sm font-bold text-compucity-green-700">
                             {formatPrice(nb.comparePrice)}
                           </div>
                           <div className="text-[10px] text-gray-400">
@@ -365,7 +365,7 @@ export default function NotebookAssistantChat() {
                           className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition shadow-sm ${
                             isAdded
                               ? 'bg-green-500 text-white cursor-default'
-                              : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white hover:shadow'
+                              : 'bg-gradient-to-r from-compucity-green-600 to-compucity-green-700 hover:from-compucity-green-700 hover:to-compucity-green-800 text-white hover:shadow'
                           }`}
                         >
                           {isAdded ? (
@@ -388,7 +388,7 @@ export default function NotebookAssistantChat() {
                 {/* AI description */}
                 {description && (
                   <div className="flex gap-2.5">
-                    <div className="w-7 h-7 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                    <div className="w-7 h-7 rounded-full bg-compucity-green-50 text-compucity-green-600 flex items-center justify-center shrink-0">
                       <Bot className="w-3.5 h-3.5" />
                     </div>
                     <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-md px-3.5 py-2.5 shadow-sm max-w-[85%] text-sm text-gray-700 leading-relaxed">
@@ -413,12 +413,12 @@ export default function NotebookAssistantChat() {
                 onKeyDown={handleKeyDown}
                 placeholder={notebooks ? 'Hacé una consulta o tocá ✨ para reiniciar' : 'Escribí tu mensaje...'}
                 disabled={loading}
-                className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent disabled:opacity-50 placeholder-gray-400"
+                className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-compucity-green-400 focus:border-transparent disabled:opacity-50 placeholder-gray-400"
               />
               <button
                 onClick={sendMessage}
                 disabled={loading || !input.trim()}
-                className="w-10 h-10 flex items-center justify-center rounded-full bg-blue-600 hover:bg-blue-700 text-white transition disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-compucity-green-600 hover:bg-compucity-green-700 text-white transition disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
               >
                 <Send className="w-4 h-4" />
               </button>
