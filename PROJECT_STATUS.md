@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-10 (sesion 36)
+**Ultima actualizacion:** 2026-06-10 (sesion 37)
 
 ---
 
@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** c399aed (carrusel productos destacados + reubicacion entre marcas y categorias)
+- **Commit actual:** 4b844ed (safety: add critical files checker script + restore upload route)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -84,21 +84,24 @@
 - **Frontend:** Sin cambios - el Filtro Global de Stock ya oculta productos con `stock <= 0`
 - **Importante:** HAY QUE RE-SINCRONIZAR Air Intra para que el stock se actualice con la nueva logica. Hasta que se haga la sync, los productos existentes mantienen el stock total anterior
 
-### Estado actual de productos (2026-06-10 sesion 36)
+### Estado actual de productos (2026-06-10 sesion 37)
 | Metrica | Cantidad |
 |---------|----------|
-| Total productos en DB | 10,100 |
-| Activos con stock | 4,551 |
-| Con imagen | 10,100 |
+| Total productos en DB | 10,102 |
+| Activos | 9,843 |
+| Inactivos | 259 |
+| Con imagen | 4,572 |
+| Sin imagen | 5,530 |
+| Con categoria | 7,157 |
+| Sin categoria | 2,945 |
 | Con descripcion | 2,454 |
-| product_images (tabla) | 851 |
+| product_images (tabla) | 859 |
 | Categorias | 71 |
 | Proveedores | 4 |
 | Clientes | 2 |
 | Admins | 1 |
-| Productos destacados | 1 |
 
-**Backup:** download/backups/compucity_turso_backup_2026-06-09T19-04-13-436Z.json (31MB, 15 tablas)
+**Backup:** download/backups/compucity_turso_backup_2026-06-09T21-13-36-177Z.json (31.3MB, 10 tablas)
 
 ---
 
@@ -869,6 +872,7 @@ createdAt TEXT, updatedAt TEXT
 ## Backups
 | Fecha | Archivo | Tamano | Contenido |
 |-------|---------|--------|----------|
+| 2026-06-10 (s37) | `compucity_turso_backup_2026-06-09T21-13-36-177Z.json` | 31.3MB | DB completa (10 tablas, 10,102 productos) + chatbot notebooks + fix upload route |
 | 2026-06-09 (s31) | `compucity-src-backup-20260609-s31.tar.gz` | ~1.2MB | Filtros avanzados RAM/GPU/Notebooks + limpieza monitores + exclusiones sync |
 | 2026-06-06 (s22) | `compucity-src-backup-20260606-s22.tar.gz` | ~1.1MB | Filtro proveedor manual + fix categorias (switches/routers en PC Armadas) + 30 productos recategorizados |
 | 2026-06-05 (s20) | `compucity-src-backup-20260605-s20.tar.gz` | ~1.1MB | Logo real en PDF del PC Builder + base64 encoding |
@@ -1001,6 +1005,43 @@ Todos los backups en `/home/z/my-project/download/backups/`
 - ~~**Remover stock visible en tienda:**~~ RESUELTO - Solo overlay "Sin stock" permanece
 - ~~**Filtros desplegables de marca:**~~ RESUELTO - <select> dropdowns en 7 categorias
 - ~~**Fix imagenes al editar producto:**~~ RESUELTO - Null guards en parsing de images
+
+---
+
+## Sesion 37: Chatbot de Notebooks + Fix Upload Route + Seguridad
+
+### Chatbot de Notebooks "Citi" (IMPLEMENTADO)
+- **Componente:** `src/components/notebook-assistant-chat.tsx` - Chat flotante con asistente IA que recomienda 3 notebooks segun uso y presupuesto
+- **API:** `POST /api/notebook-assistant` - Busca notebooks en DB, genera 3 opciones (Economica, Recomendada, Premium)
+- **Banner:** `src/components/ui-custom/NotebookChatBanner.tsx` - Banner verde en pagina de categorias de notebooks con CTA "Chatear ahora"
+- **Categorias:** Aparece en notebooks, gamer-y-diseno, oficina (definido en NOTEBOOK_CATEGORIES)
+- **Colores:** Compucity green (no blue/indigo como estaba originalmente)
+- **Integracion:** Seleccionar una notebook recomendada la agrega al carrito
+
+### FIX: Ruta /api/admin/upload borrada accidentalmente
+- **Bug:** El commit `5dbc2b4` ("docs: update PROJECT_STATUS.md") borro accidentalmente `src/app/api/admin/upload/route.ts`, rompiendo la subida de imagenes en el admin por ~2 dias
+- **Error:** `Unexpected token '<', "<!DOCTYPE "... is not valid JSON` - El fetch esperaba JSON pero Next.js devolvia HTML 404
+- **Impacto:** No se perdieron imagenes existentes (las que ya estaban en product_images siguen intactas). Solo fallaron los intentos de subida nueva
+- **Fix:** Se restauro la ruta desde git history (`git show 1f07bf6:src/app/api/admin/upload/route.ts`) con autenticacion de admin y limpieza de referencias al eliminar
+- **Commit:** 8515626
+
+### Seguridad: Script de verificacion de archivos criticos
+- **Script:** `scripts/check-critical-files.mjs` - Verifica que 20 archivos criticos existan antes de deployar
+- **Comando:** `npm run check:critical` para ejecutar la verificacion
+- **Lista de archivos:** Rutas API (upload, products, banners, categories, auth, enrich, seed, stats, dollar, image, cron), componentes (ImageUploader, WhatsAppIcon), lib (db, admin-auth)
+- **Commit:** 4b844ed
+
+### Mejoras UX en arma-tu-pc
+- **Sidebar desktop:** Botones "Consultar por WhatsApp" y "Descargar PDF" apilados verticalmente (antes lado a lado, se salian del margen en sidebar w-80)
+- **Jerarquia:** WhatsApp es boton principal (verde, mas grande), PDF es secundario (gris claro)
+- **WhatsApp button:** z-40, se mueve arriba cuando detecta barra sticky via MutationObserver
+- **Chatbot panels:** z-[60] (por encima de sticky bars z-50 y WhatsApp z-40)
+- **Mobile:** Botones compactos, posicionados para no solaparse con WhatsApp y barra sticky
+
+### Pagina /elige-tu-notebook eliminada
+- El chatbot ahora vive directamente en la pagina de categoria de notebooks (no en pagina separada)
+- Slide 2 del hero actualizado: CTA va a `/categoria/notebooks` en vez de `/elige-tu-notebook`
+- CTA secundario va a `/categoria/gamer-y-diseno`
 
 ---
 
