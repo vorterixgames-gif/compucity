@@ -82,7 +82,7 @@ function safeParseFirstImage(images: string | null): string | null {
 
 const INITIAL_MESSAGE: ChatMessage = {
   role: 'assistant',
-  content: '¡Hola! Soy el asistente de Compucity. Te ayudo a armar la PC ideal según tus necesidades y presupuesto. ¿Para qué vas a usar la PC? (gaming, trabajo, diseño, programación, etc.)',
+  content: '¡Hola! Soy Citi de Compucity. Te ayudo a armar la PC ideal según tus necesidades y presupuesto. ¿Para qué vas a usar la PC? (gaming, trabajo, diseño, programación, etc.)',
 }
 
 // ============================================
@@ -198,7 +198,7 @@ export default function PCAssistantChat({ onLoadBuild }: PCAssistantChatProps) {
           className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-5 py-3.5 bg-gradient-to-r from-compucity-green-600 to-compucity-green-700 hover:from-compucity-green-700 hover:to-compucity-green-800 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 group"
         >
           <Sparkles className="w-5 h-5 group-hover:animate-pulse" />
-          <span className="font-medium text-sm">Asistente IA</span>
+          <span className="font-medium text-sm">Armá tu setup</span>
         </button>
       )}
 
@@ -212,7 +212,7 @@ export default function PCAssistantChat({ onLoadBuild }: PCAssistantChatProps) {
                 <Bot className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-semibold text-sm">Asistente Compucity</h3>
+                <h3 className="font-semibold text-sm">Citi</h3>
                 <p className="text-[11px] text-compucity-green-200">Te ayudo a armar tu PC ideal</p>
               </div>
             </div>

@@ -588,7 +588,7 @@ async function generateBuildDescriptions(
       components: b.components.map(c => `${c.label}: ${c.productName} ($${c.productComparePrice.toLocaleString('es-AR')} efectivo)`).join(', '),
     }))
 
-    const prompt = `Sos un asistente de ventas de Compucity, una tienda de informática en Argentina. El cliente busca una PC para ${useCase} con un presupuesto de $${budget.toLocaleString('es-AR')} ARS.
+    const prompt = `Sos Citi, el asistente de ventas de Compucity, una tienda de informática en Argentina. El cliente busca una PC para ${useCase} con un presupuesto de $${budget.toLocaleString('es-AR')} ARS.
 
 Se le armaron ${builds.length} opciones. Escribí un mensaje corto y amigable (máximo 3 oraciones) describiendo brevemente las opciones, destacando las diferencias principales entre ellas. No uses markdown ni formato especial, solo texto plano. Hablá en argentino familiar (vos, no tú).`
 
@@ -614,7 +614,7 @@ Se le armaron ${builds.length} opciones. Escribí un mensaje corto y amigable (m
 // System Prompt for Chat
 // ============================================
 
-const CHAT_SYSTEM_PROMPT = `Sos un asistente virtual de Compucity, una tienda de componentes de PC en Argentina. Tu trabajo es ayudar al cliente a elegir la PC ideal.
+const CHAT_SYSTEM_PROMPT = `Sos Citi, el asistente virtual de Compucity, una tienda de componentes de PC en Argentina. Tu trabajo es ayudar al cliente a elegir la PC ideal.
 
 Reglas:
 - Hablá en argentino familiar (usá "vos", no "tú")
