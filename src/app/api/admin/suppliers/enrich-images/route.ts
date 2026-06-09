@@ -221,15 +221,15 @@ export async function POST(request: Request) {
 
         let imageUrl: string | null = null
 
-        // Strategy 1: Search with multiple queries, try all results
+        // ============================================================
+        // Strategy 1: Web search + page_reader with short timeout
+        // Try 3 search queries, read pages with 8s timeout
+        // ============================================================
         const searchQueries = [
           `${cleanName} comprar`,
-          `${cleanName} ${brand} product`,
+          `${cleanName} ${brand}`,
           cleanName,
         ]
-
-        // Domains to skip entirely
-        const skipDomains = ['youtube.com', 'facebook.com', 'twitter.com', 'instagram.com', 'tiktok.com', 'pinterest.com', 'reddit.com', 'wikipedia.org']
 
         for (const searchQuery of searchQueries) {
           if (imageUrl) break
@@ -237,112 +237,101 @@ export async function POST(request: Request) {
 
           let searchResults: any[]
           try {
-            const raw = await zai.functions.invoke('web_search', { query: searchQuery, num: 10 })
+            const raw = await zai.functions.invoke('web_search', { query: searchQuery, num: 5 })
             searchResults = Array.isArray(raw) ? raw : []
-          } catch {
-            continue
-          }
+          } catch { continue }
 
           if (searchResults.length === 0) continue
 
-          // Try each result page
           for (const result of searchResults) {
             if (imageUrl) break
             const url = result.url || ''
             const hostName = result.host_name || ''
-
             if (!url.startsWith('http')) continue
-            if (skipDomains.some(d => hostName.includes(d))) continue
+            if (['youtube', 'facebook', 'twitter', 'instagram', 'tiktok', 'pinterest', 'reddit', 'wikipedia'].some(d => hostName.includes(d))) continue
 
             try {
               const pageResult = await zai.functions.invoke('page_reader', { url })
               const html = pageResult?.data?.html || pageResult?.html || ''
               if (!html) continue
 
-              // Try og:image first (most reliable)
+              // Try og:image
               const ogMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i)
                 || html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i)
-
-              if (ogMatch && ogMatch[1]) {
-                const candidate = ogMatch[1].replace(/&amp;/g, '&')
-                // Skip obviously non-product images
-                if (
-                  !candidate.includes('logo') && !candidate.includes('icon') &&
-                  !candidate.includes('avatar') && !candidate.includes('favicon') &&
-                  !candidate.endsWith('.svg') && !candidate.endsWith('.gif') &&
-                  candidate.length > 20
-                ) {
-                  imageUrl = candidate
-                  console.log(`[enrich-images] Found og:image from ${hostName}: ${imageUrl}`)
+              if (ogMatch?.[1]) {
+                const c = ogMatch[1].replace(/&amp;/g, '&')
+                if (!c.includes('logo') && !c.includes('icon') && !c.includes('favicon') && !c.endsWith('.svg') && c.length > 20) {
+                  imageUrl = c
+                  console.log(`[enrich-images] og:image from ${hostName}: ${imageUrl.substring(0, 100)}`)
                   break
                 }
               }
 
-              // Fallback: look for any large product image in img tags
-              const imgMatches = [...html.matchAll(/<img[^>]*src=["']([^"']+)["']/gi)]
-              for (const imgMatch of imgMatches) {
+              // Fallback: img tags with product-like src
+              for (const imgMatch of [...html.matchAll(/<img[^>]*src=["']([^"']+)["']/gi)]) {
                 const src = imgMatch[1].replace(/&amp;/g, '&')
-                if (
-                  src.includes('icon') || src.includes('logo') ||
-                  src.includes('banner') || src.includes('pixel') ||
-                  src.includes('avatar') || src.includes('favicon') ||
-                  src.includes('sprite') || src.includes('1x1') ||
-                  src.endsWith('.svg') || src.endsWith('.gif') ||
-                  src.length < 25
-                ) continue
-
-                // Accept any image that looks like a product photo
-                if (
-                  src.includes('product') || src.includes('gallery') ||
-                  src.includes('zoom') || src.includes('large') ||
-                  src.includes('full') || src.includes('original') ||
-                  src.includes('/image') || src.includes('/img') ||
-                  src.includes('/photo') || src.includes('cdn') ||
-                  src.includes('format=') || src.includes('catalog') ||
-                  src.includes('.jpg') || src.includes('.jpeg') ||
-                  src.includes('.png') || src.includes('.webp')
-                ) {
+                if (src.length < 25 || src.endsWith('.svg') || src.endsWith('.gif')) continue
+                if (['icon', 'logo', 'banner', 'pixel', 'avatar', 'favicon', 'sprite', '1x1'].some(k => src.includes(k))) continue
+                if (['product', 'gallery', 'zoom', 'large', 'full', 'original', '/image', '/img', '/photo', 'cdn', 'catalog', '.jpg', '.jpeg', '.png', '.webp'].some(k => src.includes(k))) {
                   if (src.startsWith('//')) imageUrl = 'https:' + src
                   else if (src.startsWith('/')) imageUrl = `https://${hostName}${src}`
                   else if (src.startsWith('http')) imageUrl = src
                   if (imageUrl) {
-                    console.log(`[enrich-images] Found img from ${hostName}: ${imageUrl}`)
+                    console.log(`[enrich-images] img from ${hostName}: ${imageUrl.substring(0, 100)}`)
                     break
                   }
                 }
               }
             } catch (err: any) {
-              console.log(`[enrich-images] Error reading ${url}: ${err.message}`)
+              console.log(`[enrich-images] page_reader error: ${err.message?.substring(0, 80)}`)
             }
           }
         }
 
-        // Strategy 2: If no image found, ask AI to help find an image URL
+        // ============================================================
+        // Strategy 2: AI Image Generation — guaranteed to produce something
+        // ============================================================
         if (!imageUrl) {
           try {
-            console.log(`[enrich-images] Asking AI for image URL: "${cleanName}"`)
-            const aiResult = await zai.chat.completions.create({
-              messages: [
-                {
-                  role: 'system',
-                  content: 'You help find product image URLs. Given a product name, return ONLY a direct URL to a product image from the official brand site or a major retailer. If you cannot find one, respond with "NONE". No explanations, no markdown, just the URL or NONE.',
-                },
-                {
-                  role: 'user',
-                  content: `Find an image URL for: ${cleanName}${brand ? ` (Brand: ${brand})` : ''}`,
-                },
-              ],
-              temperature: 0.3,
-              max_tokens: 200,
+            console.log(`[enrich-images] Generating AI image for: "${cleanName}"`)
+
+            const prompt = `Professional product photo of ${cleanName}${brand ? ` by ${brand}` : ''}, isolated on white background, studio lighting, e-commerce style, high quality product photography, no text, no watermark`
+
+            const aiImage = await zai.images.generations.create({
+              prompt,
+              size: '1024x1024',
             })
 
-            const aiContent = aiResult.choices?.[0]?.message?.content?.trim() || ''
-            if (aiContent && aiContent !== 'NONE' && aiContent.startsWith('http')) {
-              imageUrl = aiContent.replace(/[\s"]/g, '')
-              console.log(`[enrich-images] AI suggested image: ${imageUrl}`)
+            const base64Data = aiImage.data?.[0]?.base64
+            if (base64Data) {
+              const sharp = (await import('sharp')).default
+              const buffer = Buffer.from(base64Data, 'base64')
+
+              const webpBuffer = await sharp(buffer)
+                .resize(MAX_IMAGE_WIDTH, MAX_IMAGE_WIDTH, { fit: 'inside', withoutEnlargement: true })
+                .webp({ quality: WEBP_QUALITY, effort: 6 })
+                .toBuffer()
+
+              const metadata = await sharp(webpBuffer).metadata()
+
+              const imageId = crypto.randomUUID()
+              await db.execute({
+                sql: `INSERT INTO product_images (id, data, size, width, height, createdAt) VALUES (?, ?, ?, ?, ?, datetime('now'))`,
+                args: [imageId, webpBuffer.toString('base64'), webpBuffer.length, metadata.width || 0, metadata.height || 0],
+              })
+
+              const imagePath = `/api/image/${imageId}`
+              await db.execute({
+                sql: 'UPDATE products SET images = ?, updatedAt = ? WHERE id = ?',
+                args: [JSON.stringify([imagePath]), new Date().toISOString(), id],
+              })
+
+              enriched++
+              console.log(`[enrich-images] ✓ AI generated for ${name}: ${metadata.width}x${metadata.height}, ${(webpBuffer.length / 1024).toFixed(1)}KB WebP`)
+              continue // Skip the normal download flow below
             }
           } catch (err: any) {
-            console.log(`[enrich-images] AI image search failed: ${err.message}`)
+            console.log(`[enrich-images] AI image generation failed: ${err.message}`)
           }
         }
 
