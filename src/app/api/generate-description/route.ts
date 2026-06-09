@@ -1,17 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import OpenAI from 'openai'
+import { grokChat } from '@/lib/grok'
 import { db } from '@/lib/db'
-
-// ============================================
-// Grok (xAI) Client
-// ============================================
-
-const grok = new OpenAI({
-  apiKey: process.env.XAI_API_KEY,
-  baseURL: 'https://api.x.ai/v1',
-})
-
-const GROK_MODEL = 'grok-3-mini'
 
 // ============================================
 // Feature Flag Check
@@ -93,17 +82,16 @@ async function generateDescriptionForProduct(productId: string): Promise<{ ok: b
   const userPrompt = buildUserPrompt(product.name, product.categoryName, product.specs)
 
   try {
-    const completion = await grok.chat.completions.create({
-      model: GROK_MODEL,
+    const result = await grokChat({
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userPrompt },
       ],
       temperature: 0.7,
-      max_tokens: 200,
+      maxTokens: 200,
     })
 
-    const description = completion?.choices?.[0]?.message?.content?.trim()
+    const description = result.content?.trim()
 
     if (!description) {
       console.error('[generate-description] Empty Grok response for product:', productId)
@@ -203,17 +191,16 @@ export async function POST(request: NextRequest) {
         const userPrompt = buildUserPrompt(product.name, product.categoryName, product.specs)
 
         try {
-          const completion = await grok.chat.completions.create({
-            model: GROK_MODEL,
+          const result = await grokChat({
             messages: [
               { role: 'system', content: SYSTEM_PROMPT },
               { role: 'user', content: userPrompt },
             ],
             temperature: 0.7,
-            max_tokens: 200,
+            maxTokens: 200,
           })
 
-          const description = completion?.choices?.[0]?.message?.content?.trim()
+          const description = result.content?.trim()
 
           if (description) {
             await db.execute({

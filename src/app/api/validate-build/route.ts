@@ -1,18 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import OpenAI from 'openai'
+import { grokChat } from '@/lib/grok'
 import { db } from '@/lib/db'
 import { extractCompatibility, type CompatibilityInfo } from '@/lib/compatibility'
-
-// ============================================
-// Grok (xAI) Client
-// ============================================
-
-const grok = new OpenAI({
-  apiKey: process.env.XAI_API_KEY,
-  baseURL: 'https://api.x.ai/v1',
-})
-
-const GROK_MODEL = 'grok-3-mini'
 
 // ============================================
 // Types
@@ -265,22 +254,58 @@ export async function POST(request: NextRequest) {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 15000)
 
-    let completion: any = null
-
     try {
-      completion = await grok.chat.completions.create(
-        {
-          model: GROK_MODEL,
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            { role: 'user', content: userPrompt },
-          ],
-          temperature: 0.3,
-          max_tokens: 800,
-        },
-        { signal: controller.signal }
-      )
+      const result = await grokChat({
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.3,
+        maxTokens: 800,
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeoutId)
+
+      // 6. Parse response
+      const rawContent = result.content
+      if (!rawContent) {
+        console.error('[validate-build] Empty Grok response')
+        return NextResponse.json(FALLBACK_RESULT)
+      }
+
+      const parsed = parseLlmJson(rawContent)
+      if (!parsed) {
+        console.error('[validate-build] Failed to parse Grok JSON:', rawContent.substring(0, 200))
+        return NextResponse.json(FALLBACK_RESULT)
+      }
+
+      // 7. Validate and sanitize parsed result
+      const response: ValidationResult = {
+        compatible: typeof parsed.compatible === 'boolean' ? parsed.compatible : true,
+        score: typeof parsed.score === 'number' ? Math.max(1, Math.min(10, parsed.score)) : 0,
+        issues: Array.isArray(parsed.issues)
+          ? parsed.issues.map((issue: any) => ({
+              severity: ['error', 'warning', 'info'].includes(issue.severity) ? issue.severity : 'info',
+              component: String(issue.component || ''),
+              message: String(issue.message || ''),
+              suggestion: String(issue.suggestion || ''),
+            }))
+          : [],
+        summary: String(parsed.summary || ''),
+        bottleneck: ['ninguno', 'procesador', 'placa de video', 'ram', 'almacenamiento'].includes(parsed.bottleneck)
+          ? parsed.bottleneck
+          : 'ninguno',
+        bottleneck_detail: String(parsed.bottleneck_detail || ''),
+        use_case: ['gaming', 'oficina', 'edicion', 'general'].includes(parsed.use_case)
+          ? parsed.use_case
+          : 'general',
+        upgrade_suggestion: parsed.upgrade_suggestion ? String(parsed.upgrade_suggestion) : null,
+      }
+
+      return NextResponse.json(response)
     } catch (error) {
+      clearTimeout(timeoutId)
       const errMsg = error instanceof Error ? error.message : String(error)
       console.error('[validate-build] Grok call failed:', errMsg)
 
@@ -294,47 +319,7 @@ export async function POST(request: NextRequest) {
 
       // Return fallback for other LLM errors
       return NextResponse.json(FALLBACK_RESULT)
-    } finally {
-      clearTimeout(timeoutId)
     }
-
-    // 6. Parse LLM response
-    const rawContent = completion?.choices?.[0]?.message?.content
-    if (!rawContent) {
-      console.error('[validate-build] Empty Grok response')
-      return NextResponse.json(FALLBACK_RESULT)
-    }
-
-    const parsed = parseLlmJson(rawContent)
-    if (!parsed) {
-      console.error('[validate-build] Failed to parse Grok JSON:', rawContent.substring(0, 200))
-      return NextResponse.json(FALLBACK_RESULT)
-    }
-
-    // 7. Validate and sanitize parsed result
-    const result: ValidationResult = {
-      compatible: typeof parsed.compatible === 'boolean' ? parsed.compatible : true,
-      score: typeof parsed.score === 'number' ? Math.max(1, Math.min(10, parsed.score)) : 0,
-      issues: Array.isArray(parsed.issues)
-        ? parsed.issues.map((issue: any) => ({
-            severity: ['error', 'warning', 'info'].includes(issue.severity) ? issue.severity : 'info',
-            component: String(issue.component || ''),
-            message: String(issue.message || ''),
-            suggestion: String(issue.suggestion || ''),
-          }))
-        : [],
-      summary: String(parsed.summary || ''),
-      bottleneck: ['ninguno', 'procesador', 'placa de video', 'ram', 'almacenamiento'].includes(parsed.bottleneck)
-        ? parsed.bottleneck
-        : 'ninguno',
-      bottleneck_detail: String(parsed.bottleneck_detail || ''),
-      use_case: ['gaming', 'oficina', 'edicion', 'general'].includes(parsed.use_case)
-        ? parsed.use_case
-        : 'general',
-      upgrade_suggestion: parsed.upgrade_suggestion ? String(parsed.upgrade_suggestion) : null,
-    }
-
-    return NextResponse.json(result)
   } catch (error) {
     console.error('[validate-build] Unexpected error:', error)
     return NextResponse.json(FALLBACK_RESULT)
