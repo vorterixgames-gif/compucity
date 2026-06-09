@@ -30,13 +30,12 @@ async function downloadAndConvertToWebp(imageUrl: string): Promise<{
   height: number
 } | null> {
   try {
-    // Fetch the image
     const res = await fetch(imageUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'image/*,*/*',
       },
-      signal: AbortSignal.timeout(15000), // 15 second timeout
+      signal: AbortSignal.timeout(15000),
     })
 
     if (!res.ok) return null
@@ -49,10 +48,8 @@ async function downloadAndConvertToWebp(imageUrl: string): Promise<{
     const arrayBuffer = await res.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    // Skip if the source image is too large (> 5MB)
     if (buffer.length > 5 * 1024 * 1024) return null
 
-    // Convert to WebP using sharp
     const sharp = (await import('sharp')).default
 
     let pipeline = sharp(buffer)
@@ -65,7 +62,6 @@ async function downloadAndConvertToWebp(imageUrl: string): Promise<{
     const webpBuffer = await pipeline.toBuffer()
     const metadata = await sharp(webpBuffer).metadata()
 
-    // If still too large, reduce quality
     let finalBuffer = webpBuffer
     if (webpBuffer.length > MAX_IMAGE_SIZE_KB * 1024) {
       const reducedBuffer = await sharp(buffer)
@@ -89,6 +85,38 @@ async function downloadAndConvertToWebp(imageUrl: string): Promise<{
     }
   } catch (err: any) {
     console.log(`[enrich-images] Download/convert error for ${imageUrl}: ${err.message}`)
+    return null
+  }
+}
+
+/**
+ * Extract product image URL from a web page using Microlink.io API.
+ * Microlink uses a headless browser that bypasses Cloudflare/bot protection.
+ */
+async function extractImageViaMicrolink(pageUrl: string): Promise<string | null> {
+  try {
+    const mlUrl = `https://api.microlink.io/?url=${encodeURIComponent(pageUrl)}`
+    const mlRes = await fetch(mlUrl, { signal: AbortSignal.timeout(15000) })
+
+    if (!mlRes.ok) return null
+
+    const mlData = await mlRes.json()
+    if (mlData.status !== 'success') return null
+
+    const extractedImage = mlData.data?.image?.url
+    if (!extractedImage) return null
+
+    // Validate the image URL is not a logo/icon/banner
+    const imgLower = extractedImage.toLowerCase()
+    if (imgLower.includes('logo') || imgLower.includes('icon') || imgLower.includes('favicon') ||
+        imgLower.includes('banner') || imgLower.includes('sprite') || imgLower.endsWith('.svg') ||
+        imgLower.includes('meta_banner') || imgLower.includes('logo__small') ||
+        imgLower.includes('ui-navigation') || imgLower.includes('placeholder')) {
+      return null
+    }
+
+    return extractedImage.startsWith('//') ? 'https:' + extractedImage : extractedImage
+  } catch {
     return null
   }
 }
@@ -123,7 +151,6 @@ export async function POST(request: Request) {
     let args: any[]
 
     if (body.productIds && Array.isArray(body.productIds) && body.productIds.length > 0) {
-      // Specific products requested by ID
       const placeholders = body.productIds.map(() => '?').join(',')
       query = `SELECT p.id, p.name, p.sku, p.providerSku, p.specs, s.apiType
                FROM products p
@@ -172,12 +199,18 @@ export async function POST(request: Request) {
     let countArgs: any[]
 
     if (body.productIds && Array.isArray(body.productIds) && body.productIds.length > 0) {
-      // For specific product IDs, use the global count
       countQuery = `SELECT COUNT(*) as total FROM products
                     WHERE (images = '[]' OR images IS NULL OR images = '')
                       AND isActive = 1`
       countArgs = []
     } else if (providerType === 'all') {
+      countQuery = `SELECT COUNT(*) as total FROM products p
+                    JOIN suppliers s ON p.providerId = s.id
+                    WHERE s.apiType = ?
+                      AND (p.images = '[]' OR p.images IS NULL OR p.images = '')
+                      AND p.isActive = 1 AND p.stock > 0 AND p.categoryId IS NOT NULL`
+      countArgs = [providerType]
+    } else {
       countQuery = `SELECT COUNT(*) as total FROM products p
                     JOIN suppliers s ON p.providerId = s.id
                     WHERE s.apiType = ?
@@ -192,6 +225,7 @@ export async function POST(request: Request) {
     let enriched = 0
     let failed = 0
     const errors: string[] = []
+    const debugLog: string[] = []
 
     // Use z-ai-web-dev-sdk for web search (configured via env vars)
     const ZAIMod = (await import('z-ai-web-dev-sdk')).default
@@ -205,164 +239,96 @@ export async function POST(request: Request) {
 
     for (const product of products.rows as any[]) {
       try {
-        const { id, name, providerSku, specs } = product
+        const { id, name, specs } = product
 
-        // Parse specs to get brand/part number for better search
+        // Parse specs to get brand for better search
         let brand = ''
-        let partNumber = ''
         try {
           const specsObj = JSON.parse(specs || '{}')
           brand = specsObj['Marca'] || ''
-          partNumber = specsObj['Part Number'] || ''
         } catch {}
 
-        // Clean product name: remove supplier suffix like "(Elit)", "(Air Intra)"
+        // Clean product name: remove supplier suffix
         const cleanName = name.replace(/\s*\((Elit|Air Intra|Invid|Vorterix)\)\s*/g, '').trim()
 
         let imageUrl: string | null = null
         let imageSource: string = ''
+        const productLog: string[] = [`[enrich] Product: "${cleanName}"`]
 
         // ============================================================
-        // Strategy 1: Microlink.io — extract product image from e-commerce pages
-        // Microlink uses a headless browser to bypass Cloudflare/bot protection
-        // and extract og:image metadata. Works great with Amazon, etc.
+        // Strategy 1: ONE web_search → find Amazon/product page → Microlink
+        // Ultra-efficient: 1 search + max 2 Microlink calls
         // ============================================================
-        const microlinkSearches = [
-          `${cleanName} amazon`,
-          `${cleanName} ${brand} buy`,
-          `${cleanName} comprar`,
-        ]
+        const searchQuery = `${cleanName} amazon`
+        productLog.push(`  S1: search "${searchQuery}"`)
 
-        for (const searchQuery of microlinkSearches) {
-          if (imageUrl) break
-          console.log(`[enrich-images] Microlink search: "${searchQuery}"`)
+        try {
+          const raw = await zai.functions.invoke('web_search', { query: searchQuery, num: 5 })
+          const searchResults = Array.isArray(raw) ? raw : []
+          productLog.push(`  S1: got ${searchResults.length} results`)
 
-          let searchResults: any[]
-          try {
-            const raw = await zai.functions.invoke('web_search', { query: searchQuery, num: 8 })
-            searchResults = Array.isArray(raw) ? raw : []
-          } catch { continue }
+          // Collect candidate URLs, prioritizing Amazon
+          const candidates = searchResults
+            .filter((r: any) => {
+              const host = r.host_name || ''
+              return r.url?.startsWith('http') &&
+                !['youtube', 'facebook', 'twitter', 'instagram', 'tiktok', 'reddit', 'wikipedia', 'pinterest'].some(d => host.includes(d))
+            })
+            .sort((a: any, b: any) => {
+              // Prioritize Amazon URLs
+              const aIsAmazon = (a.host_name || '').includes('amazon') ? 1 : 0
+              const bIsAmazon = (b.host_name || '').includes('amazon') ? 1 : 0
+              return bIsAmazon - aIsAmazon
+            })
 
-          if (searchResults.length === 0) continue
-
-          for (const result of searchResults) {
+          // Try Microlink on top 2 candidates only (fast!)
+          for (let i = 0; i < Math.min(2, candidates.length); i++) {
             if (imageUrl) break
-            const url = result.url || ''
-            const hostName = result.host_name || ''
+            const candidate = candidates[i]
+            const hostName = candidate.host_name || ''
+            productLog.push(`  S1: Microlink on ${hostName}`)
 
-            // Skip non-product domains
-            if (['youtube', 'facebook', 'twitter', 'instagram', 'tiktok', 'reddit', 'wikipedia', 'pinterest'].some(d => hostName.includes(d))) continue
-            if (!url.startsWith('http')) continue
-
-            // Try Microlink.io API to extract og:image
-            try {
-              const microlinkUrl = `https://api.microlink.io/?url=${encodeURIComponent(url)}`
-              const mlRes = await fetch(microlinkUrl, { signal: AbortSignal.timeout(12000) })
-
-              if (!mlRes.ok) continue
-
-              const mlData = await mlRes.json()
-              if (mlData.status !== 'success') continue
-
-              const extractedImage = mlData.data?.image?.url
-              if (!extractedImage) continue
-
-              // Validate the image URL is not a logo/icon/banner
-              const imgLower = extractedImage.toLowerCase()
-              if (imgLower.includes('logo') || imgLower.includes('icon') || imgLower.includes('favicon') ||
-                  imgLower.includes('banner') || imgLower.includes('sprite') || imgLower.endsWith('.svg')) continue
-
-              // Skip generic site thumbnails (e.g. MercadoLibre logo, CompraGamer banner)
-              if (imgLower.includes('meta_banner') || imgLower.includes('logo__small') ||
-                  imgLower.includes('ui-navigation') || imgLower.includes('placeholder')) continue
-
-              imageUrl = extractedImage.startsWith('//') ? 'https:' + extractedImage : extractedImage
+            const mlImage = await extractImageViaMicrolink(candidate.url)
+            if (mlImage) {
+              imageUrl = mlImage
               imageSource = `microlink/${hostName}`
-              console.log(`[enrich-images] ✓ Microlink from ${hostName}: ${imageUrl.substring(0, 100)}`)
-            } catch (err: any) {
-              console.log(`[enrich-images] Microlink error for ${hostName}: ${err.message?.substring(0, 60)}`)
+              productLog.push(`  S1: ✓ Found image via Microlink`)
+            } else {
+              productLog.push(`  S1: ✗ No image from Microlink`)
             }
           }
+        } catch (err: any) {
+          productLog.push(`  S1: Search error: ${err.message?.substring(0, 60)}`)
         }
 
         // ============================================================
-        // Strategy 2: Direct fetch() for accessible sites
-        // Some sites don't use Cloudflare and serve og:image in static HTML
+        // Strategy 2: Second search with broader terms + Microlink
         // ============================================================
         if (!imageUrl) {
-          const pageSearchQueries = [
-            `${cleanName} comprar`,
-            `${cleanName} ${brand}`,
-            cleanName,
-          ]
+          const searchQuery2 = `${cleanName} ${brand} buy product`
+          productLog.push(`  S2: search "${searchQuery2}"`)
 
-          for (const searchQuery of pageSearchQueries) {
-            if (imageUrl) break
-            console.log(`[enrich-images] Direct fetch search: "${searchQuery}"`)
+          try {
+            const raw2 = await zai.functions.invoke('web_search', { query: searchQuery2, num: 3 })
+            const searchResults2 = Array.isArray(raw2) ? raw2 : []
+            productLog.push(`  S2: got ${searchResults2.length} results`)
 
-            let searchResults: any[]
-            try {
-              const raw = await zai.functions.invoke('web_search', { query: searchQuery, num: 5 })
-              searchResults = Array.isArray(raw) ? raw : []
-            } catch { continue }
-
-            if (searchResults.length === 0) continue
-
-            for (const result of searchResults) {
+            for (const result of searchResults2) {
               if (imageUrl) break
-              const url = result.url || ''
               const hostName = result.host_name || ''
-              if (!url.startsWith('http')) continue
-              if (['youtube', 'facebook', 'twitter', 'instagram', 'tiktok', 'pinterest', 'reddit', 'wikipedia'].some(d => hostName.includes(d))) continue
+              if (!result.url?.startsWith('http')) continue
+              if (['youtube', 'facebook', 'twitter', 'instagram', 'tiktok', 'reddit', 'wikipedia', 'pinterest'].some(d => hostName.includes(d))) continue
 
-              try {
-                const pageRes = await fetch(url, {
-                  headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Accept-Language': 'es-AR,es;q=0.9,en;q=0.8',
-                  },
-                  signal: AbortSignal.timeout(8000),
-                  redirect: 'follow',
-                })
-
-                if (!pageRes.ok) continue
-
-                const contentType = pageRes.headers.get('content-type') || ''
-                if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) continue
-
-                const html = await pageRes.text()
-                if (!html || html.length < 200) continue
-
-                // Try og:image
-                const ogMatch = html.match(/<meta[^>]*property=["']og:image["'][^>]*content=["']([^"']+)["']/i)
-                  || html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:image["']/i)
-                if (ogMatch?.[1]) {
-                  const c = ogMatch[1].replace(/&amp;/g, '&')
-                  if (!c.includes('logo') && !c.includes('icon') && !c.includes('favicon') && !c.includes('meta_banner') && !c.endsWith('.svg') && c.length > 20) {
-                    imageUrl = c.startsWith('//') ? 'https:' + c : c
-                    imageSource = `direct/${hostName}`
-                    console.log(`[enrich-images] ✓ og:image from ${hostName}: ${imageUrl.substring(0, 100)}`)
-                    break
-                  }
-                }
-
-                // Try twitter:image
-                const twMatch = html.match(/<meta[^>]*name=["']twitter:image["'][^>]*content=["']([^"']+)["']/i)
-                  || html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']twitter:image["']/i)
-                if (twMatch?.[1]) {
-                  const c = twMatch[1].replace(/&amp;/g, '&')
-                  if (!c.includes('logo') && !c.includes('icon') && !c.includes('favicon') && !c.endsWith('.svg') && c.length > 20) {
-                    imageUrl = c.startsWith('//') ? 'https:' + c : c
-                    imageSource = `direct-twitter/${hostName}`
-                    console.log(`[enrich-images] ✓ twitter:image from ${hostName}: ${imageUrl.substring(0, 100)}`)
-                    break
-                  }
-                }
-              } catch (err: any) {
-                console.log(`[enrich-images] Direct fetch error for ${hostName}: ${err.message?.substring(0, 80)}`)
+              productLog.push(`  S2: Microlink on ${hostName}`)
+              const mlImage = await extractImageViaMicrolink(result.url)
+              if (mlImage) {
+                imageUrl = mlImage
+                imageSource = `microlink2/${hostName}`
+                productLog.push(`  S2: ✓ Found image via Microlink`)
               }
             }
+          } catch (err: any) {
+            productLog.push(`  S2: Search error: ${err.message?.substring(0, 60)}`)
           }
         }
 
@@ -371,8 +337,7 @@ export async function POST(request: Request) {
         // ============================================================
         if (!imageUrl) {
           try {
-            console.log(`[enrich-images] Generating AI image for: "${cleanName}"`)
-
+            productLog.push(`  S3: AI image generation`)
             const prompt = `Professional product photo of ${cleanName}${brand ? ` by ${brand}` : ''}, isolated on white background, studio lighting, e-commerce style, high quality product photography, no text, no watermark`
 
             const aiImage = await zai.images.generations.create({
@@ -405,17 +370,20 @@ export async function POST(request: Request) {
               })
 
               enriched++
-              console.log(`[enrich-images] ✓ AI generated for ${name}: ${metadata.width}x${metadata.height}, ${(webpBuffer.length / 1024).toFixed(1)}KB WebP`)
+              productLog.push(`  S3: ✓ AI generated ${metadata.width}x${metadata.height}`)
+              console.log(productLog.join('\n'))
               continue // Skip the normal download flow below
             }
           } catch (err: any) {
-            console.log(`[enrich-images] AI image generation failed: ${err.message}`)
+            productLog.push(`  S3: AI generation failed: ${err.message?.substring(0, 80)}`)
           }
         }
 
         if (!imageUrl) {
           failed++
           errors.push(`${name}: no se encontró imagen`)
+          productLog.push(`  RESULT: FAILED - no image found`)
+          console.log(productLog.join('\n'))
           continue
         }
 
@@ -425,6 +393,8 @@ export async function POST(request: Request) {
         if (!imageData) {
           failed++
           errors.push(`${name}: error descargando/convirtiendo imagen`)
+          productLog.push(`  RESULT: FAILED - download/convert error`)
+          console.log(productLog.join('\n'))
           continue
         }
 
@@ -444,9 +414,10 @@ export async function POST(request: Request) {
         })
 
         enriched++
-        console.log(`[enrich-images] ✓ ${name} [${imageSource}]: ${imageData.width}x${imageData.height}, ${(imageData.size / 1024).toFixed(1)}KB WebP`)
+        productLog.push(`  RESULT: ✓ [${imageSource}] ${imageData.width}x${imageData.height}, ${(imageData.size / 1024).toFixed(1)}KB`)
+        console.log(productLog.join('\n'))
 
-        // Small delay between products to be respectful
+        // Small delay between products
         await new Promise(resolve => setTimeout(resolve, 300))
 
       } catch (err: any) {
@@ -463,7 +434,7 @@ export async function POST(request: Request) {
       failed,
       remaining: totalRemaining - enriched,
       errors: errors.length > 0 ? errors.slice(0, 5) : undefined,
-      message: `${enriched} productos enriquecidos con imágenes WebP, ${failed} sin resultado. Quedan ${totalRemaining - enriched} productos sin imagen.`,
+      message: `${enriched} productos enriquecidos con imágenes, ${failed} sin resultado. Quedan ${totalRemaining - enriched} productos sin imagen.`,
     })
 
   } catch (error: any) {
