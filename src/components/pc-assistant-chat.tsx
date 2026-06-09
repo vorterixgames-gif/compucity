@@ -210,7 +210,7 @@ export default function PCAssistantChat({ onLoadBuild }: PCAssistantChatProps) {
 
       {/* Chat Panel */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 w-[400px] max-w-[calc(100vw-2rem)] h-[600px] max-h-[calc(100vh-3rem)] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
+        <div className="fixed bottom-6 right-6 z-[60] w-[400px] max-w-[calc(100vw-2rem)] h-[600px] max-h-[calc(100vh-3rem)] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
           {/* Header */}
           <div className="bg-gradient-to-r from-compucity-green-600 to-compucity-green-700 text-white px-5 py-4 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
