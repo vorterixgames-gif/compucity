@@ -49,6 +49,7 @@ import {
 } from '@/lib/compatibility'
 import { getVisibleSpecs } from '@/lib/product-specs'
 import { COMPUCITY_LOGO_BASE64 } from '@/lib/compucity-logo-base64'
+import PCAssistantChat from '@/components/pc-assistant-chat'
 
 // ============================================
 // Types
@@ -1825,6 +1826,15 @@ export default function ArmaTuPCPage() {
           </div>
         )}
       </div>
+
+      {/* AI Assistant Chat */}
+      <PCAssistantChat
+        onLoadBuild={(components) => {
+          setSelectedComponents(components)
+          setCurrentStep(0)
+          setAiAnalysis(null)
+        }}
+      />
     </div>
   )
 }
