@@ -46,6 +46,14 @@ const FALLBACK_RESULT: ValidationResult = {
   upgrade_suggestion: null,
 }
 
+function fallbackWithError(errorMsg: string): ValidationResult & { _debug?: string } {
+  return {
+    ...FALLBACK_RESULT,
+    summary: `No se pudo validar el build con IA: ${errorMsg}`,
+    _debug: errorMsg,
+  }
+}
+
 // Slot label map for user-friendly names in the prompt
 const SLOT_LABELS: Record<string, string> = {
   processor: 'Procesador',
@@ -270,14 +278,14 @@ export async function POST(request: NextRequest) {
       // 6. Parse response
       const rawContent = result.content
       if (!rawContent) {
-        console.error('[validate-build] Empty Grok response')
-        return NextResponse.json(FALLBACK_RESULT)
+        console.error('[validate-build] Empty Groq response')
+        return NextResponse.json(fallbackWithError('Groq devolvió respuesta vacía'))
       }
 
       const parsed = parseLlmJson(rawContent)
       if (!parsed) {
-        console.error('[validate-build] Failed to parse Grok JSON:', rawContent.substring(0, 200))
-        return NextResponse.json(FALLBACK_RESULT)
+        console.error('[validate-build] Failed to parse Groq JSON:', rawContent.substring(0, 200))
+        return NextResponse.json(fallbackWithError('No se pudo parsear la respuesta de Groq'))
       }
 
       // 7. Validate and sanitize parsed result
@@ -317,8 +325,8 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Return fallback for other LLM errors
-      return NextResponse.json(FALLBACK_RESULT)
+      // Return fallback with error details for debugging
+      return NextResponse.json(fallbackWithError(errMsg))
     }
   } catch (error) {
     console.error('[validate-build] Unexpected error:', error)
