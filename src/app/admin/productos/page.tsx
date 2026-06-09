@@ -288,6 +288,20 @@ export default function AdminProductos() {
   const [batchAiResult, setBatchAiResult] = useState<string | null>(null)
   const [enrichImagesLoading, setEnrichImagesLoading] = useState(false)
   const [enrichImagesResult, setEnrichImagesResult] = useState<string | null>(null)
+  const [enrichingImageId, setEnrichingImageId] = useState<string | null>(null)
+
+  const handleEnrichSingleImage = async (productId: string) => {
+    setEnrichingImageId(productId)
+    try {
+      const res = await fetch('/api/admin/suppliers/enrich-images', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchSize: 1, productIds: [productId] }),
+      })
+      const data = await res.json()
+      if (data.ok && data.enriched > 0) loadProducts()
+    } catch {} finally { setEnrichingImageId(null) }
+  }
 
   const loadProducts = useCallback(async (opts?: { page?: number; limit?: number; search?: string; filters?: Filters; sortColumn?: SortColumn; sortDirection?: SortDirection }) => {
     const currentPage = opts?.page ?? pagination.page
@@ -1082,6 +1096,19 @@ export default function AdminProductos() {
                       IA
                     </Button>
                   )}
+                  {(!product.images || product.images === '[]') && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={enrichingImageId === product.id}
+                      onClick={() => handleEnrichSingleImage(product.id)}
+                      className="h-7 text-xs gap-1 text-blue-600 hover:text-blue-700 border-blue-200 hover:border-blue-300"
+                      title="Buscar foto con IA"
+                    >
+                      {enrichingImageId === product.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
+                      Foto
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
@@ -1327,6 +1354,18 @@ export default function AdminProductos() {
                               className="h-7 w-7 text-violet-500 hover:text-violet-700"
                             >
                               {generatingAiId === product.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                            </Button>
+                          )}
+                          {(!product.images || product.images === '[]') && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={enrichingImageId === product.id}
+                              onClick={() => handleEnrichSingleImage(product.id)}
+                              title="Buscar foto con IA"
+                              className="h-7 w-7 text-blue-500 hover:text-blue-700"
+                            >
+                              {enrichingImageId === product.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
                             </Button>
                           )}
                           <Button

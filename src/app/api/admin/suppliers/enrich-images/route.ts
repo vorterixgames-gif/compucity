@@ -118,11 +118,20 @@ export async function POST(request: Request) {
 
     await ensureImageTable()
 
-    // Build query based on provider type
+    // Build query based on input: specific productIds, or search by provider
     let query: string
     let args: any[]
 
-    if (providerType === 'all') {
+    if (body.productIds && Array.isArray(body.productIds) && body.productIds.length > 0) {
+      // Specific products requested by ID
+      const placeholders = body.productIds.map(() => '?').join(',')
+      query = `SELECT p.id, p.name, p.sku, p.providerSku, p.specs, s.apiType
+               FROM products p
+               JOIN suppliers s ON p.providerId = s.id
+               WHERE p.id IN (${placeholders})
+               LIMIT ?`
+      args = [...body.productIds, body.productIds.length]
+    } else if (providerType === 'all') {
       query = `SELECT p.id, p.name, p.sku, p.providerSku, p.specs, s.apiType
                FROM products p
                JOIN suppliers s ON p.providerId = s.id
@@ -162,12 +171,13 @@ export async function POST(request: Request) {
     let countQuery: string
     let countArgs: any[]
 
-    if (providerType === 'all') {
+    if (body.productIds && Array.isArray(body.productIds) && body.productIds.length > 0) {
+      // For specific product IDs, use the global count
       countQuery = `SELECT COUNT(*) as total FROM products
                     WHERE (images = '[]' OR images IS NULL OR images = '')
-                      AND isActive = 1 AND stock > 0 AND categoryId IS NOT NULL`
+                      AND isActive = 1`
       countArgs = []
-    } else {
+    } else if (providerType === 'all') {
       countQuery = `SELECT COUNT(*) as total FROM products p
                     JOIN suppliers s ON p.providerId = s.id
                     WHERE s.apiType = ?
