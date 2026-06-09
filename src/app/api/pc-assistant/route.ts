@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { grokChat } from '@/lib/grok'
 import { db } from '@/lib/db'
 import { fetchDollarRate, calculateProductPrices } from '@/lib/dollar'
-import { extractCompatibility, applyCompatibilityFilters } from '@/lib/compatibility'
+import { extractCompatibility } from '@/lib/compatibility'
 
 // ============================================
 // Types
@@ -11,6 +11,29 @@ import { extractCompatibility, applyCompatibilityFilters } from '@/lib/compatibi
 interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
+}
+
+interface ProductWithArsPrice {
+  id: string
+  name: string
+  slug: string
+  priceUsd: number
+  comparePriceUsd: number | null
+  costPrice: number | null
+  images: string | null
+  specs: string | null
+  stock: number
+  categoryId: string
+  markup: number | null
+  cashDiscount: number | null
+  ivaRate: number | null
+  salePrice: number | null
+  saleStart: string | null
+  saleEnd: string | null
+  // ARS prices (calculated once)
+  arsPrice: number
+  arsComparePrice: number
+  slot: string
 }
 
 interface BuildComponent {
@@ -35,7 +58,7 @@ interface SuggestedBuild {
   components: BuildComponent[]
 }
 
-// Slot definitions matching the frontend
+// Slot definitions
 const SLOTS = [
   { slot: 'processor', label: 'Microprocesador', categorySlug: 'microprocesadores', required: true },
   { slot: 'motherboard', label: 'Motherboard', categorySlug: 'motherboards', required: true },
@@ -49,130 +72,19 @@ const SLOTS = [
 
 // Budget allocation profiles per use case
 const BUDGET_PROFILES: Record<string, Record<string, number>> = {
-  gaming: {
-    processor: 0.16,
-    motherboard: 0.08,
-    ram: 0.08,
-    gpu: 0.32,
-    ssd: 0.10,
-    psu: 0.07,
-    case: 0.06,
-    cooling: 0.04,
-  },
-  oficina: {
-    processor: 0.22,
-    motherboard: 0.12,
-    ram: 0.15,
-    gpu: 0,
-    ssd: 0.18,
-    psu: 0.08,
-    case: 0.08,
-    cooling: 0.02,
-  },
-  edicion: {
-    processor: 0.20,
-    motherboard: 0.08,
-    ram: 0.14,
-    gpu: 0.20,
-    ssd: 0.14,
-    psu: 0.07,
-    case: 0.06,
-    cooling: 0.04,
-  },
-  general: {
-    processor: 0.18,
-    motherboard: 0.10,
-    ram: 0.12,
-    gpu: 0.18,
-    ssd: 0.14,
-    psu: 0.07,
-    case: 0.07,
-    cooling: 0.03,
-  },
+  gaming: { processor: 0.16, motherboard: 0.08, ram: 0.08, gpu: 0.32, ssd: 0.10, psu: 0.07, case: 0.06, cooling: 0.04 },
+  oficina: { processor: 0.22, motherboard: 0.12, ram: 0.15, gpu: 0, ssd: 0.18, psu: 0.08, case: 0.08, cooling: 0.02 },
+  edicion: { processor: 0.20, motherboard: 0.08, ram: 0.14, gpu: 0.20, ssd: 0.14, psu: 0.07, case: 0.06, cooling: 0.04 },
+  general: { processor: 0.18, motherboard: 0.10, ram: 0.12, gpu: 0.18, ssd: 0.14, psu: 0.07, case: 0.07, cooling: 0.03 },
 }
 
-// Build tier multipliers (fraction of total budget)
 const BUILD_TIERS = [
   { name: 'Económica', multiplier: 0.65, emoji: '🟢' },
   { name: 'Recomendada', multiplier: 0.90, emoji: '🟡' },
   { name: 'Premium', multiplier: 1.0, emoji: '🔴' },
 ]
 
-// ============================================
-// Feature Flag
-// ============================================
-
-async function isAiEnabled(): Promise<boolean> {
-  try {
-    const result = await db.execute({
-      sql: 'SELECT value FROM store_config WHERE key = ?',
-      args: ['ai_enabled'],
-    })
-    const rows = result.rows as any[]
-    if (rows.length > 0) {
-      try {
-        return JSON.parse(rows[0].value).value === true
-      } catch {
-        return false
-      }
-    }
-    return false
-  } catch {
-    return false
-  }
-}
-
-// ============================================
-// JSON Parser (same as validate-build)
-// ============================================
-
-function parseLlmJson(raw: string): any | null {
-  try {
-    return JSON.parse(raw)
-  } catch {}
-
-  const codeBlockMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/)
-  if (codeBlockMatch) {
-    try {
-      return JSON.parse(codeBlockMatch[1].trim())
-    } catch {}
-  }
-
-  const braceStart = raw.indexOf('{')
-  const braceEnd = raw.lastIndexOf('}')
-  if (braceStart !== -1 && braceEnd > braceStart) {
-    try {
-      return JSON.parse(raw.substring(braceStart, braceEnd + 1))
-    } catch {}
-  }
-
-  return null
-}
-
-// ============================================
-// Product Fetching
-// ============================================
-
-interface ProductRow {
-  id: string
-  name: string
-  slug: string
-  price: number
-  comparePrice: number | null
-  costPrice: number | null
-  images: string | null
-  specs: string | null
-  stock: number
-  categoryId: string
-  markup: number | null
-  cashDiscount: number | null
-  ivaRate: number | null
-  salePrice: number | null
-  saleStart: string | null
-  saleEnd: string | null
-}
-
-// Include/exclude patterns (same as pc-builder endpoint)
+// Include/exclude patterns
 const BUILDER_INCLUDE_PATTERNS: Record<string, string[]> = {
   processor: ['RYZEN', 'INTEL I3', 'INTEL I5', 'INTEL I7', 'INTEL I9', 'CORE I3', 'CORE I5', 'CORE I7', 'CORE I9', 'PENTIUM', 'CORE ULTRA', 'CELERON', 'ATHLON', 'XEON', 'I3-', 'I5-', 'I7-', 'I9-', 'CPU '],
   motherboard: ['MOTHER', 'MB ', 'H610', 'B760', 'H810', 'A520', 'A620', 'B650', 'B550', 'H510', 'Z790', 'Z690', 'B660', 'H670', 'X670', 'A320', 'B450', 'X570', 'X870', 'X870E', 'B860', 'AM4', 'AM5', 'LGA'],
@@ -208,600 +120,455 @@ function isExcludedFromBuilder(slot: string, name: string): boolean {
   return false
 }
 
-async function fetchProductsForSlot(
-  slotKey: string,
-  categorySlug: string,
-  additionalSlugs: string[] = [],
-  _minPrice?: number,  // unused — price filtering done in ARS after calculatePrices
-  _maxPrice?: number,  // unused — price filtering done in ARS after calculatePrices
-  compatFilters?: { socket?: string; ddr?: string }
-): Promise<ProductRow[]> {
+// ============================================
+// Feature Flag
+// ============================================
+
+async function isAiEnabled(): Promise<boolean> {
   try {
-    // Find category IDs
-    const catResult = await db.execute({
-      sql: 'SELECT id FROM categories WHERE slug = ?',
-      args: [categorySlug],
+    const result = await db.execute({
+      sql: 'SELECT value FROM store_config WHERE key = ?',
+      args: ['ai_enabled'],
     })
-    const catRows = catResult.rows as any[]
-    if (catRows.length === 0) return []
+    const rows = result.rows as any[]
+    if (rows.length > 0) {
+      try { return JSON.parse(rows[0].value).value === true } catch { return false }
+    }
+    return false
+  } catch { return false }
+}
 
-    const categoryId = catRows[0].id
-    const subCatResult = await db.execute({
-      sql: 'SELECT id FROM categories WHERE parentId = ?',
-      args: [categoryId],
-    })
-    let categoryIds = [categoryId, ...(subCatResult.rows as any[]).map(r => r.id)]
+// ============================================
+// JSON Parser
+// ============================================
 
-    // Include additional category slugs
-    for (const slug of additionalSlugs) {
-      const addResult = await db.execute({
-        sql: 'SELECT id FROM categories WHERE slug = ?',
-        args: [slug],
-      })
-      const addRows = addResult.rows as any[]
-      if (addRows.length > 0) {
-        const addSubResult = await db.execute({
-          sql: 'SELECT id FROM categories WHERE parentId = ?',
-          args: [addRows[0].id],
+function parseLlmJson(raw: string): any | null {
+  try { return JSON.parse(raw) } catch {}
+  const codeBlockMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/)
+  if (codeBlockMatch) { try { return JSON.parse(codeBlockMatch[1].trim()) } catch {} }
+  const braceStart = raw.indexOf('{')
+  const braceEnd = raw.lastIndexOf('}')
+  if (braceStart !== -1 && braceEnd > braceStart) { try { return JSON.parse(raw.substring(braceStart, braceEnd + 1)) } catch {} }
+  return null
+}
+
+// ============================================
+// Fetch ALL Products for ALL Slots at Once
+// ============================================
+
+async function fetchAllProductsWithArsPrices(): Promise<Map<string, ProductWithArsPrice[]>> {
+  const slotProducts = new Map<string, ProductWithArsPrice[]>()
+
+  try {
+    // 1. Collect all category IDs for all slots
+    const allCategoryIds = new Map<string, string[]>() // slug -> [categoryId, ...subCategoryIds]
+
+    for (const slotDef of SLOTS) {
+      const slugs = [slotDef.categorySlug, ...(slotDef.additionalSlugs || [])]
+      const ids: string[] = []
+
+      for (const slug of slugs) {
+        if (allCategoryIds.has(slug)) {
+          ids.push(...allCategoryIds.get(slug)!)
+          continue
+        }
+        const catResult = await db.execute({
+          sql: 'SELECT id FROM categories WHERE slug = ?',
+          args: [slug],
         })
-        categoryIds = [...categoryIds, addRows[0].id, ...(addSubResult.rows as any[]).map(r => r.id)]
+        const catRows = catResult.rows as any[]
+        if (catRows.length === 0) {
+          console.warn(`[pc-assistant] Category slug not found: ${slug}`)
+          allCategoryIds.set(slug, [])
+          continue
+        }
+
+        const catId = catRows[0].id
+        const subResult = await db.execute({
+          sql: 'SELECT id FROM categories WHERE parentId = ?',
+          args: [catId],
+        })
+        const catIds = [catId, ...(subResult.rows as any[]).map(r => r.id)]
+        allCategoryIds.set(slug, catIds)
+        ids.push(...catIds)
+      }
+
+      if (ids.length === 0) {
+        slotProducts.set(slotDef.slot, [])
+        continue
+      }
+
+      // 2. Fetch products for this slot
+      const placeholders = ids.map(() => '?').join(',')
+      const query = `
+        SELECT p.id, p.name, p.slug, p.price, p.comparePrice, p.costPrice, p.images, p.specs, p.stock,
+               p.markup, p.cashDiscount, p.ivaRate, p.salePrice, p.saleStart, p.saleEnd, p.categoryId
+        FROM products p
+        WHERE p.categoryId IN (${placeholders}) AND p.isActive = 1 AND p.stock > 0
+        ORDER BY p.price ASC
+        LIMIT 100
+      `
+      const result = await db.execute({ sql: query, args: ids })
+      const products = (result.rows as any[]).filter(p => !isExcludedFromBuilder(slotDef.slot, p.name))
+
+      slotProducts.set(slotDef.slot, products.map(p => ({
+        id: p.id,
+        name: p.name,
+        slug: p.slug,
+        priceUsd: p.price,
+        comparePriceUsd: p.comparePrice,
+        costPrice: p.costPrice,
+        images: p.images,
+        specs: p.specs,
+        stock: p.stock,
+        categoryId: p.categoryId,
+        markup: p.markup,
+        cashDiscount: p.cashDiscount,
+        ivaRate: p.ivaRate,
+        salePrice: p.salePrice,
+        saleStart: p.saleStart,
+        saleEnd: p.saleEnd,
+        arsPrice: 0,   // will be filled below
+        arsComparePrice: 0,
+        slot: slotDef.slot,
+      })))
+    }
+
+    // 3. Calculate ARS prices for ALL products at once
+    const allProducts = [...slotProducts.values()].flat()
+
+    if (allProducts.length === 0) {
+      console.warn('[pc-assistant] No products found in any category')
+      return slotProducts
+    }
+
+    try {
+      const dollar = await fetchDollarRate()
+      console.log(`[pc-assistant] Dollar rate: ${dollar.rate}`)
+
+      const markupResult = await db.execute({ sql: "SELECT value FROM store_config WHERE key = 'markup'", args: [] })
+      const markupRows = markupResult.rows as any[]
+      const globalMarkup = markupRows.length > 0 ? (JSON.parse(markupRows[0].value).value ?? 30) : 30
+
+      const cashDiscountResult = await db.execute({ sql: "SELECT value FROM store_config WHERE key = 'cash_discount'", args: [] })
+      const cashDiscountRows = cashDiscountResult.rows as any[]
+      const globalCashDiscount = cashDiscountRows.length > 0 ? (JSON.parse(cashDiscountRows[0].value).value ?? 10) : 10
+
+      const catMarkupResult = await db.execute('SELECT id, markup, cashDiscount, ivaRate FROM categories')
+      const catMarkupMap = new Map<string, any>()
+      for (const row of (catMarkupResult.rows as any[])) { catMarkupMap.set(row.id, row) }
+
+      for (const p of allProducts) {
+        const catMarkup = catMarkupMap.get(p.categoryId)
+        const calculated = calculateProductPrices(p, dollar.rate, globalMarkup, globalCashDiscount, catMarkup || null)
+        p.arsPrice = calculated.price || p.priceUsd || 0
+        p.arsComparePrice = calculated.comparePrice || p.comparePriceUsd || calculated.price || 0
+      }
+    } catch (error) {
+      console.error('[pc-assistant] Error calculating ARS prices, using USD fallback:', error)
+      // Fallback: estimate ARS as USD * 1200 (rough estimate)
+      for (const p of allProducts) {
+        p.arsPrice = (p.priceUsd || 0) * 1200
+        p.arsComparePrice = (p.comparePriceUsd || p.priceUsd || 0) * 1200
       }
     }
 
-    const placeholders = categoryIds.map(() => '?').join(',')
-    let query = `
-      SELECT p.id, p.name, p.slug, p.price, p.comparePrice, p.costPrice, p.images, p.specs, p.stock,
-             p.markup, p.cashDiscount, p.ivaRate, p.salePrice, p.saleStart, p.saleEnd, p.categoryId
-      FROM products p
-      WHERE p.categoryId IN (${placeholders}) AND p.isActive = 1 AND p.stock > 0 AND p.categoryId IS NOT NULL
-    `
-    const args: any[] = [...categoryIds]
-
-    // NOTE: Price filtering is done AFTER calculatePrices() converts USD → ARS.
-    // The p.price column stores USD values, so SQL-level price filters would
-    // compare ARS budgets against USD prices and exclude everything.
-
-    // Compatibility filters for motherboards
-    if (slotKey === 'motherboard' && compatFilters?.socket) {
-      const socketPatterns: Record<string, string[]> = {
-        AM4: ['AM4', 'B550', 'A520', 'X570', 'B450'],
-        AM5: ['AM5', 'B650', 'B850', 'A620', 'X670', 'X870'],
-        '1700': ['1700', 'B760', 'H610', 'B660', 'Z690', 'Z790'],
-        '1851': ['1851', 'B860', 'Z890', 'H810'],
-      }
-      const patterns = socketPatterns[compatFilters.socket]
-      if (patterns) {
-        const likeClauses = patterns.map(() => `p.name LIKE ?`).join(' OR ')
-        query += ` AND (${likeClauses})`
-        patterns.forEach(p => args.push(`%${p}%`))
+    // Log product counts and price ranges per slot
+    for (const [slot, products] of slotProducts) {
+      if (products.length === 0) {
+        console.warn(`[pc-assistant] ${slot}: 0 products`)
+      } else {
+        const prices = products.map(p => p.arsComparePrice).filter(p => p > 0)
+        const minP = prices.length > 0 ? Math.min(...prices) : 0
+        const maxP = prices.length > 0 ? Math.max(...prices) : 0
+        console.log(`[pc-assistant] ${slot}: ${products.length} products, ARS range: $${Math.round(minP).toLocaleString()} - $${Math.round(maxP).toLocaleString()}`)
       }
     }
 
-    // Compatibility filter for RAM
-    if (slotKey === 'ram' && compatFilters?.ddr) {
-      query += ' AND p.name LIKE ?'
-      args.push(`%${compatFilters.ddr}%`)
-    }
-
-    query += ' ORDER BY p.price ASC LIMIT 60'
-
-    const result = await db.execute({ sql: query, args })
-    const products = (result.rows as any[]).filter(p => !isExcludedFromBuilder(slotKey, p.name))
-
-    return products
   } catch (error) {
-    console.error('[pc-assistant] Error fetching products for slot:', slotKey, error)
-    return []
+    console.error('[pc-assistant] Error fetching products:', error)
   }
+
+  return slotProducts
 }
 
 // ============================================
-// Calculate Prices
+// Pick Best Product for a Slot
 // ============================================
 
-async function calculatePrices(products: ProductRow[]): Promise<Map<string, { price: number; comparePrice: number }>> {
-  const priceMap = new Map<string, { price: number; comparePrice: number }>()
+function pickProductForSlot(
+  products: ProductWithArsPrice[],
+  idealMin: number,
+  idealMax: number,
+  compatFilter?: (p: ProductWithArsPrice) => boolean
+): ProductWithArsPrice | null {
+  if (products.length === 0) return null
 
-  try {
-    const dollar = await fetchDollarRate()
+  // Apply compatibility filter if provided
+  let pool = compatFilter ? products.filter(compatFilter) : products
 
-    const markupResult = await db.execute({ sql: "SELECT value FROM store_config WHERE key = 'markup'", args: [] })
-    const markupRows = markupResult.rows as any[]
-    const globalMarkup = markupRows.length > 0 ? (JSON.parse(markupRows[0].value).value ?? 30) : 30
-
-    const cashDiscountResult = await db.execute({ sql: "SELECT value FROM store_config WHERE key = 'cash_discount'", args: [] })
-    const cashDiscountRows = cashDiscountResult.rows as any[]
-    const globalCashDiscount = cashDiscountRows.length > 0 ? (JSON.parse(cashDiscountRows[0].value).value ?? 10) : 10
-
-    const catMarkupResult = await db.execute('SELECT id, markup, cashDiscount, ivaRate FROM categories')
-    const catMarkupMap = new Map<string, any>()
-    for (const row of (catMarkupResult.rows as any[])) {
-      catMarkupMap.set(row.id, row)
-    }
-
-    for (const p of products) {
-      const catMarkup = catMarkupMap.get(p.categoryId)
-      const calculated = calculateProductPrices(p, dollar.rate, globalMarkup, globalCashDiscount, catMarkup || null)
-      priceMap.set(p.id, {
-        price: calculated.price || p.price || 0,
-        comparePrice: calculated.comparePrice || p.comparePrice || calculated.price || 0,
-      })
-    }
-  } catch (error) {
-    console.error('[pc-assistant] Error calculating prices:', error)
-    // Fallback: use raw prices
-    for (const p of products) {
-      priceMap.set(p.id, {
-        price: p.price || 0,
-        comparePrice: p.comparePrice || p.price || 0,
-      })
-    }
+  // If compatibility filter removed everything, fall back to unfiltered
+  if (pool.length === 0) {
+    console.warn('[pc-assistant] Compatibility filter removed all products, using unfiltered pool')
+    pool = products
   }
 
-  return priceMap
-}
+  if (pool.length === 0) return null
 
-// ============================================
-// ARS Price Filtering (after calculatePrices)
-// ============================================
+  // Score products: prefer products near the midpoint of the ideal range
+  // but allow significant flexibility (up to 2x idealMax for expensive components)
+  const midPrice = (idealMin + idealMax) / 2
 
-function filterByArsPrice(
-  products: ProductRow[],
-  priceMap: Map<string, { price: number; comparePrice: number }>,
-  minArs?: number,
-  maxArs?: number
-): ProductRow[] {
-  return products.filter(p => {
-    const prices = priceMap.get(p.id)
-    if (!prices) return false
-    const arsPrice = prices.comparePrice || prices.price
-    if (minArs && arsPrice < minArs) return false
-    if (maxArs && arsPrice > maxArs) return false
-    return true
+  // First try: products within ideal range
+  let candidates = pool.filter(p => {
+    const price = p.arsComparePrice || p.arsPrice
+    return price >= idealMin * 0.3 && price <= idealMax * 1.5
   })
+
+  // Second try: just cap at 2x max, no min
+  if (candidates.length === 0) {
+    candidates = pool.filter(p => {
+      const price = p.arsComparePrice || p.arsPrice
+      return price <= idealMax * 2
+    })
+  }
+
+  // Third try: any product, sorted by price
+  if (candidates.length === 0) {
+    candidates = pool
+  }
+
+  if (candidates.length === 0) return null
+
+  // Score: closest to the midpoint, slightly favoring higher quality (closer to midpoint than to min)
+  candidates.sort((a, b) => {
+    const priceA = a.arsComparePrice || a.arsPrice
+    const priceB = b.arsComparePrice || b.arsPrice
+    const scoreA = Math.abs(priceA - midPrice * 0.85)  // slightly below midpoint = good value
+    const scoreB = Math.abs(priceB - midPrice * 0.85)
+    return scoreA - scoreB
+  })
+
+  return candidates[0]
 }
 
 // ============================================
-// Build Configuration
+// Build Configuration (Simplified & Robust)
 // ============================================
 
-async function buildConfiguration(
+function buildConfiguration(
+  allProducts: Map<string, ProductWithArsPrice[]>,
   useCase: string,
   budget: number,
   tierMultiplier: number,
   profile: Record<string, number>
-): Promise<BuildComponent[] | null> {
+): BuildComponent[] | null {
   const effectiveBudget = budget * tierMultiplier
   const components: BuildComponent[] = []
+  const debugLog: string[] = []
 
-  // Track compatibility constraints as we build
+  debugLog.push(`Budget: $${budget.toLocaleString()}, Effective: $${Math.round(effectiveBudget).toLocaleString()}, Tier: ${tierMultiplier}`)
+
+  // Track compatibility constraints
   let processorSocket: string | null = null
   let motherboardDdr: string | null = null
   let gpuMinWattage: number | null = null
 
-  // Calculate price allocations
-  const allocations: Record<string, { min: number; max: number }> = {}
+  // Calculate price allocations per slot
+  const allocations: Record<string, number> = {}
   for (const [slot, pct] of Object.entries(profile)) {
-    if (pct === 0) continue // Skip slots not needed (e.g., GPU for office)
-    const allocated = effectiveBudget * pct
-    allocations[slot] = {
-      min: allocated * 0.6,  // Allow going a bit below allocation
-      max: allocated * 1.3,  // Allow going a bit above
-    }
+    if (pct === 0) continue
+    allocations[slot] = effectiveBudget * pct
   }
 
-  // Step 1: Pick processor
-  const processorAlloc = allocations['processor']
-  if (!processorAlloc) return null
-
-  const processorProductsRaw = await fetchProductsForSlot(
-    'processor', 'microprocesadores', []
-  )
-
-  if (processorProductsRaw.length === 0) {
-    console.warn('[pc-assistant] No processor products found in DB')
+  // ---- Step 1: Processor ----
+  const processorProducts = allProducts.get('processor') || []
+  const procAlloc = allocations['processor']
+  if (!procAlloc || processorProducts.length === 0) {
+    console.error(`[pc-assistant] Cannot build: processor alloc=${procAlloc}, products=${processorProducts.length}`)
     return null
   }
 
-  const processorPrices = await calculatePrices(processorProductsRaw)
-  // Filter by ARS price range AFTER conversion
-  const processorProducts = filterByArsPrice(processorProductsRaw, processorPrices, processorAlloc.min * 0.5, processorAlloc.max)
-  console.log(`[pc-assistant] Processors: ${processorProductsRaw.length} raw → ${processorProducts.length} in ARS range [${Math.round(processorAlloc.min * 0.5)}-${Math.round(processorAlloc.max)}]`)
+  const processor = pickProductForSlot(processorProducts, procAlloc * 0.4, procAlloc * 1.3)
+  if (!processor) {
+    console.error('[pc-assistant] Cannot build: no processor selected')
+    return null
+  }
 
-  // Pick the product closest to our allocation; if none in ideal range, relax constraints
-  const processor = processorProducts.length > 0
-    ? pickBestProduct(processorProducts, processorPrices, processorAlloc.min, processorAlloc.max)
-    : (() => {
-        // Fallback: pick cheapest available within 1.5x max
-        const relaxed = filterByArsPrice(processorProductsRaw, processorPrices, undefined, processorAlloc.max * 1.5)
-        return relaxed.length > 0 ? relaxed[0] : null
-      })()
-  if (!processor) return null
-
-  const processorPriceInfo = processorPrices.get(processor.id)!
   const procCompat = extractCompatibility('processor', processor.name)
   processorSocket = procCompat.socket || null
+  debugLog.push(`Processor: ${processor.name} ($${Math.round(processor.arsComparePrice).toLocaleString()} ARS) socket=${processorSocket}`)
 
-  components.push({
-    slot: 'processor',
-    label: 'Microprocesador',
-    productId: processor.id,
-    productName: processor.name,
-    productPrice: processorPriceInfo.price,
-    productComparePrice: processorPriceInfo.comparePrice,
-    productSlug: processor.slug || '',
-    productImages: processor.images || '[]',
-    productStock: processor.stock || 0,
-    productSpecs: processor.specs || '{}',
-    quantity: 1,
-  })
+  components.push(makeComponent(processor, 'processor', 'Microprocesador'))
 
-  // Step 2: Pick motherboard (compatible with processor socket)
+  // ---- Step 2: Motherboard ----
+  const mbProducts = allProducts.get('motherboard') || []
   const mbAlloc = allocations['motherboard']
-  if (!mbAlloc) return null
-
-  const mbProductsRaw = await fetchProductsForSlot(
-    'motherboard', 'motherboards', [],
-    undefined, undefined,
-    processorSocket ? { socket: processorSocket } : undefined
-  )
-
-  if (mbProductsRaw.length === 0) {
-    console.warn('[pc-assistant] No motherboard products found for socket:', processorSocket)
+  if (!mbAlloc || mbProducts.length === 0) {
+    console.error(`[pc-assistant] Cannot build: motherboard alloc=${mbAlloc}, products=${mbProducts.length}`)
     return null
   }
 
-  const mbPrices = await calculatePrices(mbProductsRaw)
-  const mbProducts = filterByArsPrice(mbProductsRaw, mbPrices, mbAlloc.min * 0.3, mbAlloc.max)
-  console.log(`[pc-assistant] Motherboards: ${mbProductsRaw.length} raw → ${mbProducts.length} in ARS range`)
+  // Filter by socket compatibility
+  const mbCompatFilter = processorSocket
+    ? (p: ProductWithArsPrice) => {
+        const upper = p.name.toUpperCase()
+        const socketPatterns: Record<string, string[]> = {
+          AM4: ['AM4', 'B550', 'A520', 'X570', 'B450'],
+          AM5: ['AM5', 'B650', 'B850', 'A620', 'X670', 'X870'],
+          '1700': ['1700', 'B760', 'H610', 'B660', 'Z690', 'Z790'],
+          '1851': ['1851', 'B860', 'Z890', 'H810'],
+        }
+        const patterns = socketPatterns[processorSocket]
+        return patterns ? patterns.some(pat => upper.includes(pat.toUpperCase())) : true
+      }
+    : undefined
 
-  const motherboard = mbProducts.length > 0
-    ? pickBestProduct(mbProducts, mbPrices, mbAlloc.min * 0.3, mbAlloc.max)
-    : (() => {
-        const relaxed = filterByArsPrice(mbProductsRaw, mbPrices, undefined, mbAlloc.max * 1.5)
-        return relaxed.length > 0 ? relaxed[0] : null
-      })()
-  if (!motherboard) return null
+  const motherboard = pickProductForSlot(mbProducts, mbAlloc * 0.4, mbAlloc * 1.5, mbCompatFilter)
+  if (!motherboard) {
+    console.error('[pc-assistant] Cannot build: no motherboard selected')
+    return null
+  }
 
-  const mbPriceInfo = mbPrices.get(motherboard.id)!
   const mbCompat = extractCompatibility('motherboard', motherboard.name)
   motherboardDdr = mbCompat.ddr || null
+  debugLog.push(`Motherboard: ${motherboard.name} ($${Math.round(motherboard.arsComparePrice).toLocaleString()} ARS) ddr=${motherboardDdr}`)
 
-  components.push({
-    slot: 'motherboard',
-    label: 'Motherboard',
-    productId: motherboard.id,
-    productName: motherboard.name,
-    productPrice: mbPriceInfo.price,
-    productComparePrice: mbPriceInfo.comparePrice,
-    productSlug: motherboard.slug || '',
-    productImages: motherboard.images || '[]',
-    productStock: motherboard.stock || 0,
-    productSpecs: motherboard.specs || '{}',
-    quantity: 1,
-  })
+  components.push(makeComponent(motherboard, 'motherboard', 'Motherboard'))
 
-  // Step 3: Pick RAM (compatible with motherboard DDR)
+  // ---- Step 3: RAM ----
+  const ramProducts = allProducts.get('ram') || []
   const ramAlloc = allocations['ram']
-  if (!ramAlloc) return null
-
-  const ramProductsRaw = await fetchProductsForSlot(
-    'ram', 'memorias-ram', [],
-    undefined, undefined,
-    motherboardDdr ? { ddr: motherboardDdr } : undefined
-  )
-
-  if (ramProductsRaw.length === 0) {
-    console.warn('[pc-assistant] No RAM products found for DDR:', motherboardDdr)
+  if (!ramAlloc || ramProducts.length === 0) {
+    console.error(`[pc-assistant] Cannot build: RAM alloc=${ramAlloc}, products=${ramProducts.length}`)
     return null
   }
 
-  const ramPrices = await calculatePrices(ramProductsRaw)
-  const ramProducts = filterByArsPrice(ramProductsRaw, ramPrices, ramAlloc.min * 0.2, ramAlloc.max)
-  console.log(`[pc-assistant] RAM: ${ramProductsRaw.length} raw → ${ramProducts.length} in ARS range`)
+  const ramCompatFilter = motherboardDdr
+    ? (p: ProductWithArsPrice) => p.name.toUpperCase().includes(motherboardDdr!.toUpperCase())
+    : undefined
 
-  const ram = ramProducts.length > 0
-    ? pickBestProduct(ramProducts, ramPrices, ramAlloc.min * 0.2, ramAlloc.max)
-    : (() => {
-        const relaxed = filterByArsPrice(ramProductsRaw, ramPrices, undefined, ramAlloc.max * 1.5)
-        return relaxed.length > 0 ? relaxed[0] : null
-      })()
-  if (!ram) return null
+  const ram = pickProductForSlot(ramProducts, ramAlloc * 0.3, ramAlloc * 1.5, ramCompatFilter)
+  if (!ram) {
+    console.error('[pc-assistant] Cannot build: no RAM selected')
+    return null
+  }
 
-  const ramPriceInfo = ramPrices.get(ram.id)!
+  debugLog.push(`RAM: ${ram.name} ($${Math.round(ram.arsComparePrice).toLocaleString()} ARS)`)
+  components.push(makeComponent(ram, 'ram', 'Memoria RAM'))
 
-  components.push({
-    slot: 'ram',
-    label: 'Memoria RAM',
-    productId: ram.id,
-    productName: ram.name,
-    productPrice: ramPriceInfo.price,
-    productComparePrice: ramPriceInfo.comparePrice,
-    productSlug: ram.slug || '',
-    productImages: ram.images || '[]',
-    productStock: ram.stock || 0,
-    productSpecs: ram.specs || '{}',
-    quantity: 1, // Default 1 stick; could add 2 for dual channel
-  })
-
-  // Step 4: Pick GPU (if use case needs it)
+  // ---- Step 4: GPU (optional for some use cases) ----
   if (profile.gpu > 0) {
+    const gpuProducts = allProducts.get('gpu') || []
     const gpuAlloc = allocations['gpu']
-    if (!gpuAlloc) return null
 
-    const gpuProductsRaw = await fetchProductsForSlot(
-      'gpu', 'placas-de-video', []
-    )
-
-    if (gpuProductsRaw.length > 0) {
-      const gpuPrices = await calculatePrices(gpuProductsRaw)
-      const gpuProducts = filterByArsPrice(gpuProductsRaw, gpuPrices, gpuAlloc.min * 0.2, gpuAlloc.max)
-      console.log(`[pc-assistant] GPU: ${gpuProductsRaw.length} raw → ${gpuProducts.length} in ARS range`)
-
-      const gpu = gpuProducts.length > 0
-        ? pickBestProduct(gpuProducts, gpuPrices, gpuAlloc.min * 0.2, gpuAlloc.max)
-        : (() => {
-            const relaxed = filterByArsPrice(gpuProductsRaw, gpuPrices, undefined, gpuAlloc.max * 1.5)
-            return relaxed.length > 0 ? relaxed[0] : null
-          })()
+    if (gpuAlloc && gpuProducts.length > 0) {
+      const gpu = pickProductForSlot(gpuProducts, gpuAlloc * 0.3, gpuAlloc * 1.5)
 
       if (gpu) {
-        const gpuPriceInfo = gpuPrices.get(gpu.id)!
         const gpuCompat = extractCompatibility('gpu', gpu.name)
-        gpuMinWattage = gpuCompat.gpuTdp ? gpuCompat.gpuTdp * 1.5 + 100 : null // Estimate PSU wattage needed
-
-        components.push({
-          slot: 'gpu',
-          label: 'Placa de Video',
-          productId: gpu.id,
-          productName: gpu.name,
-          productPrice: gpuPriceInfo.price,
-          productComparePrice: gpuPriceInfo.comparePrice,
-          productSlug: gpu.slug || '',
-          productImages: gpu.images || '[]',
-          productStock: gpu.stock || 0,
-          productSpecs: gpu.specs || '{}',
-          quantity: 1,
-        })
+        gpuMinWattage = gpuCompat.gpuTdp ? gpuCompat.gpuTdp * 1.5 + 100 : null
+        debugLog.push(`GPU: ${gpu.name} ($${Math.round(gpu.arsComparePrice).toLocaleString()} ARS) wattage_needed=${gpuMinWattage}`)
+        components.push(makeComponent(gpu, 'gpu', 'Placa de Video'))
+      } else {
+        debugLog.push(`GPU: none found in budget range $${Math.round(gpuAlloc * 0.3).toLocaleString()}-$${Math.round(gpuAlloc * 1.5).toLocaleString()}`)
       }
     }
   }
 
-  // Step 5: Pick SSD
+  // ---- Step 5: SSD ----
+  const ssdProducts = allProducts.get('ssd') || []
   const ssdAlloc = allocations['ssd']
-  if (!ssdAlloc) return null
 
-  const ssdProductsRaw = await fetchProductsForSlot(
-    'ssd', 'discos-ssd', []
-  )
+  if (ssdAlloc && ssdProducts.length > 0) {
+    const ssd = pickProductForSlot(ssdProducts, ssdAlloc * 0.3, ssdAlloc * 1.5)
+    if (ssd) {
+      debugLog.push(`SSD: ${ssd.name} ($${Math.round(ssd.arsComparePrice).toLocaleString()} ARS)`)
+      components.push(makeComponent(ssd, 'ssd', 'Disco SSD'))
+    } else {
+      debugLog.push('SSD: none found')
+      return null // SSD is required
+    }
+  } else {
+    return null
+  }
 
-  if (ssdProductsRaw.length === 0) return null
-
-  const ssdPrices = await calculatePrices(ssdProductsRaw)
-  const ssdProducts = filterByArsPrice(ssdProductsRaw, ssdPrices, ssdAlloc.min * 0.2, ssdAlloc.max)
-  console.log(`[pc-assistant] SSD: ${ssdProductsRaw.length} raw → ${ssdProducts.length} in ARS range`)
-
-  const ssd = ssdProducts.length > 0
-    ? pickBestProduct(ssdProducts, ssdPrices, ssdAlloc.min * 0.2, ssdAlloc.max)
-    : (() => {
-        const relaxed = filterByArsPrice(ssdProductsRaw, ssdPrices, undefined, ssdAlloc.max * 1.5)
-        return relaxed.length > 0 ? relaxed[0] : null
-      })()
-  if (!ssd) return null
-
-  const ssdPriceInfo = ssdPrices.get(ssd.id)!
-
-  components.push({
-    slot: 'ssd',
-    label: 'Disco SSD',
-    productId: ssd.id,
-    productName: ssd.name,
-    productPrice: ssdPriceInfo.price,
-    productComparePrice: ssdPriceInfo.comparePrice,
-    productSlug: ssd.slug || '',
-    productImages: ssd.images || '[]',
-    productStock: ssd.stock || 0,
-    productSpecs: ssd.specs || '{}',
-    quantity: 1,
-  })
-
-  // Step 6: Pick PSU
+  // ---- Step 6: PSU ----
+  const psuProducts = allProducts.get('psu') || []
   const psuAlloc = allocations['psu']
-  if (!psuAlloc) return null
 
-  const psuProductsRaw = await fetchProductsForSlot(
-    'psu', 'fuentes', []
-  )
+  if (psuAlloc && psuProducts.length > 0) {
+    // If we know GPU wattage, prefer PSUs that can handle it
+    let psuCompatFilter: ((p: ProductWithArsPrice) => boolean) | undefined
+    if (gpuMinWattage) {
+      psuCompatFilter = (p: ProductWithArsPrice) => {
+        const wattMatch = p.name.match(/(\d{3,4})\s*W/i)
+        return wattMatch ? parseInt(wattMatch[1]) >= gpuMinWattage! : true // allow PSUs without wattage in name
+      }
+    }
 
-  if (psuProductsRaw.length === 0) return null
+    const psu = pickProductForSlot(psuProducts, psuAlloc * 0.3, psuAlloc * 1.5, psuCompatFilter)
+    if (psu) {
+      debugLog.push(`PSU: ${psu.name} ($${Math.round(psu.arsComparePrice).toLocaleString()} ARS)`)
+      components.push(makeComponent(psu, 'psu', 'Fuente'))
+    } else {
+      debugLog.push('PSU: none found')
+      return null // PSU is required
+    }
+  } else {
+    return null
+  }
 
-  const psuPrices = await calculatePrices(psuProductsRaw)
-  const psuProducts = filterByArsPrice(psuProductsRaw, psuPrices, psuAlloc.min * 0.3, psuAlloc.max)
-  console.log(`[pc-assistant] PSU: ${psuProductsRaw.length} raw → ${psuProducts.length} in ARS range`)
-
-  // If we know the GPU wattage, prefer PSUs that can handle it
-  const psu = gpuMinWattage
-    ? pickPsuWithWattage(psuProducts.length > 0 ? psuProducts : psuProductsRaw, psuPrices, psuAlloc.min * 0.3, psuAlloc.max, gpuMinWattage)
-    : (psuProducts.length > 0
-        ? pickBestProduct(psuProducts, psuPrices, psuAlloc.min * 0.3, psuAlloc.max)
-        : (() => {
-            const relaxed = filterByArsPrice(psuProductsRaw, psuPrices, undefined, psuAlloc.max * 1.5)
-            return relaxed.length > 0 ? relaxed[0] : null
-          })()
-      )
-
-  if (!psu) return null
-
-  const psuPriceInfo = psuPrices.get(psu.id)!
-
-  components.push({
-    slot: 'psu',
-    label: 'Fuente',
-    productId: psu.id,
-    productName: psu.name,
-    productPrice: psuPriceInfo.price,
-    productComparePrice: psuPriceInfo.comparePrice,
-    productSlug: psu.slug || '',
-    productImages: psu.images || '[]',
-    productStock: psu.stock || 0,
-    productSpecs: psu.specs || '{}',
-    quantity: 1,
-  })
-
-  // Step 7: Pick case
+  // ---- Step 7: Case (optional - don't fail if not found) ----
+  const caseProducts = allProducts.get('case') || []
   const caseAlloc = allocations['case']
-  if (!caseAlloc) return null
 
-  const caseProductsRaw = await fetchProductsForSlot(
-    'case', 'gabinetes', ['gabinetes-con-fuente']
-  )
-
-  if (caseProductsRaw.length > 0) {
-    const casePrices = await calculatePrices(caseProductsRaw)
-    const caseProducts = filterByArsPrice(caseProductsRaw, casePrices, caseAlloc.min * 0.2, caseAlloc.max)
-    console.log(`[pc-assistant] Case: ${caseProductsRaw.length} raw → ${caseProducts.length} in ARS range`)
-
-    const caseProduct = caseProducts.length > 0
-      ? pickBestProduct(caseProducts, casePrices, caseAlloc.min * 0.2, caseAlloc.max)
-      : (() => {
-          const relaxed = filterByArsPrice(caseProductsRaw, casePrices, undefined, caseAlloc.max * 1.5)
-          return relaxed.length > 0 ? relaxed[0] : null
-        })()
-
+  if (caseAlloc && caseProducts.length > 0) {
+    const caseProduct = pickProductForSlot(caseProducts, caseAlloc * 0.2, caseAlloc * 1.5)
     if (caseProduct) {
-      const casePriceInfo = casePrices.get(caseProduct.id)!
-
-      components.push({
-        slot: 'case',
-        label: 'Gabinete',
-        productId: caseProduct.id,
-        productName: caseProduct.name,
-        productPrice: casePriceInfo.price,
-        productComparePrice: casePriceInfo.comparePrice,
-        productSlug: caseProduct.slug || '',
-        productImages: caseProduct.images || '[]',
-        productStock: caseProduct.stock || 0,
-        productSpecs: caseProduct.specs || '{}',
-        quantity: 1,
-      })
+      debugLog.push(`Case: ${caseProduct.name} ($${Math.round(caseProduct.arsComparePrice).toLocaleString()} ARS)`)
+      components.push(makeComponent(caseProduct, 'case', 'Gabinete'))
+    } else {
+      debugLog.push('Case: none in budget (non-fatal)')
     }
   }
 
-  // Step 8: Pick cooling (optional)
+  // ---- Step 8: Cooling (optional) ----
   if (profile.cooling > 0) {
+    const coolingProducts = allProducts.get('cooling') || []
     const coolingAlloc = allocations['cooling']
-    if (coolingAlloc) {
-      const coolingProductsRaw = await fetchProductsForSlot(
-        'cooling', 'refrigeracion', []
-      )
 
-      if (coolingProductsRaw.length > 0) {
-        const coolingPrices = await calculatePrices(coolingProductsRaw)
-        const coolingProducts = filterByArsPrice(coolingProductsRaw, coolingPrices, coolingAlloc.min * 0.1, coolingAlloc.max)
-
-        const cooling = coolingProducts.length > 0
-          ? pickBestProduct(coolingProducts, coolingPrices, coolingAlloc.min * 0.1, coolingAlloc.max)
-          : (() => {
-              const relaxed = filterByArsPrice(coolingProductsRaw, coolingPrices, undefined, coolingAlloc.max * 1.5)
-              return relaxed.length > 0 ? relaxed[0] : null
-            })()
-
-        if (cooling) {
-          const coolingPriceInfo = coolingPrices.get(cooling.id)!
-
-          components.push({
-            slot: 'cooling',
-            label: 'Refrigeración',
-            productId: cooling.id,
-            productName: cooling.name,
-            productPrice: coolingPriceInfo.price,
-            productComparePrice: coolingPriceInfo.comparePrice,
-            productSlug: cooling.slug || '',
-            productImages: cooling.images || '[]',
-            productStock: cooling.stock || 0,
-            productSpecs: cooling.specs || '{}',
-            quantity: 1,
-          })
-        }
+    if (coolingAlloc && coolingProducts.length > 0) {
+      const cooling = pickProductForSlot(coolingProducts, coolingAlloc * 0.2, coolingAlloc * 1.5)
+      if (cooling) {
+        debugLog.push(`Cooling: ${cooling.name} ($${Math.round(cooling.arsComparePrice).toLocaleString()} ARS)`)
+        components.push(makeComponent(cooling, 'cooling', 'Refrigeración'))
       }
     }
   }
+
+  // Log the full build
+  const totalPrice = components.reduce((sum, c) => sum + c.productComparePrice * c.quantity, 0)
+  debugLog.push(`Total: $${Math.round(totalPrice).toLocaleString()} ARS (${components.length} components)`)
+  console.log(`[pc-assistant] Build result:\n${debugLog.join('\n')}`)
 
   return components
 }
 
-// Pick the best product within a price range
-// Strategy: prefer the product closest to the middle of the range (best value)
-// All prices (minPrice, maxPrice, priceMap values) are in ARS
-function pickBestProduct(
-  products: ProductRow[],
-  priceMap: Map<string, { price: number; comparePrice: number }>,
-  minPrice: number,
-  maxPrice: number
-): ProductRow | null {
-  if (products.length === 0) return null
-
-  // Score each product by how close it is to the midpoint of the allocation
-  const midPrice = (minPrice + maxPrice) / 2
-  let bestProduct: ProductRow | null = null
-  let bestScore = Infinity
-
-  // Also track the cheapest as a fallback
-  let cheapestProduct: ProductRow | null = null
-  let cheapestPrice = Infinity
-
-  for (const p of products) {
-    const prices = priceMap.get(p.id)
-    if (!prices) continue
-
-    const price = prices.comparePrice || prices.price
-
-    // Track cheapest product as fallback
-    if (price < cheapestPrice) {
-      cheapestPrice = price
-      cheapestProduct = p
-    }
-
-    // Skip products that are way too cheap (probably wrong category match)
-    if (minPrice > 0 && price < minPrice * 0.15) continue
-
-    // Skip products over the max budget (but with 20% tolerance)
-    if (maxPrice > 0 && price > maxPrice * 1.2) continue
-
-    // Score: prefer products near the midpoint, slightly favoring higher-priced (better quality)
-    const score = Math.abs(price - midPrice * 0.9)
-
-    if (score < bestScore) {
-      bestScore = score
-      bestProduct = p
-    }
+function makeComponent(p: ProductWithArsPrice, slot: string, label: string): BuildComponent {
+  return {
+    slot,
+    label,
+    productId: p.id,
+    productName: p.name,
+    productPrice: p.arsPrice,
+    productComparePrice: p.arsComparePrice,
+    productSlug: p.slug || '',
+    productImages: p.images || '[]',
+    productStock: p.stock || 0,
+    productSpecs: p.specs || '{}',
+    quantity: 1,
   }
-
-  // If no product scored well, use the cheapest available
-  if (!bestProduct) {
-    bestProduct = cheapestProduct
-  }
-
-  return bestProduct
-}
-
-// Pick a PSU with sufficient wattage
-function pickPsuWithWattage(
-  products: ProductRow[],
-  priceMap: Map<string, { price: number; comparePrice: number }>,
-  minPrice: number,
-  maxPrice: number,
-  minWattage: number
-): ProductRow | null {
-  // Filter PSUs by wattage first
-  const sufficientPsus = products.filter(p => {
-    const wattMatch = p.name.match(/(\d{3,4})\s*W/i)
-    return wattMatch ? parseInt(wattMatch[1]) >= minWattage : false
-  })
-
-  // If we have sufficient PSUs, pick from those; otherwise fall back to all
-  const pool = sufficientPsus.length > 0 ? sufficientPsus : products
-  return pickBestProduct(pool, priceMap, minPrice, maxPrice)
 }
 
 // ============================================
@@ -834,12 +601,10 @@ Se le armaron ${builds.length} opciones. Escribí un mensaje corto y amigable (m
     })
 
     if (result.content) {
-      // Set the description on the first build (the main message)
       builds[0].description = result.content.trim()
     }
   } catch (error) {
     console.error('[pc-assistant] Error generating descriptions:', error)
-    // Fallback description
     builds[0].description = `Armé ${builds.length} opciones para tu PC ${useCase}. La Económica te entra justo en presupuesto, la Recomendada es la mejor relación precio/rendimiento, y la Premium apreta un poco más pero con los mejores componentes.`
   }
 }
@@ -875,6 +640,35 @@ Formato de respuesta JSON:
 Ejemplos:
 - Cliente: "Quiero una PC para jugar" → message: "¡Buena onda! ¿Cuál es tu presupuesto aproximado? Decime en pesos si podés.", ready: false, use_case: "gaming", budget: null
 - Cliente: "Tengo 500000 pesos para gaming" → message: "¡Perfecto! Voy a armar unas opciones para vos.", ready: true, use_case: "gaming", budget: 500000`
+
+// ============================================
+// Debug GET Endpoint
+// ============================================
+
+export async function GET() {
+  try {
+    const allProducts = await fetchAllProductsWithArsPrices()
+
+    const debug: Record<string, any> = {}
+    for (const [slot, products] of allProducts) {
+      const prices = products.map(p => p.arsComparePrice || p.arsPrice).filter(p => p > 0)
+      debug[slot] = {
+        count: products.length,
+        priceRange: prices.length > 0
+          ? `$${Math.round(Math.min(...prices)).toLocaleString()} - $${Math.round(Math.max(...prices)).toLocaleString()} ARS`
+          : 'N/A',
+        cheapest3: products.slice(0, 3).map(p => ({
+          name: p.name,
+          arsPrice: `$${Math.round(p.arsComparePrice || p.arsPrice).toLocaleString()}`,
+        })),
+      }
+    }
+
+    return NextResponse.json({ debug, timestamp: new Date().toISOString() })
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+}
 
 // ============================================
 // POST Handler
@@ -929,7 +723,6 @@ export async function POST(request: NextRequest) {
 
       chatResult = parseLlmJson(result.content)
       if (!chatResult) {
-        // If JSON parsing failed, treat the raw content as a plain message
         return NextResponse.json({
           message: result.content,
           ready: false,
@@ -960,16 +753,17 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Ready to build! Generate configurations
+    // Ready to build! Fetch all products upfront
     console.log(`[pc-assistant] Building configs for useCase=${useCase}, budget=${budget}`)
 
+    const allProducts = await fetchAllProductsWithArsPrices()
     const profile = BUDGET_PROFILES[useCase] || BUDGET_PROFILES.general
     const builds: SuggestedBuild[] = []
 
     for (const tier of BUILD_TIERS) {
       try {
-        const components = await buildConfiguration(useCase, budget, tier.multiplier, profile)
-        if (components && components.length >= 5) { // Need at least 5 components for a valid build
+        const components = buildConfiguration(allProducts, useCase, budget, tier.multiplier, profile)
+        if (components && components.length >= 5) {
           const totalPrice = components.reduce((sum, c) => sum + c.productComparePrice * c.quantity, 0)
           const totalListPrice = components.reduce((sum, c) => sum + c.productPrice * c.quantity, 0)
 
@@ -980,6 +774,8 @@ export async function POST(request: NextRequest) {
             totalListPrice,
             components,
           })
+        } else {
+          console.warn(`[pc-assistant] Tier ${tier.name}: only ${components?.length || 0} components, need 5+`)
         }
       } catch (error) {
         console.error(`[pc-assistant] Error building tier ${tier.name}:`, error)
@@ -987,8 +783,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (builds.length === 0) {
+      // Provide more helpful error message with debug info
+      const slotCounts: string[] = []
+      for (const [slot, products] of allProducts) {
+        if (products.length > 0) slotCounts.push(`${slot}: ${products.length}`)
+      }
+      console.error(`[pc-assistant] No builds possible. Product counts: ${slotCounts.join(', ')}`)
+
       return NextResponse.json({
-        message: `Disculpá, no pude armar una configuración con ese presupuesto. ¿Podrías aumentar un poco el presupuesto o probar con otro uso?`,
+        message: `Disculpá, no pude armar una configuración con ese presupuesto. ¿Podrías aumentar un poco el presupuesto o probar con otro tipo de uso?`,
         ready: false,
         builds: null,
       })
