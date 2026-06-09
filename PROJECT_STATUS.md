@@ -893,6 +893,46 @@ Todos los backups en `/home/z/my-project/download/backups/`
 4. **Cargar imagenes faltantes:** ~1,565 productos sin imagen (mayormente Air Intra). Usar cross-provider matching + web search
 5. **Crear banners y cupones:** Las tablas estan vacias, el dueño puede empezar a crear promociones desde `/admin/promociones`
 
+### PENDIENTE - Integracion de IA (aprobacion del dueño pendiente)
+**Estado:** Esperando confirmacion del dueño. Discutido en sesion 31.
+**Prioridades elegidas:** PC Builder inteligente + Descripciones automaticas
+
+#### Feature 1: PC Builder con IA de Compatibilidad
+- **Que hace hoy:** El PC Builder ya tiene compatibilidad basica por reglas (socket, DDR, wattaje) en `src/lib/compatibility.ts`. Las reglas deterministas (AM5->AM5, DDR5->DDR5) funcionan bien y NO se tocan.
+- **Que agregaria la IA:** Capa 2 encima de las reglas para lo que las reglas no pueden resolver:
+  - Deteccion de cuellos de botella (procesador limita placa de video, etc.)
+  - Sugerencias de upgrade con costo-beneficio ("por $X mas te conviene esta placa")
+  - Validacion real de suficiencia de fuente (no solo TDP, sino picos, conectores, eficiencia)
+  - Explicaciones en lenguaje natural ("Tu procesador limita la placa de video en juegos 4K")
+  - Puntuacion del build (1-10) con detalle
+- **Arquitectura:** API Route `POST /api/validate-build` → manda specs al LLM → devuelve JSON con compatible/issues/bottleneck/score
+- **Disparador:** Boton manual "Analizar mi build" (no automatico, para controlar llamadas)
+- **Regla clave:** Reglas simples primero (gratis, 0ms), IA solo para lo complejo
+- **UI propuesta:** Panel lateral con semaforo (verde/amarillo/rojo), score, observaciones y sugerencias de upgrade
+- **LLM:** Grok (gratuito, ya usado en proyecto Paulero Studio del dev). Alternativa: z-ai-web-dev-sdk si Grok no alcanza
+
+#### Feature 2: Descripciones Automaticas de Productos
+- **Problema:** Muchos productos tienen descripciones vacias, en ingles, o genericas del proveedor
+- **Solucion:** LLM genera descripciones en español, SEO-friendly, a partir del titulo + specs tecnicas
+- **Costo:** Se genera una vez por producto (no por vista). ~600K tokens para 2000 productos iniciales, luego ~30K/mes para productos nuevos del sync
+- **Integracion:** Boton en admin "Generar descripcion con IA" o automatico en el sync para productos sin descripcion
+- **LLM:** Grok (gratuito). Temperature 0.7-0.8, max_tokens 200-400
+
+#### Costos Estimados
+| Concepto | Costo mensual |
+|----------|--------------|
+| Vercel | $0 (ya lo usan, sin cambios) |
+| Turso | $0 (ya lo usan, consultas extra insignificantes) |
+| LLM (Grok) | $0 (gratuito, mismo que Paulero Studio) |
+| **Total** | **$0** |
+
+#### Consideraciones
+- **Rate limits de Grok:** Verificar limites de consultas/minuto. Para trafico normal de e-commerce probablemente alcanza
+- **Latencia:** 2-3s por consulta de IA. Para el PC Builder (boton manual) es aceptable. Para descripciones (batch) no importa
+- **Plan B:** Si Grok cambia condiciones, usar z-ai-web-dev-sdk como fallback ($5-15/mes estimado)
+- **Feature flag:** Implementar con flag para poder desactivar sin deploy si algo falla
+- **Prueba piloto:** 2 semanas, medir impacto, si no suma se saca
+
 ### Media Prioridad
 6. **Recuperacion de contrasena por email:** El endpoint `/api/customer/forgot-password` existe pero necesita configuracion de servicio de email (Resend)
 7. **Verificar compatibilidad en Arma tu PC:** Testing exhaustivo del sistema de compatibilidad
