@@ -48,6 +48,7 @@ import {
 import { getVisibleSpecs } from '@/lib/product-specs'
 import { COMPUCITY_LOGO_BASE64 } from '@/lib/compucity-logo-base64'
 import PCAssistantChat from '@/components/pc-assistant-chat'
+import { WhatsAppIcon } from '@/components/ui-custom/WhatsAppIcon'
 
 // ============================================
 // Types
@@ -1308,11 +1309,11 @@ export default function ArmaTuPCPage() {
                         handleWhatsApp()
                       }
                     }}
-                    className="bg-green-600 hover:bg-green-700 gap-2"
+                    className="bg-[#25D366] hover:bg-[#20BD5A] gap-2"
                     disabled={!completedRequired}
                   >
-                    <MessageCircle className="w-4 h-4" />
-                    WhatsApp
+                    <WhatsAppIcon className="w-4 h-4" />
+                    Consultar por WhatsApp
                   </Button>
                 </div>
               )}
@@ -1489,7 +1490,7 @@ export default function ArmaTuPCPage() {
                     rel="noopener noreferrer"
                     className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm transition ${
                       completedCount > 0
-                        ? 'bg-green-500 hover:bg-green-600 text-white cursor-pointer'
+                        ? 'bg-[#25D366] hover:bg-[#20BD5A] text-white cursor-pointer'
                         : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                     }`}
                     onClick={(e) => {
@@ -1498,7 +1499,7 @@ export default function ArmaTuPCPage() {
                       }
                     }}
                   >
-                    <MessageCircle className="w-4 h-4" />
+                    <WhatsAppIcon className="w-4 h-4" />
                     Consultar por WhatsApp
                   </a>
                 </div>
@@ -1580,10 +1581,10 @@ export default function ArmaTuPCPage() {
                         handleWhatsApp()
                       }
                     }}
-                    className="bg-green-600 hover:bg-green-700 gap-1 h-9 text-xs flex-1"
+                    className="bg-[#25D366] hover:bg-[#20BD5A] gap-1 h-9 text-xs flex-1"
                     disabled={!completedRequired}
                   >
-                    <MessageCircle className="w-3.5 h-3.5" />
+                    <WhatsAppIcon className="w-3.5 h-3.5" />
                     WhatsApp
                   </Button>
                 </div>
