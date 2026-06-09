@@ -773,16 +773,26 @@ export default function AdminProductos() {
             <div className="space-y-1">
               <Label className="text-xs text-gray-500">Categoría</Label>
               <Select value={filters.category} onValueChange={(v) => { setFilters(prev => ({ ...prev, category: v })); loadProducts({ filters: { ...filters, category: v }, page: 1 }) }}>
-                <SelectTrigger className="w-48 h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-56 h-8 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas</SelectItem>
                   <SelectItem value="none">Sin categoría</SelectItem>
                   {categories
                     .filter(c => !c.parentId)
                     .sort((a, b) => a.name.localeCompare(b.name))
-                    .map(cat => (
-                      <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                    ))}
+                    .map(cat => {
+                      const children = categories
+                        .filter(c => c.parentId === cat.id)
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                      return [
+                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>,
+                        ...children.map(sub => (
+                          <SelectItem key={sub.id} value={sub.id}>
+                            <span className="text-gray-400">└</span> {sub.name}
+                          </SelectItem>
+                        )),
+                      ]
+                    })}
                 </SelectContent>
               </Select>
             </div>
