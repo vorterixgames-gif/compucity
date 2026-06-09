@@ -120,6 +120,11 @@ export default function PCAssistantChat({ onLoadBuild }: PCAssistantChatProps) {
     setInput('')
     setLoading(true)
 
+    // If builds are showing, clear them so chat can continue normally
+    if (builds) {
+      setBuilds(null)
+    }
+
     try {
       const res = await fetch('/api/pc-assistant', {
         method: 'POST',
@@ -356,7 +361,7 @@ export default function PCAssistantChat({ onLoadBuild }: PCAssistantChatProps) {
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={builds ? '¿Querés otra opción?' : 'Escribí tu mensaje...'}
+                placeholder={builds ? 'Hacé una consulta o tocá ✨ para reiniciar' : 'Escribí tu mensaje...'}
                 disabled={loading}
                 className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-compucity-green-400 focus:border-transparent disabled:opacity-50 placeholder-gray-400"
               />

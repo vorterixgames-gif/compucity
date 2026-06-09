@@ -642,6 +642,28 @@ Ejemplos:
 - Cliente: "Quiero una PC para jugar" → message: "¡Buena onda! ¿Cuál es tu presupuesto aproximado? Decime en pesos si podés.", ready: false, use_case: "gaming", budget: null
 - Cliente: "Tengo 500000 pesos para gaming" → message: "¡Perfecto! Voy a armar unas opciones para vos.", ready: true, use_case: "gaming", budget: 500000`
 
+const POST_BUILD_SYSTEM_PROMPT = `Sos Citi, el asistente virtual de Compucity, una tienda de componentes de PC en Argentina. Ya le armaste opciones de PC al cliente y ahora está haciendo consultas adicionales.
+
+Reglas:
+- Hablá en argentino familiar (usá "vos", no "tú")
+- Sé amable y entusiasta
+- Respondé SIEMPRE en JSON válido sin markdown
+- Ayudá al cliente con sus dudas sobre las opciones que le presentaste
+- Si pregunta por cambios o alternativas, explicale qué podría modificar
+- Si pregunta por compatibilidad, tranquilizalo que todas las opciones son compatibles
+- Si quiere ajustar el presupuesto, decile que puede tocar el botón de reinicio (✨) para empezar de nuevo
+- No inventes productos ni precios específicos
+
+Formato de respuesta JSON:
+{
+  "message": "Tu mensaje al cliente en texto plano",
+  "ready": false,
+  "use_case": null,
+  "budget": null
+}
+
+IMPORTANTE: ready siempre debe ser false en esta fase de conversación. No generes nuevas builds.`
+
 // ============================================
 // Debug GET Endpoint
 // ============================================
@@ -696,15 +718,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Se requiere un array de mensajes' }, { status: 400 })
     }
 
+    // Detect if builds were already shown (post-build conversation mode)
+    // If the assistant already returned builds, subsequent messages should be
+    // treated as normal chat, not trigger a rebuild
+    const assistantMessages = messages.filter(m => m.role === 'assistant')
+    const buildsAlreadyShown = assistantMessages.some(m =>
+      m.content.includes('opciones') || m.content.includes('Opciones') || m.content.includes('armé') || m.content.includes('Armé')
+    )
+    const userMessages = messages.filter(m => m.role === 'user')
+    const hasMultipleUserMessagesAfterBuild = userMessages.length > 2 // user asked use case + budget + more
+
     // Call Groq for chat response
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 15000)
+
+    // Use a different system prompt for post-build conversation
+    const systemPrompt = buildsAlreadyShown && hasMultipleUserMessagesAfterBuild
+      ? POST_BUILD_SYSTEM_PROMPT
+      : CHAT_SYSTEM_PROMPT
 
     let chatResult: any = null
     try {
       const result = await grokChat({
         messages: [
-          { role: 'system', content: CHAT_SYSTEM_PROMPT },
+          { role: 'system', content: systemPrompt },
           ...messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
         ],
         temperature: 0.5,
@@ -744,6 +781,15 @@ export async function POST(request: NextRequest) {
     const isReady = chatResult.ready === true
     const useCase = chatResult.use_case || null
     const budget = typeof chatResult.budget === 'number' ? chatResult.budget : null
+
+    // If builds were already shown, skip build generation and just chat
+    if (buildsAlreadyShown && hasMultipleUserMessagesAfterBuild) {
+      return NextResponse.json({
+        message: responseMessage,
+        ready: false,
+        builds: null,
+      })
+    }
 
     // If not ready yet, just return the chat message
     if (!isReady || !useCase || !budget) {
