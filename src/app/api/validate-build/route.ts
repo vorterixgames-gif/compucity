@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import ZAI from 'z-ai-web-dev-sdk'
+import OpenAI from 'openai'
 import { db } from '@/lib/db'
 import { extractCompatibility, type CompatibilityInfo } from '@/lib/compatibility'
+
+// ============================================
+// Grok (xAI) Client
+// ============================================
+
+const grok = new OpenAI({
+  apiKey: process.env.XAI_API_KEY,
+  baseURL: 'https://api.x.ai/v1',
+})
+
+const GROK_MODEL = 'grok-3-mini'
 
 // ============================================
 // Types
@@ -250,25 +261,28 @@ export async function POST(request: NextRequest) {
     // 4. Build user prompt with extracted specs
     const userPrompt = buildUserPrompt(components)
 
-    // 5. Call LLM with timeout
+    // 5. Call Grok with timeout
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 15000)
 
     let completion: any = null
 
     try {
-      const zai = await ZAI.create()
-      completion = await zai.chat.completions.create({
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.3,
-        max_tokens: 800,
-      })
+      completion = await grok.chat.completions.create(
+        {
+          model: GROK_MODEL,
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.3,
+          max_tokens: 800,
+        },
+        { signal: controller.signal }
+      )
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error)
-      console.error('[validate-build] LLM call failed:', errMsg)
+      console.error('[validate-build] Grok call failed:', errMsg)
 
       // If aborted (timeout), return specific error
       if (errMsg.includes('abort') || errMsg.includes('timeout') || errMsg.includes('Timeout')) {
@@ -287,13 +301,13 @@ export async function POST(request: NextRequest) {
     // 6. Parse LLM response
     const rawContent = completion?.choices?.[0]?.message?.content
     if (!rawContent) {
-      console.error('[validate-build] Empty LLM response')
+      console.error('[validate-build] Empty Grok response')
       return NextResponse.json(FALLBACK_RESULT)
     }
 
     const parsed = parseLlmJson(rawContent)
     if (!parsed) {
-      console.error('[validate-build] Failed to parse LLM JSON:', rawContent.substring(0, 200))
+      console.error('[validate-build] Failed to parse Grok JSON:', rawContent.substring(0, 200))
       return NextResponse.json(FALLBACK_RESULT)
     }
 

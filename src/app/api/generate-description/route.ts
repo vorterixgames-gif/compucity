@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import ZAI from 'z-ai-web-dev-sdk'
+import OpenAI from 'openai'
 import { db } from '@/lib/db'
+
+// ============================================
+// Grok (xAI) Client
+// ============================================
+
+const grok = new OpenAI({
+  apiKey: process.env.XAI_API_KEY,
+  baseURL: 'https://api.x.ai/v1',
+})
+
+const GROK_MODEL = 'grok-3-mini'
 
 // ============================================
 // Feature Flag Check
@@ -82,8 +93,8 @@ async function generateDescriptionForProduct(productId: string): Promise<{ ok: b
   const userPrompt = buildUserPrompt(product.name, product.categoryName, product.specs)
 
   try {
-    const zai = await ZAI.create()
-    const completion = await zai.chat.completions.create({
+    const completion = await grok.chat.completions.create({
+      model: GROK_MODEL,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userPrompt },
@@ -95,7 +106,7 @@ async function generateDescriptionForProduct(productId: string): Promise<{ ok: b
     const description = completion?.choices?.[0]?.message?.content?.trim()
 
     if (!description) {
-      console.error('[generate-description] Empty LLM response for product:', productId)
+      console.error('[generate-description] Empty Grok response for product:', productId)
       return { ok: false, error: 'La IA no generó una descripción' }
     }
 
@@ -108,7 +119,7 @@ async function generateDescriptionForProduct(productId: string): Promise<{ ok: b
     return { ok: true, description }
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error)
-    console.error('[generate-description] LLM call failed for product:', productId, errMsg)
+    console.error('[generate-description] Grok call failed for product:', productId, errMsg)
     return { ok: false, error: errMsg }
   }
 }
@@ -192,8 +203,8 @@ export async function POST(request: NextRequest) {
         const userPrompt = buildUserPrompt(product.name, product.categoryName, product.specs)
 
         try {
-          const zai = await ZAI.create()
-          const completion = await zai.chat.completions.create({
+          const completion = await grok.chat.completions.create({
+            model: GROK_MODEL,
             messages: [
               { role: 'system', content: SYSTEM_PROMPT },
               { role: 'user', content: userPrompt },
@@ -211,11 +222,11 @@ export async function POST(request: NextRequest) {
             })
             updated++
           } else {
-            errors.push(`${product.id}: Empty LLM response`)
+            errors.push(`${product.id}: Empty Grok response`)
           }
         } catch (error) {
           const errMsg = error instanceof Error ? error.message : String(error)
-          console.error('[generate-description] LLM call failed for product:', product.id, errMsg)
+          console.error('[generate-description] Grok call failed for product:', product.id, errMsg)
           errors.push(`${product.id}: ${errMsg}`)
         }
       }
