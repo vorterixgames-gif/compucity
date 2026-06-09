@@ -195,7 +195,7 @@ export default function PCAssistantChat({ onLoadBuild }: PCAssistantChatProps) {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-5 py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 group"
+          className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-5 py-3.5 bg-gradient-to-r from-compucity-green-600 to-compucity-green-700 hover:from-compucity-green-700 hover:to-compucity-green-800 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 group"
         >
           <Sparkles className="w-5 h-5 group-hover:animate-pulse" />
           <span className="font-medium text-sm">Asistente IA</span>
@@ -206,14 +206,14 @@ export default function PCAssistantChat({ onLoadBuild }: PCAssistantChatProps) {
       {isOpen && (
         <div className="fixed bottom-6 right-6 z-50 w-[400px] max-w-[calc(100vw-2rem)] h-[600px] max-h-[calc(100vh-3rem)] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-5 py-4 flex items-center justify-between shrink-0">
+          <div className="bg-gradient-to-r from-compucity-green-600 to-compucity-green-700 text-white px-5 py-4 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
                 <Bot className="w-5 h-5" />
               </div>
               <div>
                 <h3 className="font-semibold text-sm">Asistente Compucity</h3>
-                <p className="text-[11px] text-purple-200">Te ayudo a armar tu PC ideal</p>
+                <p className="text-[11px] text-compucity-green-200">Te ayudo a armar tu PC ideal</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
@@ -243,8 +243,8 @@ export default function PCAssistantChat({ onLoadBuild }: PCAssistantChatProps) {
                 {/* Avatar */}
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
                   msg.role === 'user'
-                    ? 'bg-indigo-100 text-indigo-600'
-                    : 'bg-purple-100 text-purple-600'
+                    ? 'bg-compucity-green-100 text-compucity-green-600'
+                    : 'bg-compucity-green-50 text-compucity-green-600'
                 }`}>
                   {msg.role === 'user' ? <User className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
                 </div>
@@ -252,7 +252,7 @@ export default function PCAssistantChat({ onLoadBuild }: PCAssistantChatProps) {
                 {/* Message Bubble */}
                 <div className={`max-w-[80%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${
                   msg.role === 'user'
-                    ? 'bg-indigo-600 text-white rounded-tr-md'
+                    ? 'bg-compucity-green-600 text-white rounded-tr-md'
                     : 'bg-white text-gray-700 border border-gray-200 rounded-tl-md shadow-sm'
                 }`}>
                   {msg.content}
@@ -263,7 +263,7 @@ export default function PCAssistantChat({ onLoadBuild }: PCAssistantChatProps) {
             {/* Loading indicator */}
             {loading && (
               <div className="flex gap-2.5">
-                <div className="w-7 h-7 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center shrink-0">
+                <div className="w-7 h-7 rounded-full bg-compucity-green-50 text-compucity-green-600 flex items-center justify-center shrink-0">
                   <Bot className="w-3.5 h-3.5" />
                 </div>
                 <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-md px-4 py-3 shadow-sm">
@@ -278,7 +278,7 @@ export default function PCAssistantChat({ onLoadBuild }: PCAssistantChatProps) {
             {/* Suggested Builds */}
             {builds && builds.length > 0 && (
               <div className="space-y-3 pt-2">
-                <div className="flex items-center gap-2 text-sm font-medium text-purple-700">
+                <div className="flex items-center gap-2 text-sm font-medium text-compucity-green-700">
                   <ShoppingCart className="w-4 h-4" />
                   Opciones para vos
                 </div>
@@ -286,10 +286,10 @@ export default function PCAssistantChat({ onLoadBuild }: PCAssistantChatProps) {
                 {builds.map((build, bi) => (
                   <div
                     key={bi}
-                    className="bg-white border border-purple-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition"
+                    className="bg-white border border-compucity-green-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition"
                   >
                     {/* Build Header */}
-                    <div className="bg-gradient-to-r from-purple-50 to-indigo-50 px-4 py-3 border-b border-purple-100">
+                    <div className="bg-gradient-to-r from-compucity-green-50 to-compucity-green-100 px-4 py-3 border-b border-compucity-green-200">
                       <div className="flex items-center justify-between">
                         <h4 className="font-semibold text-sm text-gray-800">{build.name}</h4>
                         <div className="text-right">
@@ -307,7 +307,7 @@ export default function PCAssistantChat({ onLoadBuild }: PCAssistantChatProps) {
                     <div className="px-4 py-2.5 space-y-1.5">
                       {build.components.map((comp, ci) => (
                         <div key={ci} className="flex items-center gap-2 text-xs">
-                          <span className="text-purple-500 font-medium w-24 shrink-0">{comp.label}</span>
+                          <span className="text-compucity-green-600 font-medium w-24 shrink-0">{comp.label}</span>
                           <span className="text-gray-700 truncate flex-1">{comp.productName}</span>
                           <span className="text-gray-400 shrink-0">
                             {formatPrice(comp.productComparePrice)}
@@ -332,7 +332,7 @@ export default function PCAssistantChat({ onLoadBuild }: PCAssistantChatProps) {
                 {/* Build description (AI text) */}
                 {builds[0]?.description && (
                   <div className="flex gap-2.5">
-                    <div className="w-7 h-7 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center shrink-0">
+                    <div className="w-7 h-7 rounded-full bg-compucity-green-50 text-compucity-green-600 flex items-center justify-center shrink-0">
                       <Bot className="w-3.5 h-3.5" />
                     </div>
                     <div className="bg-white border border-gray-200 rounded-2xl rounded-tl-md px-3.5 py-2.5 shadow-sm max-w-[85%] text-sm text-gray-700 leading-relaxed">
@@ -357,12 +357,12 @@ export default function PCAssistantChat({ onLoadBuild }: PCAssistantChatProps) {
                 onKeyDown={handleKeyDown}
                 placeholder={builds ? '¿Querés otra opción?' : 'Escribí tu mensaje...'}
                 disabled={loading}
-                className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent disabled:opacity-50 placeholder-gray-400"
+                className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-compucity-green-400 focus:border-transparent disabled:opacity-50 placeholder-gray-400"
               />
               <button
                 onClick={sendMessage}
                 disabled={loading || !input.trim()}
-                className="w-10 h-10 flex items-center justify-center rounded-full bg-purple-600 hover:bg-purple-700 text-white transition disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-compucity-green-600 hover:bg-compucity-green-700 text-white transition disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
               >
                 <Send className="w-4 h-4" />
               </button>
