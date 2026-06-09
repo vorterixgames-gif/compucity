@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-10 (sesion 35)
+**Ultima actualizacion:** 2026-06-10 (sesion 36)
 
 ---
 
@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** (por definir) (productos destacados en tienda + filtro destacado en admin + subcategorias en filtro admin)
+- **Commit actual:** c399aed (carrusel productos destacados + reubicacion entre marcas y categorias)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -84,20 +84,21 @@
 - **Frontend:** Sin cambios - el Filtro Global de Stock ya oculta productos con `stock <= 0`
 - **Importante:** HAY QUE RE-SINCRONIZAR Air Intra para que el stock se actualice con la nueva logica. Hasta que se haga la sync, los productos existentes mantienen el stock total anterior
 
-### Estado actual de productos (2026-06-10 sesion 34)
+### Estado actual de productos (2026-06-10 sesion 36)
 | Metrica | Cantidad |
 |---------|----------|
 | Total productos en DB | 10,100 |
 | Activos con stock | 4,551 |
-| Con imagen | 4,568 |
+| Con imagen | 10,100 |
 | Con descripcion | 2,454 |
 | product_images (tabla) | 851 |
 | Categorias | 71 |
 | Proveedores | 4 |
 | Clientes | 2 |
 | Admins | 1 |
+| Productos destacados | 1 |
 
-**Backup:** download/backups/compucity_turso_backup_2026-06-09T18-34-51.json (34MB, todas las 15 tablas)
+**Backup:** download/backups/compucity_turso_backup_2026-06-09T19-04-13-436Z.json (31MB, 15 tablas)
 
 ---
 
@@ -535,18 +536,23 @@ El problema recurrente tenia 3 causas encadenadas:
 
 ---
 
-## Productos Destacados (IMPLEMENTADO sesion 35)
+## Productos Destacados (IMPLEMENTADO sesion 35, MEJORA sesion 36)
 
 ### Funcionalidad completa
 - **Campo DB:** `products.isFeatured INTEGER` (0 o 1, por defecto 0)
 - **Query:** `getFeaturedProducts()` - Trae productos con `isFeatured = 1 AND isActive = 1 AND stock > 0`, max 8, ordenados por imagen primero y luego por fecha
 - **Badge visual:** Badge verde "DESTACADO" en el ProductCard (solo si no esta en oferta)
 
-### Seccion en la Home de la Tienda
-- **Ubicacion:** Despues de CategoryIcons, antes de Notebooks
-- **Componente:** Seccion "Productos Destacados" con grid 2/3/4 columnas
+### Seccion en la Home de la Tienda (MEJORA sesion 36 - Carrusel)
+- **Ubicacion:** Despues de BrandLogos ("Trabajamos con las mejores marcas"), antes de CategoryIcons ("Explorá por Categoría")
+- **Componente:** `src/components/ui-custom/FeaturedProductsCarousel.tsx` - Carrusel interactivo con Embla Carousel
+- **Motor:** Embla Carousel con Autoplay (4s, se detiene al interactuar)
+- **Navegacion:** Botones previo/siguiente + indicadores de puntos (dots) debajo
+- **Responsive:** 2 cards en mobile, 3 en tablet, 4 en desktop
+- **Loop infinito** para navegacion continua
 - **Condicion:** Solo se muestra si hay productos destacados (`featured.length > 0`)
 - **Estilo:** Fondo gradiente verde claro, badge "DESTACADO" en cada tarjeta
+- **Antes (s35):** Grid estatico 2/3/4 columnas, ubicado despues de CategoryIcons
 
 ### Badge "DESTACADO" en ProductCard
 - Se muestra en TODAS las vistas de la tienda (home, categorias, favoritos, relacionados)
@@ -999,6 +1005,7 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ---
 
 ## Historial de Cambios
+- **2026-06-10 (s36):** Carrusel de Productos Destacados + reubicacion en homepage + backup DB. (1) Seccion "Productos Destacados" convertida de grid estatico a carrusel interactivo con Embla Carousel + Autoplay (4s). Componente nuevo: `FeaturedProductsCarousel.tsx`. (2) Reubicacion: movida de despues de CategoryIcons a entre BrandLogos y CategoryIcons. (3) Carrusel: loop infinito, botones prev/next, dots indicadores, responsive 2/3/4 cards. (4) Backup DB: download/backups/compucity_turso_backup_2026-06-09T19-04-13-436Z.json (31MB, 15 tablas). Commit: c399aed
 - **2026-06-10 (s35):** Productos Destacados activado en tienda + filtro/columna en admin + backup DB. (1) Seccion "Productos Destacados" en la home de la tienda: se muestra despues de CategoryIcons, grid 2/3/4 columnas, solo si hay destacados. Badge verde "DESTACADO" en cada ProductCard. (2) Prop isFeatured pasada a TODOS los ProductCard de la tienda (home, categorias, favoritos, relacionados). (3) Filtro "Destacado" en admin productos: dropdown Todos/Destacados/No destacados, columna "Dest." con ★ en tabla desktop, badge movil. API backend soporta parametro featuredStatus. (4) Backup completo de DB Turso: download/backups/compucity_turso_backup_2026-06-09T18-34-51.json (34MB, 15 tablas, 10,100 productos).
 - **2026-06-10 (s34):** Descripciones IA funcionando + subcategorias en filtro admin + fotos IA removidas. (1) FIX Descripciones IA: Reemplazado Groq (API key expirada) por z-ai-web-dev-sdk como proveedor primario. ZAI usa env vars (ZAI_BASE_URL, ZAI_API_KEY, etc.) en vez de config file. Groq queda como fallback. Resultado: 2,454 descripciones generadas exitosamente. (2) Intento de busqueda de fotos IA: Se probaron 5 estrategias (page_reader, fetch directo, Google Images, Microlink.io, AI generation) pero ninguna funciono de forma confiable en Vercel. Botones "Fotos IA" y "Foto" removidos del admin. API route conservada para futuro. (3) Filtro subcategorias: El dropdown de categoria en admin productos ahora muestra subcategorias indentadas con └ debajo de cada categoria padre. Permite filtrar por subcategoria especifica. Dropdown mas ancho (w-56). (4) Limpieza: import Camera, estados enrichImages/handleEnrichSingleImage removidos. Commits: b503412, 356084b, 5c3e610
 - **2026-06-10 (s33):** Citi IA: asistente renombrado + boton Arma tu setup + Build Analyzer eliminado. (1) Boton flotante: renombrado de "Asistente IA" a "Arma tu setup". (2) Nombre del asistente: renombrado a "Citi" (de Compucity). Se presenta como "¡Hola! Soy Citi de Compucity". Header del chat muestra "Citi". (3) Prompts backend: system prompt y descripciones de builds ahora dicen "Sos Citi" en vez de "Sos un asistente". (4) Build Analyzer eliminado: API /api/validate-build (609 lineas), boton "Analizar con IA", panel de resultados, upgrade cards. Solo queda Citi como asistente IA. (5) Fix previo sesion 32: loop infinito de recomendaciones IA solucionado con prompt conservador + estado frontend. (6) Estetica: todos los colores purple/indigo reemplazados por Compucity green. Commit: bdaacbb
