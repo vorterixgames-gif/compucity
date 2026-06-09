@@ -1,5 +1,6 @@
 import CategoryProducts from '@/components/ui-custom/CategoryProducts'
 import Breadcrumbs from '@/components/ui-custom/Breadcrumbs'
+import NotebookAssistantChat from '@/components/notebook-assistant-chat'
 import { getEnabledCategories, getProductsByCategory, getAllActiveProducts, searchProducts } from '@/lib/queries'
 import { db } from '@/lib/db'
 import { notFound } from 'next/navigation'
@@ -138,6 +139,9 @@ export default async function CategoryPage({ params, searchParams }: Props) {
           searchQuery={q ?? null}
         />
       </div>
+
+      {/* Notebook assistant chatbot - only on notebooks category */}
+      {slug === 'notebooks' && <NotebookAssistantChat />}
     </div>
   )
 }

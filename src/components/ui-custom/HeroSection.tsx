@@ -25,9 +25,9 @@ const slides = [
     badge: 'Notebooks',
     title: 'Notebooks y\nlaptops',
     titleAccent: 'laptops',
-    description: 'Las mejores notebooks para trabajo, estudio y gaming. Lenovo, Asus, HP y más marcas.',
-    cta: { label: 'Ver notebooks', href: '/categoria/notebooks', icon: Laptop, primary: true },
-    ctaSecondary: { label: 'Ver todas las marcas', href: '/categoria/todos' },
+    description: 'Dejate asesorar por Citi y encontrá la notebook ideal. Gaming, oficina, estudio o diseño.',
+    cta: { label: 'Encontrá tu notebook', href: '/elige-tu-notebook', icon: Laptop, primary: true },
+    ctaSecondary: { label: 'Ver todas las notebooks', href: '/categoria/notebooks' },
     gradient: 'from-compucity-green-950/95 via-compucity-green-800/80 to-compucity-green-950/30',
   },
   {
