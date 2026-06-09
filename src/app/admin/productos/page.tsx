@@ -24,6 +24,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Sparkles,
+  Camera,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -285,6 +286,8 @@ export default function AdminProductos() {
   const [generatingAiId, setGeneratingAiId] = useState<string | null>(null)
   const [batchAiLoading, setBatchAiLoading] = useState(false)
   const [batchAiResult, setBatchAiResult] = useState<string | null>(null)
+  const [enrichImagesLoading, setEnrichImagesLoading] = useState(false)
+  const [enrichImagesResult, setEnrichImagesResult] = useState<string | null>(null)
 
   const loadProducts = useCallback(async (opts?: { page?: number; limit?: number; search?: string; filters?: Filters; sortColumn?: SortColumn; sortDirection?: SortDirection }) => {
     const currentPage = opts?.page ?? pagination.page
@@ -703,6 +706,44 @@ export default function AdminProductos() {
           </Button>
           {batchAiResult && (
             <span className={`text-xs font-medium ${batchAiResult.startsWith('Error') ? 'text-red-500' : 'text-compucity-green'}`}>{batchAiResult}</span>
+          )}
+          <Button
+            variant="outline"
+            className="gap-2"
+            disabled={enrichImagesLoading}
+            onClick={async () => {
+              setEnrichImagesLoading(true)
+              setEnrichImagesResult(null)
+              try {
+                const res = await fetch('/api/admin/suppliers/enrich-images', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ batchSize: 20, providerType: 'all' }),
+                })
+                const data = await res.json()
+                if (data.ok) {
+                  if (data.enriched === 0 && data.failed === 0) {
+                    setEnrichImagesResult('Todos los productos ya tienen foto')
+                  } else {
+                    setEnrichImagesResult(`${data.enriched} fotos agregadas de ${data.processed} productos. Quedan ${data.remaining} sin foto.`)
+                  }
+                  if (data.enriched > 0) loadProducts()
+                } else {
+                  setEnrichImagesResult(`Error: ${data.error}`)
+                }
+              } catch (error) {
+                setEnrichImagesResult('Error de conexión')
+              } finally {
+                setEnrichImagesLoading(false)
+                setTimeout(() => setEnrichImagesResult(null), 8000)
+              }
+            }}
+          >
+            {enrichImagesLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+            {enrichImagesLoading ? 'Buscando...' : 'Fotos IA'}
+          </Button>
+          {enrichImagesResult && (
+            <span className={`text-xs font-medium ${enrichImagesResult.startsWith('Error') ? 'text-red-500' : 'text-compucity-green'}`}>{enrichImagesResult}</span>
           )}
           <a
             href="/api/admin/export/products"
