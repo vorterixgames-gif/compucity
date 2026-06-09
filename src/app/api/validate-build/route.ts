@@ -25,9 +25,15 @@ interface ValidationIssue {
 }
 
 interface UpgradeProduct {
+  id: string
   name: string
   price: number
+  comparePrice: number | null
   slug: string
+  images: string | null
+  specs: string | null
+  stock: number
+  reason?: string
 }
 
 interface ValidationResult {
@@ -166,7 +172,8 @@ async function fetchUpgradeProducts(
     // Fetch products from that category, prioritizing higher-tier (more expensive than current)
     // and compatible ones based on motherboard constraints
     let query = `
-      SELECT p.name, p.price, p.slug, p.specs
+      SELECT p.id, p.name, p.price, p.comparePrice, p.costPrice, p.slug, p.specs, p.images, p.stock,
+             p.markup, p.cashDiscount, p.ivaRate, p.salePrice, p.saleStart, p.saleEnd, p.categoryId
       FROM products p
       WHERE p.categoryId = ?
         AND p.isActive = 1
@@ -208,15 +215,41 @@ async function fetchUpgradeProducts(
     const productsResult = await db.execute({ sql: query, args })
     const products = productsResult.rows as any[]
 
-    // Filter out the currently selected product
+    // Calculate prices the same way the PC Builder does
+    const { fetchDollarRate, calculateProductPrices } = await import('@/lib/dollar')
+    const dollar = await fetchDollarRate()
+    const markupResult = await db.execute({ sql: "SELECT value FROM store_config WHERE key = 'markup'", args: [] })
+    const markupRows = markupResult.rows as any[]
+    const globalMarkup = markupRows.length > 0 ? (JSON.parse(markupRows[0].value).value ?? 30) : 30
+    const cashDiscountResult = await db.execute({ sql: "SELECT value FROM store_config WHERE key = 'cash_discount'", args: [] })
+    const cashDiscountRows = cashDiscountResult.rows as any[]
+    const globalCashDiscount = cashDiscountRows.length > 0 ? (JSON.parse(cashDiscountRows[0].value).value ?? 10) : 10
+
+    // Get category markups
+    const catMarkupResult = await db.execute('SELECT id, markup, cashDiscount, ivaRate FROM categories')
+    const catMarkupMap = new Map<string, any>()
+    for (const row of (catMarkupResult.rows as any[])) {
+      catMarkupMap.set(row.id, row)
+    }
+
+    // Filter out the currently selected product and calculate prices
     const currentName = currentComp?.name || ''
     const filtered = products
       .filter(p => p.name !== currentName)
-      .map(p => ({
-        name: p.name,
-        price: p.price,
-        slug: p.slug || '',
-      }))
+      .map(p => {
+        const catMarkup = catMarkupMap.get(p.categoryId)
+        const calculated = calculateProductPrices(p, dollar.rate, globalMarkup, globalCashDiscount, catMarkup || null)
+        return {
+          id: p.id,
+          name: p.name,
+          price: calculated.price || p.price || 0,
+          comparePrice: calculated.comparePrice || null,
+          slug: p.slug || '',
+          images: p.images,
+          specs: p.specs,
+          stock: p.stock || 0,
+        }
+      })
 
     return filtered.slice(0, 10)
   } catch (error) {

@@ -1518,27 +1518,61 @@ export default function ArmaTuPCPage() {
                           <ShoppingCart className="w-3.5 h-3.5" />
                           Alternativas en la tienda
                         </div>
-                        {aiAnalysis.upgrade_products.map((product: any, i: number) => (
-                          <Link
-                            key={i}
-                            href={`/producto/${product.slug}`}
-                            target="_blank"
-                            className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition text-xs group"
-                          >
-                            <div className="w-7 h-7 rounded-md bg-blue-100 flex items-center justify-center shrink-0">
-                              <span className="text-blue-600 font-bold text-[10px]">#{i + 1}</span>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-blue-900 font-medium truncate group-hover:text-blue-700">{product.name}</p>
-                              {product.reason && (
-                                <p className="text-blue-600 text-[10px] mt-0.5 line-clamp-1">{product.reason}</p>
-                              )}
-                            </div>
-                            <span className="text-blue-700 font-bold shrink-0">
-                              {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(product.price)}
-                            </span>
-                          </Link>
-                        ))}
+                        {aiAnalysis.upgrade_products.map((product: any, i: number) => {
+                          const displayPrice = product.comparePrice || product.price
+                          return (
+                            <button
+                              key={i}
+                              onClick={() => {
+                                // Map bottleneck back to slot
+                                const slotMap: Record<string, string> = {
+                                  procesador: 'processor',
+                                  'placa de video': 'gpu',
+                                  ram: 'ram',
+                                  almacenamiento: 'ssd',
+                                }
+                                const targetSlot = slotMap[aiAnalysis.bottleneck] || 'processor'
+                                const builderProduct: BuilderProduct = {
+                                  id: product.id,
+                                  name: product.name,
+                                  slug: product.slug || '',
+                                  price: product.price,
+                                  comparePrice: product.comparePrice || null,
+                                  costPrice: null,
+                                  images: product.images || '[]',
+                                  stock: product.stock || 0,
+                                  specs: product.specs || '{}',
+                                  _calculated: true,
+                                }
+                                // Replace the component in the selected list
+                                setSelectedComponents(prev => {
+                                  const filtered = prev.filter(c => c.slot !== targetSlot)
+                                  return [...filtered, { slot: targetSlot, product: builderProduct, quantity: 1 }]
+                                })
+                                setAiAnalysis(null)
+                              }}
+                              className="w-full flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition text-xs group text-left"
+                            >
+                              <div className="w-7 h-7 rounded-md bg-blue-100 flex items-center justify-center shrink-0">
+                                <span className="text-blue-600 font-bold text-[10px]">#{i + 1}</span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-blue-900 font-medium truncate group-hover:text-blue-700">{product.name}</p>
+                                {product.reason && (
+                                  <p className="text-blue-600 text-[10px] mt-0.5 line-clamp-1">{product.reason}</p>
+                                )}
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="text-blue-700 font-bold">
+                                  {formatPrice(displayPrice)}
+                                </span>
+                                {product.comparePrice && (
+                                  <p className="text-[9px] text-gray-400">efectivo</p>
+                                )}
+                              </div>
+                            </button>
+                          )
+                        })}
                       </div>
                     )}
                     
