@@ -1293,6 +1293,18 @@ export default function ArmaTuPCPage() {
                   <Button
                     onClick={() => {
                       if (completedRequired) {
+                        handleWhatsApp()
+                      }
+                    }}
+                    className="bg-[#25D366] hover:bg-[#20BD5A] gap-2"
+                    disabled={!completedRequired}
+                  >
+                    <WhatsAppIcon className="w-4 h-4" />
+                    Consultar por WhatsApp
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (completedRequired) {
                         generatePDF()
                       }
                     }}
@@ -1302,18 +1314,6 @@ export default function ArmaTuPCPage() {
                   >
                     <Download className="w-4 h-4" />
                     PDF
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      if (completedRequired) {
-                        handleWhatsApp()
-                      }
-                    }}
-                    className="bg-[#25D366] hover:bg-[#20BD5A] gap-2"
-                    disabled={!completedRequired}
-                  >
-                    <WhatsAppIcon className="w-4 h-4" />
-                    Consultar por WhatsApp
                   </Button>
                 </div>
               )}
@@ -1469,26 +1469,12 @@ export default function ArmaTuPCPage() {
                     <span>El armado de los equipos puede tener una demora de hasta <strong>96 horas hábiles</strong>.</span>
                   </div>
                 )}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      if (completedCount > 0) generatePDF()
-                    }}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm transition ${
-                      completedCount > 0
-                        ? 'bg-gray-800 hover:bg-gray-900 text-white cursor-pointer'
-                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                    }`}
-                    disabled={completedCount === 0}
-                  >
-                    <Download className="w-4 h-4" />
-                    Descargar PDF
-                  </button>
+                <div className="flex flex-col gap-2">
                   <a
                     href={completedCount > 0 ? buildWhatsAppUrl() : undefined}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm transition ${
+                    className={`flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm transition ${
                       completedCount > 0
                         ? 'bg-[#25D366] hover:bg-[#20BD5A] text-white cursor-pointer'
                         : 'bg-gray-200 text-gray-400 cursor-not-allowed'
@@ -1502,6 +1488,20 @@ export default function ArmaTuPCPage() {
                     <WhatsAppIcon className="w-4 h-4" />
                     Consultar por WhatsApp
                   </a>
+                  <button
+                    onClick={() => {
+                      if (completedCount > 0) generatePDF()
+                    }}
+                    className={`flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium text-sm transition ${
+                      completedCount > 0
+                        ? 'bg-gray-100 hover:bg-gray-200 text-gray-700 cursor-pointer'
+                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    }`}
+                    disabled={completedCount === 0}
+                  >
+                    <Download className="w-4 h-4" />
+                    Descargar PDF
+                  </button>
                 </div>
 
                 {completedCount > 0 && (
