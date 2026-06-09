@@ -289,9 +289,11 @@ export default function AdminProductos() {
   const [enrichImagesLoading, setEnrichImagesLoading] = useState(false)
   const [enrichImagesResult, setEnrichImagesResult] = useState<string | null>(null)
   const [enrichingImageId, setEnrichingImageId] = useState<string | null>(null)
+  const [enrichSingleResult, setEnrichSingleResult] = useState<string | null>(null)
 
-  const handleEnrichSingleImage = async (productId: string) => {
+  const handleEnrichSingleImage = async (productId: string, productName: string) => {
     setEnrichingImageId(productId)
+    setEnrichSingleResult(null)
     try {
       const res = await fetch('/api/admin/suppliers/enrich-images', {
         method: 'POST',
@@ -299,8 +301,22 @@ export default function AdminProductos() {
         body: JSON.stringify({ batchSize: 1, productIds: [productId] }),
       })
       const data = await res.json()
-      if (data.ok && data.enriched > 0) loadProducts()
-    } catch {} finally { setEnrichingImageId(null) }
+      if (data.ok) {
+        if (data.enriched > 0) {
+          setEnrichSingleResult(`Foto encontrada para ${productName}`)
+          loadProducts()
+        } else {
+          setEnrichSingleResult(`No se encontró foto para ${productName}`)
+        }
+      } else {
+        setEnrichSingleResult(`Error: ${data.error || 'desconocido'}`)
+      }
+    } catch {
+      setEnrichSingleResult('Error de conexión')
+    } finally {
+      setEnrichingImageId(null)
+      setTimeout(() => setEnrichSingleResult(null), 5000)
+    }
   }
 
   const loadProducts = useCallback(async (opts?: { page?: number; limit?: number; search?: string; filters?: Filters; sortColumn?: SortColumn; sortDirection?: SortDirection }) => {
@@ -759,6 +775,9 @@ export default function AdminProductos() {
           {enrichImagesResult && (
             <span className={`text-xs font-medium ${enrichImagesResult.startsWith('Error') ? 'text-red-500' : 'text-compucity-green'}`}>{enrichImagesResult}</span>
           )}
+          {enrichSingleResult && (
+            <span className={`text-xs font-medium ${enrichSingleResult.startsWith('Error') || enrichSingleResult.startsWith('No se') ? 'text-red-500' : 'text-compucity-green'}`}>{enrichSingleResult}</span>
+          )}
           <a
             href="/api/admin/export/products"
             target="_blank"
@@ -1101,7 +1120,7 @@ export default function AdminProductos() {
                       variant="outline"
                       size="sm"
                       disabled={enrichingImageId === product.id}
-                      onClick={() => handleEnrichSingleImage(product.id)}
+                      onClick={() => handleEnrichSingleImage(product.id, product.name)}
                       className="h-7 text-xs gap-1 text-blue-600 hover:text-blue-700 border-blue-200 hover:border-blue-300"
                       title="Buscar foto con IA"
                     >
@@ -1361,7 +1380,7 @@ export default function AdminProductos() {
                               variant="ghost"
                               size="icon"
                               disabled={enrichingImageId === product.id}
-                              onClick={() => handleEnrichSingleImage(product.id)}
+                              onClick={() => handleEnrichSingleImage(product.id, product.name)}
                               title="Buscar foto con IA"
                               className="h-7 w-7 text-blue-500 hover:text-blue-700"
                             >
