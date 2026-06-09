@@ -79,9 +79,9 @@ const BUDGET_PROFILES: Record<string, Record<string, number>> = {
 }
 
 const BUILD_TIERS = [
-  { name: 'Económica', multiplier: 0.65, emoji: '🟢' },
-  { name: 'Recomendada', multiplier: 0.90, emoji: '🟡' },
-  { name: 'Premium', multiplier: 1.0, emoji: '🔴' },
+  { name: 'Económica', multiplier: 0.80, emoji: '🟢' },
+  { name: 'Recomendada', multiplier: 1.00, emoji: '🟡' },
+  { name: 'Premium', multiplier: 1.15, emoji: '🔴' },
 ]
 
 // Include/exclude patterns
@@ -340,12 +340,13 @@ function pickProductForSlot(
 
   if (candidates.length === 0) return null
 
-  // Score: closest to the midpoint, slightly favoring higher quality (closer to midpoint than to min)
+  // Score: prefer products closest to the midpoint of the allocation
+  // This fills the budget better - midPrice is the sweet spot for value
   candidates.sort((a, b) => {
     const priceA = a.arsComparePrice || a.arsPrice
     const priceB = b.arsComparePrice || b.arsPrice
-    const scoreA = Math.abs(priceA - midPrice * 0.85)  // slightly below midpoint = good value
-    const scoreB = Math.abs(priceB - midPrice * 0.85)
+    const scoreA = Math.abs(priceA - midPrice)
+    const scoreB = Math.abs(priceB - midPrice)
     return scoreA - scoreB
   })
 
