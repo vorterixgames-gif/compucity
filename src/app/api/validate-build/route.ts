@@ -24,6 +24,12 @@ interface ValidationIssue {
   suggestion: string
 }
 
+interface UpgradeProduct {
+  name: string
+  price: number
+  slug: string
+}
+
 interface ValidationResult {
   compatible: boolean
   score: number
@@ -33,6 +39,7 @@ interface ValidationResult {
   bottleneck_detail: string
   use_case: string
   upgrade_suggestion: string | null
+  upgrade_products: UpgradeProduct[] | null
 }
 
 const FALLBACK_RESULT: ValidationResult = {
@@ -44,6 +51,7 @@ const FALLBACK_RESULT: ValidationResult = {
   bottleneck_detail: '',
   use_case: 'general',
   upgrade_suggestion: null,
+  upgrade_products: null,
 }
 
 function fallbackWithError(errorMsg: string): ValidationResult & { _debug?: string } {
@@ -69,6 +77,14 @@ const SLOT_LABELS: Record<string, string> = {
   monitor: 'Monitor',
   network: 'Placa de Red',
   peripherals: 'Periféricos',
+}
+
+// Map bottleneck slot to category slug for product lookup
+const BOTTLENECK_TO_CATEGORY: Record<string, string> = {
+  procesador: 'microprocesadores',
+  'placa de video': 'placas-de-video',
+  ram: 'memorias-ram',
+  almacenamiento: 'discos-ssd',
 }
 
 // ============================================
@@ -113,6 +129,103 @@ function formatSpecs(slot: string, info: CompatibilityInfo): string {
 }
 
 // ============================================
+// Fetch Upgrade Products from DB
+// ============================================
+
+async function fetchUpgradeProducts(
+  bottleneckSlot: string,
+  currentComponents: BuildComponent[],
+  motherboardName?: string
+): Promise<UpgradeProduct[]> {
+  const categorySlug = BOTTLENECK_TO_CATEGORY[bottleneckSlot]
+  if (!categorySlug) return []
+
+  try {
+    // Get category ID
+    const catResult = await db.execute({
+      sql: 'SELECT id FROM categories WHERE slug = ?',
+      args: [categorySlug],
+    })
+    const catRows = catResult.rows as any[]
+    if (catRows.length === 0) return []
+
+    const categoryId = catRows[0].id
+
+    // Get current component price for that slot to filter by price range
+    const currentComp = currentComponents.find(c => {
+      const slotMap: Record<string, string> = {
+        procesador: 'processor',
+        'placa de video': 'gpu',
+        ram: 'ram',
+        almacenamiento: 'ssd',
+      }
+      return c.slot === slotMap[bottleneckSlot]
+    })
+    const currentPrice = currentComp?.price || 0
+
+    // Fetch products from that category, prioritizing higher-tier (more expensive than current)
+    // and compatible ones based on motherboard constraints
+    let query = `
+      SELECT p.name, p.price, p.slug, p.specs
+      FROM products p
+      WHERE p.categoryId = ?
+        AND p.isActive = 1
+        AND p.stock > 0
+    `
+    const args: any[] = [categoryId]
+
+    // If bottleneck is processor, filter by motherboard socket
+    if (bottleneckSlot === 'procesador' && motherboardName) {
+      const mbInfo = extractCompatibility('motherboard', motherboardName)
+      if (mbInfo.socket) {
+        // Get all subcategories for the socket
+        const socketPatterns: Record<string, string[]> = {
+          AM4: ['AM4', 'B550', 'A520', 'X570', 'B450'],
+          AM5: ['AM5', 'B650', 'B850', 'A620', 'X670', 'X870'],
+          '1700': ['1700', 'B760', 'H610', 'B660', 'Z690', 'Z790'],
+          '1851': ['1851', 'B860', 'Z890', 'H810'],
+        }
+        const patterns = socketPatterns[mbInfo.socket]
+        if (patterns) {
+          const likeClauses = patterns.map(() => `p.name LIKE ?`).join(' OR ')
+          query += ` AND (${likeClauses})`
+          patterns.forEach(p => args.push(`%${p}%`))
+        }
+      }
+    }
+
+    // If bottleneck is RAM, filter by motherboard DDR
+    if (bottleneckSlot === 'ram' && motherboardName) {
+      const mbInfo = extractCompatibility('motherboard', motherboardName)
+      if (mbInfo.ddr) {
+        query += ` AND p.name LIKE ?`
+        args.push(`%${mbInfo.ddr}%`)
+      }
+    }
+
+    query += ` ORDER BY p.price ASC LIMIT 20`
+
+    const productsResult = await db.execute({ sql: query, args })
+    const products = productsResult.rows as any[]
+
+    // Filter out the currently selected product
+    const currentName = currentComp?.name || ''
+    const filtered = products
+      .filter(p => p.name !== currentName)
+      .map(p => ({
+        name: p.name,
+        price: p.price,
+        slug: p.slug || '',
+      }))
+
+    return filtered.slice(0, 10)
+  } catch (error) {
+    console.error('[validate-build] Error fetching upgrade products:', error)
+    return []
+  }
+}
+
+// ============================================
 // Prompt Construction
 // ============================================
 
@@ -133,6 +246,35 @@ function buildUserPrompt(components: BuildComponent[]): string {
   lines.push('Total de componentes:', String(components.length))
   lines.push('')
   lines.push('Analizá la compatibilidad completa de este build y respondé en JSON.')
+
+  return lines.join('\n')
+}
+
+function buildUpgradePrompt(
+  bottleneck: string,
+  bottleneckDetail: string,
+  upgradeProducts: UpgradeProduct[],
+  currentComponents: BuildComponent[]
+): string {
+  const lines: string[] = []
+
+  lines.push(`Detectaste un cuello de botella en "${bottleneck}" con este detalle: "${bottleneckDetail}"`)
+  lines.push('')
+  lines.push('Estos son los productos disponibles en la tienda para reemplazarlo:')
+  lines.push('')
+
+  upgradeProducts.forEach((p, i) => {
+    lines.push(`${i + 1}. ${p.name} - $${p.price.toLocaleString('es-AR')}`)
+  })
+
+  lines.push('')
+  lines.push('Build actual:')
+  currentComponents.forEach(c => {
+    lines.push(`- ${SLOT_LABELS[c.slot] || c.slot}: ${c.name}`)
+  })
+
+  lines.push('')
+  lines.push('Elegí los 3 mejores productos de la lista que resolverían el cuello de botella, ordenados por relación precio/rendimiento. Respondé en JSON.')
 
   return lines.join('\n')
 }
@@ -166,14 +308,26 @@ Respondé en este formato JSON exacto:
   "upgrade_suggestion": "Sugerencia de upgrade más impactante o null si no aplica"
 }`
 
+const UPGRADE_SYSTEM_PROMPT = `Sos un experto en hardware de PC. Te van a dar una lista de productos disponibles en una tienda y un cuello de botella detectado. Elegí los mejores productos que resuelvan el problema, manteniendo compatibilidad con el resto del build. Respondés SIEMPRE en JSON válido sin markdown.
+
+Respondé en este formato JSON exacto:
+{
+  "recommendations": [
+    {
+      "name": "Nombre exacto del producto de la lista",
+      "reason": "Por qué es mejor que el actual (1 oración)"
+    }
+  ]
+}`
+
 // ============================================
 // JSON Response Parser
 // ============================================
 
-function parseLlmJson(raw: string): ValidationResult | null {
+function parseLlmJson(raw: string): any | null {
   // Try direct parse first
   try {
-    return JSON.parse(raw) as ValidationResult
+    return JSON.parse(raw)
   } catch {
     // Continue to try extracting from markdown
   }
@@ -182,7 +336,7 @@ function parseLlmJson(raw: string): ValidationResult | null {
   const codeBlockMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/)
   if (codeBlockMatch) {
     try {
-      return JSON.parse(codeBlockMatch[1].trim()) as ValidationResult
+      return JSON.parse(codeBlockMatch[1].trim())
     } catch {
       // Continue
     }
@@ -193,7 +347,7 @@ function parseLlmJson(raw: string): ValidationResult | null {
   const braceEnd = raw.lastIndexOf('}')
   if (braceStart !== -1 && braceEnd > braceStart) {
     try {
-      return JSON.parse(raw.substring(braceStart, braceEnd + 1)) as ValidationResult
+      return JSON.parse(raw.substring(braceStart, braceEnd + 1))
     } catch {
       // Give up
     }
@@ -258,9 +412,11 @@ export async function POST(request: NextRequest) {
     // 4. Build user prompt with extracted specs
     const userPrompt = buildUserPrompt(components)
 
-    // 5. Call Grok with timeout
+    // 5. Call Groq for analysis (increased timeout for better results)
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 15000)
+    const timeoutId = setTimeout(() => controller.abort(), 20000)
+
+    let analysisResult: any = null
 
     try {
       const result = await grokChat({
@@ -282,42 +438,16 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(fallbackWithError('Groq devolvió respuesta vacía'))
       }
 
-      const parsed = parseLlmJson(rawContent)
-      if (!parsed) {
+      analysisResult = parseLlmJson(rawContent)
+      if (!analysisResult) {
         console.error('[validate-build] Failed to parse Groq JSON:', rawContent.substring(0, 200))
         return NextResponse.json(fallbackWithError('No se pudo parsear la respuesta de Groq'))
       }
-
-      // 7. Validate and sanitize parsed result
-      const response: ValidationResult = {
-        compatible: typeof parsed.compatible === 'boolean' ? parsed.compatible : true,
-        score: typeof parsed.score === 'number' ? Math.max(1, Math.min(10, parsed.score)) : 0,
-        issues: Array.isArray(parsed.issues)
-          ? parsed.issues.map((issue: any) => ({
-              severity: ['error', 'warning', 'info'].includes(issue.severity) ? issue.severity : 'info',
-              component: String(issue.component || ''),
-              message: String(issue.message || ''),
-              suggestion: String(issue.suggestion || ''),
-            }))
-          : [],
-        summary: String(parsed.summary || ''),
-        bottleneck: ['ninguno', 'procesador', 'placa de video', 'ram', 'almacenamiento'].includes(parsed.bottleneck)
-          ? parsed.bottleneck
-          : 'ninguno',
-        bottleneck_detail: String(parsed.bottleneck_detail || ''),
-        use_case: ['gaming', 'oficina', 'edicion', 'general'].includes(parsed.use_case)
-          ? parsed.use_case
-          : 'general',
-        upgrade_suggestion: parsed.upgrade_suggestion ? String(parsed.upgrade_suggestion) : null,
-      }
-
-      return NextResponse.json(response)
     } catch (error) {
       clearTimeout(timeoutId)
       const errMsg = error instanceof Error ? error.message : String(error)
-      console.error('[validate-build] Grok call failed:', errMsg)
+      console.error('[validate-build] Groq call failed:', errMsg)
 
-      // If aborted (timeout), return specific error
       if (errMsg.includes('abort') || errMsg.includes('timeout') || errMsg.includes('Timeout')) {
         return NextResponse.json(
           { error: 'Tiempo de espera agotado. Intentá de nuevo.' },
@@ -325,9 +455,105 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Return fallback with error details for debugging
       return NextResponse.json(fallbackWithError(errMsg))
     }
+
+    // 7. Validate and sanitize parsed result
+    const bottleneck: string = ['ninguno', 'procesador', 'placa de video', 'ram', 'almacenamiento'].includes(analysisResult.bottleneck)
+      ? analysisResult.bottleneck
+      : 'ninguno'
+
+    const response: ValidationResult = {
+      compatible: typeof analysisResult.compatible === 'boolean' ? analysisResult.compatible : true,
+      score: typeof analysisResult.score === 'number' ? Math.max(1, Math.min(10, analysisResult.score)) : 0,
+      issues: Array.isArray(analysisResult.issues)
+        ? analysisResult.issues.map((issue: any) => ({
+            severity: ['error', 'warning', 'info'].includes(issue.severity) ? issue.severity : 'info',
+            component: String(issue.component || ''),
+            message: String(issue.message || ''),
+            suggestion: String(issue.suggestion || ''),
+          }))
+        : [],
+      summary: String(analysisResult.summary || ''),
+      bottleneck,
+      bottleneck_detail: String(analysisResult.bottleneck_detail || ''),
+      use_case: ['gaming', 'oficina', 'edicion', 'general'].includes(analysisResult.use_case)
+        ? analysisResult.use_case
+        : 'general',
+      upgrade_suggestion: analysisResult.upgrade_suggestion ? String(analysisResult.upgrade_suggestion) : null,
+      upgrade_products: null,
+    }
+
+    // 8. If there's a bottleneck, fetch upgrade products and get AI recommendations
+    if (bottleneck !== 'ninguno') {
+      const motherboardComp = components.find(c => c.slot === 'motherboard')
+      const upgradeProducts = await fetchUpgradeProducts(
+        bottleneck,
+        components,
+        motherboardComp?.name
+      )
+
+      if (upgradeProducts.length > 0) {
+        try {
+          const upgradePrompt = buildUpgradePrompt(
+            bottleneck,
+            response.bottleneck_detail,
+            upgradeProducts,
+            components
+          )
+
+          const upgradeController = new AbortController()
+          const upgradeTimeoutId = setTimeout(() => upgradeController.abort(), 15000)
+
+          const upgradeResult = await grokChat({
+            messages: [
+              { role: 'system', content: UPGRADE_SYSTEM_PROMPT },
+              { role: 'user', content: upgradePrompt },
+            ],
+            temperature: 0.3,
+            maxTokens: 400,
+            signal: upgradeController.signal,
+          })
+
+          clearTimeout(upgradeTimeoutId)
+
+          const upgradeRaw = upgradeResult.content
+          if (upgradeRaw) {
+            const upgradeParsed = parseLlmJson(upgradeRaw)
+            if (upgradeParsed?.recommendations && Array.isArray(upgradeParsed.recommendations)) {
+              // Match AI recommendations with actual products from DB
+              const recommendedProducts: UpgradeProduct[] = []
+              for (const rec of upgradeParsed.recommendations) {
+                const matched = upgradeProducts.find(p =>
+                  p.name.toLowerCase().includes(rec.name?.toLowerCase()?.substring(0, 15)) ||
+                  rec.name?.toLowerCase()?.includes(p.name.toLowerCase().substring(0, 15))
+                )
+                if (matched) {
+                  recommendedProducts.push({
+                    ...matched,
+                    reason: String(rec.reason || ''),
+                  })
+                }
+              }
+
+              // If AI didn't match well, fall back to top 3 products by price (higher tier)
+              if (recommendedProducts.length === 0) {
+                response.upgrade_products = upgradeProducts.slice(0, 3)
+              } else {
+                response.upgrade_products = recommendedProducts
+              }
+            }
+          }
+        } catch (error) {
+          // Upgrade suggestion failed, just return analysis without products
+          console.error('[validate-build] Upgrade recommendation failed:', error)
+          // Fallback: return top 3 products from DB without AI filtering
+          response.upgrade_products = upgradeProducts.slice(0, 3)
+        }
+      }
+    }
+
+    return NextResponse.json(response)
   } catch (error) {
     console.error('[validate-build] Unexpected error:', error)
     return NextResponse.json(FALLBACK_RESULT)

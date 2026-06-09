@@ -1510,6 +1510,37 @@ export default function ArmaTuPCPage() {
                         </div>
                       </div>
                     )}
+
+                    {/* Upgrade products - suggested alternatives */}
+                    {aiAnalysis.upgrade_products && aiAnalysis.upgrade_products.length > 0 && (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5 text-xs font-medium text-blue-800">
+                          <ShoppingCart className="w-3.5 h-3.5" />
+                          Alternativas en la tienda
+                        </div>
+                        {aiAnalysis.upgrade_products.map((product: any, i: number) => (
+                          <Link
+                            key={i}
+                            href={`/producto/${product.slug}`}
+                            target="_blank"
+                            className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition text-xs group"
+                          >
+                            <div className="w-7 h-7 rounded-md bg-blue-100 flex items-center justify-center shrink-0">
+                              <span className="text-blue-600 font-bold text-[10px]">#{i + 1}</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-blue-900 font-medium truncate group-hover:text-blue-700">{product.name}</p>
+                              {product.reason && (
+                                <p className="text-blue-600 text-[10px] mt-0.5 line-clamp-1">{product.reason}</p>
+                              )}
+                            </div>
+                            <span className="text-blue-700 font-bold shrink-0">
+                              {new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(product.price)}
+                            </span>
+                          </Link>
+                        ))}
+                      </div>
+                    )}
                     
                     {/* Re-analyze button */}
                     <button
