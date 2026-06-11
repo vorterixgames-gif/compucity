@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { SlidersHorizontal, X, ChevronDown, ArrowUpDown } from 'lucide-react'
 import ProductCard from './ProductCard'
-import { BRAND_PATTERNS } from '@/lib/brand-patterns'
 
 interface Subcategory {
   id: string
@@ -23,6 +22,8 @@ interface ProductItem {
   salePrice?: number | null
   saleStart?: string | null
   saleEnd?: string | null
+  brandId?: string | null
+  brandName?: string | null
 }
 
 // ============================================
@@ -33,7 +34,7 @@ interface CategoryFilterOption {
   key: string
   label: string
   value: string
-  matchFn: (name: string) => boolean
+  matchFn: (name: string, product?: ProductItem) => boolean
 }
 
 const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
@@ -775,14 +776,19 @@ function extractCapacityGB(name: string): number | null {
  * Apply category keyword filters to a product list.
  * AND between groups, OR within the same group.
  */
-function applyCategoryFilters(products: ProductItem[], filters: Record<string, string[]>, categorySlug: string): ProductItem[] {
+function applyCategoryFilters(products: ProductItem[], filters: Record<string, string[]>, categorySlug: string, dynamicBrandOptions?: CategoryFilterOption[]): ProductItem[] {
   const filterOptions = CATEGORY_FILTERS[categorySlug]
-  if (!filterOptions || filterOptions.length === 0) return products
+  // Combine hardcoded non-brand filters with dynamic brand options
+  const allOptions: CategoryFilterOption[] = [
+    ...(filterOptions || []).filter(o => o.key !== 'brand'),
+    ...(dynamicBrandOptions || []),
+  ]
+  if (allOptions.length === 0) return products
 
   const activeGroups = new Map<string, CategoryFilterOption[]>()
   for (const [key, values] of Object.entries(filters)) {
     if (values.length === 0) continue
-    const matching = filterOptions.filter(o => o.key === key && values.includes(o.value))
+    const matching = allOptions.filter(o => o.key === key && values.includes(o.value))
     if (matching.length > 0) activeGroups.set(key, matching)
   }
 
@@ -790,7 +796,7 @@ function applyCategoryFilters(products: ProductItem[], filters: Record<string, s
 
   return products.filter(product => {
     for (const [, options] of activeGroups) {
-      const matchesGroup = options.some(opt => opt.matchFn(product.name))
+      const matchesGroup = options.some(opt => opt.matchFn(product.name, product))
       if (!matchesGroup) return false
     }
     return true
@@ -852,7 +858,7 @@ export default function CategoryProducts({
       : categorySlug
 
   // Get filter groups for current category
-  // Non-brand filters remain hardcoded; brand filters are generated dynamically
+  // Non-brand filters remain hardcoded; brand filters are generated dynamically from brandId
   const currentCategoryFilterOptions = CATEGORY_FILTERS[filterSlug] || []
   const filterGroups = useMemo(() => {
     const groups: { key: string; label: string; options: CategoryFilterOption[] }[] = []
@@ -865,24 +871,31 @@ export default function CategoryProducts({
       keyMap.get(opt.key)!.push(opt)
     }
 
-    // 2. Generate dynamic brand filters from products using BRAND_PATTERNS
-    const brandOptions: CategoryFilterOption[] = []
-    const brandSlugsSeen = new Set<string>()
-
-    // Check which brands have products in the current list
-    for (const bp of BRAND_PATTERNS) {
-      if (brandSlugsSeen.has(bp.slug)) continue
-      const hasMatch = products.some(p => bp.pattern.test(p.name))
-      if (hasMatch) {
-        brandSlugsSeen.add(bp.slug)
-        brandOptions.push({
-          key: 'brand',
-          label: bp.name,
-          value: bp.slug,
-          matchFn: (name: string) => bp.pattern.test(name),
-        })
+    // 2. Generate dynamic brand filters from product brandId/brandName
+    // Group products by brandId to discover which brands exist in this category
+    const brandMap = new Map<string, { id: string; name: string; count: number }>()
+    for (const p of products) {
+      if (!p.brandId || !p.brandName) continue
+      if (!brandMap.has(p.brandId)) {
+        brandMap.set(p.brandId, { id: p.brandId, name: p.brandName, count: 0 })
       }
+      brandMap.get(p.brandId)!.count++
     }
+
+    // Sort brands by product count (most products first) then alphabetically
+    const sortedBrands = [...brandMap.values()].sort((a, b) =>
+      b.count - a.count || a.name.localeCompare(b.name)
+    )
+
+    const brandOptions: CategoryFilterOption[] = sortedBrands.map(brand => ({
+      key: 'brand',
+      label: brand.name,
+      value: brand.id, // Use brandId as filter value
+      matchFn: (_name: string, product?: ProductItem) => {
+        // Match by brandId instead of regex - much more accurate!
+        return product?.brandId === brand.id
+      },
+    }))
 
     if (brandOptions.length > 0) {
       keyMap.set('brand', brandOptions)
@@ -923,7 +936,7 @@ export default function CategoryProducts({
     let result = [...products]
 
     // Category keyword filters (brand, DDR, socket, etc.)
-    result = applyCategoryFilters(result, categoryFilters, filterSlug)
+    result = applyCategoryFilters(result, categoryFilters, filterSlug, filterGroups.find(g => g.key === 'brand')?.options)
 
     // Price filter
     const min = parsePriceInput(priceMin)

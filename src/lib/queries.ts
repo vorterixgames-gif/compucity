@@ -126,6 +126,7 @@ export interface Product {
   providerId: string | null
   providerSku: string | null
   categoryId: string | null
+  brandId: string | null
   ivaRate: number | null
   salePrice: number | null
   saleStart: string | null
@@ -134,6 +135,7 @@ export interface Product {
   updatedAt: string
   // Joined
   category?: { id: string; name: string; slug: string } | null
+  brandName?: string | null
   // Calculated
   _calculated?: boolean
   _costUsd?: number
@@ -173,6 +175,27 @@ async function getCategoryMarkupMap(): Promise<Map<string, CategoryMarkup>> {
   return map
 }
 
+// Helper: enrich products with brandName from brands table
+async function enrichWithBrandInfo<T extends { brandId?: string | null }>(products: T[]): Promise<(T & { brandName?: string | null })[]> {
+  const brandIds = [...new Set(products.map(p => p.brandId).filter(Boolean))] as string[]
+  if (brandIds.length === 0) return products
+
+  const placeholders = brandIds.map(() => '?').join(',')
+  const brandResult = await db.execute({
+    sql: `SELECT id, name FROM brands WHERE id IN (${placeholders})`,
+    args: brandIds,
+  })
+  const brandMap = new Map<string, string>()
+  for (const row of brandResult.rows as any[]) {
+    brandMap.set(row.id, row.name)
+  }
+
+  return products.map(p => ({
+    ...p,
+    brandName: p.brandId ? (brandMap.get(p.brandId) ?? null) : null,
+  }))
+}
+
 export async function getAllActiveProducts(limit = 50): Promise<Product[]> {
   const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
     db.execute({
@@ -188,7 +211,7 @@ export async function getAllActiveProducts(limit = 50): Promise<Product[]> {
   const mapped = (result.rows as any[]).map(p =>
     calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
   ) as Product[]
-  return deduplicateProducts(mapped)
+  return enrichWithBrandInfo(deduplicateProducts(mapped))
 }
 
 export async function getFeaturedProducts(): Promise<Product[]> {
@@ -203,7 +226,7 @@ export async function getFeaturedProducts(): Promise<Product[]> {
   const mapped2 = (result.rows as any[]).map(p =>
     calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
   ) as Product[]
-  return deduplicateProducts(mapped2)
+  return enrichWithBrandInfo(deduplicateProducts(mapped2))
 }
 
 export async function getProductsByCategory(slug: string): Promise<Product[]> {
@@ -247,7 +270,7 @@ export async function getProductsByCategory(slug: string): Promise<Product[]> {
   const mapped3 = (result.rows as any[]).map(p =>
     calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
   ) as Product[]
-  return deduplicateProducts(mapped3)
+  return enrichWithBrandInfo(deduplicateProducts(mapped3))
 }
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {
@@ -304,7 +327,7 @@ export async function searchProducts(query: string, limit = 20): Promise<Product
   const mapped4 = (result.rows as any[]).map(p =>
     calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
   ) as Product[]
-  return deduplicateProducts(mapped4)
+  return enrichWithBrandInfo(deduplicateProducts(mapped4))
 }
 
 export async function getTopProductsByCategorySlug(slug: string, limit = 8): Promise<Product[]> {
@@ -388,7 +411,7 @@ export async function getTopProductsByCategorySlug(slug: string, limit = 8): Pro
   const mapped5 = (result.rows as any[]).map(p =>
     calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
   ) as Product[]
-  return deduplicateProducts(mapped5)
+  return enrichWithBrandInfo(deduplicateProducts(mapped5))
 }
 
 // ============================================

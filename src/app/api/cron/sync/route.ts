@@ -64,6 +64,60 @@ export async function GET(request: Request) {
     })
   } catch { /* non-critical */ }
 
+  // ─── Re-detect brands after sync ────────────────────────────────────────
+  try {
+    const { BRAND_PATTERNS } = await import('@/lib/brand-patterns')
+    const productResult = await db.execute({ sql: 'SELECT id, name FROM products WHERE isActive = 1', args: [] })
+    const allProducts = productResult.rows as { id: string; name: string }[]
+
+    const brandProductCounts = new Map<string, number>()
+    const brandProductIds = new Map<string, string[]>()
+
+    for (const product of allProducts) {
+      for (const bp of BRAND_PATTERNS) {
+        if (bp.pattern.test(product.name)) {
+          const key = bp.slug
+          brandProductCounts.set(key, (brandProductCounts.get(key) || 0) + 1)
+          if (!brandProductIds.has(key)) brandProductIds.set(key, [])
+          brandProductIds.get(key)!.push(product.id)
+          break
+        }
+      }
+    }
+
+    let brandsCreated = 0
+    for (const bp of BRAND_PATTERNS) {
+      const count = brandProductCounts.get(bp.slug) || 0
+      const existing = await db.execute({ sql: 'SELECT id FROM brands WHERE slug = ?', args: [bp.slug] })
+      if (existing.rows.length > 0) {
+        await db.execute({ sql: 'UPDATE brands SET productCount = ?, updatedAt = ? WHERE slug = ?', args: [count, now, bp.slug] })
+      } else if (count > 0) {
+        const id = crypto.randomUUID()
+        await db.execute({
+          sql: `INSERT INTO brands (id, name, slug, logoUrl, logoWidth, logoHeight, isActive, "order", productCount, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?)`,
+          args: [id, bp.name, bp.slug, `https://cdn.simpleicons.org/${bp.slug}/9ca3af`, 80, 24, count, now, now],
+        })
+        brandsCreated++
+      }
+    }
+
+    // Assign brandId to products that don't have one
+    for (const bp of BRAND_PATTERNS) {
+      const brandRow = await db.execute({ sql: 'SELECT id FROM brands WHERE slug = ?', args: [bp.slug] })
+      if (brandRow.rows.length === 0) continue
+      const brandId = (brandRow.rows[0] as any).id
+      const pids = brandProductIds.get(bp.slug)
+      if (!pids) continue
+      for (const pid of pids) {
+        try { await db.execute({ sql: 'UPDATE products SET brandId = ? WHERE id = ? AND brandId IS NULL', args: [brandId, pid] }) } catch { /* skip */ }
+      }
+    }
+
+    console.log(`[cron-sync] Brands updated: ${brandsCreated} new brands detected`)
+  } catch (err: any) {
+    console.error('[cron-sync] Brand update error (non-critical):', err.message)
+  }
+
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
   console.log(`[cron-sync] Daily stock/price sync completed in ${elapsed}s`)
 
