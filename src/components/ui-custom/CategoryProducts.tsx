@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { SlidersHorizontal, X, ChevronDown, ArrowUpDown } from 'lucide-react'
 import ProductCard from './ProductCard'
+import { BRAND_PATTERNS } from '@/lib/brand-patterns'
 
 interface Subcategory {
   id: string
@@ -851,19 +852,55 @@ export default function CategoryProducts({
       : categorySlug
 
   // Get filter groups for current category
+  // Non-brand filters remain hardcoded; brand filters are generated dynamically
   const currentCategoryFilterOptions = CATEGORY_FILTERS[filterSlug] || []
   const filterGroups = useMemo(() => {
     const groups: { key: string; label: string; options: CategoryFilterOption[] }[] = []
     const keyMap = new Map<string, CategoryFilterOption[]>()
+
+    // 1. Add non-brand hardcoded filters
     for (const opt of currentCategoryFilterOptions) {
+      if (opt.key === 'brand') continue // Skip hardcoded brand filters
       if (!keyMap.has(opt.key)) keyMap.set(opt.key, [])
       keyMap.get(opt.key)!.push(opt)
     }
-    for (const [key, options] of keyMap) {
+
+    // 2. Generate dynamic brand filters from products using BRAND_PATTERNS
+    const brandOptions: CategoryFilterOption[] = []
+    const brandSlugsSeen = new Set<string>()
+
+    // Check which brands have products in the current list
+    for (const bp of BRAND_PATTERNS) {
+      if (brandSlugsSeen.has(bp.slug)) continue
+      const hasMatch = products.some(p => bp.pattern.test(p.name))
+      if (hasMatch) {
+        brandSlugsSeen.add(bp.slug)
+        brandOptions.push({
+          key: 'brand',
+          label: bp.name,
+          value: bp.slug,
+          matchFn: (name: string) => bp.pattern.test(name),
+        })
+      }
+    }
+
+    if (brandOptions.length > 0) {
+      keyMap.set('brand', brandOptions)
+    }
+
+    // Build groups in a stable order (brand first, then others)
+    const orderedKeys: string[] = []
+    if (keyMap.has('brand')) orderedKeys.push('brand')
+    for (const key of keyMap.keys()) {
+      if (key !== 'brand') orderedKeys.push(key)
+    }
+
+    for (const key of orderedKeys) {
+      const options = keyMap.get(key)!
       groups.push({ key, label: FILTER_GROUP_LABELS[key] || key, options })
     }
     return groups
-  }, [currentCategoryFilterOptions.length, filterSlug])
+  }, [currentCategoryFilterOptions.length, filterSlug, products])
 
   const setCategoryFilter = (key: string, value: string) => {
     setCategoryFilters(prev => {

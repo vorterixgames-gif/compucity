@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Search, ShoppingCart, User, Menu, X, ChevronDown, Phone, LogOut, Package, Settings } from 'lucide-react'
+import { Search, ShoppingCart, User, Menu, X, ChevronDown, Phone, LogOut, Package, Settings, Tag } from 'lucide-react'
 import { useCart } from '@/store/cart'
 import CompucityLogo from '@/components/ui-custom/CompucityLogo'
 
@@ -88,8 +88,10 @@ function MobileCategoryItem({ cat, onClose }: { cat: Category; onClose: () => vo
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false)
+  const [brandsDropdownOpen, setBrandsDropdownOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [categories, setCategories] = useState<Category[]>([])
+  const [brands, setBrands] = useState<{ id: string; name: string; slug: string; productCount: number }[]>([])
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null)
   const [scrolled, setScrolled] = useState(false)
   const totalItems = useCart((s) => s.totalItems())
@@ -193,6 +195,27 @@ export default function Navbar() {
       }
     }
     loadCategories()
+  }, [])
+
+  // Load brands
+  useEffect(() => {
+    const loadBrands = async () => {
+      try {
+        const res = await fetch('/api/brands')
+        const data = await res.json()
+        if (data.ok && data.brands) {
+          // Show top brands by product count
+          const topBrands = (data.brands as { id: string; name: string; slug: string; productCount: number }[])
+            .filter(b => b.productCount > 0)
+            .sort((a, b) => b.productCount - a.productCount)
+            .slice(0, 20)
+          setBrands(topBrands)
+        }
+      } catch (error) {
+        console.error('Error loading brands:', error)
+      }
+    }
+    loadBrands()
   }, [])
 
   // Search autocomplete - debounced fetch
@@ -546,6 +569,40 @@ export default function Navbar() {
               )}
             </div>
 
+            {/* Marcas dropdown */}
+            <div
+              className="relative"
+              onMouseEnter={() => setBrandsDropdownOpen(true)}
+              onMouseLeave={() => setBrandsDropdownOpen(false)}
+            >
+              <button className="flex items-center gap-1.5 px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 transition font-medium text-sm h-10">
+                <Tag className="h-4 w-4" />
+                Marcas
+                <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${brandsDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {brandsDropdownOpen && brands.length > 0 && (
+                <div className="absolute top-full left-0 bg-white text-gray-900 shadow-xl border border-gray-200 rounded-lg z-[100] animate-fade-in" style={{ minWidth: '320px', maxHeight: '400px' }}>
+                  <div className="p-3 border-b border-gray-100">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Marcas principales</p>
+                  </div>
+                  <div className="p-2 grid grid-cols-2 gap-x-1 gap-y-0.5 max-h-[340px] overflow-y-auto">
+                    {brands.map((brand) => (
+                      <Link
+                        key={brand.id}
+                        href={`/categoria/todos?q=${encodeURIComponent(brand.name)}`}
+                        className="flex items-center gap-2 px-2.5 py-2 text-sm text-gray-700 hover:text-compucity-green-dark hover:bg-compucity-green-50 rounded transition"
+                        onClick={() => setBrandsDropdownOpen(false)}
+                      >
+                        <span className="truncate">{brand.name}</span>
+                        <span className="ml-auto text-[10px] text-gray-400 shrink-0">{brand.productCount}</span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {categories.slice(0, 4).map((cat) => (
               <Link key={cat.id} href={`/categoria/${cat.slug}`} className="px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 transition font-medium text-sm">
                 {cat.name}
@@ -595,6 +652,25 @@ export default function Navbar() {
               </div>
             )}
           </form>
+          {/* Mobile brands */}
+          {brands.length > 0 && (
+            <div className="border-t border-gray-100">
+              <div className="px-5 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Marcas</div>
+              <div className="grid grid-cols-2 gap-x-0">
+                {brands.slice(0, 12).map((brand) => (
+                  <Link
+                    key={brand.id}
+                    href={`/categoria/todos?q=${encodeURIComponent(brand.name)}`}
+                    className="px-5 py-2.5 text-sm text-gray-700 hover:text-compucity-green-700 hover:bg-compucity-green-50 transition"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {brand.name}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Mobile categories - expandable */}
           <div className="border-t border-gray-100">
             {categories.map((cat) => (

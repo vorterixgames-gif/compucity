@@ -419,4 +419,43 @@ export async function ensureMigrations() {
   } catch (e) {
     console.warn('[migration] Could not insert ai_enabled config:', e)
   }
+
+  // 24. Ensure brands table exists
+  try {
+    await db.execute({ sql: 'SELECT id FROM brands LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({
+        sql: `CREATE TABLE IF NOT EXISTS brands (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          slug TEXT NOT NULL UNIQUE,
+          logoUrl TEXT,
+          logoWidth INTEGER DEFAULT 80,
+          logoHeight INTEGER DEFAULT 24,
+          isActive INTEGER DEFAULT 1,
+          "order" INTEGER DEFAULT 0,
+          productCount INTEGER DEFAULT 0,
+          createdAt TEXT DEFAULT (datetime('now')),
+          updatedAt TEXT DEFAULT (datetime('now'))
+        )`,
+        args: [],
+      })
+      console.log('[migration] Created brands table')
+    } catch (e) {
+      console.warn('[migration] Could not create brands table:', e)
+    }
+  }
+
+  // 25. Add brandId column to products
+  try {
+    await db.execute({ sql: 'SELECT brandId FROM products LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({ sql: 'ALTER TABLE products ADD COLUMN brandId TEXT', args: [] })
+      console.log('[migration] Added brandId column to products')
+    } catch (e) {
+      console.warn('[migration] Could not add brandId column to products:', e)
+    }
+  }
 }

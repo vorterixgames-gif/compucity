@@ -115,3 +115,27 @@ Stage Summary:
 - When user clicks "Usar" on a recommended upgrade, analysis stays visible with confirmation message
 - User can manually click "Re-analizar" to verify the build after applying a recommendation
 - Build compiles successfully
+
+---
+Task ID: 7
+Agent: main
+Task: Make brands/categories menu dynamic instead of hardcoded
+
+Work Log:
+- Added migration #24 in db.ts: Created `brands` table with id, name, slug, logoUrl, logoWidth, logoHeight, isActive, order, productCount, createdAt, updatedAt
+- Added migration #25 in db.ts: Added `brandId` column to products table
+- Created `src/lib/brand-patterns.ts`: Shared BRAND_PATTERNS array with ~80 brand detection patterns (regex), used by both backend and frontend
+- Created `src/app/api/brands/route.ts`: Public GET endpoint that returns all active brands; auto-triggers init-brands if table is empty
+- Created `src/app/api/admin/brands/route.ts`: Admin CRUD (GET all, POST create, PUT update, DELETE) for brands with auth
+- Created `src/app/api/admin/init-brands/route.ts`: POST endpoint that auto-detects brands from product names using BRAND_PATTERNS, creates brand entries, updates productCount, assigns brandId to products
+- Updated `src/components/layout/BrandLogos.tsx`: Replaced hardcoded BRANDS array with dynamic fetch from /api/brands; shows top 8 brands sorted by productCount; falls back to hardcoded brands if API fails
+- Updated `src/components/ui-custom/CategoryProducts.tsx`: Added BRAND_PATTERNS import; filterGroups useMemo now skips hardcoded brand filters and generates them dynamically by scanning products against BRAND_PATTERNS; brand filters appear first in the filter group list; non-brand filters (socket, DDR, capacity, etc.) remain hardcoded
+- Updated `src/components/layout/Navbar.tsx`: Added "Marcas" dropdown in navbar between "Categorías" and category links; shows top 20 brands in 2-column grid with product counts; mobile menu shows top 12 brands; brand links go to search
+
+Stage Summary:
+- Brands are now fully dynamic: stored in DB, detected automatically from product names
+- When new products enter the system, running init-brands detects and creates new brand entries
+- BrandLogos section shows top brands by product count (was hardcoded to 8 fixed brands)
+- Category page filters now show only brands that have products in that category (was hardcoded per category)
+- Navbar has new "Marcas" dropdown for easy brand browsing
+- Build compiles successfully with no errors
