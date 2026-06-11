@@ -6,18 +6,18 @@ export async function POST() {
   try {
     const now = new Date().toISOString()
 
-    // Fetch all products
+    // Fetch all products including specs (for supplier marca field)
     const productResult = await db.execute({
-      sql: 'SELECT id, name FROM products WHERE isActive = 1',
+      sql: 'SELECT id, name, specs FROM products WHERE isActive = 1',
       args: [],
     })
-    const products = productResult.rows as unknown as { id: string; name: string }[]
+    const products = productResult.rows as unknown as { id: string; name: string; specs: string }[]
 
     // Track brand -> product count and brand -> product IDs
     const brandProductCounts = new Map<string, number>()
     const brandProductIds = new Map<string, string[]>()
 
-    // Match each product against brand patterns (first match wins)
+    // Step 1: Match each product against brand patterns (first match wins)
     for (const product of products) {
       for (const bp of BRAND_PATTERNS) {
         if (bp.pattern.test(product.name)) {
@@ -30,37 +30,59 @@ export async function POST() {
       }
     }
 
+    // Step 2: Detect brands from supplier "marca" field in specs (catches new/unknown brands)
+    for (const product of products) {
+      // Skip products already matched by regex patterns
+      const alreadyMatched = [...brandProductIds.values()].some(ids => ids.includes(product.id))
+      if (alreadyMatched) continue
+
+      try {
+        const specs = typeof product.specs === 'string' ? JSON.parse(product.specs) : product.specs
+        const marca = specs?.['Marca']
+        if (!marca || typeof marca !== 'string' || marca.trim().length < 2) continue
+
+        const brandName = marca.trim()
+        const slug = brandName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+        if (!slug) continue
+
+        brandProductCounts.set(slug, (brandProductCounts.get(slug) || 0) + 1)
+        if (!brandProductIds.has(slug)) brandProductIds.set(slug, [])
+        brandProductIds.get(slug)!.push(product.id)
+      } catch { /* invalid specs JSON, skip */ }
+    }
+
     // Upsert brands into the brands table
     let created = 0
     let updated = 0
 
-    for (const bp of BRAND_PATTERNS) {
-      const count = brandProductCounts.get(bp.slug) || 0
-
+    for (const [slug, count] of brandProductCounts) {
       // Check if brand exists
       const existing = await db.execute({
         sql: 'SELECT id FROM brands WHERE slug = ?',
-        args: [bp.slug],
+        args: [slug],
       })
 
       if (existing.rows.length > 0) {
         // Update product count
         await db.execute({
           sql: 'UPDATE brands SET productCount = ?, updatedAt = ? WHERE slug = ?',
-          args: [count, now, bp.slug],
+          args: [count, now, slug],
         })
         updated++
       } else if (count > 0) {
         // Only create brands that have at least one product
+        // Find brand name: from patterns first, then generate from slug
+        const pattern = BRAND_PATTERNS.find(bp => bp.slug === slug)
+        const brandName = pattern?.name || slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
         const id = crypto.randomUUID()
         await db.execute({
           sql: `INSERT INTO brands (id, name, slug, logoUrl, logoWidth, logoHeight, isActive, "order", productCount, createdAt, updatedAt)
                 VALUES (?, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?)`,
           args: [
             id,
-            bp.name,
-            bp.slug,
-            `https://cdn.simpleicons.org/${bp.slug}/9ca3af`,
+            brandName,
+            slug,
+            `https://cdn.simpleicons.org/${slug}/9ca3af`,
             80,
             24,
             count,
@@ -72,18 +94,16 @@ export async function POST() {
       }
     }
 
-    // Optionally update brandId on products (batch)
+    // Update brandId on products (batch)
     let brandIdUpdates = 0
-    for (const bp of BRAND_PATTERNS) {
-      const brandSlug = bp.slug
+    for (const [slug, productIds] of brandProductIds) {
       const brandRow = await db.execute({
         sql: 'SELECT id FROM brands WHERE slug = ?',
-        args: [brandSlug],
+        args: [slug],
       })
       if (brandRow.rows.length === 0) continue
 
       const brandId = (brandRow.rows[0] as any).id
-      const productIds = brandProductIds.get(brandSlug)
       if (!productIds || productIds.length === 0) continue
 
       // Only update products that don't have a brandId set yet
@@ -110,6 +130,8 @@ export async function POST() {
       ok: true,
       summary: {
         productsScanned: products.length,
+        brandsCreatedByPatterns: [...brandProductCounts.keys()].filter(slug => BRAND_PATTERNS.some(bp => bp.slug === slug)).length,
+        brandsCreatedByMarca: [...brandProductCounts.keys()].filter(slug => !BRAND_PATTERNS.some(bp => bp.slug === slug)).length,
         brandsCreated: created,
         brandsUpdated: updated,
         brandIdUpdates,

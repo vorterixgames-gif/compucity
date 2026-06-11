@@ -67,12 +67,13 @@ export async function GET(request: Request) {
   // ─── Re-detect brands after sync ────────────────────────────────────────
   try {
     const { BRAND_PATTERNS } = await import('@/lib/brand-patterns')
-    const productResult = await db.execute({ sql: 'SELECT id, name FROM products WHERE isActive = 1', args: [] })
-    const allProducts = productResult.rows as { id: string; name: string }[]
+    const productResult = await db.execute({ sql: 'SELECT id, name, specs FROM products WHERE isActive = 1', args: [] })
+    const allProducts = productResult.rows as { id: string; name: string; specs: string }[]
 
     const brandProductCounts = new Map<string, number>()
     const brandProductIds = new Map<string, string[]>()
 
+    // Step 1: Detect brands from regex patterns (known brands)
     for (const product of allProducts) {
       for (const bp of BRAND_PATTERNS) {
         if (bp.pattern.test(product.name)) {
@@ -85,35 +86,57 @@ export async function GET(request: Request) {
       }
     }
 
+    // Step 2: Detect brands from supplier "marca" field in specs (catches new/unknown brands)
+    for (const product of allProducts) {
+      // Skip products already matched by regex patterns
+      const alreadyMatched = [...brandProductIds.values()].some(ids => ids.includes(product.id))
+      if (alreadyMatched) continue
+
+      try {
+        const specs = typeof product.specs === 'string' ? JSON.parse(product.specs) : product.specs
+        const marca = specs?.['Marca']
+        if (!marca || typeof marca !== 'string' || marca.trim().length < 2) continue
+
+        const brandName = marca.trim()
+        const slug = brandName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+        if (!slug) continue
+
+        brandProductCounts.set(slug, (brandProductCounts.get(slug) || 0) + 1)
+        if (!brandProductIds.has(slug)) brandProductIds.set(slug, [])
+        brandProductIds.get(slug)!.push(product.id)
+      } catch { /* invalid specs JSON, skip */ }
+    }
+
     let brandsCreated = 0
-    for (const bp of BRAND_PATTERNS) {
-      const count = brandProductCounts.get(bp.slug) || 0
-      const existing = await db.execute({ sql: 'SELECT id FROM brands WHERE slug = ?', args: [bp.slug] })
+    // Create/update brands from both pattern-matched and marca-detected
+    for (const [slug, count] of brandProductCounts) {
+      const existing = await db.execute({ sql: 'SELECT id FROM brands WHERE slug = ?', args: [slug] })
       if (existing.rows.length > 0) {
-        await db.execute({ sql: 'UPDATE brands SET productCount = ?, updatedAt = ? WHERE slug = ?', args: [count, now, bp.slug] })
+        await db.execute({ sql: 'UPDATE brands SET productCount = ?, updatedAt = ? WHERE slug = ?', args: [count, now, slug] })
       } else if (count > 0) {
+        // Find brand name: from patterns first, then generate from slug
+        const pattern = BRAND_PATTERNS.find(bp => bp.slug === slug)
+        const brandName = pattern?.name || slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
         const id = crypto.randomUUID()
         await db.execute({
           sql: `INSERT INTO brands (id, name, slug, logoUrl, logoWidth, logoHeight, isActive, "order", productCount, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?)`,
-          args: [id, bp.name, bp.slug, `https://cdn.simpleicons.org/${bp.slug}/9ca3af`, 80, 24, count, now, now],
+          args: [id, brandName, slug, `https://cdn.simpleicons.org/${slug}/9ca3af`, 80, 24, count, now, now],
         })
         brandsCreated++
       }
     }
 
     // Assign brandId to products that don't have one
-    for (const bp of BRAND_PATTERNS) {
-      const brandRow = await db.execute({ sql: 'SELECT id FROM brands WHERE slug = ?', args: [bp.slug] })
+    for (const [slug, pids] of brandProductIds) {
+      const brandRow = await db.execute({ sql: 'SELECT id FROM brands WHERE slug = ?', args: [slug] })
       if (brandRow.rows.length === 0) continue
       const brandId = (brandRow.rows[0] as any).id
-      const pids = brandProductIds.get(bp.slug)
-      if (!pids) continue
       for (const pid of pids) {
         try { await db.execute({ sql: 'UPDATE products SET brandId = ? WHERE id = ? AND brandId IS NULL', args: [brandId, pid] }) } catch { /* skip */ }
       }
     }
 
-    console.log(`[cron-sync] Brands updated: ${brandsCreated} new brands detected`)
+    console.log(`[cron-sync] Brands updated: ${brandsCreated} new brands detected (total brands: ${brandProductCounts.size})`)
   } catch (err: any) {
     console.error('[cron-sync] Brand update error (non-critical):', err.message)
   }
