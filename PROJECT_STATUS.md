@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-11 (sesion 38)
+**Ultima actualizacion:** 2026-06-11 (sesion 39)
 
 ---
 
@@ -13,7 +13,7 @@
 - **URL produccion:** https://my-project-eight-liard-96.vercel.app/
 - **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
 - **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** 4b844ed (safety: add critical files checker script + restore upload route)
+- **Commit actual:** 5c4bfd0 (feat: auto-detect new brands from supplier marca field in specs)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -84,24 +84,21 @@
 - **Frontend:** Sin cambios - el Filtro Global de Stock ya oculta productos con `stock <= 0`
 - **Importante:** HAY QUE RE-SINCRONIZAR Air Intra para que el stock se actualice con la nueva logica. Hasta que se haga la sync, los productos existentes mantienen el stock total anterior
 
-### Estado actual de productos (2026-06-10 sesion 37)
+### Estado actual de productos (2026-06-11 sesion 39)
 | Metrica | Cantidad |
 |---------|----------|
-| Total productos en DB | 10,102 |
-| Activos | 9,843 |
-| Inactivos | 259 |
-| Con imagen | 4,572 |
-| Sin imagen | 5,530 |
-| Con categoria | 7,157 |
-| Sin categoria | 2,945 |
-| Con descripcion | 2,454 |
-| product_images (tabla) | 979 |
+| Total productos en DB | 10,067 |
+| Activos | 9,822 |
+| Inactivos | 245 |
+| Marcas en DB | 91 |
+| Productos con brandId | 7,099 |
+| product_images (tabla) | 982 |
 | Categorias | 71 |
 | Proveedores | 4 |
 | Clientes | 2 |
 | Admins | 1 |
 
-**Backup:** download/backups/compucity_turso_backup_2026-06-10T22-16-03-589Z.json (36.4MB, 15 tablas)
+**Backup:** download/backups/compucity_turso_backup_2026-06-11T15-37-16-657Z.json (39.3MB, 16 tablas)
 
 ---
 
@@ -1097,7 +1094,36 @@ Todos los backups en `/home/z/my-project/download/backups/`
 
 ---
 
+## Sesion 39: Sistema de Marcas Dinámico + Auto-detección + Navbar
+
+### FIX: Filtros de marca en categorías (brandId en vez de regex)
+- **Problema:** Los filtros de marca en CategoryProducts.tsx usaban regex sobre el nombre del producto, lo que era impreciso. Ej: Raptor en Monitores mostraba productos de otras categorías porque el regex `/RAPTOR/` matcheaba cualquier producto con "Raptor" en el nombre
+- **Solución:** Ahora se usa `product.brandId === brand.id` (relación directa en la base de datos). Cada producto tiene un `brandId` que apunta a su marca en la tabla `brands`
+- **Migraciones:** #24 (tabla brands: id, name, slug, logoUrl, logoWidth, logoHeight, isActive, order, productCount) y #25 (columna brandId en products como FK a brands)
+- **Resultado:** 74 marcas creadas, 7,099/9,822 productos con brandId asignado. Los 2,723 sin marca son productos genéricos que no matchean ningún patrón
+- **Verificación:** Raptor tiene 56 productos totales, solo 2 en Monitores (correctos)
+- **Commit:** 279002a
+
+### MEJORA: Auto-detección de marcas nuevas desde proveedores
+- **Problema:** Si ingresaba un producto de una marca que no estaba en los ~80 patrones regex de `brand-patterns.ts`, nunca se detectaba
+- **Solución:** El cron sync diario y el endpoint `init-brands` ahora leen `specs['Marca']` de los productos (campo que los proveedores Elit y Air Intra envían en su API)
+- **Flujo:** 1) Primero intenta matchear con patrones regex (más preciso, prioridad). 2) Para productos sin match, lee el campo marca del proveedor. 3) Si la marca no existe en la DB, la crea automáticamente con slug generado del nombre
+- **Archivos modificados:** `src/app/api/cron/sync/route.ts`, `src/app/api/admin/init-brands/route.ts`
+- **Commit:** 5c4bfd0
+
+### Navbar: Sección "Marcas" ocultada
+- **Cambio:** Se ocultó el dropdown "Marcas" del navbar (desktop y mobile) a pedido del usuario
+- **Archivo:** `src/components/layout/Navbar.tsx` (comentarios `{/* Marcas dropdown - hidden */}` y `{/* Mobile brands - hidden */}`)
+- **Commit:** aa36ec0
+
+### Backup DB
+- **Archivo:** `download/backups/compucity_turso_backup_2026-06-11T15-37-16-657Z.json` (39.3MB, 16 tablas)
+- **Contenido:** 10,067 productos, 91 marcas, 71 categorías, 4 proveedores, 982 imágenes, 2 clientes
+
+---
+
 ## Historial de Cambios
+- **2026-06-11 (s39):** Sistema de marcas dinámico + auto-detección de marcas nuevas + navbar Marcas oculto. (1) FIX filtros de marca en categorías: Antes se usaba regex sobre el nombre del producto para filtrar marcas, lo que era impreciso (ej: Raptor en Monitores mostraba productos de otras categorías). Ahora se usa `product.brandId === brand.id` (relación directa en DB). (2) Migraciones DB: #24 (tabla brands con id, name, slug, logoUrl, productCount) y #25 (columna brandId en products como FK a brands). (3) init-brands ejecutado: 74 marcas creadas, 7,099/9,822 productos con brandId asignado. (4) Auto-detección de marcas nuevas: cron sync y init-brands ahora leen `specs['Marca']` de los proveedores (Elit envía BRAND, Air Intra envía marca) para detectar marcas que no están en los ~80 patrones regex de brand-patterns.ts. Las marcas nuevas se crean automáticamente con slug generado del nombre. Prioridad: regex patterns primero, luego marca del proveedor. (5) Navbar: sección "Marcas" (dropdown con top 20 marcas) ocultada a pedido del usuario. (6) Backup DB: compucity_turso_backup_2026-06-11T15-37-16-657Z.json (39.3MB, 16 tablas, 91 marcas, 10,067 productos). Commits: 279002a, aa36ec0, 739901a, 5c4bfd0
 - **2026-06-10 (s36):** Carrusel de Productos Destacados + reubicacion en homepage + backup DB. (1) Seccion "Productos Destacados" convertida de grid estatico a carrusel interactivo con Embla Carousel + Autoplay (4s). Componente nuevo: `FeaturedProductsCarousel.tsx`. (2) Reubicacion: movida de despues de CategoryIcons a entre BrandLogos y CategoryIcons. (3) Carrusel: loop infinito, botones prev/next, dots indicadores, responsive 2/3/4 cards. (4) Backup DB: download/backups/compucity_turso_backup_2026-06-09T19-04-13-436Z.json (31MB, 15 tablas). Commit: c399aed
 - **2026-06-10 (s35):** Productos Destacados activado en tienda + filtro/columna en admin + backup DB. (1) Seccion "Productos Destacados" en la home de la tienda: se muestra despues de CategoryIcons, grid 2/3/4 columnas, solo si hay destacados. Badge verde "DESTACADO" en cada ProductCard. (2) Prop isFeatured pasada a TODOS los ProductCard de la tienda (home, categorias, favoritos, relacionados). (3) Filtro "Destacado" en admin productos: dropdown Todos/Destacados/No destacados, columna "Dest." con ★ en tabla desktop, badge movil. API backend soporta parametro featuredStatus. (4) Backup completo de DB Turso: download/backups/compucity_turso_backup_2026-06-09T18-34-51.json (34MB, 15 tablas, 10,100 productos).
 - **2026-06-10 (s34):** Descripciones IA funcionando + subcategorias en filtro admin + fotos IA removidas. (1) FIX Descripciones IA: Reemplazado Groq (API key expirada) por z-ai-web-dev-sdk como proveedor primario. ZAI usa env vars (ZAI_BASE_URL, ZAI_API_KEY, etc.) en vez de config file. Groq queda como fallback. Resultado: 2,454 descripciones generadas exitosamente. (2) Intento de busqueda de fotos IA: Se probaron 5 estrategias (page_reader, fetch directo, Google Images, Microlink.io, AI generation) pero ninguna funciono de forma confiable en Vercel. Botones "Fotos IA" y "Foto" removidos del admin. API route conservada para futuro. (3) Filtro subcategorias: El dropdown de categoria en admin productos ahora muestra subcategorias indentadas con └ debajo de cada categoria padre. Permite filtrar por subcategoria especifica. Dropdown mas ancho (w-56). (4) Limpieza: import Camera, estados enrichImages/handleEnrichSingleImage removidos. Commits: b503412, 356084b, 5c3e610
