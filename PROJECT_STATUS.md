@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-10 (sesion 37)
+**Ultima actualizacion:** 2026-06-11 (sesion 38)
 
 ---
 
@@ -95,13 +95,13 @@
 | Con categoria | 7,157 |
 | Sin categoria | 2,945 |
 | Con descripcion | 2,454 |
-| product_images (tabla) | 859 |
+| product_images (tabla) | 979 |
 | Categorias | 71 |
 | Proveedores | 4 |
 | Clientes | 2 |
 | Admins | 1 |
 
-**Backup:** download/backups/compucity_turso_backup_2026-06-09T21-13-36-177Z.json (31.3MB, 10 tablas)
+**Backup:** download/backups/compucity_turso_backup_2026-06-10T22-16-03-589Z.json (36.4MB, 15 tablas)
 
 ---
 
@@ -931,7 +931,8 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ## Tareas Pendientes
 
 ### Alta Prioridad
-1. **Re-sincronizar Air Intra:** El stock por deposito (solo Cordoba) se implemento en sesion 26 pero los productos existentes mantienen el stock total anterior. HAY QUE RE-SINCRONIZAR para que el stock se actualice con la nueva logica
+1. **Configurar dominio compucityonline.com.ar:** Dominio comprado en DonWeb, pendiente aprobacion NIC Argentina (24-48hs). Pasos pendientes: (a) Agregar dominio en Vercel Settings → Domains, (b) Configurar DNS en DonWeb: registro A `@` → `76.76.21.21` + CNAME `www` → `cname.vercel-dns.com`, (c) Esperar propagacion DNS, (d) SSL se genera automatico en Vercel, (e) Actualizar URLs en el proyecto (meta tags, OG tags, WhatsApp, PDF, PROJECT_STATUS.md)
+2. **Re-sincronizar Air Intra:** El stock por deposito (solo Cordoba) se implemento en sesion 26 pero los productos existentes mantienen el stock total anterior. HAY QUE RE-SINCRONIZAR para que el stock se actualice con la nueva logica
 2. **Verificar categorizacion en TODAS las categorias:** Se corrigieron 66+ productos en sesion 27, pero puede haber mas productos mal categorizados que no se detectaron. El usuario reporto productos incorrectos en Notebooks y Monitores. Revisar cada categoria sistematicamente
 3. **Credenciales Andreani:** El dueño debe proporcionar codigoCliente + contratoDomicilio
 4. **Cargar imagenes faltantes:** ~5,532 productos sin imagen (mayormente Air Intra). Busqueda IA falló en produccion. Pendiente alternativa viable
@@ -1042,6 +1043,57 @@ Todos los backups en `/home/z/my-project/download/backups/`
 - El chatbot ahora vive directamente en la pagina de categoria de notebooks (no en pagina separada)
 - Slide 2 del hero actualizado: CTA va a `/categoria/notebooks` en vez de `/elige-tu-notebook`
 - CTA secundario va a `/categoria/gamer-y-diseno`
+
+---
+
+## Sesion 38: Optimizacion imagenes + Dominio + Backup
+
+### Optimizacion de imagenes para Turso (Turso-friendly)
+- **Problema:** Las imagenes se guardaban como base64 en Turso con limite de 10MB por archivo, demasiado para una base de datos cloud
+- **Calidad WebP reducida:** De 80% a 70% en `compressImageClient()` (ImageUploader.tsx)
+- **Limite original (cliente):** Reducido de 10MB a 5MB
+- **Limite comprimido (servidor):** Reducido de 10MB a 2MB en upload/route.ts
+- **Resultado:** Imagenes tipicas de 50-300KB, maximo ~2.7MB base64 en DB (antes podia llegar a 13MB)
+- **Archivos modificados:** `src/components/ui-custom/ImageUploader.tsx`, `src/app/api/admin/upload/route.ts`
+
+### Estado actual de imagenes en Turso
+| Metrica | Valor |
+|---------|-------|
+| Total imagenes | 979 |
+| Bytes originales (size) | 18.2 MB |
+| Caracteres base64 (data) | 24.3 MB |
+| Promedio por imagen | ~20 KB |
+| Imagen mas grande | 243 KB |
+| Imagenes huerfanas (no referenciadas) | 42 |
+| Imagenes faltantes (referenciadas sin data) | 0 |
+
+### Uso de plataformas (actualizado sesion 38)
+| Plataforma | Recurso | Uso actual | Limite Free | % Uso | Estado |
+|------------|---------|-----------|-------------|-------|--------|
+| **Turso** | Almacenamiento | ~50 MB | 5 GB | ~1% | Holgado |
+| **Turso** | Filas leidas/mes | ~1M | 500M/mes | <0.1% | Holgado |
+| **Turso** | Filas escritas/mes | ~100K | 10M/mes | ~1% | Holgado |
+| **Vercel** | Deploys/mes | ~20 | 100 | 20% | OK |
+| **Vercel** | Ancho de banda | ~500 MB | 100 GB | <1% | Holgado |
+| **Vercel** | Serverless ejecuciones | ~5K/dia | Ilimitado | - | OK |
+| **Vercel** | Timeout serverless | 60s max | 60s (Hobby) | - | Ver nota |
+
+### Dominio propio (PENDIENTE)
+- **Dominio:** compucityonline.com.ar
+- **Registrador:** DonWeb
+- **Estado:** Pendiente aprobacion NIC Argentina (24-48hs desde 2026-06-11)
+- **Pasos pendientes:**
+  1. Agregar dominio en Vercel (Settings → Domains): `compucityonline.com.ar` + `www.compucityonline.com.ar`
+  2. Configurar DNS en DonWeb: A record `@` → `76.76.21.21` + CNAME `www` → `cname.vercel-dns.com`
+  3. Esperar propagacion DNS (10 min - 48 hs)
+  4. SSL se genera automatico en Vercel
+  5. Actualizar URLs en el proyecto (meta tags, OG tags, WhatsApp links, PDF, PROJECT_STATUS.md)
+
+### WhatsApp Business (recomendacion)
+- Se recomendo migrar de WhatsApp Personal a WhatsApp Business App (misma app, mismo numero, funciones extra)
+- Funciones utiles: catalogo de productos, respuestas rapidas, mensaje de bienvenida, etiquetas de pedidos
+- No requiere cambio de numero ni perdida de historial
+- API Business se recomendo para futuro cuando haya volumen de pedidos
 
 ---
 

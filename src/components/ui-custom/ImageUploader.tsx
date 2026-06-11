@@ -9,7 +9,7 @@ interface ImageUploaderProps {
   maxImages?: number
 }
 
-async function compressImageClient(file: File, maxWidth: number = 1200, quality: number = 0.8): Promise<Blob> {
+async function compressImageClient(file: File, maxWidth: number = 1200, quality: number = 0.7): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     const url = URL.createObjectURL(file)
@@ -77,8 +77,8 @@ export default function ImageUploader({ images, onChange, maxImages = 6 }: Image
         setUploadError(`${file.name} no es una imagen válida`)
         return false
       }
-      if (file.size > 10 * 1024 * 1024) {
-        setUploadError(`${file.name} es muy grande (máx 10MB)`)
+      if (file.size > 5 * 1024 * 1024) {
+        setUploadError(`${file.name} es muy grande (máx 5MB original)`)
         return false
       }
       return true
@@ -100,7 +100,7 @@ export default function ImageUploader({ images, onChange, maxImages = 6 }: Image
       setUploadProgress(`Comprimiendo imagen ${i + 1} de ${filesToUpload.length}...`)
       try {
         // Compress client-side
-        const compressedBlob = await compressImageClient(filesToUpload[i], 1200, 0.8)
+        const compressedBlob = await compressImageClient(filesToUpload[i], 1200, 0.7)
 
         // Create FormData
         const formData = new FormData()
@@ -224,7 +224,7 @@ export default function ImageUploader({ images, onChange, maxImages = 6 }: Image
               Hacé clic o arrastrá imágenes aquí
             </p>
             <p className="text-xs text-gray-400">
-              JPG, PNG, WebP o GIF · Se convierten a WebP · Máx 10MB
+              JPG, PNG, WebP o GIF · Se convierten a WebP · Máx 5MB original
             </p>
           </div>
         )}
