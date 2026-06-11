@@ -65,3 +65,4 @@ download/
 # Prevent duplicate repo directories
 compucity-repo/
 backups/
+upload/
