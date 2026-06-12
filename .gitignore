@@ -65,4 +65,5 @@ download/
 # Prevent duplicate repo directories
 compucity-repo/
 backups/
-upload/
+/upload/
+!src/app/api/admin/upload/
