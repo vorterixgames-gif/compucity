@@ -16,17 +16,17 @@ interface Brand {
 
 // Fallback brands when API is not available
 const FALLBACK_BRANDS: Brand[] = [
-  { id: 'fb1', name: 'AMD', slug: 'amd', logoUrl: 'https://cdn.simpleicons.org/amd/9ca3af', logoWidth: 80, logoHeight: 24, productCount: 0 },
-  { id: 'fb2', name: 'Intel', slug: 'intel', logoUrl: 'https://cdn.simpleicons.org/intel/9ca3af', logoWidth: 60, logoHeight: 40, productCount: 0 },
-  { id: 'fb3', name: 'NVIDIA', slug: 'nvidia', logoUrl: 'https://cdn.simpleicons.org/nvidia/9ca3af', logoWidth: 80, logoHeight: 28, productCount: 0 },
-  { id: 'fb4', name: 'Kingston', slug: 'kingstontechnology', logoUrl: 'https://cdn.simpleicons.org/kingstontechnology/9ca3af', logoWidth: 90, logoHeight: 20, productCount: 0 },
-  { id: 'fb5', name: 'Corsair', slug: 'corsair', logoUrl: 'https://cdn.simpleicons.org/corsair/9ca3af', logoWidth: 80, logoHeight: 24, productCount: 0 },
-  { id: 'fb6', name: 'ASUS', slug: 'asus', logoUrl: 'https://cdn.simpleicons.org/asus/9ca3af', logoWidth: 70, logoHeight: 28, productCount: 0 },
-  { id: 'fb7', name: 'Samsung', slug: 'samsung', logoUrl: 'https://cdn.simpleicons.org/samsung/9ca3af', logoWidth: 80, logoHeight: 26, productCount: 0 },
-  { id: 'fb8', name: 'Seagate', slug: 'seagate', logoUrl: 'https://cdn.simpleicons.org/seagate/9ca3af', logoWidth: 70, logoHeight: 26, productCount: 0 },
+  { id: 'fb1', name: 'AMD', slug: 'amd', logoUrl: null, logoWidth: 80, logoHeight: 24, productCount: 0 },
+  { id: 'fb2', name: 'Intel', slug: 'intel', logoUrl: null, logoWidth: 60, logoHeight: 40, productCount: 0 },
+  { id: 'fb3', name: 'NVIDIA', slug: 'nvidia', logoUrl: null, logoWidth: 80, logoHeight: 28, productCount: 0 },
+  { id: 'fb4', name: 'Kingston', slug: 'kingstontechnology', logoUrl: null, logoWidth: 90, logoHeight: 20, productCount: 0 },
+  { id: 'fb5', name: 'Corsair', slug: 'corsair', logoUrl: null, logoWidth: 80, logoHeight: 24, productCount: 0 },
+  { id: 'fb6', name: 'ASUS', slug: 'asus', logoUrl: null, logoWidth: 70, logoHeight: 28, productCount: 0 },
+  { id: 'fb7', name: 'Samsung', slug: 'samsung', logoUrl: null, logoWidth: 80, logoHeight: 26, productCount: 0 },
+  { id: 'fb8', name: 'Seagate', slug: 'seagate', logoUrl: null, logoWidth: 70, logoHeight: 26, productCount: 0 },
 ]
 
-// SimpleIcons slugs that don't match the brand slug — override mapping
+// SimpleIcons slugs that don't match the brand's DB slug — override mapping
 const SLUG_OVERRIDES: Record<string, string> = {
   'tp-link': 'tplink',
   'cooler-master': 'cooler_master',
@@ -35,22 +35,25 @@ const SLUG_OVERRIDES: Record<string, string> = {
   'd-link': 'dlink',
   'harman-kardon': 'harman',
   'cx': 'cx',
+  'apc': 'schneiderelectric',
 }
 
-// Brands known to NOT exist on SimpleIcons — show text fallback directly
-const NO_ICON_BRANDS = new Set([
+// Brand names (lowercase) known to NOT exist on SimpleIcons — show text fallback directly
+const NO_ICON_NAMES = new Set([
   'hpe', 'apc', 'logitech', 'brother', 'epson', 'aruba',
   'lexmark', 'ezviz', 'hiksemi', 'x-tech', 'gamemax',
   'hilook', 'hikvision', 'mercusys', 'raptor', 'cudy',
   'furukawa', 'teros', 'kelyx', 'pantum', 'klipxtreme',
   'memox', 'arkham', 'foxbox', 'noganet', 'e-view',
   'nexxt', 'intelaid', 'ocom', 'biwin', 'glcfi',
-  'thronos', 'loosafe', 'cromax',
+  'thronos', 'loosafe', 'cromax', 'aerocool', 'sentey',
+  'naceb', 'raptor', 'motorola', 'sapphire', 'powercolor',
+  'inno3d', 'ezviz', 'tenda', 'mikrotik', 'synology',
 ])
 
 export default function BrandLogos() {
   const [brands, setBrands] = useState<Brand[]>(FALLBACK_BRANDS)
-  const [failedIcons, setFailedIcons] = useState<Set<string>>(new Set(NO_ICON_BRANDS))
+  const [failedIcons, setFailedIcons] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const loadBrands = async () => {
@@ -69,20 +72,32 @@ export default function BrandLogos() {
     loadBrands()
   }, [])
 
-  const handleImageError = useCallback((brandId: string) => {
-    setFailedIcons(prev => new Set(prev).add(brandId))
+  const handleImageError = useCallback((brandKey: string) => {
+    setFailedIcons(prev => {
+      const next = new Set(prev)
+      next.add(brandKey)
+      return next
+    })
   }, [])
 
+  // Always generate logo URL from the correct SimpleIcons slug, ignoring the DB logoUrl
   const getLogoSrc = (brand: Brand) => {
-    if (brand.logoUrl) return brand.logoUrl
     const slug = SLUG_OVERRIDES[brand.slug] || brand.slug
     return `https://cdn.simpleicons.org/${slug}/9ca3af`
   }
 
-  const renderBrandLogo = (brand: Brand) => {
-    const hasFailed = failedIcons.has(brand.id) || failedIcons.has(brand.slug)
+  // Check if a brand is known to not have an icon, or if it previously failed
+  const hasNoIcon = (brand: Brand) => {
+    return (
+      NO_ICON_NAMES.has(brand.name.toLowerCase()) ||
+      NO_ICON_NAMES.has(brand.slug.toLowerCase()) ||
+      failedIcons.has(brand.id) ||
+      failedIcons.has(brand.slug)
+    )
+  }
 
-    if (hasFailed) {
+  const renderBrandLogo = (brand: Brand) => {
+    if (hasNoIcon(brand)) {
       // Text fallback — styled brand initial + name
       return (
         <div className="flex items-center gap-2">
