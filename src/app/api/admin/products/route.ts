@@ -465,7 +465,7 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
     const { id, name, description, price, comparePrice, costPrice, sku, stock,
       isActive, isFeatured, images, specs, providerId, providerSku, categoryId,
-      markup, cashDiscount, ivaRate, salePrice, saleStart, saleEnd } = body
+      markup, cashDiscount, ivaRate, salePrice, saleStart, saleEnd, brandId } = body
 
     if (!id) {
       return NextResponse.json({ error: 'ID es requerido' }, { status: 400 })
@@ -617,6 +617,7 @@ export async function PUT(request: NextRequest) {
     if (salePrice !== undefined) { fields.push('salePrice = ?'); values.push(salePrice ? Number(salePrice) : null) }
     if (saleStart !== undefined) { fields.push('saleStart = ?'); values.push(saleStart || null) }
     if (saleEnd !== undefined) { fields.push('saleEnd = ?'); values.push(saleEnd || null) }
+    if (brandId !== undefined) { fields.push('brandId = ?'); values.push(brandId || null) }
 
     if (fields.length === 0) {
       return NextResponse.json({ error: 'No hay campos para actualizar' }, { status: 400 })
