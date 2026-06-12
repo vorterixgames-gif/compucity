@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-11 (sesion 39)
+**Ultima actualizacion:** 2026-06-12 (sesion 40)
 
 ---
 
@@ -8,12 +8,14 @@
 - **Nombre:** Compucity - Tu Mundo Digital
 - **Tipo:** E-commerce de informatica (sin pasarela de pagos, pedidos por WhatsApp)
 - **Ubicacion:** La Falda, Valle de Punilla, Cordoba, Argentina
-- **WhatsApp:** 3517656918
+- **WhatsApp:** +54 9 3548 40-2056
+- **Email:** compucitylafalda@gmail.com
+- **Direccion:** Av. Sarmiento 462 - La Falda, Cordoba
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
-- **URL produccion:** https://my-project-eight-liard-96.vercel.app/
-- **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
-- **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
-- **Commit actual:** 5c4bfd0 (feat: auto-detect new brands from supplier marca field in specs)
+- **URL produccion:** https://www.compucityonline.com.ar/
+- **URL admin:** https://www.compucityonline.com.ar/admin
+- **Commit estable:** 212bf9e (logos marcas fix, datos contacto, PC builder criteria, upload route fix)
+- **Commit actual:** 212bf9e (fix: logos marcas - lista curada fija)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 
 ## Stack Tecnologico
@@ -1075,16 +1077,16 @@ Todos los backups en `/home/z/my-project/download/backups/`
 | **Vercel** | Serverless ejecuciones | ~5K/dia | Ilimitado | - | OK |
 | **Vercel** | Timeout serverless | 60s max | 60s (Hobby) | - | Ver nota |
 
-### Dominio propio (PENDIENTE)
+### Dominio propio (ACTIVO)
 - **Dominio:** compucityonline.com.ar
 - **Registrador:** DonWeb
-- **Estado:** Pendiente aprobacion NIC Argentina (24-48hs desde 2026-06-11)
-- **Pasos pendientes:**
-  1. Agregar dominio en Vercel (Settings → Domains): `compucityonline.com.ar` + `www.compucityonline.com.ar`
-  2. Configurar DNS en DonWeb: A record `@` → `76.76.21.21` + CNAME `www` → `cname.vercel-dns.com`
-  3. Esperar propagacion DNS (10 min - 48 hs)
-  4. SSL se genera automatico en Vercel
-  5. Actualizar URLs en el proyecto (meta tags, OG tags, WhatsApp links, PDF, PROJECT_STATUS.md)
+- **Estado:** ACTIVO y funcionando
+- **DNS configurado:**
+  - A record `@` → `216.198.79.1` (IP de Vercel nueva)
+  - CNAME `www` → `478eb57c2d2a522e.vercel-dns-017.com.`
+- **SSL:** Certificado automatico de Vercel (HTTPS funcionando)
+- **Redireccion:** compucityonline.com.ar → www.compucityonline.com.ar (308 redirect)
+- **Fecha activacion:** 2026-06-12
 
 ### WhatsApp Business (recomendacion)
 - Se recomendo migrar de WhatsApp Personal a WhatsApp Business App (misma app, mismo numero, funciones extra)
@@ -1122,7 +1124,82 @@ Todos los backups en `/home/z/my-project/download/backups/`
 
 ---
 
+## Sesion 40: Dominio propio + Datos de contacto + Logos marcas + PC Builder fix
+
+### Dominio propio compucityonline.com.ar (ACTIVO)
+- **Antes:** El sitio usaba URL de Vercel `my-project-eight-liard-96.vercel.app`
+- **Despues:** Dominio propio `www.compucityonline.com.ar` activo y funcionando
+- **DNS en DonWeb:**
+  - A record `@` → `216.198.79.1` (IP de Vercel, nueva ruta)
+  - CNAME `www` → `478eb57c2d2a522e.vercel-dns-017.com.`
+- **SSL:** Certificado HTTPS generado automaticamente por Vercel
+- **Redireccion:** Raiz (compucityonline.com.ar) → www.compucityonline.com.ar (HTTP 308)
+- **Verificacion:** `curl -sI https://www.compucityonline.com.ar` → HTTP 200, server: Vercel
+
+### FIX: Upload de imagenes roto tras cambio de sistema de marcas
+- **Problema:** Error "Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON" al subir imagenes
+- **Causa:** `.gitignore` tenia patron `upload/` (sin `/` inicial) que matcheaba `src/app/api/admin/upload/`, excluyendo la ruta del repo. Al deployar, la ruta se borro y Vercel servia el 404 HTML
+- **Fix:** `.gitignore` cambiado a `/upload/` (solo raiz) + `!src/app/api/admin/upload/` (excepcion). Ruta restaurada desde commit `8515626`
+- **Auditoria DB:** 982 imagenes intactas, 0 referencias rotas, 46 huerfanas pre-existentes
+
+### FIX: PC Builder chatbot - Criterio de precios por tier
+- **Problema:** La version "Economica" recomendaba productos caros (ej: gabinetes premium)
+- **Causa:** `pickProductForSlot` usaba los mismos rangos de precio para todos los tiers (hasta 1.5-2x idealMax)
+- **Solucion:** Nuevo parametro `priceBias` ('low' | 'mid' | 'high') en BUILD_TIERS:
+  - Economica: maxMultiplier=1.0, targets idealMin*1.2, penalty 2x por exceder idealMax
+  - Recomendada: maxMultiplier=1.2, targets midpoint
+  - Premium: maxMultiplier=1.4, targets idealMax*0.9
+- **Commit:** 2649100
+
+### MEJORA: Mensaje "Compartir con equipo" en PC Builder
+- **Nuevo:** Despues de cada build, mensaje verde destacado: "Comparti este armado con nuestro equipo por WhatsApp y te ayudamos a mejorarlo o ajustarlo a tu medida"
+- **Archivo:** `src/components/pc-assistant-chat.tsx`
+
+### Actualizacion: Datos de contacto en todo el sitio
+- **WhatsApp:** 5493517656918 → **5493548402056** (display: 3548 40-2056)
+- **Email:** info@compucity.com.ar → **compucitylafalda@gmail.com**
+- **Direccion:** "La Falda, Cordoba" → **"Av. Sarmiento 462 - La Falda, Cordoba"**
+- **12 archivos modificados:**
+  1. WhatsAppButton.tsx (boton flotante)
+  2. Navbar.tsx (barra marquee)
+  3. Footer.tsx (direccion, telefono, email, link WA)
+  4. contacto/page.tsx (direccion, WA, email)
+  5. ProductDetailClient.tsx (boton WA en productos)
+  6. page.tsx (home, seccion "No encontras lo que buscas?")
+  7. arma-tu-pc/page.tsx (links WA + footer PDF)
+  8. checkout/page.tsx (mensaje pedido + direccion retiro)
+  9. mis-pedidos/page.tsx (direccion retiro)
+  10. recuperar-contrasena/page.tsx (link WA)
+  11. forgot-password/route.ts (email recuperacion)
+  12. shipping.ts (descripcion retiro en local)
+- **Commit:** cefdf73
+
+### FIX: Logos de marcas rotos en la home
+- **Problema:** Seccion "Trabajamos con las mejores marcas" mostraba iconos rotos
+- **Causa:** Las top 8 marcas por productos (HP, HPE, APC, Logitech, TP-Link, Genius, ASUS, Brother) usaban cdn.simpleicons.org pero varias no existen ahi (HPE=404, APC=404, Logitech=404, Brother=404)
+- **Intento 1:** Fallback visual con onError → no confiable con Next.js Image + CDN externo
+- **Intento 2:** SLUG_OVERRIDES + NO_ICON_NAMES → la DB reemplazaba con URLs rotas al cargar
+- **Solucion final:** Lista curada fija de 8 marcas con logos 100% confirmados, sin API dinamico
+  - Marcas mostradas: Intel, AMD, NVIDIA, ASUS, HP, Samsung, Kingston, Corsair
+  - Usando `<img>` nativo en vez de Next.js Image (mas confiable con CDN externo)
+  - Sin fetch a /api/brands = sin flash de contenido roto
+- **Slugs corregidos en brand-patterns.ts:**
+  - TP-Link: `tp-link` → `tplink`
+  - Cooler Master: `cooler-master` → `coolermaster`
+  - D-Link: `d-link` → `dlink`
+  - APC: `apc` → `schneiderelectric`
+  - Harman Kardon: `harman-kardon` → `harman`
+  - Team Group: `team-group` → `teamgroup`
+- **Commits:** 69ead02, afdd330, 212bf9e
+
+### Backup
+- **Codigo fuente:** `download/backups/compucity_src_backup_2026-06-12.tar.gz` (1.1MB, todo src/ + configs)
+- **Git:** Repositorio completo respaldado en GitHub (vorterixgames-gif/compucity)
+
+---
+
 ## Historial de Cambios
+- **2026-06-12 (s40):** Dominio propio activo + datos de contacto actualizados + logos marcas fix + PC Builder criteria fix + upload route fix. (1) Dominio compucityonline.com.ar activo en Vercel con DNS DonWeb (A → 216.198.79.1, CNAME www → vercel-dns), SSL automatico, redirect raiz→www. (2) Upload imagenes roto: .gitignore patron `upload/` excluyo ruta API. Fix: `/upload/` + excepcion. Ruta restaurada desde commit 8515626. Auditoria: 0 imagenes perdidas. (3) PC Builder criteria: priceBias ('low'/'mid'/'high') por tier. Economica ya no recomienda caros. (4) Mensaje "Compartir con equipo" en PC Builder. (5) Datos contacto actualizados en 12 archivos: WhatsApp 3548 40-2056, email compucitylafalda@gmail.com, direccion Av. Sarmiento 462. (6) Logos marcas: lista curada fija (Intel, AMD, NVIDIA, ASUS, HP, Samsung, Kingston, Corsair), sin API dinamico, <img> nativo. (7) Slugs corregidos en brand-patterns.ts (tplink, coolermaster, dlink, schneiderelectric, harman, teamgroup). (8) Backup src: compucity_src_backup_2026-06-12.tar.gz (1.1MB). Commits: 277f323, 2649100, cefdf73, 69ead02, afdd330, 212bf9e
 - **2026-06-11 (s39):** Sistema de marcas dinámico + auto-detección de marcas nuevas + navbar Marcas oculto. (1) FIX filtros de marca en categorías: Antes se usaba regex sobre el nombre del producto para filtrar marcas, lo que era impreciso (ej: Raptor en Monitores mostraba productos de otras categorías). Ahora se usa `product.brandId === brand.id` (relación directa en DB). (2) Migraciones DB: #24 (tabla brands con id, name, slug, logoUrl, productCount) y #25 (columna brandId en products como FK a brands). (3) init-brands ejecutado: 74 marcas creadas, 7,099/9,822 productos con brandId asignado. (4) Auto-detección de marcas nuevas: cron sync y init-brands ahora leen `specs['Marca']` de los proveedores (Elit envía BRAND, Air Intra envía marca) para detectar marcas que no están en los ~80 patrones regex de brand-patterns.ts. Las marcas nuevas se crean automáticamente con slug generado del nombre. Prioridad: regex patterns primero, luego marca del proveedor. (5) Navbar: sección "Marcas" (dropdown con top 20 marcas) ocultada a pedido del usuario. (6) Backup DB: compucity_turso_backup_2026-06-11T15-37-16-657Z.json (39.3MB, 16 tablas, 91 marcas, 10,067 productos). Commits: 279002a, aa36ec0, 739901a, 5c4bfd0
 - **2026-06-10 (s36):** Carrusel de Productos Destacados + reubicacion en homepage + backup DB. (1) Seccion "Productos Destacados" convertida de grid estatico a carrusel interactivo con Embla Carousel + Autoplay (4s). Componente nuevo: `FeaturedProductsCarousel.tsx`. (2) Reubicacion: movida de despues de CategoryIcons a entre BrandLogos y CategoryIcons. (3) Carrusel: loop infinito, botones prev/next, dots indicadores, responsive 2/3/4 cards. (4) Backup DB: download/backups/compucity_turso_backup_2026-06-09T19-04-13-436Z.json (31MB, 15 tablas). Commit: c399aed
 - **2026-06-10 (s35):** Productos Destacados activado en tienda + filtro/columna en admin + backup DB. (1) Seccion "Productos Destacados" en la home de la tienda: se muestra despues de CategoryIcons, grid 2/3/4 columnas, solo si hay destacados. Badge verde "DESTACADO" en cada ProductCard. (2) Prop isFeatured pasada a TODOS los ProductCard de la tienda (home, categorias, favoritos, relacionados). (3) Filtro "Destacado" en admin productos: dropdown Todos/Destacados/No destacados, columna "Dest." con ★ en tabla desktop, badge movil. API backend soporta parametro featuredStatus. (4) Backup completo de DB Turso: download/backups/compucity_turso_backup_2026-06-09T18-34-51.json (34MB, 15 tablas, 10,100 productos).
