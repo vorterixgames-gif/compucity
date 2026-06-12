@@ -346,6 +346,16 @@ export default function PCAssistantChat({ onLoadBuild }: PCAssistantChatProps) {
                     </div>
                   </div>
                 )}
+
+                {/* Share with team message */}
+                <div className="flex gap-2.5">
+                  <div className="w-7 h-7 rounded-full bg-compucity-green-50 text-compucity-green-600 flex items-center justify-center shrink-0">
+                    <Bot className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="bg-compucity-green-50 border border-compucity-green-200 rounded-2xl rounded-tl-md px-3.5 py-2.5 shadow-sm max-w-[85%] text-sm text-compucity-green-800 leading-relaxed">
+                    💬 Compartí este armado con nuestro equipo por WhatsApp y te ayudamos a mejorarlo o ajustarlo a tu medida. ¡Estamos para asesorarte!
+                  </div>
+                </div>
               </div>
             )}
 

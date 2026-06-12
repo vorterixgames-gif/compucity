@@ -78,10 +78,10 @@ const BUDGET_PROFILES: Record<string, Record<string, number>> = {
   general: { processor: 0.18, motherboard: 0.10, ram: 0.12, gpu: 0.18, ssd: 0.14, psu: 0.07, case: 0.07, cooling: 0.03 },
 }
 
-const BUILD_TIERS = [
-  { name: 'Económica', multiplier: 0.80, emoji: '🟢' },
-  { name: 'Recomendada', multiplier: 1.00, emoji: '🟡' },
-  { name: 'Premium', multiplier: 1.15, emoji: '🔴' },
+const BUILD_TIERS: { name: string; multiplier: number; emoji: string; priceBias: 'low' | 'mid' | 'high' }[] = [
+  { name: 'Económica', multiplier: 0.80, emoji: '🟢', priceBias: 'low' },
+  { name: 'Recomendada', multiplier: 1.00, emoji: '🟡', priceBias: 'mid' },
+  { name: 'Premium', multiplier: 1.15, emoji: '🔴', priceBias: 'high' },
 ]
 
 // Include/exclude patterns
@@ -300,7 +300,8 @@ function pickProductForSlot(
   products: ProductWithArsPrice[],
   idealMin: number,
   idealMax: number,
-  compatFilter?: (p: ProductWithArsPrice) => boolean
+  compatFilter?: (p: ProductWithArsPrice) => boolean,
+  priceBias?: 'low' | 'mid' | 'high'
 ): ProductWithArsPrice | null {
   if (products.length === 0) return null
 
@@ -315,38 +316,58 @@ function pickProductForSlot(
 
   if (pool.length === 0) return null
 
-  // Score products: prefer products near the midpoint of the ideal range
-  // but allow significant flexibility (up to 2x idealMax for expensive components)
-  const midPrice = (idealMin + idealMax) / 2
+  // Tighter budget ranges per tier:
+  // - "low" (Económica): stay BELOW budget, max 1.0x idealMax
+  // - "mid" (Recomendada): balanced, max 1.2x idealMax
+  // - "high" (Premium): can stretch, max 1.4x idealMax
+  const maxMultiplier = priceBias === 'low' ? 1.0 : priceBias === 'high' ? 1.4 : 1.2
+  const minMultiplier = priceBias === 'low' ? 0.5 : 0.3
 
-  // First try: products within ideal range
+  // First try: products within tier-appropriate range
   let candidates = pool.filter(p => {
     const price = p.arsComparePrice || p.arsPrice
-    return price >= idealMin * 0.3 && price <= idealMax * 1.5
+    return price >= idealMin * minMultiplier && price <= idealMax * maxMultiplier
   })
 
-  // Second try: just cap at 2x max, no min
+  // Second try: relax max a bit (1.6x for any tier)
   if (candidates.length === 0) {
     candidates = pool.filter(p => {
       const price = p.arsComparePrice || p.arsPrice
-      return price <= idealMax * 2
+      return price <= idealMax * 1.6
     })
   }
 
-  // Third try: any product, sorted by price
+  // Third try: any product
   if (candidates.length === 0) {
     candidates = pool
   }
 
   if (candidates.length === 0) return null
 
-  // Score: prefer products closest to the midpoint of the allocation
-  // This fills the budget better - midPrice is the sweet spot for value
+  // Score based on price bias:
+  // - "low": prefer cheapest that still meets minimum quality (closest to idealMin)
+  // - "mid": prefer midpoint (best value)
+  // - "high": prefer higher quality (closest to idealMax)
+  const targetPrice = priceBias === 'low'
+    ? idealMin * 1.2  // aim slightly above minimum for quality floor
+    : priceBias === 'high'
+    ? idealMax * 0.9  // aim near top but not extreme
+    : (idealMin + idealMax) / 2  // balanced midpoint
+
   candidates.sort((a, b) => {
     const priceA = a.arsComparePrice || a.arsPrice
     const priceB = b.arsComparePrice || b.arsPrice
-    const scoreA = Math.abs(priceA - midPrice)
-    const scoreB = Math.abs(priceB - midPrice)
+
+    // For "low" bias, add penalty for going over idealMax
+    if (priceBias === 'low') {
+      const overPenaltyA = priceA > idealMax ? (priceA - idealMax) * 2 : 0
+      const overPenaltyB = priceB > idealMax ? (priceB - idealMax) * 2 : 0
+      return (Math.abs(priceA - targetPrice) + overPenaltyA) - (Math.abs(priceB - targetPrice) + overPenaltyB)
+    }
+
+    // For "mid" and "high", standard distance scoring
+    const scoreA = Math.abs(priceA - targetPrice)
+    const scoreB = Math.abs(priceB - targetPrice)
     return scoreA - scoreB
   })
 
@@ -362,7 +383,8 @@ function buildConfiguration(
   useCase: string,
   budget: number,
   tierMultiplier: number,
-  profile: Record<string, number>
+  profile: Record<string, number>,
+  priceBias: 'low' | 'mid' | 'high'
 ): BuildComponent[] | null {
   const effectiveBudget = budget * tierMultiplier
   const components: BuildComponent[] = []
@@ -390,7 +412,7 @@ function buildConfiguration(
     return null
   }
 
-  const processor = pickProductForSlot(processorProducts, procAlloc * 0.4, procAlloc * 1.3)
+  const processor = pickProductForSlot(processorProducts, procAlloc * 0.4, procAlloc * 1.3, undefined, priceBias)
   if (!processor) {
     console.error('[pc-assistant] Cannot build: no processor selected')
     return null
@@ -425,7 +447,7 @@ function buildConfiguration(
       }
     : undefined
 
-  const motherboard = pickProductForSlot(mbProducts, mbAlloc * 0.4, mbAlloc * 1.5, mbCompatFilter)
+  const motherboard = pickProductForSlot(mbProducts, mbAlloc * 0.4, mbAlloc * 1.5, mbCompatFilter, priceBias)
   if (!motherboard) {
     console.error('[pc-assistant] Cannot build: no motherboard selected')
     return null
@@ -449,7 +471,7 @@ function buildConfiguration(
     ? (p: ProductWithArsPrice) => p.name.toUpperCase().includes(motherboardDdr!.toUpperCase())
     : undefined
 
-  const ram = pickProductForSlot(ramProducts, ramAlloc * 0.3, ramAlloc * 1.5, ramCompatFilter)
+  const ram = pickProductForSlot(ramProducts, ramAlloc * 0.3, ramAlloc * 1.5, ramCompatFilter, priceBias)
   if (!ram) {
     console.error('[pc-assistant] Cannot build: no RAM selected')
     return null
@@ -464,7 +486,7 @@ function buildConfiguration(
     const gpuAlloc = allocations['gpu']
 
     if (gpuAlloc && gpuProducts.length > 0) {
-      const gpu = pickProductForSlot(gpuProducts, gpuAlloc * 0.3, gpuAlloc * 1.5)
+      const gpu = pickProductForSlot(gpuProducts, gpuAlloc * 0.3, gpuAlloc * 1.5, undefined, priceBias)
 
       if (gpu) {
         const gpuCompat = extractCompatibility('gpu', gpu.name)
@@ -482,7 +504,7 @@ function buildConfiguration(
   const ssdAlloc = allocations['ssd']
 
   if (ssdAlloc && ssdProducts.length > 0) {
-    const ssd = pickProductForSlot(ssdProducts, ssdAlloc * 0.3, ssdAlloc * 1.5)
+    const ssd = pickProductForSlot(ssdProducts, ssdAlloc * 0.3, ssdAlloc * 1.5, undefined, priceBias)
     if (ssd) {
       debugLog.push(`SSD: ${ssd.name} ($${Math.round(ssd.arsComparePrice).toLocaleString()} ARS)`)
       components.push(makeComponent(ssd, 'ssd', 'Disco SSD'))
@@ -508,7 +530,7 @@ function buildConfiguration(
       }
     }
 
-    const psu = pickProductForSlot(psuProducts, psuAlloc * 0.3, psuAlloc * 1.5, psuCompatFilter)
+    const psu = pickProductForSlot(psuProducts, psuAlloc * 0.3, psuAlloc * 1.5, psuCompatFilter, priceBias)
     if (psu) {
       debugLog.push(`PSU: ${psu.name} ($${Math.round(psu.arsComparePrice).toLocaleString()} ARS)`)
       components.push(makeComponent(psu, 'psu', 'Fuente'))
@@ -525,7 +547,7 @@ function buildConfiguration(
   const caseAlloc = allocations['case']
 
   if (caseAlloc && caseProducts.length > 0) {
-    const caseProduct = pickProductForSlot(caseProducts, caseAlloc * 0.2, caseAlloc * 1.5)
+    const caseProduct = pickProductForSlot(caseProducts, caseAlloc * 0.2, caseAlloc * 1.5, undefined, priceBias)
     if (caseProduct) {
       debugLog.push(`Case: ${caseProduct.name} ($${Math.round(caseProduct.arsComparePrice).toLocaleString()} ARS)`)
       components.push(makeComponent(caseProduct, 'case', 'Gabinete'))
@@ -540,7 +562,7 @@ function buildConfiguration(
     const coolingAlloc = allocations['cooling']
 
     if (coolingAlloc && coolingProducts.length > 0) {
-      const cooling = pickProductForSlot(coolingProducts, coolingAlloc * 0.2, coolingAlloc * 1.5)
+      const cooling = pickProductForSlot(coolingProducts, coolingAlloc * 0.2, coolingAlloc * 1.5, undefined, priceBias)
       if (cooling) {
         debugLog.push(`Cooling: ${cooling.name} ($${Math.round(cooling.arsComparePrice).toLocaleString()} ARS)`)
         components.push(makeComponent(cooling, 'cooling', 'Refrigeración'))
@@ -809,7 +831,7 @@ export async function POST(request: NextRequest) {
 
     for (const tier of BUILD_TIERS) {
       try {
-        const components = buildConfiguration(allProducts, useCase, budget, tier.multiplier, profile)
+        const components = buildConfiguration(allProducts, useCase, budget, tier.multiplier, profile, tier.priceBias)
         if (components && components.length >= 5) {
           const totalPrice = components.reduce((sum, c) => sum + c.productComparePrice * c.quantity, 0)
           const totalListPrice = components.reduce((sum, c) => sum + c.productPrice * c.quantity, 0)
