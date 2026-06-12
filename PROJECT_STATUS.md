@@ -931,12 +931,18 @@ Todos los backups en `/home/z/my-project/download/backups/`
 ## Tareas Pendientes
 
 ### Alta Prioridad
-1. **Configurar dominio compucityonline.com.ar:** Dominio comprado en DonWeb, pendiente aprobacion NIC Argentina (24-48hs). Pasos pendientes: (a) Agregar dominio en Vercel Settings → Domains, (b) Configurar DNS en DonWeb: registro A `@` → `76.76.21.21` + CNAME `www` → `cname.vercel-dns.com`, (c) Esperar propagacion DNS, (d) SSL se genera automatico en Vercel, (e) Actualizar URLs en el proyecto (meta tags, OG tags, WhatsApp, PDF, PROJECT_STATUS.md)
+1. ~~**Configurar dominio compucityonline.com.ar:**~~ ✅ COMPLETADO sesion 40
 2. **Re-sincronizar Air Intra:** El stock por deposito (solo Cordoba) se implemento en sesion 26 pero los productos existentes mantienen el stock total anterior. HAY QUE RE-SINCRONIZAR para que el stock se actualice con la nueva logica
 2. **Verificar categorizacion en TODAS las categorias:** Se corrigieron 66+ productos en sesion 27, pero puede haber mas productos mal categorizados que no se detectaron. El usuario reporto productos incorrectos en Notebooks y Monitores. Revisar cada categoria sistematicamente
-3. **Credenciales Andreani:** El dueño debe proporcionar codigoCliente + contratoDomicilio
+3. **Credenciales Andreani:** El dueño debe proporcionar codigoCliente + contratoDomicilio (DIFERIDO - el dueño dijo "queda para otro momento")
 4. **Cargar imagenes faltantes:** ~5,532 productos sin imagen (mayormente Air Intra). Busqueda IA falló en produccion. Pendiente alternativa viable
 5. **Crear banners y cupones:** Las tablas estan vacias, el dueño puede empezar a crear promociones desde `/admin/promociones`
+
+### Seguridad (PENDIENTE - Evaluacion sesion 41)
+1. **Rate limiting en login:** `/api/admin/auth/login` y `/api/customer/login` sin limite de intentos. Riesgo de fuerza bruta
+2. **Security headers:** Falta Content-Security-Policy, X-Frame-Options, Strict-Transport-Security custom
+3. **Verificar cookies httpOnly + secure:** Confirmar que las cookies de auth (admin_token, customer_token) tengan flags httpOnly y secure
+4. **CSRF protection:** No hay proteccion CSRF en formularios (login, checkout)
 
 ### Citi - Asistente IA de Compucity (IMPLEMENTADO sesion 32, ACTUALIZADO sesion 33)
 **Estado:** EN PRODUCCION
