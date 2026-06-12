@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import FadeIn from '@/components/ui-custom/FadeIn'
 import Image from 'next/image'
 
@@ -26,8 +26,31 @@ const FALLBACK_BRANDS: Brand[] = [
   { id: 'fb8', name: 'Seagate', slug: 'seagate', logoUrl: 'https://cdn.simpleicons.org/seagate/9ca3af', logoWidth: 70, logoHeight: 26, productCount: 0 },
 ]
 
+// SimpleIcons slugs that don't match the brand slug — override mapping
+const SLUG_OVERRIDES: Record<string, string> = {
+  'tp-link': 'tplink',
+  'cooler-master': 'cooler_master',
+  'kingston': 'kingstontechnology',
+  'team-group': 'teamgroup',
+  'd-link': 'dlink',
+  'harman-kardon': 'harman',
+  'cx': 'cx',
+}
+
+// Brands known to NOT exist on SimpleIcons — show text fallback directly
+const NO_ICON_BRANDS = new Set([
+  'hpe', 'apc', 'logitech', 'brother', 'epson', 'aruba',
+  'lexmark', 'ezviz', 'hiksemi', 'x-tech', 'gamemax',
+  'hilook', 'hikvision', 'mercusys', 'raptor', 'cudy',
+  'furukawa', 'teros', 'kelyx', 'pantum', 'klipxtreme',
+  'memox', 'arkham', 'foxbox', 'noganet', 'e-view',
+  'nexxt', 'intelaid', 'ocom', 'biwin', 'glcfi',
+  'thronos', 'loosafe', 'cromax',
+])
+
 export default function BrandLogos() {
   const [brands, setBrands] = useState<Brand[]>(FALLBACK_BRANDS)
+  const [failedIcons, setFailedIcons] = useState<Set<string>>(new Set(NO_ICON_BRANDS))
 
   useEffect(() => {
     const loadBrands = async () => {
@@ -46,9 +69,44 @@ export default function BrandLogos() {
     loadBrands()
   }, [])
 
+  const handleImageError = useCallback((brandId: string) => {
+    setFailedIcons(prev => new Set(prev).add(brandId))
+  }, [])
+
   const getLogoSrc = (brand: Brand) => {
     if (brand.logoUrl) return brand.logoUrl
-    return `https://cdn.simpleicons.org/${brand.slug}/9ca3af`
+    const slug = SLUG_OVERRIDES[brand.slug] || brand.slug
+    return `https://cdn.simpleicons.org/${slug}/9ca3af`
+  }
+
+  const renderBrandLogo = (brand: Brand) => {
+    const hasFailed = failedIcons.has(brand.id) || failedIcons.has(brand.slug)
+
+    if (hasFailed) {
+      // Text fallback — styled brand initial + name
+      return (
+        <div className="flex items-center gap-2">
+          <span className="w-8 h-8 rounded-lg bg-compucity-green-100 text-compucity-green-700 font-bold text-sm flex items-center justify-center shrink-0">
+            {brand.name.charAt(0)}
+          </span>
+          <span className="text-xs font-semibold text-gray-500 leading-tight line-clamp-2">
+            {brand.name}
+          </span>
+        </div>
+      )
+    }
+
+    return (
+      <Image
+        src={getLogoSrc(brand)}
+        alt={brand.name}
+        width={brand.logoWidth || 80}
+        height={brand.logoHeight || 24}
+        className="transition-all duration-300 group-hover:brightness-0 group-hover:invert-[40%] group-hover:sepia-[90%] group-hover:saturate-[400%] group-hover:hue-rotate-[100deg]"
+        unoptimized
+        onError={() => handleImageError(brand.id)}
+      />
+    )
   }
 
   return (
@@ -66,14 +124,7 @@ export default function BrandLogos() {
                 key={brand.id || brand.slug}
                 className="flex-shrink-0 w-28 h-16 rounded-xl border border-compucity-green-100 bg-white flex items-center justify-center px-3 transition-all duration-300 hover:border-compucity-green-400 hover:shadow-md cursor-default select-none group"
               >
-                <Image
-                  src={getLogoSrc(brand)}
-                  alt={brand.name}
-                  width={brand.logoWidth || 80}
-                  height={brand.logoHeight || 24}
-                  className="transition-all duration-300 group-hover:brightness-0 group-hover:invert-[40%] group-hover:sepia-[90%] group-hover:saturate-[400%] group-hover:hue-rotate-[100deg]"
-                  unoptimized
-                />
+                {renderBrandLogo(brand)}
               </div>
             ))}
           </div>
@@ -85,14 +136,7 @@ export default function BrandLogos() {
                 key={brand.id || brand.slug}
                 className="h-20 rounded-xl border border-compucity-green-100 bg-white flex items-center justify-center px-4 transition-all duration-300 hover:border-compucity-green-400 hover:shadow-md cursor-default select-none group"
               >
-                <Image
-                  src={getLogoSrc(brand)}
-                  alt={brand.name}
-                  width={brand.logoWidth || 80}
-                  height={brand.logoHeight || 24}
-                  className="transition-all duration-300 group-hover:brightness-0 group-hover:invert-[40%] group-hover:sepia-[90%] group-hover:saturate-[400%] group-hover:hue-rotate-[100deg]"
-                  unoptimized
-                />
+                {renderBrandLogo(brand)}
               </div>
             ))}
           </div>
