@@ -1,0 +1,249 @@
+  1001→
+  1002→### Baja Prioridad
+  1003→10. **Optimizar imagenes:** Los thumbnails del catalogo podrian usar tamano reducido
+  1004→11. **SEO:** Meta tags, sitemap dinamico, structured data
+  1005→12. **Limpiar claves duplicadas en store_config:** slogan/whatsapp estan duplicados con store_slogan/whatsapp_number
+  1006→
+  1007→### Tareas Completadas (sesion 27)
+  1008→- ~~**Discos multiples en PC Builder:**~~ RESUELTO - SSD/HDD permiten modelos diferentes con cantidad individual
+  1009→- ~~**Gabinetes con Fuente en PC Builder:**~~ RESUELTO - Slot gabinete incluye subcategoria gabinetes-con-fuente
+  1010→- ~~**Auto-avance en PC Builder:**~~ RESUELTO - Seleccionar un componente avanza al siguiente slot (excepto SSD/HDD)
+  1011→- ~~**Separar PDF de WhatsApp:**~~ RESUELTO - Botones independientes para cada accion
+  1012→- ~~**Remover stock visible en tienda:**~~ RESUELTO - Solo overlay "Sin stock" permanece
+  1013→- ~~**Filtros desplegables de marca:**~~ RESUELTO - <select> dropdowns en 7 categorias
+  1014→- ~~**Fix imagenes al editar producto:**~~ RESUELTO - Null guards en parsing de images
+  1015→
+  1016→---
+  1017→
+  1018→## Sesion 37: Chatbot de Notebooks + Fix Upload Route + Seguridad
+  1019→
+  1020→### Chatbot de Notebooks "Citi" (IMPLEMENTADO)
+  1021→- **Componente:** `src/components/notebook-assistant-chat.tsx` - Chat flotante con asistente IA que recomienda 3 notebooks segun uso y presupuesto
+  1022→- **API:** `POST /api/notebook-assistant` - Busca notebooks en DB, genera 3 opciones (Economica, Recomendada, Premium)
+  1023→- **Banner:** `src/components/ui-custom/NotebookChatBanner.tsx` - Banner verde en pagina de categorias de notebooks con CTA "Chatear ahora"
+  1024→- **Categorias:** Aparece en notebooks, gamer-y-diseno, oficina (definido en NOTEBOOK_CATEGORIES)
+  1025→- **Colores:** Compucity green (no blue/indigo como estaba originalmente)
+  1026→- **Integracion:** Seleccionar una notebook recomendada la agrega al carrito
+  1027→
+  1028→### FIX: Ruta /api/admin/upload borrada accidentalmente
+  1029→- **Bug:** El commit `5dbc2b4` ("docs: update PROJECT_STATUS.md") borro accidentalmente `src/app/api/admin/upload/route.ts`, rompiendo la subida de imagenes en el admin por ~2 dias
+  1030→- **Error:** `Unexpected token '<', "<!DOCTYPE "... is not valid JSON` - El fetch esperaba JSON pero Next.js devolvia HTML 404
+  1031→- **Impacto:** No se perdieron imagenes existentes (las que ya estaban en product_images siguen intactas). Solo fallaron los intentos de subida nueva
+  1032→- **Fix:** Se restauro la ruta desde git history (`git show 1f07bf6:src/app/api/admin/upload/route.ts`) con autenticacion de admin y limpieza de referencias al eliminar
+  1033→- **Commit:** 8515626
+  1034→
+  1035→### Seguridad: Script de verificacion de archivos criticos
+  1036→- **Script:** `scripts/check-critical-files.mjs` - Verifica que 20 archivos criticos existan antes de deployar
+  1037→- **Comando:** `npm run check:critical` para ejecutar la verificacion
+  1038→- **Lista de archivos:** Rutas API (upload, products, banners, categories, auth, enrich, seed, stats, dollar, image, cron), componentes (ImageUploader, WhatsAppIcon), lib (db, admin-auth)
+  1039→- **Commit:** 4b844ed
+  1040→
+  1041→### Mejoras UX en arma-tu-pc
+  1042→- **Sidebar desktop:** Botones "Consultar por WhatsApp" y "Descargar PDF" apilados verticalmente (antes lado a lado, se salian del margen en sidebar w-80)
+  1043→- **Jerarquia:** WhatsApp es boton principal (verde, mas grande), PDF es secundario (gris claro)
+  1044→- **WhatsApp button:** z-40, se mueve arriba cuando detecta barra sticky via MutationObserver
+  1045→- **Chatbot panels:** z-[60] (por encima de sticky bars z-50 y WhatsApp z-40)
+  1046→- **Mobile:** Botones compactos, posicionados para no solaparse con WhatsApp y barra sticky
+  1047→
+  1048→### Pagina /elige-tu-notebook eliminada
+  1049→- El chatbot ahora vive directamente en la pagina de categoria de notebooks (no en pagina separada)
+  1050→- Slide 2 del hero actualizado: CTA va a `/categoria/notebooks` en vez de `/elige-tu-notebook`
+  1051→- CTA secundario va a `/categoria/gamer-y-diseno`
+  1052→
+  1053→---
+  1054→
+  1055→## Sesion 38: Optimizacion imagenes + Dominio + Backup
+  1056→
+  1057→### Optimizacion de imagenes para Turso (Turso-friendly)
+  1058→- **Problema:** Las imagenes se guardaban como base64 en Turso con limite de 10MB por archivo, demasiado para una base de datos cloud
+  1059→- **Calidad WebP reducida:** De 80% a 70% en `compressImageClient()` (ImageUploader.tsx)
+  1060→- **Limite original (cliente):** Reducido de 10MB a 5MB
+  1061→- **Limite comprimido (servidor):** Reducido de 10MB a 2MB en upload/route.ts
+  1062→- **Resultado:** Imagenes tipicas de 50-300KB, maximo ~2.7MB base64 en DB (antes podia llegar a 13MB)
+  1063→- **Archivos modificados:** `src/components/ui-custom/ImageUploader.tsx`, `src/app/api/admin/upload/route.ts`
+  1064→
+  1065→### Estado actual de imagenes en Turso
+  1066→| Metrica | Valor |
+  1067→|---------|-------|
+  1068→| Total imagenes | 979 |
+  1069→| Bytes originales (size) | 18.2 MB |
+  1070→| Caracteres base64 (data) | 24.3 MB |
+  1071→| Promedio por imagen | ~20 KB |
+  1072→| Imagen mas grande | 243 KB |
+  1073→| Imagenes huerfanas (no referenciadas) | 42 |
+  1074→| Imagenes faltantes (referenciadas sin data) | 0 |
+  1075→
+  1076→### Uso de plataformas (actualizado sesion 38)
+  1077→| Plataforma | Recurso | Uso actual | Limite Free | % Uso | Estado |
+  1078→|------------|---------|-----------|-------------|-------|--------|
+  1079→| **Turso** | Almacenamiento | ~50 MB | 5 GB | ~1% | Holgado |
+  1080→| **Turso** | Filas leidas/mes | ~1M | 500M/mes | <0.1% | Holgado |
+  1081→| **Turso** | Filas escritas/mes | ~100K | 10M/mes | ~1% | Holgado |
+  1082→| **Vercel** | Deploys/mes | ~20 | 100 | 20% | OK |
+  1083→| **Vercel** | Ancho de banda | ~500 MB | 100 GB | <1% | Holgado |
+  1084→| **Vercel** | Serverless ejecuciones | ~5K/dia | Ilimitado | - | OK |
+  1085→| **Vercel** | Timeout serverless | 60s max | 60s (Hobby) | - | Ver nota |
+  1086→
+  1087→### Dominio propio (ACTIVO)
+  1088→- **Dominio:** compucityonline.com.ar
+  1089→- **Registrador:** DonWeb
+  1090→- **Estado:** ACTIVO y funcionando
+  1091→- **DNS configurado:**
+  1092→  - A record `@` → `216.198.79.1` (IP de Vercel nueva)
+  1093→  - CNAME `www` → `478eb57c2d2a522e.vercel-dns-017.com.`
+  1094→- **SSL:** Certificado automatico de Vercel (HTTPS funcionando)
+  1095→- **Redireccion:** compucityonline.com.ar → www.compucityonline.com.ar (308 redirect)
+  1096→- **Fecha activacion:** 2026-06-12
+  1097→
+  1098→### WhatsApp Business (recomendacion)
+  1099→- Se recomendo migrar de WhatsApp Personal a WhatsApp Business App (misma app, mismo numero, funciones extra)
+  1100→- Funciones utiles: catalogo de productos, respuestas rapidas, mensaje de bienvenida, etiquetas de pedidos
+  1101→- No requiere cambio de numero ni perdida de historial
+  1102→- API Business se recomendo para futuro cuando haya volumen de pedidos
+  1103→
+  1104→---
+  1105→
+  1106→## Sesion 39: Sistema de Marcas Dinámico + Auto-detección + Navbar
+  1107→
+  1108→### FIX: Filtros de marca en categorías (brandId en vez de regex)
+  1109→- **Problema:** Los filtros de marca en CategoryProducts.tsx usaban regex sobre el nombre del producto, lo que era impreciso. Ej: Raptor en Monitores mostraba productos de otras categorías porque el regex `/RAPTOR/` matcheaba cualquier producto con "Raptor" en el nombre
+  1110→- **Solución:** Ahora se usa `product.brandId === brand.id` (relación directa en la base de datos). Cada producto tiene un `brandId` que apunta a su marca en la tabla `brands`
+  1111→- **Migraciones:** #24 (tabla brands: id, name, slug, logoUrl, logoWidth, logoHeight, isActive, order, productCount) y #25 (columna brandId en products como FK a brands)
+  1112→- **Resultado:** 74 marcas creadas, 7,099/9,822 productos con brandId asignado. Los 2,723 sin marca son productos genéricos que no matchean ningún patrón
+  1113→- **Verificación:** Raptor tiene 56 productos totales, solo 2 en Monitores (correctos)
+  1114→- **Commit:** 279002a
+  1115→
+  1116→### MEJORA: Auto-detección de marcas nuevas desde proveedores
+  1117→- **Problema:** Si ingresaba un producto de una marca que no estaba en los ~80 patrones regex de `brand-patterns.ts`, nunca se detectaba
+  1118→- **Solución:** El cron sync diario y el endpoint `init-brands` ahora leen `specs['Marca']` de los productos (campo que los proveedores Elit y Air Intra envían en su API)
+  1119→- **Flujo:** 1) Primero intenta matchear con patrones regex (más preciso, prioridad). 2) Para productos sin match, lee el campo marca del proveedor. 3) Si la marca no existe en la DB, la crea automáticamente con slug generado del nombre
+  1120→- **Archivos modificados:** `src/app/api/cron/sync/route.ts`, `src/app/api/admin/init-brands/route.ts`
+  1121→- **Commit:** 5c4bfd0
+  1122→
+  1123→### Navbar: Sección "Marcas" ocultada
+  1124→- **Cambio:** Se ocultó el dropdown "Marcas" del navbar (desktop y mobile) a pedido del usuario
+  1125→- **Archivo:** `src/components/layout/Navbar.tsx` (comentarios `{/* Marcas dropdown - hidden */}` y `{/* Mobile brands - hidden */}`)
+  1126→- **Commit:** aa36ec0
+  1127→
+  1128→### Backup DB
+  1129→- **Archivo:** `download/backups/compucity_turso_backup_2026-06-11T15-37-16-657Z.json` (39.3MB, 16 tablas)
+  1130→- **Contenido:** 10,067 productos, 91 marcas, 71 categorías, 4 proveedores, 982 imágenes, 2 clientes
+  1131→
+  1132→---
+  1133→
+  1134→## Sesion 40: Dominio propio + Datos de contacto + Logos marcas + PC Builder fix
+  1135→
+  1136→### Dominio propio compucityonline.com.ar (ACTIVO)
+  1137→- **Antes:** El sitio usaba URL de Vercel `my-project-eight-liard-96.vercel.app`
+  1138→- **Despues:** Dominio propio `www.compucityonline.com.ar` activo y funcionando
+  1139→- **DNS en DonWeb:**
+  1140→  - A record `@` → `216.198.79.1` (IP de Vercel, nueva ruta)
+  1141→  - CNAME `www` → `478eb57c2d2a522e.vercel-dns-017.com.`
+  1142→- **SSL:** Certificado HTTPS generado automaticamente por Vercel
+  1143→- **Redireccion:** Raiz (compucityonline.com.ar) → www.compucityonline.com.ar (HTTP 308)
+  1144→- **Verificacion:** `curl -sI https://www.compucityonline.com.ar` → HTTP 200, server: Vercel
+  1145→
+  1146→### FIX: Upload de imagenes roto tras cambio de sistema de marcas
+  1147→- **Problema:** Error "Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON" al subir imagenes
+  1148→- **Causa:** `.gitignore` tenia patron `upload/` (sin `/` inicial) que matcheaba `src/app/api/admin/upload/`, excluyendo la ruta del repo. Al deployar, la ruta se borro y Vercel servia el 404 HTML
+  1149→- **Fix:** `.gitignore` cambiado a `/upload/` (solo raiz) + `!src/app/api/admin/upload/` (excepcion). Ruta restaurada desde commit `8515626`
+  1150→- **Auditoria DB:** 982 imagenes intactas, 0 referencias rotas, 46 huerfanas pre-existentes
+  1151→
+  1152→### FIX: PC Builder chatbot - Criterio de precios por tier
+  1153→- **Problema:** La version "Economica" recomendaba productos caros (ej: gabinetes premium)
+  1154→- **Causa:** `pickProductForSlot` usaba los mismos rangos de precio para todos los tiers (hasta 1.5-2x idealMax)
+  1155→- **Solucion:** Nuevo parametro `priceBias` ('low' | 'mid' | 'high') en BUILD_TIERS:
+  1156→  - Economica: maxMultiplier=1.0, targets idealMin*1.2, penalty 2x por exceder idealMax
+  1157→  - Recomendada: maxMultiplier=1.2, targets midpoint
+  1158→  - Premium: maxMultiplier=1.4, targets idealMax*0.9
+  1159→- **Commit:** 2649100
+  1160→
+  1161→### MEJORA: Mensaje "Compartir con equipo" en PC Builder
+  1162→- **Nuevo:** Despues de cada build, mensaje verde destacado: "Comparti este armado con nuestro equipo por WhatsApp y te ayudamos a mejorarlo o ajustarlo a tu medida"
+  1163→- **Archivo:** `src/components/pc-assistant-chat.tsx`
+  1164→
+  1165→### Actualizacion: Datos de contacto en todo el sitio
+  1166→- **WhatsApp:** 5493517656918 → **5493548402056** (display: 3548 40-2056)
+  1167→- **Email:** info@compucity.com.ar → **compucitylafalda@gmail.com**
+  1168→- **Direccion:** "La Falda, Cordoba" → **"Av. Sarmiento 462 - La Falda, Cordoba"**
+  1169→- **12 archivos modificados:**
+  1170→  1. WhatsAppButton.tsx (boton flotante)
+  1171→  2. Navbar.tsx (barra marquee)
+  1172→  3. Footer.tsx (direccion, telefono, email, link WA)
+  1173→  4. contacto/page.tsx (direccion, WA, email)
+  1174→  5. ProductDetailClient.tsx (boton WA en productos)
+  1175→  6. page.tsx (home, seccion "No encontras lo que buscas?")
+  1176→  7. arma-tu-pc/page.tsx (links WA + footer PDF)
+  1177→  8. checkout/page.tsx (mensaje pedido + direccion retiro)
+  1178→  9. mis-pedidos/page.tsx (direccion retiro)
+  1179→  10. recuperar-contrasena/page.tsx (link WA)
+  1180→  11. forgot-password/route.ts (email recuperacion)
+  1181→  12. shipping.ts (descripcion retiro en local)
+  1182→- **Commit:** cefdf73
+  1183→
+  1184→### FIX: Logos de marcas rotos en la home
+  1185→- **Problema:** Seccion "Trabajamos con las mejores marcas" mostraba iconos rotos
+  1186→- **Causa:** Las top 8 marcas por productos (HP, HPE, APC, Logitech, TP-Link, Genius, ASUS, Brother) usaban cdn.simpleicons.org pero varias no existen ahi (HPE=404, APC=404, Logitech=404, Brother=404)
+  1187→- **Intento 1:** Fallback visual con onError → no confiable con Next.js Image + CDN externo
+  1188→- **Intento 2:** SLUG_OVERRIDES + NO_ICON_NAMES → la DB reemplazaba con URLs rotas al cargar
+  1189→- **Solucion final:** Lista curada fija de 8 marcas con logos 100% confirmados, sin API dinamico
+  1190→  - Marcas mostradas: Intel, AMD, NVIDIA, ASUS, HP, Samsung, Kingston, Corsair
+  1191→  - Usando `<img>` nativo en vez de Next.js Image (mas confiable con CDN externo)
+  1192→  - Sin fetch a /api/brands = sin flash de contenido roto
+  1193→- **Slugs corregidos en brand-patterns.ts:**
+  1194→  - TP-Link: `tp-link` → `tplink`
+  1195→  - Cooler Master: `cooler-master` → `coolermaster`
+  1196→  - D-Link: `d-link` → `dlink`
+  1197→  - APC: `apc` → `schneiderelectric`
+  1198→  - Harman Kardon: `harman-kardon` → `harman`
+  1199→  - Team Group: `team-group` → `teamgroup`
+  1200→- **Commits:** 69ead02, afdd330, 212bf9e
+  1201→
+  1202→### Backup
+  1203→- **Codigo fuente:** `download/backups/compucity_src_backup_2026-06-12.tar.gz` (1.1MB, todo src/ + configs)
+  1204→- **Git:** Repositorio completo respaldado en GitHub (vorterixgames-gif/compucity)
+  1205→
+  1206→---
+  1207→
+  1208→## Historial de Cambios
+  1209→- **2026-06-12 (s41):** SEO + GEO completo. (1) Root layout: title template (%s | Compucity), OG completo (locale es_AR, siteName, image 1200x630), Twitter Cards (summary_large_image), canonical URL, viewport (themeColor), metadataBase, robots config (max-image-preview large). (2) Product pages: generateMetadata dinamico con title, description, OG image del producto, Twitter Cards, canonical URL, Product JSON-LD schema (precio, stock, imagen, seller). (3) Category pages: generateMetadata dinamico con title, description, OG, canonical, BreadcrumbList JSON-LD. (4) Metadata para paginas estaticas: contacto, arma-tu-pc, elige-tu-notebook (con canonical y OG). (5) Layout wrappers para client pages: carrito, checkout, favoritos, mis-pedidos, recuperar/resetear-contrasena (metadata con noindex para paginas privadas). (6) Admin: layout convertido a server component + AdminLayoutClient separado, metadata noindex/nofollow para todo /admin/*. (7) JSON-LD structured data: LocalBusiness/ElectronicsStore (nombre, direccion, geo coords, horarios, telefono, email, offerCatalog) en tienda layout. WebSite schema con SearchAction (sitelinks search box). Product schema en producto/[slug]. BreadcrumbList en Breadcrumbs component (global). (8) Sitemap dinamico: src/app/sitemap.ts genera entradas para paginas estaticas + categorias habilitadas + productos activos desde Turso DB. (9) Robots.ts dinamico: Disallow /admin/, /api/, /carrito, /checkout, /favoritos, /mis-pedidos, /recuperar-contrasena, /resetear-contrasena. Sitemap: https://www.compucityonline.com.ar/sitemap.xml. (10) Homepage H1 fix: h1 sr-only accesible para crawlers + HeroSection carousel h1→h2. (11) Canonical URLs en todas las paginas (alternates.canonical). (12) Custom 404 page (not-found.tsx). (13) OG image generada (1344x768). (14) next.config: poweredByHeader: false. (15) Breadcrumbs: BreadcrumbList JSON-LD integrado. (16) Admin layout refactorizado: server component con metadata + client component separado. Backup: compucity-backup-seo-20260612-133555.tar.gz (47MB). Git tag: v-seo-optimized. Commit: c5b7458
+  1210→- **2026-06-12 (s40):** Dominio propio activo + datos de contacto actualizados + logos marcas fix + PC Builder criteria fix + upload route fix. (1) Dominio compucityonline.com.ar activo en Vercel con DNS DonWeb (A → 216.198.79.1, CNAME www → vercel-dns), SSL automatico, redirect raiz→www. (2) Upload imagenes roto: .gitignore patron `upload/` excluyo ruta API. Fix: `/upload/` + excepcion. Ruta restaurada desde commit 8515626. Auditoria: 0 imagenes perdidas. (3) PC Builder criteria: priceBias ('low'/'mid'/'high') por tier. Economica ya no recomienda caros. (4) Mensaje "Compartir con equipo" en PC Builder. (5) Datos contacto actualizados en 12 archivos: WhatsApp 3548 40-2056, email compucitylafalda@gmail.com, direccion Av. Sarmiento 462. (6) Logos marcas: lista curada fija (Intel, AMD, NVIDIA, ASUS, HP, Samsung, Kingston, Corsair), sin API dinamico, <img> nativo. (7) Slugs corregidos en brand-patterns.ts (tplink, coolermaster, dlink, schneiderelectric, harman, teamgroup). (8) Backup src: compucity_src_backup_2026-06-12.tar.gz (1.1MB). Commits: 277f323, 2649100, cefdf73, 69ead02, afdd330, 212bf9e
+  1211→- **2026-06-11 (s39):** Sistema de marcas dinámico + auto-detección de marcas nuevas + navbar Marcas oculto. (1) FIX filtros de marca en categorías: Antes se usaba regex sobre el nombre del producto para filtrar marcas, lo que era impreciso (ej: Raptor en Monitores mostraba productos de otras categorías). Ahora se usa `product.brandId === brand.id` (relación directa en DB). (2) Migraciones DB: #24 (tabla brands con id, name, slug, logoUrl, productCount) y #25 (columna brandId en products como FK a brands). (3) init-brands ejecutado: 74 marcas creadas, 7,099/9,822 productos con brandId asignado. (4) Auto-detección de marcas nuevas: cron sync y init-brands ahora leen `specs['Marca']` de los proveedores (Elit envía BRAND, Air Intra envía marca) para detectar marcas que no están en los ~80 patrones regex de brand-patterns.ts. Las marcas nuevas se crean automáticamente con slug generado del nombre. Prioridad: regex patterns primero, luego marca del proveedor. (5) Navbar: sección "Marcas" (dropdown con top 20 marcas) ocultada a pedido del usuario. (6) Backup DB: compucity_turso_backup_2026-06-11T15-37-16-657Z.json (39.3MB, 16 tablas, 91 marcas, 10,067 productos). Commits: 279002a, aa36ec0, 739901a, 5c4bfd0
+  1212→- **2026-06-10 (s36):** Carrusel de Productos Destacados + reubicacion en homepage + backup DB. (1) Seccion "Productos Destacados" convertida de grid estatico a carrusel interactivo con Embla Carousel + Autoplay (4s). Componente nuevo: `FeaturedProductsCarousel.tsx`. (2) Reubicacion: movida de despues de CategoryIcons a entre BrandLogos y CategoryIcons. (3) Carrusel: loop infinito, botones prev/next, dots indicadores, responsive 2/3/4 cards. (4) Backup DB: download/backups/compucity_turso_backup_2026-06-09T19-04-13-436Z.json (31MB, 15 tablas). Commit: c399aed
+  1213→- **2026-06-10 (s35):** Productos Destacados activado en tienda + filtro/columna en admin + backup DB. (1) Seccion "Productos Destacados" en la home de la tienda: se muestra despues de CategoryIcons, grid 2/3/4 columnas, solo si hay destacados. Badge verde "DESTACADO" en cada ProductCard. (2) Prop isFeatured pasada a TODOS los ProductCard de la tienda (home, categorias, favoritos, relacionados). (3) Filtro "Destacado" en admin productos: dropdown Todos/Destacados/No destacados, columna "Dest." con ★ en tabla desktop, badge movil. API backend soporta parametro featuredStatus. (4) Backup completo de DB Turso: download/backups/compucity_turso_backup_2026-06-09T18-34-51.json (34MB, 15 tablas, 10,100 productos).
+  1214→- **2026-06-10 (s34):** Descripciones IA funcionando + subcategorias en filtro admin + fotos IA removidas. (1) FIX Descripciones IA: Reemplazado Groq (API key expirada) por z-ai-web-dev-sdk como proveedor primario. ZAI usa env vars (ZAI_BASE_URL, ZAI_API_KEY, etc.) en vez de config file. Groq queda como fallback. Resultado: 2,454 descripciones generadas exitosamente. (2) Intento de busqueda de fotos IA: Se probaron 5 estrategias (page_reader, fetch directo, Google Images, Microlink.io, AI generation) pero ninguna funciono de forma confiable en Vercel. Botones "Fotos IA" y "Foto" removidos del admin. API route conservada para futuro. (3) Filtro subcategorias: El dropdown de categoria en admin productos ahora muestra subcategorias indentadas con └ debajo de cada categoria padre. Permite filtrar por subcategoria especifica. Dropdown mas ancho (w-56). (4) Limpieza: import Camera, estados enrichImages/handleEnrichSingleImage removidos. Commits: b503412, 356084b, 5c3e610
+  1215→- **2026-06-10 (s33):** Citi IA: asistente renombrado + boton Arma tu setup + Build Analyzer eliminado. (1) Boton flotante: renombrado de "Asistente IA" a "Arma tu setup". (2) Nombre del asistente: renombrado a "Citi" (de Compucity). Se presenta como "¡Hola! Soy Citi de Compucity". Header del chat muestra "Citi". (3) Prompts backend: system prompt y descripciones de builds ahora dicen "Sos Citi" en vez de "Sos un asistente". (4) Build Analyzer eliminado: API /api/validate-build (609 lineas), boton "Analizar con IA", panel de resultados, upgrade cards. Solo queda Citi como asistente IA. (5) Fix previo sesion 32: loop infinito de recomendaciones IA solucionado con prompt conservador + estado frontend. (6) Estetica: todos los colores purple/indigo reemplazados por Compucity green. Commit: bdaacbb
+  1216→- **2026-06-09 (s31):** Filtros avanzados para RAM, GPU y Notebooks + limpieza monitores + exclusiones sync. (1) RAM: Filtros de capacidad (4GB/8GB/16GB/32GB/64GB+) en memorias-ram y memoria-ram-notebook (tienda + PC Builder). (2) GPU/Placas de Video: Filtros de VRAM (4GB-24GB) y Serie (RTX 3050-5080, RX 6600-7900, Arc A750/A770) en placas-de-video y PC Builder GPU slot. Marcas nuevas: PowerColor, Sapphire, INNO3D. VRAM matchFn valida que el producto sea GPU (keywords RTX/GTX/RADEON) para no confundir con RAM de notebooks. (3) Notebooks: Filtros completos de procesador (i3/i5/i7/i9/Ryzen 3/5/7/9), RAM, pantalla y GPU en notebooks, oficina y gamer-y-diseno. Procesador usa matchFn granular por modelo. (4) FIX MONITORES: 77 productos mal categorizados eliminados (TVs, notebooks, all-in-ones, proyectores, cables, soportes, etc.). 35+ nuevas reglas de exclusion en validate-categories + sync CATEGORY_CORRECTIONS para prevenir recurrencia. La sync de proveedores ya no volvera a contaminar la categoria monitores. Commits: 29b90bf, 2f14b97, b1418bc, 7535f61, 89e5c65
+  1217→- **2026-06-07 (s27):** 8 mejoras + filtros desplegables + limpieza masiva categorias. (1) PC Builder: SSD/HDD permiten multiples modelos diferentes (cada disco con su propio +/- y eliminar). (2) PC Builder: Gabinete incluye subcategoria "Gabinetes con Fuente" (additionalCategorySlugs). (3) PC Builder: Auto-avance al siguiente slot despues de seleccionar (excepto SSD/HDD que permiten agregar mas). (4) PC Builder: PDF y WhatsApp separados en botones distintos. (5) ProductCard: Removido indicador de stock visible al publico (solo queda overlay "Sin stock" cuando stock<=0). (6) Filtros: Monitores agrega 19", 22", 100Hz, 144Hz, 165Hz, 180Hz. (7) Filtros desplegables: Marcas convertidas de pills a <select> dropdowns en discos SSD, HDD, fuentes, gabinetes, refrigeracion, monitores y placas de red. (8) Fix bug: Editar producto de proveedor causaba que la imagen desapareciera (parsing de images con null guards). (9) LIMPIEZA MASIVA CATEGORIAS: 66 productos mal categorizados corregidos (cables/fans en Monitores, chargers/baterias en Notebooks, PCs completas en Discos SSD, etc.). 40+ nuevas reglas de correccion automatica en sync y validate-categories para prevenir futuras miscategorizaciones. Commits: bd8b2af, e387267, 8e22577, f4e65c7, 0bda50d, 2a0fe2b
+  1218→- **2026-06-07 (s26):** Stock por deposito Cordoba (cba) - sin stock local = sin stock en tienda. (1) Nuevo campo DB: `stockByWarehouse TEXT` en products (migracion #22). Guarda JSON con stock por deposito de Air Intra: `{"air":5,"lug":0,"ros":2,"cba":0,"mza":0}`. (2) Sync Air Intra: `stock` ahora usa `cba.disponible` en vez de sumar todos los depositos. Si no hay stock en Cordoba, el producto aparece como "Sin stock". 6 ubicaciones de totalStock modificadas en route.ts. (3) Elit e Invid sin cambios (no tienen datos por deposito). (4) IMPORTANTE: Hay que re-sincronizar Air Intra para actualizar el stock con la nueva logica. Commit: b4c90a8
+  1219→- **2026-06-07 (s25):** Actualizacion PROJECT_STATUS.md con analisis de limites Vercel/Turso, backups remotos GoFile, y documentacion completa de sesion 25. Sin cambios de codigo. Commit: 561c898
+  1220→- **2026-06-06 (s24):** Air Intra Batched Sync implementado + vercel.json maxDuration corregido. (1) Batched sync: divide sincronizacion en lotes de 4 paginas (~2,000 productos, ~10-15s por lote). Frontend orquesta lotes automaticamente con barra de progreso. Backend: syncAirIntraBatch() + syncAirIntraFinalize(). (2) vercel.json: maxDuration corregido de 300 a 60 (Hobby plan limita a 60s). Commits: d3e5fe9, dfafd1e
+  1221→- **2026-06-06 (s23):** Cache del dólar reducido + server-side pagination admin + backup. (1) FIX cache dolar: Next.js revalidate reducido de 1h (3600s) a 15 min (900s) en `src/lib/dollar.ts`. Cache en memoria admin reducido de 30 min a 15 min en `src/app/api/admin/products/route.ts`. API externa (DolarApi.com) ahora se consulta max cada 15 min en vez de 1h. Flujo cache: Memoria (15 min) → DB → Next.js fetch cache (15 min) → API externa → Fallback 1415. (2) Server-side pagination en admin productos (commit 0a9d109): payload reducido de ~10MB a ~50KB, filtros/ordenamiento/paginacion ejecutados en SQL server-side, cache dolar en memoria para admin. (3) Backup DB: `backups/compucity-backup-2026-06-05.sql` (24 MB, 10,310 productos, todas las 14 tablas). Commits: 0a9d109, e74ceca
+  1222→- **2026-06-06 (s22):** Filtro "Ingresado manualmente" en proveedor + FIX masivo de categorias. (1) Admin productos: opcion "Ingresado manualmente" en dropdown de Proveedor para filtrar productos sin proveedor (providerId vacio/nulo). (2) FIX categoria DESKTOP: keyword "DESKTOP" era demasiado generico en CATEGORY_KEYWORD_MAP, causando que switches "Desktop Switch" (ej: Switch 5P Tp-link Tl-sg1005d Gigabit Desktop) se categorizaran como PC Armadas. (3) Reordenamiento: SWITCH y ROUTER movidos al Grupo 1 (antes de PC Armadas) para que se detecten primero. (4) "DESKTOP" reemplazado por "DESKTOP PC" (mas especifico). (5) Nuevas correcciones automaticas: SWITCH→switches, ROUTER→routers-wifi, TP-LINK→placas-de-red, ESCRITORIO→escritorios, ANTENA→placas-de-red, USB-C HDMI→cables, ADAPTADOR TP-LINK USB→cables, TENSIOMETRO→smart-home, HIKVISION→switches. (6) DB: 30 productos recategorizados (23 switches + 1 antena + 1 escritorio + 2 USB-C HDMI + 2 adaptadores TP-Link + 1 tensiómetro). (7) Mapeo proveedor 001-0430 → switches creado para Air Intra. Commit: 0e2d6d9
+  1223→- **2026-06-05 (s21):** FIX CRITICO Air Intra sync - Productos faltantes resuelto. (1) BUG PRINCIPAL: La paginación se detenía prematuramente cuando el JSON corrupto causaba que una página devolviera <500 productos, haciendo que el sync creyera que era la última página. El endpoint `syp` solo tenía ~4,500 productos y faltaban categorías. (2) Cambio de endpoint `syp` → `articulos`: Ahora usa el endpoint `articulos` que tiene 7,499 productos (vs 4,500 de syp) e incluye datos de categoría (rubro, grupo), garantía, tipo y estado. (3) Fix paginación: Ya no se detiene por `products.length < pageSize`. Ahora usa MAX_PAGES (30) + detección de página vacía. (4) Retry logic: Hasta 2 reintentos por página fallida. (5) Batch DB operations: Pre-load de productos existentes en memoria, INSERT/UPDATE en paralelo (concurrencia 20). (6) Script standalone: `sync-air-intra-direct.mjs` para sync directo a Turso sin pasar por API route. (7) Resultado: Air Intra pasó de 1,702 a 7,511 productos (7,324 activos). Commits: da050a3, 3ed8b21, 2cf33b5
+  1224→- **2026-06-05 (s16):** Multiples fixes y features de admin + PC Builder. (1) Bug #3: Filtro "Sin categoria" en admin productos - opcion para encontrar productos sin categoryId asignado (valor `"none"`). (2) Feature: Seleccion multiple y eliminacion masiva de productos - checkboxes en cada fila, select all, barra de acciones, dialogo de confirmacion, DELETE paralelo. (3) Bug #4: Cambiar nombre de categoria rompia PC Builder - el slug se regeneraba automaticamente, rompiendo las referencias hardcodeadas. Fix: API PUT ya no auto-regenera slug, campo slug editable en admin categorias con advertencia "No cambiar si se usa en Arma tu PC". (4) Feature: Ocultar datos internos de productos (Moneda DOL, EAN, Garantia) de las vistas publicas - solo se muestra descripcion y precio al cliente. (5) Bug #5: Socket detection - Intel Core Ultra 5 225F detectado como LGA 1700 en vez de LGA 1851. Causa: regex `/\bS?1851\b/` no matcheaba "LGA1851" (sin espacio). Fix: regex cambiado a `/(?:S|LGA\s*)?1851/`, + deteccion por modelo (CORE ULTRA = LGA 1851 siempre). Commits: 0969b04, afe7c31, 5a55884, f794b1d, 15fcb9a. Backup src (858KB)
+  1225→- **2026-06-05 (s15):** Fix SODIMM + PDF download en Arma tu PC. SODIMM movido de BUILDER_INCLUDE_PATTERNS a BUILDER_EXCLUDE_PATTERNS del slot RAM (ya no aparecen en el PC Builder). PDF download: al hacer clic en cualquier boton de WhatsApp del Arma tu PC, se genera y descarga un PDF profesional (jsPDF client-side) con branding Compucity (header verde, COMPU+CITY, tagline), fecha, lista de componentes con precios, total de lista y efectivo, nota 96hs, footer con contacto. Los 3 botones (desktop ultimo paso, sidebar, mobile sticky) ahora descargan PDF + abren WhatsApp. Icono Download agregado. Commits: f6a94e9, af6b8a6
+  1226→- **2026-06-05 (s14):** Filtros en PC Builder + Categorías tienda + fix. PC Builder: chips clickeables para filtrar productos (Processor: AMD/Intel, Motherboard: Socket+DDR, RAM: DDR3/4/5, GPU: NVIDIA/AMD/Intel Arc, SSD: NVMe/SATA, PSU: 500W+/650W+/750W+/850W+, Cooling: AIO/Aire, Monitor: Tamaño+Resolución, Network: PCIe/USB/WiFi6, Periféricos: Mouse/Teclado/Auricular/etc.). Categorías tienda: mismos filtros en CategoryProducts para 11 categorías. FIX: eliminados filtros genéricos de "Componentes de PC" (Procesador/Motherboard/RAM/GPU/SSD/Fuente) que eran redundantes con las subcategorías - los filtros ahora solo aparecen al seleccionar una subcategoría específica (ej: DDR3/4/5 en Memorias RAM, AMD/Intel en Microprocesadores). Network blacklist: +AP GIGABIT, WALL MOUNT, CEILLING, MINIHUB, OUTDOOR, INDOOR, ISP. Commits: e020dd3, 9d1979d, 2a3a11f
+  1227→- **2026-06-05 (s13):** Fix filtros PC Builder para Placas de Red y Periféricos. Network: agregados P.REDW/PREDW/ARCHER T/P.RED para incluir placas reales, removidos TP-LINK/WIFI/WIRELESS/PCI-E amplios que matcheaban cámaras IP y sistemas Mesh. Exclusiones nuevas: CAMARA, DECO, MESH, TAPO C, CPE, RANGE EXTENDER, A SD, A HDMI, A DISPLAYPORT, CONTROLLER, CLOUD, JBL. Fix 'AP ' que matcheaba 'ADAP' falsamente (removido). Fix 'HUB' → 'HUB ' para no excluir 'Minihub' en adaptadores Ethernet. Removido RJ45 del exclude (aparece en adaptadores Ethernet legítimos). Periféricos: agregados WEB CAM, VOLANTE, WHEEL a include. Removidos 'CABLE' y 'ADAPTADOR' amplios del exclude (catcheaban "Mouse c/Cable", "Teclado con Cable", "Auricular gaming cableado"). Reemplazados con patterns específicos: CABLE KELYX, CABLE HDMI, CABLE DISPLAY, ADAPTADOR HDMI, ADAPTADOR VGA, etc. Renombrado "Periférico" → "Periféricos". Resultado: Network pasa de 16 (con cámaras/mesh) a 19 productos correctos (solo placas/adaptadores reales). Periféricos pasa de 393 a 418 productos (ahora incluye mouse/teclados cableados, webcams, volantes). Commit: 18121fb
+  1228→- **2026-06-05 (s12):** Admin productos responsive + Arma tu PC 3 slots nuevos. Admin: vista de tarjetas en movil (block lg:hidden) con info apilada y tabla solo en desktop (hidden lg:block). Fix archivo truncado por disco lleno. Arma tu PC: 3 slots nuevos (Monitor max 2, Placa de Red/WiFi max 1, Periferico max 3), todos opcionales. Iconos: Monitor, Wifi, Mouse. Whitelist/blacklist patterns para cada slot nuevo. GPU cambio icono a Gamepad2, Fuente a Plug. Commits: fe67bc8, 99a1c89, 4224786. Backup src (842KB)
+  1229→- **2026-06-05 (s11):** Homepage variedad de precios - 3 secciones (Notebooks, Monitores, PCs) con 4 productos cada una y variedad de precios (1 barato, 2 medios, 1 caro). Orden cambiado a Notebooks primero, Monitores segundo, PCs tercero. "PC Armadas" renombrado a "PCs". Funcion pickDiversePrices() en page.tsx pide 20 productos y selecciona 4 con variedad. IMPORTANTE: commit estable 2aa6093 (si se rompe algo, hacer `git reset --hard 2aa6093`). No tocar queries.ts ni layouts - solo page.tsx
+  1230→- **2026-06-04 (s10):** Herencia de categoría padre implementada (GLOBAL) - Las subcategorías heredan ivaRate/markup/cashDiscount de su categoría padre si no tienen valor propio. `getCategoryPricing()` recorre la cadena de padres (subcategoría → padre → abuelo...). Aplica en frontend admin (selector IVA, preview, tabla), backend queries (`getCategoryMarkupMap`), y API admin productos. Admin productos: selector IVA muestra "Heredar de categoría → X%" con valor heredado, texto de ayuda "Usando IVA X% de la categoría [nombre]", columna IVA con colores. Fix: `interface Category` ahora incluye `ivaRate`. Categoría Monitores configurada con IVA 21%. Backups completos (código 838KB + DB 10.2MB)
+  1231→- **2026-06-04 (s9):** Fix IVA por categoría - La columna ivaRate no existía en tabla categories (migración #21 nunca se ejecutó en Turso). Se agregó manualmente. Se corrigió que todos los productos tenían ivaRate=10.5 forzado (4,445 productos actualizados a NULL para que hereden de categoría). Admin productos: selector IVA ahora tiene opción "Heredar de categoría" en vez de forzar 10.5%. API productos: ivaRate vacío ahora guarda NULL en vez de 10.5. Fórmula preview muestra IVA heredado correctamente. Categoría Notebooks configurada con IVA 21%. Orden por defecto cambiado a precio ascendente (más baratos primero) en categorías, búsqueda y todos los productos. Backups completos (código 832KB + DB 8.9MB)
+  1232→- **2026-06-03 (s8):** Sistema de 3 niveles de markup implementado - Producto individual → Categoría → Global. Todas las APIs (pública, admin, export, PC Builder) actualizadas para respetar prioridad. Admin categorías: campos markup/cashDiscount (ya existían). Admin productos: badges MC/DC para markup por categoría, vista previa muestra "(categoría)" cuando aplica, cálculo en vivo al cambiar categoría. Admin products API: GET usa calculateProductPrices con category markup map, POST/PUT usan 3 niveles al crear/actualizar. Export CSV usa 3 niveles. Backups completos (código 40MB + DB JSON 8.9MB + DB SQL 8.0MB)
+  1233→- **2026-06-03 (s7):** IVA diferenciado implementado - campo ivaRate (10.5%/21%) en productos, formula de precios actualizada con IVA. Sistema de promociones completo - cupones de descuento + banners promocionales con imagen de fondo. Filtros y ordenamiento en tabla de admin productos. Precio de oferta (salePrice/saleStart/saleEnd). Protecciones contra deploy de versiones viejas (pre-push hook + deploy script + eliminacion repo duplicado + .gitignore). Fix error en promociones (Image import + upload API + columna imageUrl en banners). Backups completos (codigo 121MB + DB 8.87MB)
+  1234→- **2026-06-02 (s6):** Investigacion Andreani (credenciales incompletas, falta codigoCliente + contratoDomicilio). Propuesta de implementacion IVA diferenciado (10.5% / 21%) - 3 opciones presentadas, en espera de confirmacion del dueño. Backup codigo 246MB
+  1235→- **2026-06-02 (s5):** Prioridad global de imagenes - Productos con foto aparecen primero en todo el sitio (home, categorias, busqueda, PC Builder, relacionados). Recategorizacion: 7 PC Gamer Raptor (gabinete+fuente) movidas a gabinetes, 4 Gabinete Raptor de joysticks a gabinetes, 3 Switches TP-Link de oficina-pc a switches. Homepage PC Armadas: mezcla balanceada por subcategoria (round-robin). Backup completo (codigo 42MB + DB 8.4MB)
+  1236→- **2026-06-02 (s4):** Fix de busqueda de productos - El boton "Buscar en todos los productos" ahora muestra los resultados correctos. Causa: parametro q se extraia pero no se usaba. Solucion: searchProducts(q) cuando hay query. Mejoras: orden por relevancia, titulo dinamico, link limpiar busqueda. Push a GitHub exitoso
+  1237→- **2026-06-02 (s3):** Fix PERMANENTE de categorizacion en PC Builder - 3 capas de defensa: (1) Whitelist BUILDER_INCLUDE_PATTERNS que valida nombre de producto en runtime, (2) CATEGORY_KEYWORD_MAP reordenado con productos completos antes de componentes, (3) Validacion post-sync automatica mejorada. Bug corregido: markup/cashDiscount faltantes en SELECT de pc-builder. Eliminadas rutas duplicadas (recuperar-contrasena, resetear-contrasena). Instalado paquete resend. Backup completo (codigo 35MB + DB 8.3MB)
+  1238→- **2026-06-02 (s2):** Markup y descuento individual por producto - Cada producto puede tener su propio markup y cashDiscount (si es NULL, usa el global). Bug corregido en pc-builder (formula cash price). Badges M/D en tabla de admin. Migracion ejecutada en Turso (columnas markup, cashDiscount). Backup completo (codigo 417MB + DB 8.2MB)
+  1239→- **2026-06-02:** Limpieza de categorias en Arma tu PC - Motherboards: 14 productos desactivados + 2 recategorizados. Gabinetes: limpieza masiva (15 monitores desactivados, 21 fuentes movidas, 8 coolers movidos, etc.). Refrigeracion: 9 cables iCUE movidos a cables. PC builder categorias limpias. Backup completo
+  1240→- **2026-06-02:** Backup completo (codigo 443MB + DB 8MB). Actualizacion de PROJECT_STATUS.md
+  1241→- **2026-06-01:** Selector de cantidades en Arma tu PC - RAM (1-4), SSD (1-4), HDD (1-2). Precios se multiplican automaticamente. WhatsApp muestra "2x Producto - $precio c/u = $total"
+  1242→- **2026-06-01:** PC Armadas - Categoria agregada con 53 productos (24 mini-pc, 22 oficina-pc, 7 gamer-pc). 33 PCs movidas de categorias incorrectas. 108 productos networking Air Intra desactivados. Homepage muestra seccion PC Armadas
+  1243→- **2026-06-01:** Filtro global de stock - Productos sin stock no se muestran en toda la tienda
+  1244→- **2026-06-01:** Arma tu PC - Mobile sticky bottom bar, sistema de compatibilidad funcional (socket, DDR, wattage), correccion de filtros de categorias en DB
+  1245→- **2026-05-27:** Filtro Air Intra only - Solo Air Intra se filtra a perifericos/componentes/cables. Elit e Invid mantienen TODOS sus productos. Re-sync de Elit (1,519) e Invid (1,191)
+  1246→- **2026-05-27:** Login de clientes + datos de envio - Sistema completo de autenticacion, provincia en checkout, shippingDetails como campo propio, tracking URLs
+  1247→- **2026-05-27:** Redisenio del Hero - de seccion estatica a carrusel full-width con 4 slides
+  1248→- **2026-05-27:** Deploy inicial, logo, favicon, paleta de colores, navbar, footer
+  1249→
