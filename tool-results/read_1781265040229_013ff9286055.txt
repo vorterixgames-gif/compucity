@@ -1,0 +1,502 @@
+     1→# Compucity - Project Status
+     2→
+     3→**Ultima actualizacion:** 2026-06-11 (sesion 39)
+     4→
+     5→---
+     6→
+     7→## Tienda Proyecto
+     8→- **Nombre:** Compucity - Tu Mundo Digital
+     9→- **Tipo:** E-commerce de informatica (sin pasarela de pagos, pedidos por WhatsApp)
+    10→- **Ubicacion:** La Falda, Valle de Punilla, Cordoba, Argentina
+    11→- **WhatsApp:** 3517656918
+    12→- **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
+    13→- **URL produccion:** https://my-project-eight-liard-96.vercel.app/
+    14→- **URL admin:** https://my-project-eight-liard-96.vercel.app/admin
+    15→- **Commit estable:** 2aa6093 (imagenes, arma-tu-pc orden, productos faltantes, nota 96hs)
+    16→- **Commit actual:** 5c4bfd0 (feat: auto-detect new brands from supplier marca field in specs)
+    17→- **Credenciales admin:** admin@compucity.com / compucity2026
+    18→
+    19→## Stack Tecnologico
+    20→- **Framework:** Next.js 16 + TypeScript
+    21→- **Estilos:** Tailwind CSS 4 + shadcn/ui
+    22→- **Base de datos:** Turso (libSQL) + Prisma ORM (solo schema, raw SQL en runtime)
+    23→- **Auth:** Custom HMAC cookie auth (admin_token + customer_token)
+    24→- **Estado:** Zustand + React Query
+    25→- **Deploy:** GitHub push a main -> Vercel auto-deploy
+    26→- **Runtime:** Bun
+    27→
+    28→### Credenciales y Accesos
+    29→- **GitHub:** https://github.com/vorterixgames-gif/compucity
+    30→- **Turso DB URL:** Ver `.env` (DATABASE_URL + TURSO_AUTH_TOKEN)
+    31→- **Admin Secret:** Ver `.env` (ADMIN_SECRET = compucity_hmac_prod_2026_a8f3e1b9c7d2)
+    32→- **Air Intra API:** Ver `.env` (credenciales del proveedor)
+    33→- **Nota:** Todas las credenciales sensibles estan en `.env` (no commiteado al repo)
+    34→
+    35→---
+    36→
+    37→## Proveedores (Regla CRITICA)
+    38→
+    39→### REGLA DE FILTRADO POR PROVEEDOR
+    40→- **Air Intra:** Todos los productos con precio > 0 se activan (igual que Invid/Elit). Si `allowedCategories` esta configurado (no null), se aplica como filtro adicional
+    41→- **Elit:** MANTIENE TODOS sus productos (notebooks, impresion, toners, UPS, etc.)
+    42→- **Invid Computers:** MANTIENE TODOS sus productos (notebooks, routers, switches, etc.)
+    43→
+    44→### FIX sesion 17: isActive de Air Intra alineado con Invid/Elit
+    45→- **Antes:** Air Intra usaba logica compleja de `allowedCategories` que por defecto desactivaba productos (isActive=0 si no tenian categoria o la categoria no estaba en la lista)
+    46→- **Despues:** Productos con precio > 0 son activos por defecto (igual que Invid). `allowedCategories` solo filtra si esta configurado (no null)
+    47→- **Resultado:** 230 productos de Air Intra que estaban inactivos ahora estan activos
+    48→- **sync-providers.mjs:** Se agrego Air Intra al script de sincronizacion batch (antes solo sincronizaba Invid y Elit)
+    49→
+    50→### FIX sesion 18: Air Intra sync error handling + rate limit detection
+    51→- **Bug:** Air Intra sync fallaba con errores de rate limiting (HTTP 429) y no los manejaba correctamente
+    52→- **Fix:** Se mejoro el manejo de errores en la sync de Air Intra con deteccion de rate limiting, retry automatico con backoff, y mensajes de error mas descriptivos
+    53→- **Commit:** cd980cc
+    54→
+    55→### MEJORA sesion 19: Air Intra Batched Sync (evita timeout de Vercel)
+    56→- **Problema:** El sync completo de Air Intra (~7,500 productos, 16 paginas de 500) puede tardar 30-60+ segundos, excediendo el limite de 60s de Vercel Hobby plan para serverless functions
+    57→- **Solucion:** Sync por lotes (batched) - divide la sincronizacion en chunks de 4 paginas (~2,000 productos, ~10-15s por lote)
+    58→- **Arquitectura:**
+    59→  1. Primer call: Login + lote 1 (paginas 0-3). Retorna `hasMore: true`, `nextPage: 4`, `token`, `exchangeRate`
+    60→  2. Calls subsiguientes: Frontend envia `batch: { startPage, endPage, token, exchangeRate }` para cada lote
+    61→  3. Finalize step: Despues de todos los lotes, frontend envia `batch: { token, exchangeRate, finalize: true }` que ejecuta syp sync, recategorizacion, recovery, y actualiza lastSyncAt
+    62→- **Backend:** `syncAirIntraBatch()` y `syncAirIntraFinalize()` en `src/app/api/admin/suppliers/sync/route.ts`
+    63→- **Frontend:** `handleSync()` en `src/app/admin/proveedores/page.tsx` - orquesta los lotes automaticamente con barra de progreso
+    64→- **vercel.json:** `maxDuration` corregido a 60 (antes decia 300, pero Hobby plan limita a 60s)
+    65→- **PAGES_PER_BATCH:** 4 (constante, 4 x 500 = 2,000 productos por lote)
+    66→- **Compatibilidad:** Invid y Elit siguen usando sync completo (no necesitan batched, son mas chicos)
+    67→
+    68→### MEJORA sesion 18: Sync robusto de Air Intra - Verificacion doble + post-sync check
+    69→- **Problema de fondo:** El sync de Air Intra pierde productos cuando el JSON se corrompe por PHP notices. Incluso cuando `JSON.parse` tiene exito, algunos productos pueden perderse silenciosamente
+    70→- **Mejora 1 - Verificacion doble:** `extractProductsFromCorruptedJson` ahora se ejecuta SIEMPRE (no solo como fallback). Despues del parse standard, compara la cantidad de productos extraidos vs parseados. Si el extractor encuentra mas productos, los recupera y los agrega al array de productos. Esto atrapa productos que se pierden cuando PHP notices corrompen el JSON entre objetos
+    71→- **Mejora 2 - Post-sync verification:** Despues de completar la sync, compara el total de productos sincronizados vs el total en la DB. Si la sincronizacion trajo significativamente menos productos que los que ya existen, genera un warning en el log
+    72→- **Mensaje informativo:** El resultado del sync ahora indica si se uso la extraccion de objetos como fallback
+    73→- **Commit:** 94bdbd4
+    74→
+    75→### MEJORA sesion 26: Stock por deposito - Solo Cordoba cuenta
+    76→- **Problema:** Air Intra tiene 5 depositos (Buenos Aires, Lugo, Rosario, Cordoba, Mendoza). El sync sumaba el stock de TODOS los depositos, entonces un producto con 5 en BA y 0 en Cordoba mostraba "En stock" cuando no habia disponibilidad local
+    77→- **Solucion:** El campo `stock` ahora usa solo el stock del deposito de Cordoba (`cba`). Si no hay stock en Cordoba, el producto aparece como "Sin stock" en toda la tienda
+    78→- **Depositos de Air Intra:** `air` (Buenos Aires), `lug` (Lugo), `ros` (Rosario), `cba` (Cordoba), `mza` (Mendoza)
+    79→- **Nuevo campo DB:** `stockByWarehouse TEXT` - JSON con stock por deposito, ej: `{"air":5,"lug":0,"ros":2,"cba":0,"mza":0}`
+    80→- **Migracion:** #22 - `ALTER TABLE products ADD COLUMN stockByWarehouse TEXT`
+    81→- **Archivos modificados:** `src/lib/db.ts` (migracion #22), `src/app/api/admin/suppliers/sync/route.ts` (6 ubicaciones de totalStock cambiadas)
+    82→- **Elit:** Sin cambios - solo devuelve `stock_total`, no tiene desglose por deposito
+    83→- **Invid:** Sin cambios - no tiene datos de depositos
+    84→- **Frontend:** Sin cambios - el Filtro Global de Stock ya oculta productos con `stock <= 0`
+    85→- **Importante:** HAY QUE RE-SINCRONIZAR Air Intra para que el stock se actualice con la nueva logica. Hasta que se haga la sync, los productos existentes mantienen el stock total anterior
+    86→
+    87→### Estado actual de productos (2026-06-11 sesion 39)
+    88→| Metrica | Cantidad |
+    89→|---------|----------|
+    90→| Total productos en DB | 10,067 |
+    91→| Activos | 9,822 |
+    92→| Inactivos | 245 |
+    93→| Marcas en DB | 91 |
+    94→| Productos con brandId | 7,099 |
+    95→| product_images (tabla) | 982 |
+    96→| Categorias | 71 |
+    97→| Proveedores | 4 |
+    98→| Clientes | 2 |
+    99→| Admins | 1 |
+   100→
+   101→**Backup:** download/backups/compucity_turso_backup_2026-06-11T15-37-16-657Z.json (39.3MB, 16 tablas)
+   102→
+   103→---
+   104→
+   105→## Identidad Visual
+   106→- **Verde principal:** #3A8B68
+   107→- **Verde oscuro:** #2F6F55
+   108→- **Verde claro:** #75AD95
+   109→- **Verde 50:** #EFF5F2
+   110→- **Verde 100:** #D7E7E0
+   111→- **Verde 900:** #1A3E2E
+   112→- **Estilo:** Claro, elegante, limpio
+   113→
+   114→## Logo
+   115→- **Archivo:** `public/images/logo-compucity-icon.png` (191x180px)
+   116→- **Logo PDF:** `public/images/logo-compucity-pdf.png` (547x220px, RGBA) - Logo completo con forma geometrica verde + COMPU CITY + TU MUNDO DIGITAL
+   117→- **Logo base64:** `src/lib/compucity-logo-base64.ts` - Encoding base64 para uso en jsPDF
+   118→- **Componente:** `src/components/ui-custom/CompucityLogo.tsx`
+   119→- Variantes: full (icono + COMPU+CITY + tagline), icon, horizontal
+   120→- Tamanos: sm(30px), md(36px), lg(42px), xl(48px)
+   121→- Texto: "COMPU" en color texto + "CITY" en verde #3A8B68
+   122→- Tagline: "TU MUNDO DIGITAL"
+   123→
+   124→## Favicon
+   125→- `/public/favicon.ico` (16, 32, 48, 64px)
+   126→- `/public/favicon-32x32.png`
+   127→- `/public/favicon-16x16.png`
+   128→- `/public/apple-touch-icon.png` (180x180)
+   129→- `/public/android-chrome-192x192.png` (192x192)
+   130→
+   131→---
+   132→
+   133→## Hero Section - Carrusel Full-Width
+   134→- **Componente:** `src/components/ui-custom/HeroSection.tsx`
+   135→- **Tipo:** Carrusel full-width con 4 slides y autoplay (5s)
+   136→- **Navegacion:** Flechas laterales, dots indicadores, swipe tactil, teclado
+   137→- **Barra de progreso** animada en la parte inferior
+   138→- **Pausa automatica** al hacer hover
+   139→- **Animaciones:** Framer Motion (slide transitions + fade-up de contenido)
+   140→- **Sin info de pagos ni envios** en el hero (a peticion del cliente)
+   141→
+   142→### Slides
+   143→| # | Badge | Titulo | CTA Principal | CTA Secundario | Imagen |
+   144→|---|-------|--------|---------------|----------------|--------|
+   145→| 1 | Arma tu PC | Arma tu PC | Comenzar a armar -> `/arma-tu-pc` | Ver componentes -> `/categoria/componentes` | `hero-slide-pc-builder.png` |
+   146→| 2 | Notebooks | Notebooks y **laptops** | Ver notebooks -> `/categoria/notebooks` | Ver todas las marcas -> `/categoria/todos` | `hero-slide-notebooks.png` |
+   147→| 3 | Componentes | Placas de video y **componentes** | Ver componentes -> `/categoria/componentes` | Ver productos -> `/categoria/todos` | `hero-slide-components.png` |
+   148→| 4 | Perifericos | Perifericos **gaming** | Ver perifericos -> `/categoria/perifericos` | Ver todo -> `/categoria/todos` | `hero-slide-perifericos.png` |
+   149→
+   150→---
+   151→
+   152→## Sistema de Precios (Global + Categoría + Individual + IVA)
+   153→
+   154→### Configuracion Global
+   155→- **Markup (margen de ganancia):** 15% (store_config: markup = 15)
+   156→- **Descuento efectivo:** 0% (store_config: cash_discount = 0)
+   157→- **IVA por defecto:** 10.5% (campo ivaRate en products, default 10.5)
+   158→- **Fuente dolar:** Banco Nacion (dolar_api) o Dólar Blue (configurable)
+   159→- **Cache dolar:** 15 minutos (Next.js revalidate + memoria admin). Antes era 1h/30min, reducido sesion 23 para info más actualizada
+   160→- **API externa:** DolarApi.com (dolarapi.com/v1/dolares/oficial o /blue)
+   161→- **Flujo cache:** Memoria (15 min) → DB → Next.js fetch cache (15 min) → API externa → Fallback 1415
+   162→- **Panel admin:** `/admin/configuracion` - Permite cambiar dolar, markup, descuento global
+   163→
+   164→### Sistema de 3 Niveles de Markup (IMPLEMENTADO sesion 8)
+   165→- **Prioridad:** Producto individual → Categoría → Global
+   166→- **Campos en categorías:** `markup` y `cashDiscount` (nullable, si es null usa el global)
+   167→- **Campos en productos:** `markup` y `cashDiscount` (nullable, si es null usa categoría o global)
+   168→- **Vista previa en admin productos:** Muestra si se usa "(individual)", "(categoría)" o global
+   169→- **Badges en tabla:** M (markup individual), MC (markup categoría), D (dto individual), DC (dto categoría)
+   170→- **Cálculo en vivo:** Al cambiar categoría en el formulario, se recalculan precios considerando markup de categoría
+   171→- **APIs actualizadas:** Todas las APIs (pública, admin, export, PC Builder) usan el sistema de 3 niveles
+   172→- **Estado actual:** 0 categorías con markup propio (todas usan global 15%), 2 productos con markup individual
+   173→
+   174→### Markup y Descuento Individual por Producto
+   175→- Cada producto puede tener su propio **markup** y **cashDiscount** (campos nullable en la DB)
+   176→- Si el producto tiene valor individual, se usa ese; si es NULL, se verifica la categoría, y si tampoco tiene, se usa el global
+   177→- **Interfaz admin:** Campos "Margen individual (%)" y "Descuento efectivo individual (%)" en el formulario de productos
+   178→- **Indicadores visuales:** Badges "M" (markup) y "D" (descuento) en la tabla de productos
+   179→- **Vista previa:** El calculo automatico muestra si se estan usando valores individuales con etiqueta "(individual)"
+   180→- **Estado actual:** 2 productos con markup individual, 12 con cashDiscount individual
+   181→
+   182→### IVA Diferenciado (IMPLEMENTADO sesion 7, actualizado sesiones 9-10)
+   183→- **Campo products:** `ivaRate REAL` (nullable, NULL = heredar de categoria o default 10.5%)
+   184→- **Campo categories:** `ivaRate REAL` (nullable, NULL = usar default 10.5%)
+   185→- **Prioridad:** Producto individual → Categoría (con herencia padre) → Default (10.5%)
+   186→- **Herencia de categoría padre (GLOBAL, sesion 10):** Las subcategorías heredan ivaRate/markup/cashDiscount de su categoría padre si no tienen valor propio. Funciona en TODAS las categorías, no solo una específica
+   187→- **Distribucion actual:** 4,428 productos con ivaRate=NULL (heredan de categoria), 14 productos con IVA 21% individual
+   188→- **Categorias con IVA propio:** Notebooks=21%, Monitores=21%
+   189→- **Interfaz admin productos:** Selector IVA con opcion "Heredar de categoria → X%" (muestra valor heredado) + "10,5%" + "21%". Texto de ayuda: "Usando IVA X% de la categoría [nombre]"
+   190→- **Interfaz admin categorias:** Selector IVA con opcion "Default (10,5%)" + "10,5%" + "21%"
+   191→- **Columna IVA en tabla admin:** Muestra IVA efectivo con colores (violeta=categoría, morado=individual, gris=default)
+   192→- **Fix sesion 9:** Se corrigio que todos los productos tenian ivaRate=10.5 forzado (nunca heredaban de categoria). Ahora ivaRate=NULL en productos significa heredar de categoria
+   193→- **Fix sesion 10:** Herencia de categoría padre implementada - `getCategoryPricing()` recorre la cadena de padres (subcategoría → padre → abuelo...) para encontrar ivaRate/markup/cashDiscount. Aplica en frontend admin, backend queries (`getCategoryMarkupMap`), y API admin productos
+   194→
+   195→### Precio de Oferta (salePrice)
+   196→- **Campos:** `salePrice REAL`, `saleStart TEXT`, `saleEnd TEXT` en tabla products
+   197→- **Logica:** Si salePrice > 0 y estamos dentro del rango de fechas, se muestra como precio de oferta
+   198→- **Estado actual:** 1 producto con salePrice configurado
+   199→- **Admin:** Se gestiona desde el formulario de productos o desde Promociones
+   200→
+   201→### Formulas de Precio
+   202→```
+   203→Precio de lista  = costUSD x (1 + ivaRate/100) x (1 + markup/100) x cotizacionDolar
+   204→Precio efectivo  = costUSD x (1 + ivaRate/100) x (1 + (markup - cashDiscount)/100) x cotizacionDolar
+   205→Precio oferta    = salePrice (si esta dentro del rango de fechas, reemplaza precio de lista)
+   206→```
+   207→Donde markup, cashDiscount e ivaRate siguen prioridad: Producto individual → Categoría (heredando de padre si no tiene) → Global/Default.
+   208→
+   209→---
+   210→
+   211→## Sistema de Promociones (`/admin/promociones`) (IMPLEMENTADO sesion 7)
+   212→
+   213→### Cupones de Descuento
+   214→- **Componente:** `src/app/admin/promociones/page.tsx` (tab Cupones)
+   215→- **API:** `src/app/api/admin/coupons/route.ts`
+   216→- **Campos:** codigo, descripcion, tipo (porcentaje/monto fijo), valor, compra minima, usos maximos, vigencia (desde/hasta), estado activo/inactivo
+   217→- **Tabla DB:** `coupons`
+   218→- **Integracion checkout:** Los cupones se aplican en el checkout con descuento sobre el total
+   219→- **Estado actual:** 0 cupones creados
+   220→
+   221→### Banners Promocionales
+   222→- **Componente:** `src/app/admin/promociones/page.tsx` (tab Banners)
+   223→- **API:** `src/app/api/admin/banners/route.ts`
+   224→- **Campos:** titulo, subtitulo, texto del boton, link del boton (selector de categorias o URL custom), color de fondo, color de texto, imagen de fondo (con upload + compresion WebP), posicion (arriba/debajo del hero), orden, estado activo/inactivo
+   225→- **Tabla DB:** `banners` (con columna `imageUrl`)
+   226→- **Upload de imagenes:** `POST /api/admin/upload` - Comprime a WebP (max 1600px, calidad 85%) y guarda en `/public/uploads/`
+   227→- **Vista previa:** Se muestra en tiempo real al crear/editar un banner en el admin
+   228→- **Storefront:** Los banners activos se muestran arriba y debajo del hero en la homepage
+   229→- **API publica:** `GET /api/banners` - Retorna banners activos ordenados por posicion y orden
+   230→- **Estado actual:** 0 banners creados
+   231→
+   232→---
+   233→
+   234→## Sistema de Autenticacion de Clientes
+   235→- **Login/Registro:** `/mis-pedidos` - Pagina con tabs Login / Registrarse
+   236→- **Cookie:** `customer_token` = `email.hmac_signature` (httpOnly, 30 dias)
+   237→- **Perfil editable:** Nombre, telefono, DNI, direccion, ciudad, provincia, CP
+   238→- **Navbar:** Dropdown con avatar del usuario logueado, link a Mis Pedidos, cerrar sesion
+   239→- **Mobile:** Seccion de usuario en menu movil con avatar, nombre, botones
+   240→
+   241→### APIs de Clientes
+   242→- `POST /api/customer/login` - Login con email + contrasena
+   243→- `POST /api/customer/register` - Registro con datos personales + direccion
+   244→- `GET /api/customer/me` - Obtener perfil actual
+   245→- `GET /api/customer/orders` - Pedidos del cliente (match por email o customerId)
+   246→- `PUT /api/customer/profile` - Actualizar perfil (direccion, telefono, etc.)
+   247→- `POST /api/customer/logout` - Cerrar sesion
+   248→- `POST /api/customer/forgot-password` - Recuperar contrasena (email)
+   249→- `POST /api/customer/reset-password` - Resetear contrasena con token
+   250→
+   251→---
+   252→
+   253→## Datos de Envio
+   254→- **Provincia:** Campo agregado al checkout (dropdown con las 24 provincias argentinas)
+   255→- **shippingDetails:** Campo en la tabla `orders` - JSON con carrier, serviceName, estimatedDays, price
+   256→- **Migracion:** `POST /api/admin/migrate` - Agrega la columna `shippingDetails` a la DB
+   257→- **Vista en Mis Pedidos:** Muestra carrier, servicio, plazo estimado, y tracking con link externo
+   258→- **Tracking URLs:** Detecta Andreani, Correo Argentino, OCA y genera links de seguimiento
+   259→- **Pre-fill:** Si el cliente esta logueado, su direccion se autocompleta en el checkout
+   260→
+   261→---
+   262→
+   263→## Arma tu PC a medida (`/arma-tu-pc`)
+   264→- **Componente:** `src/app/(tienda)/arma-tu-pc/page.tsx`
+   265→- **API:** `src/app/api/pc-builder/route.ts`
+   266→- **Lib compatibilidad:** `src/lib/compatibility.ts`
+   267→
+   268→### 13 Slots de Componentes
+   269→| Slot | Label | Categoria Slug | Requerido | Max Cantidad |
+   270→|------|-------|---------------|-----------|-------------|
+   271→| processor | Microprocesador | microprocesadores | Si | 1 |
+   272→| motherboard | Motherboard | motherboards | Si | 1 |
+   273→| ram | Memoria RAM | memorias-ram | Si | 4 |
+   274→| gpu | Placa de Video | placas-de-video | No | 1 |
+   275→| ssd | Disco SSD | discos-ssd | Si | 4 |
+   276→| hdd | Disco HDD | discos-hdd | No | 2 |
+   277→| psu | Fuente | fuentes | Si | 1 |
+   278→| case | Gabinete | gabinetes + gabinetes-con-fuente | Si | 1 |
+   279→| cooling | Refrigeracion | refrigeracion | No | 1 |
+   280→| thermal | Pasta Termica | pastas-termicas | No | 1 |
+   281→| monitor | Monitor | monitores | No | 2 |
+   282→| network | Placa de Red / WiFi | placas-de-red | No | 1 |
+   283→| peripherals | Periféricos | perifericos | No | 3 |
+   284→
+   285→### Sistema de Filtrado de Productos (3 capas - FIX PERMANENTE)
+   286→El PC Builder usa **3 capas de defensa** para garantizar que solo productos correctos aparezcan en cada slot:
+   287→
+   288→| Capa | Mecanismo | Descripcion |
+   289→|------|-----------|-------------|
+   290→| **1. Inclusion (Whitelist)** | `BUILDER_INCLUDE_PATTERNS` | Cada slot define que palabras clave DEBE tener el nombre del producto (ej: GPU requiere "RTX/GTX/RADEON"). Si no coincide con NINGUN patron, no aparece. **Es la defensa principal: funciona incluso si la categoria en la DB esta mal** |
+   291→| **2. Exclusion (Blacklist)** | `BUILDER_EXCLUDE_PATTERNS` | Patrones que excluyen productos no deseados (notebooks en GPU, discos externos en SSD, etc.) |
+   292→| **3. Compatibilidad** | `applyCompatibilityFilters` | Filtra por socket (CPU->Mother), DDR (Mother->RAM), wattaje (GPU->PSU) |
+   293→
+   294→### Por que se desordenaba antes (Causa raiz resuelta)
+   295→El problema recurrente tenia 3 causas encadenadas:
+   296→1. **Sync categorizaba mal**: El `CATEGORY_KEYWORD_MAP` chequeaba keywords de componentes (RTX, DDR, SSD) ANTES que productos completos (NOTEBOOK, PC ARMADAS). "NOTEBOOK RTX 4060" coincidia con "RTX" primero -> placas-de-video
+   297→2. **PC Builder no validaba nombres**: Solo usaba categoria de DB + blacklist chica. No verificaba que el producto realmente fuera lo que dice la categoria
+   298→3. **Cada sync traia productos nuevos mal categorizados**: Aunque corrijas manualmente, la proxima sync "contaminaba" otra vez
+   299→
+   300→### Solucion permanente (implementada sesion 3)
+   301→1. **Whitelist en PC Builder**: `BUILDER_INCLUDE_PATTERNS` - cada slot valida el nombre del producto en runtime
+   302→2. **Keywords ordenadas en sync**: Productos completos (NOTEBOOK, PC ARMADAS) se chequean ANTES que componentes (RTX, DDR, SSD)
+   303→3. **Validacion post-sync automatica**: Despues de cada sync, se corrigen automaticamente productos mal categorizados en TODAS las categorias del PC Builder
+   304→
+   305→### Categorias en DB (productos con stock, 2026-06-02)
+   306→| Categoria | Productos |
+   307→|-----------|-----------|
+   308→| Memorias RAM | 239 |
+   309→| Motherboards | 239 |
+   310→| Gabinetes | 192 |
+   311→| Refrigeracion | 164 |
+   312→| Fuentes | 146 |
+   313→| Discos SSD | 138 |
+   314→| Placas de Video | 124 |
+   315→| Microprocesadores | 110 |
+   316→| Discos HDD | 26 |
+   317→| Pastas Termicas | 1 |
+   318→
+   319→### Sistema de Compatibilidad
+   320→- Filtrado automatico por socket (CPU -> Mother), DDR (Mother -> RAM), wattaje (GPU -> PSU)
+   321→- Badges de compatibilidad: ShieldCheck + socket/DDR/wattage en cada producto
+   322→- Productos incompatibles: Se muestran aparte con razon de incompatibilidad, toggle para verlos
+   323→- Banner de filtro activo: Indica cuando se esta filtrando por compatibilidad
+   324→- **SODIMM (RAM notebook):** Excluidas del PC Builder (SODIMM en blacklist del slot RAM). No aparecen en la seleccion de componentes. Si alguna se colara, se marca como incompatible siempre (sin depender de motherboard seleccionada)
+   325→
+   326→### Deteccion de Socket (FIX sesion 16)
+   327→- **Bug:** Intel Core Ultra 5 225F con "LGA1851" (sin espacio) en el nombre era detectado como Socket LGA 1700, bloqueando todas las mothers LGA 1851 compatibles
+   328→- **Causa raiz:** El regex `/\bS?1851\b/` no matcheaba "LGA1851" porque `\b` no detecta boundary entre "A" y "1" (ambos son word chars). Al fallar, el fallback asignaba "1700" por defecto a todos los Intel
+   329→- **Fix 1 - Regex:** Cambiado a `/(?:S|LGA\s*)?1851/` que matchea S1851, LGA 1851, LGA1851 y 1851 standalone. Mismo fix para 1700
+   330→- **Fix 2 - Intel Core Ultra:** Agregada deteccion por modelo: si el nombre contiene "CORE ULTRA", siempre se asigna socket 1851 (Arrow Lake). Se ejecuta antes del fallback a 1700
+   331→- **Archivos modificados:** `src/lib/compatibility.ts` (extractProcessorCompatibility + extractMotherboardCompatibility), `src/app/(tienda)/arma-tu-pc/page.tsx` (SLOT_FILTERS regex)
+   332→- **Aplica en:** Procesadores y motherboards, tanto en backend (compatibilidad) como frontend (filtros manuales)
+   333→
+   334→### Proteccion de Slugs de Categorias (FIX sesion 16)
+   335→- **Bug:** Cambiar el nombre de una categoria usada en Arma tu PC (ej: "Memoria RAM" -> "Memoria RAM PC") rompia el PC Builder porque el slug se regeneraba automaticamente y las queries `SELECT id FROM categories WHERE slug = ?` fallaban
+   336→- **Fix:** API PUT `/api/categories` ya no auto-regenera el slug al cambiar el nombre. El slug solo se actualiza si se envia explicitamente en el body
+   337→- **Admin categorias:** Campo slug ahora editable manualmente con advertencia amarilla "No cambiar si se usa en Arma tu PC"
+   338→- **API POST (crear):** Sigue generando slug automaticamente del nombre (comportamiento normal)
+   339→
+   340→### Ocultar Datos Internos de Productos (IMPLEMENTADO sesion 16)
+   341→- **Bug:** Las vistas publicas mostraban datos internos del proveedor como "Moneda DOL", "EAN", "GARANTIA" en las descripciones
+   342→- **Fix:** Se filtraron estos campos de las vistas de cliente (detalle de producto, tarjetas de catalogo). Solo se muestra la descripcion y el precio
+   343→- **Archivos:** API publica de productos, componente de detalle de producto
+   344→
+   345→### PDF Download (IMPLEMENTADO sesion 15, MEJORA sesion 20, SEPARADO sesion 27)
+   346→- **Libreria:** jsPDF (client-side, no necesita server)
+   347→- **Cuando:** Boton separado "Descargar PDF" en Arma tu PC (ya NO se descarga automaticamente al tocar WhatsApp)
+   348→- **Contenido del PDF:**
+   349→  - Header con logo real de Compucity (imagen PNG, 55x22mm) a la izquierda
+   350→  - Fecha, hora y URL a la derecha del header
+   351→  - Separador verde debajo del header
+   352→  - Lista de componentes con slot, nombre, precio unitario y total
+   353→  - Precio de lista y precio en efectivo (destacado en verde)
+   354→  - Nota de 96 horas hábiles
+   355→  - Footer con datos de contacto y paginacion
+   356→- **Nombre del archivo:** `Compucity-PC-a-Medida.pdf`
+   357→- **MEJORA sesion 20:** Header del PDF reemplazado de texto (COMPU+CITY) a logo real de Compucity usando base64 encoding. Layout: logo izquierda + fecha/url derecha + separador verde
+   358→- **MEJORA sesion 27:** PDF y WhatsApp separados en botones distintos - "Descargar PDF" (oscuro) y "Consultar por WhatsApp" (verde). Desktop: botones separados en sidebar y paso final. Mobile: botones separados en barra sticky
+   359→- **Archivos:** `src/lib/compucity-logo-base64.ts` (logo en base64), `public/images/logo-compucity-pdf.png` (copia PNG)
+   360→
+   361→### Sistema de Filtros Manuales (IMPLEMENTADO sesion 14, MEJORA sesion 28)
+   362→- **Filtros por categoria:** Cada slot tiene filtros relevantes que el usuario puede activar/desactivar
+   363→- **Logica:** AND entre grupos de filtros, OR dentro del mismo grupo
+   364→- **Auto-reset:** Los filtros se limpian automaticamente al cambiar de slot
+   365→- **UI:** Desplegables `<select>` dropdown (MEJORA sesion 28 - antes eran chips clickeables)
+   366→- **Funcion helper:** `extractCapacityGB()` - Parsea capacidad de almacenamiento desde nombres de productos (1TB, 256GB, 1.92TB, etc.)
+   367→
+   368→| Slot | Filtros Disponibles |
+   369→|------|-------------------|
+   370→| Processor | Marca: AMD, Intel |
+   371→| Motherboard | Socket: AM4, AM5, LGA 1700, LGA 1851 · Memoria: DDR4, DDR5 |
+   372→| RAM | Memoria: DDR3, DDR4, DDR5 · **Capacidad: 4GB, 8GB, 16GB, 32GB, 64GB+** |
+   373→| GPU | Marca: NVIDIA, AMD, Intel Arc · **VRAM: 4GB, 6GB, 8GB, 10GB, 12GB, 16GB, 24GB** · **Serie: RTX 3050/3060/4060/4060Ti/4070/4070S/4070TiS/4080S/5060/5060Ti/5070/5070Ti/5080, RX 6600/6700/7600/7700/7800/7900, Arc A750/A770** |
+   374→| SSD | Marca: Kingston, WD, Hiksemi, ADATA/XPG, Lexar, Crucial, Memox, Samsung, MSI · Tipo: M.2/NVMe, SATA · Capacidad: Hasta 256GB, 480-512GB, 960GB-1TB, 2TB, 4TB+ |
+   375→| HDD | Marca: Seagate, WD, Toshiba · Capacidad: 1TB, 2TB, 4TB, 6-8TB, 10-12TB, 16TB+ |
+   376→| PSU | Potencia: Hasta 500W, 550-650W, 700-750W, 800-850W, 1000W+ |
+   377→| Cooling | Tipo: AIO/Liquida, Aire |
+   378→| Case | Tipo: Con Fuente, Sin Fuente |
+   379→| Monitor | Tamaño: 19", 22", 24", 27", 32"+ · Resolucion: Full HD, QHD, 4K/UHD · Frecuencia: 100Hz, 144Hz, 165Hz, 180Hz |
+   380→| Network | Tipo: PCIe, USB, WiFi 6/6E |
+   381→| Perifericos | Tipo: Mouse, Teclado, Auricular, Webcam, Microfono, Volante, Parlante, Joystick |
+   382→
+   383→### Selector de Cantidades (MEJORA sesion 27 - discos multiples)
+   384→- RAM: 1 a 4 unidades (un solo producto)
+   385→- SSD: 1 a 4 unidades, **permite modelos diferentes** (ej: 1x SSD 500GB + 1x SSD 1TB)
+   386→- HDD: 1 a 2 unidades, **permite modelos diferentes**
+   387→- Los precios se multiplican automaticamente por la cantidad de cada disco
+   388→- WhatsApp muestra "2x Kingston 16GB DDR4 - $50.000 c/u = $100.000"
+   389→- **Comportamiento:** Seleccionar un SSD/HDD ya elegido incrementa la cantidad; seleccionar uno nuevo lo agrega como entrada separada con su propia cantidad +/- y boton eliminar
+   390→
+   391→### Layout Mobile (2 pasos)
+   392→- **Paso 1:** Seleccion de componentes con stepper horizontal scrolleable
+   393→- **Barra sticky inferior:** Boton verde "Ver Tu PC a medida" + Anterior/Siguiente siempre visibles
+   394→- **Paso 2:** Al tocar "Ver Tu PC a medida", se oculta seleccion y se muestra resumen con componentes elegidos, precios y boton WhatsApp. Boton "Volver" para regresar
+   395→
+   396→### Layout Desktop
+   397→- Dos columnas lado a lado: seleccion (flex-1) + resumen sticky (w-80)
+   398→- Navegacion inline debajo de la lista de productos
+   399→- Resumen siempre visible con compatibilidad, precios y WhatsApp
+   400→
+   401→---
+   402→
+   403→## PC Armadas (`/categoria/pc-armadas`)
+   404→- **Categoria padre:** pc-armadas
+   405→- **Subcategorias:** mini-pc (19), oficina-pc (20), gamer-pc (0), diseno-pc (0) = 39 productos total
+   406→- **Homepage:** 3 secciones con variedad de precios (1 barato, 2 medios, 1 caro por seccion). Orden: Notebooks, Monitores, PCs (renombrado de "PC Armadas"). Funcion pickDiversePrices() en page.tsx
+   407→- **Keywords de deteccion:** PC LENOVO, PC KELYX, SIST., BAREBONE
+   408→- **Correcciones sesion 5:** 7 "PC Gamer Raptor" (eran gabinete+fuente, no PCs completas) movidas de gamer-pc a gabinetes. 4 Gabinete Raptor movidas de joysticks a gabinetes. 3 Switches TP-Link movidas de oficina-pc a switches
+   409→- **Correcciones sesion 22:** 23 switches "Desktop" movidos de PC Armadas a Switches. 1 antena TP-Link → Placas de Red. 1 escritorio → Escritorios. 2 adaptadores USB-C HDMI → Cables. 2 adaptadores TP-Link USB → Cables. 1 tensiómetro → Smart Home. Mapeo proveedor 001-0430 → Switches creado
+   410→- **Air Intra:** 108 productos de networking (placas-de-red: SFP, Aruba, HP) desactivados
+   411→- **Nota:** La subcategoria gamer-pc esta vacia hasta que se consigan PCs gamer reales de los proveedores
+   412→
+   413→---
+   414→
+   415→## Categorias del Sitio (63 total en DB)
+   416→
+   417→### Con productos activos (top 25):
+   418→| Slug | Nombre | Productos |
+   419→|------|--------|-----------|
+   420→| cables-y-adaptadores | Cables y Adaptadores | 393 |
+   421→| mouse | Mouse | 384 |
+   422→| motherboards | Motherboards | 309 |
+   423→| toners-y-cartuchos | Toners y Cartuchos | 303 |
+   424→| memorias-ram | Memorias RAM | 284 |
+   425→| gabinetes | Gabinetes | 216 |
+   426→| refrigeracion | Refrigeracion | 211 |
+   427→| auriculares | Auriculares | 207 |
+   428→| fuentes | Fuentes | 187 |
+   429→| placas-de-video | Placas de Video | 173 |
+   430→| discos-ssd | Discos SSD | 168 |
+   431→| microprocesadores | Microprocesadores | 140 |
+   432→| teclados | Teclados | 140 |
+   433→| parlantes | Parlantes | 101 |
+   434→| pendrives | Pendrives | 62 |
+   435→| joysticks | Joysticks | 62 |
+   436→| placas-de-red | Placas de Red | 61 |
+   437→| impresion | Impresion | 58 |
+   438→| oficina | Oficina | 42 |
+   439→| routers-wifi | Routers WiFi | 42 |
+   440→| gamer | Gamer | 41 |
+   441→| discos-hdd | Discos HDD | 40 |
+   442→| discos-externos | Discos Externos | 38 |
+   443→| micro-sd | Micro SD | 36 |
+   444→| ups | UPS | 31 |
+   445→
+   446→### Filtros por Categoria en Tienda (IMPLEMENTADO sesion 14, ACTUALIZADO sesiones 27-28)
+   447→- **Componente:** `src/components/ui-custom/CategoryProducts.tsx`
+   448→- **Tipo:** Filtros desplegables `<select>` por grupo (marca, tipo, capacidad, tamaño, resolucion, frecuencia, Hz)
+   449→- **Config:** `CATEGORY_FILTERS` - define grupos de filtros y opciones por slug de categoria
+   450→- **Logica:** Single-select por grupo (elegir una opcion limpia la anterior). AND entre grupos, OR dentro del mismo grupo
+   451→- **Funcion helper:** `extractCapacityGB()` - Parsea capacidad de almacenamiento desde nombres de productos (1TB, 256GB, 1.92TB, etc.)
+   452→- **Nuevo grupo de filtro:** `capacity` (Capacidad) - disponible en discos-ssd, discos-hdd, discos-externos
+   453→- **Categorias con filtros (dropdown):**
+   454→
+   455→| Slug | Filtros disponibles |
+   456→|------|-------------------|
+   457→| discos-ssd | Marca: 20 marcas (Kingston, WD, Hiksemi, ADATA/XPG, Lexar, Crucial, Memox, Samsung, MSI, Patriot, Seagate, Corsair, Kioxia, Silicon Power, Leven, PNY, SOLIDIGM, **SanDisk**, **Team Group**, **Biwin**) · Tipo: M.2/NVMe, SATA · **Capacidad: Hasta 256GB, 480-512GB, 960GB-1TB, 2TB, 4TB+** |
+   458→| discos-hdd | Marca: Seagate, WD, Toshiba · **Capacidad: 1TB, 2TB, 4TB, 6-8TB, 10-12TB, 16TB+** |
+   459→| discos-externos | Marca: ADATA, WD, Seagate, Kingston, Hiksemi, Crucial, Toshiba · **Capacidad: Hasta 512GB, 1TB, 2TB, 4TB+** |
+   460→| fuentes | Marca: Corsair, Seasonic, EVGA, Cooler Master, ASUS, Gigabyte, Gamemax, XPG · Potencia: Hasta 500W, 550-650W, 700-750W, 800-850W, 1000W+ |
+   461→| gabinetes | Marca: Corsair, Cooler Master, ThermalTake, Aerocool, DeepCool, Gamemax, ASUS, NZXT, Sentey, Naceb, Kelyx |
+   462→| refrigeracion | Marca: Corsair, Noctua, Cooler Master, DeepCool, Arctic, be quiet!, Gamemax, ASUS, XPG, Thermaltake, Kelyx · Tipo: AIO/Liquida, Aire |
+   463→| monitores | Marca: 15 marcas (Asus, LG, Dell, Gigabyte, AOC, Philips, Samsung, MSI, HP, Lenovo, Hikvision, Gamemax, Acer, BenQ, ViewSonic, CX) · Tamaño: 19", 22", 24", 27", 32"+ · Resolucion: Full HD, QHD, 4K/UHD · Frecuencia: 100Hz, 144Hz, 165Hz, 180Hz · **Herencia de subcategoria** |
+   464→| placas-de-red | Marca: TP-Link, Intel, ASUS, Cudy · Tipo: PCIe, USB, WiFi 6/6E |
+   465→| memorias-ram | Marca: 9 marcas · Memoria: DDR3, DDR4, DDR5 · **Capacidad: 4GB, 8GB, 16GB, 32GB, 64GB+** |
+   466→| microprocesadores | Marca: AMD, Intel |
+   467→| motherboards | Socket: AM4, AM5, LGA 1700, LGA 1851 · Memoria: DDR4, DDR5 |
+   468→| placas-de-video | Marca: Gigabyte, MSI, ASUS, NVIDIA, AMD, PNY, Intel Arc, **PowerColor**, **Sapphire**, **INNO3D** · **VRAM: 4GB, 6GB, 8GB, 10GB, 12GB, 16GB, 24GB** · **Serie: RTX 3050, RTX 3060, RTX 4060, RTX 4060 Ti, RTX 4070, RTX 4070 Super, RTX 4070 Ti Super, RTX 4080 Super, RTX 5060, RTX 5060 Ti, RTX 5070, RTX 5070 Ti, RTX 5080, RX 6600, RX 6700, RX 7600, RX 7700, RX 7800, RX 7900, Intel Arc A750/A770** |
+   469→| notebooks | Marca: 8 marcas (Lenovo, ASUS, HP, Dell, Acer, Gigabyte, MSI, Bangho) · **Procesador: Intel Core i3, Intel Core i5, Intel Core i7, Intel Core i9, Ryzen 3, Ryzen 5, Ryzen 7, Ryzen 9** · **RAM: 4GB, 8GB, 12GB, 16GB, 32GB, 64GB** · **Pantalla: 11-12\", 13-14\", 15-16\", 17\"+** · **Placa de Video: Sin GPU dedicada, RTX 3050/4050/4060/4070, RX 6600/7600** · **Herencia de subcategoria** |
+   470→| oficina | Marca: 5 marcas · **Procesador: Intel Core i3, Intel Core i5, Intel Core i7, Ryzen 3, Ryzen 5, Ryzen 7** · **RAM: 4GB, 8GB, 12GB, 16GB** · **Pantalla: 13-14\", 15-16\", 17\"+** · **Tipo: Notebook, Otro** |
+   471→| gamer-y-diseno | Marca: 7 marcas · **Procesador: Intel Core i5, Intel Core i7, Intel Core i9, Ryzen 5, Ryzen 7, Ryzen 9** · **RAM: 8GB, 16GB, 32GB, 64GB** · **Pantalla: 13-14\", 15-16\", 17\"+** · **Placa de Video: Sin GPU dedicada, RTX 3050/4050/4060/4070, RX 6600/7600** |
+   472→
+   473→### MEJORA sesion 28: Filtros de capacidad + marcas faltantes + dropdowns PC Builder
+   474→- **Capacidad en SSD:** Hasta 256GB, 480-512GB, 960GB-1TB, 2TB, 4TB+ (funcion `extractCapacityGB` parsea 1TB, 256GB, 960GB, 1.92TB, etc.)
+   475→- **Capacidad en HDD:** 1TB, 2TB, 4TB, 6-8TB, 10-12TB, 16TB+
+   476→- **Capacidad en Externos:** Hasta 512GB, 1TB, 2TB, 4TB+
+   477→- **Marcas nuevas en SSD:** SanDisk, Team Group, Biwin
+   478→- **Regex mejorados:** Kingston (+A400/KC3000/KC600/DC600/NV3), ADATA/XPG (+GAMMIX/LEGEND/SPECTRIX/SU650/SU630), Lexar (+NM610/NM790/NQ100/NQ780), Crucial (+BX500/P310/E100), MSI (+SPATIUM), Patriot (+P300/P210), WD/HDD (+RED/PURPLE)
+   479→- **PC Builder:** Filtros convertidos de chips a desplegables `<select>`. SSD con marca+tipo+capacidad. HDD con marca+capacidad. Agregado `capacity` a keyLabels
+   480→- **Archivos:** `src/components/ui-custom/CategoryProducts.tsx`, `src/app/(tienda)/arma-tu-pc/page.tsx`
+   481→
+   482→### MEJORA sesion 30: Filtros de marca para TODAS las categorias y subcategorias
+   483→- **Antes:** Solo 25 categorias tenian filtros definidos en `CATEGORY_FILTERS`. Muchas categorias con productos activos (cables, oficina, UPS, micro-sd, joysticks, etc.) no tenian filtros de marca
+   484→- **Despues:** TODAS las categorias con productos activos ahora tienen filtros de marca. Se agregaron 24 nuevas categorias a `CATEGORY_FILTERS`
+   485→- **Categorias nuevas con filtros:**
+   486→  - cables-y-adaptadores (9 marcas + tipo: Cable/Adaptador/Conversor/Hub)
+   487→  - oficina (5 marcas)
+   488→  - ups (5 marcas + VA: Hasta 1000VA/1000-2000VA/2000-3000VA/3000VA+)
+   489→  - memoria-ram-notebook (7 marcas + DDR3/DDR4/DDR5)
+   490→  - fundas-mochilas (4 marcas + tipo: Funda/Mochila)
+   491→  - micro-sd (5 marcas + capacidad: 32GB/64GB/128GB/256GB/512GB+)
+   492→  - hogar-inteligente (4 marcas + tipo: Camara/Alarma/Cerradura/Robot)
+   493→  - joysticks (8 marcas: Redragon, Genius, Cooler Master, Raptor, Logitech, Microsoft, Sony, Noganet)
+   494→  - cargadores (6 marcas + tipo: Notebook/Celular/Fuente)
+   495→  - sillas-gamer (5 marcas)
+   496→  - soportes-y-brazos (5 marcas + tipo: Monitor/TV/Notebook)
+   497→  - mousepads (4 marcas)
+   498→  - kits-gamer (4 marcas)
+   499→  - microfonos (7 marcas)
+   500→  - tablets (4 marcas)
+
+[showing lines 1-500 of 1164; use offset=501 with limit to continue reading]
