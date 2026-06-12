@@ -308,11 +308,11 @@ export default function Navbar() {
               </span>
               <span className="flex items-center gap-2">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-compucity-green-light animate-pulse" />
-                <a href="https://wa.me/5493517656918" target="_blank" className="hover:text-compucity-green-light transition-colors">WhatsApp: 3517656918</a>
+                <a href="https://wa.me/5493548402056" target="_blank" className="hover:text-compucity-green-light transition-colors">WhatsApp: 3548 40-2056</a>
               </span>
               <span className="flex items-center gap-2">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-compucity-green-light animate-pulse" />
-                La Falda, Córdoba
+                Av. Sarmiento 462 - La Falda, Córdoba
               </span>
               <span className="flex items-center gap-2">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-compucity-green-light animate-pulse" />

@@ -10,7 +10,7 @@ export default function RecuperarContrasenaPage() {
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
 
-  const storePhone = '5493517656918'
+  const storePhone = '5493548402056'
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

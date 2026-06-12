@@ -1237,7 +1237,7 @@ function OrderCard({
                     {order.shippingMethod === 'retiro' || (shippingInfo?.method === 'retiro') ? (
                       <div className="flex items-center gap-2">
                         <MapPin className="h-4 w-4 text-compucity-green shrink-0" />
-                        <p className="text-sm text-gray-700">Retiro en local — La Falda, Córdoba</p>
+                        <p className="text-sm text-gray-700">Retiro en local — Av. Sarmiento 462, La Falda, Córdoba</p>
                       </div>
                     ) : (
                       <>

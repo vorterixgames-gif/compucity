@@ -584,7 +584,7 @@ export default function ArmaTuPCPage() {
     msg += `\n💰 *Total en efectivo:* ${formatPrice(totalPrice)}\n`
     msg += `📋 *Total de lista:* ${formatPrice(totalListPrice)}\n\n`
     msg += `Consulto por la disponibilidad y tiempo de armado. Gracias!`
-    return `https://wa.me/5493517656918?text=${encodeURIComponent(msg)}`
+    return `https://wa.me/5493548402056?text=${encodeURIComponent(msg)}`
   }
 
   // Generate PDF with selected components
@@ -726,7 +726,7 @@ export default function ArmaTuPCPage() {
       doc.setPage(i)
       doc.setFontSize(7)
       doc.setTextColor(150, 150, 150)
-      doc.text('Compucity - La Falda, Córdoba, Argentina | WhatsApp: 3517656918', margin, 290)
+      doc.text('Compucity - Av. Sarmiento 462, La Falda, Córdoba | WhatsApp: 3548 40-2056', margin, 290)
       doc.text(`Página ${i} de ${totalPages}`, pageWidth - margin, 290, { align: 'right' })
     }
 

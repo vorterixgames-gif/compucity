@@ -93,7 +93,7 @@ export default function CheckoutPage() {
         serviceName: 'Retiro en CompuCity',
         price: 0,
         estimatedDays: 'Inmediato',
-        description: 'La Falda, Córdoba',
+        description: 'Av. Sarmiento 462 - La Falda, Córdoba',
       })
       setShippingQuotes([])
       return
@@ -136,7 +136,7 @@ export default function CheckoutPage() {
   }, [customerData.postalCode, shippingMethod, items.length])
 
   const generateWhatsAppMessage = () => {
-    const storePhone = '5493517656918'
+    const storePhone = '5493548402056'
 
     let message = `🛒 *NUEVO PEDIDO - COMPUCITY*\n\n`
     message += `👤 *Cliente:*\n`
@@ -146,7 +146,7 @@ export default function CheckoutPage() {
     if (customerData.email) message += `   Email: ${customerData.email}\n`
     message += `\n📦 *Envío:*\n`
     if (shippingMethod === 'retiro') {
-      message += `   Retiro en local - La Falda, Córdoba - Gratis\n`
+      message += `   Retiro en local - Av. Sarmiento 462, La Falda, Córdoba - Gratis\n`
     } else {
       message += `   ${selectedQuote?.serviceName || 'Envío por correo'}\n`
       message += `   Dirección: ${customerData.address}\n`
@@ -295,7 +295,7 @@ export default function CheckoutPage() {
           shippingCost,
           shippingDetails: shippingMethod === 'envio' && selectedQuote
             ? JSON.stringify({ carrier: selectedQuote.carrier, carrierName: selectedQuote.carrierName, service: selectedQuote.service, serviceName: selectedQuote.serviceName, price: selectedQuote.price, estimatedDays: selectedQuote.estimatedDays, description: selectedQuote.description })
-            : JSON.stringify({ method: 'retiro', description: 'Retiro en local - La Falda, Córdoba' }),
+            : JSON.stringify({ method: 'retiro', description: 'Retiro en local - Av. Sarmiento 462, La Falda, Córdoba' }),
           notes: customerData.notes,
           couponCode: appliedCoupon?.code || null,
           couponDiscount: couponDiscount > 0 ? couponDiscount : null,
@@ -586,7 +586,7 @@ export default function CheckoutPage() {
                   <MapPin className="h-5 w-5 text-compucity-green" />
                   <div className="flex-1">
                     <p className="font-medium">Retiro en local</p>
-                    <p className="text-sm text-gray-500">La Falda, Córdoba - Gratis</p>
+                    <p className="text-sm text-gray-500">Av. Sarmiento 462 - La Falda, Córdoba - Gratis</p>
                   </div>
                   <span className="text-sm font-semibold text-green-600">Gratis</span>
                 </label>

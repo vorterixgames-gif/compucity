@@ -12,7 +12,7 @@ export default function ContactoPage() {
             <MapPin className="h-5 w-5 text-compucity-green mt-1 shrink-0" />
             <div>
               <h3 className="font-semibold text-gray-900">Dirección</h3>
-              <p className="text-gray-600 text-sm">La Falda, Valle de Punilla, Córdoba, Argentina</p>
+              <p className="text-gray-600 text-sm">Av. Sarmiento 462 - La Falda, Valle de Punilla, Córdoba</p>
             </div>
           </div>
 
@@ -20,8 +20,8 @@ export default function ContactoPage() {
             <Phone className="h-5 w-5 text-compucity-green mt-1 shrink-0" />
             <div>
               <h3 className="font-semibold text-gray-900">Teléfono / WhatsApp</h3>
-              <a href="https://wa.me/5493517656918" target="_blank" className="text-compucity-green hover:text-compucity-green-dark text-sm">
-                +54 9 351 765-6918
+              <a href="https://wa.me/5493548402056" target="_blank" className="text-compucity-green hover:text-compucity-green-dark text-sm">
+                +54 9 3548 40-2056
               </a>
             </div>
           </div>
@@ -30,7 +30,7 @@ export default function ContactoPage() {
             <Mail className="h-5 w-5 text-compucity-green mt-1 shrink-0" />
             <div>
               <h3 className="font-semibold text-gray-900">Email</h3>
-              <p className="text-gray-600 text-sm">info@compucity.com.ar</p>
+              <p className="text-gray-600 text-sm">compucitylafalda@gmail.com</p>
             </div>
           </div>
 
@@ -44,7 +44,7 @@ export default function ContactoPage() {
           </div>
 
           <a
-            href="https://wa.me/5493517656918?text=Hola!%20Quiero%20hacer%20una%20consulta"
+            href="https://wa.me/5493548402056?text=Hola!%20Quiero%20hacer%20una%20consulta"
             target="_blank"
             className="inline-flex items-center gap-2 px-6 py-3 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition"
           >
@@ -58,7 +58,7 @@ export default function ContactoPage() {
           <div className="text-center text-gray-400">
             <MapPin className="h-12 w-12 mx-auto mb-2" />
             <p className="text-sm">Google Maps</p>
-            <p className="text-xs">La Falda, Córdoba</p>
+            <p className="text-xs">Av. Sarmiento 462 - La Falda, Córdoba</p>
           </div>
         </div>
       </div>

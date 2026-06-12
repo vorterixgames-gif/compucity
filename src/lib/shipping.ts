@@ -155,7 +155,7 @@ export function calculateShipping(params: ShippingCalcParams): ShippingQuote[] {
         serviceName: 'Retiro en CompuCity',
         price: 0,
         estimatedDays: 'Inmediato',
-        description: 'La Falda, Córdoba - Retirás tu pedido en el local',
+        description: 'Av. Sarmiento 462, La Falda, Córdoba - Retirás tu pedido en el local',
       },
     ]
   }

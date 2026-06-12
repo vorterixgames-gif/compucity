@@ -192,7 +192,7 @@ export default async function HomePage() {
           </h2>
           <p className="text-compucity-green-200 mb-8 max-w-md mx-auto">Contactanos por WhatsApp y te conseguimos lo que necesitás al mejor precio</p>
           <a
-            href="https://wa.me/5493517656918?text=Hola!%20Busco%20un%20producto%20que%20no%20vi%20en%20la%20tienda"
+            href="https://wa.me/5493548402056?text=Hola!%20Busco%20un%20producto%20que%20no%20vi%20en%20la%20tienda"
             target="_blank"
             className="inline-flex items-center gap-2 px-8 py-3.5 bg-white hover:bg-compucity-green-50 text-compucity-green-800 font-bold rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl"
           >

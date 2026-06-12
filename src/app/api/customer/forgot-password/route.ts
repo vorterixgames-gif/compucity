@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
             </div>
 
             <div style="text-align: center; color: #aaa; font-size: 12px; padding-top: 20px; border-top: 1px solid #eee;">
-              <p>Compucity - La Falda, Córdoba, Argentina</p>
+              <p>Compucity - Av. Sarmiento 462, La Falda, Córdoba</p>
               <p>Este email fue enviado a ${email.toLowerCase().trim()}</p>
             </div>
           </div>

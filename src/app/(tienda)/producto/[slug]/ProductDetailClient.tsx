@@ -75,7 +75,7 @@ export default function ProductDetailClient({ product }: Props) {
       </div>
 
       <a
-        href={`https://wa.me/5493517656918?text=${whatsappMsg}`}
+        href={`https://wa.me/5493548402056?text=${whatsappMsg}`}
         target="_blank"
         className="w-full flex items-center justify-center gap-2 py-3 px-6 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition"
       >

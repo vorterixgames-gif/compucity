@@ -62,7 +62,7 @@ export default function Footer() {
               Envíos a todo el país desde La Falda, Córdoba.
             </p>
             <a
-              href="https://wa.me/5493517656918?text=Hola!%20Quisiera%20hacer%20una%20consulta"
+              href="https://wa.me/5493548402056?text=Hola!%20Quisiera%20hacer%20una%20consulta"
               target="_blank"
               className="inline-flex items-center gap-2 bg-compucity-green/15 hover:bg-compucity-green/25 border border-compucity-green/30 rounded-lg px-4 py-2.5 transition group"
             >
@@ -108,15 +108,15 @@ export default function Footer() {
             <ul className="space-y-3">
               <li className="flex items-start gap-2.5 text-sm text-gray-400">
                 <MapPin className="h-4 w-4 mt-0.5 shrink-0 text-gray-500" />
-                La Falda, Valle de Punilla, Córdoba
+                Av. Sarmiento 462 - La Falda, Córdoba
               </li>
               <li className="flex items-center gap-2.5 text-sm text-gray-400">
                 <Phone className="h-4 w-4 shrink-0 text-gray-500" />
-                <a href="tel:3517656918" className="hover:text-compucity-green transition">3517656918</a>
+                <a href="tel:3548402056" className="hover:text-compucity-green transition">3548 40-2056</a>
               </li>
               <li className="flex items-center gap-2.5 text-sm text-gray-400">
                 <Mail className="h-4 w-4 shrink-0 text-gray-500" />
-                <a href="mailto:info@compucity.com.ar" className="hover:text-compucity-green transition">info@compucity.com.ar</a>
+                <a href="mailto:compucitylafalda@gmail.com" className="hover:text-compucity-green transition">compucitylafalda@gmail.com</a>
               </li>
             </ul>
           </div>

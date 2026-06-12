@@ -4,7 +4,7 @@ import { MessageCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 export default function WhatsAppButton() {
-  const phoneNumber = '5493517656918'
+  const phoneNumber = '5493548402056'
   const message = encodeURIComponent('Hola! Quisiera hacer una consulta sobre un producto de Compucity')
   const [bottomClass, setBottomClass] = useState('bottom-6')
 
