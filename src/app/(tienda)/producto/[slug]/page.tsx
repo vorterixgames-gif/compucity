@@ -1,14 +1,65 @@
 import { getProductBySlug } from '@/lib/queries'
 import { notFound } from 'next/navigation'
+import { Metadata } from 'next'
 import ProductDetailClient from './ProductDetailClient'
 import ProductGallery from '@/components/ui-custom/ProductGallery'
 import Breadcrumbs from '@/components/ui-custom/Breadcrumbs'
 import ProductTabs from '@/components/ui-custom/ProductTabs'
 import RelatedProducts from '@/components/ui-custom/RelatedProducts'
 import { getActiveSale } from '@/lib/pricing'
+import JsonLd, { getProductSchema, getBreadcrumbSchema } from '@/components/seo/JsonLd'
 
 interface Props {
   params: Promise<{ slug: string }>
+}
+
+// Dynamic metadata for SEO
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params
+  const product = await getProductBySlug(slug)
+
+  if (!product) {
+    return { title: 'Producto no encontrado' }
+  }
+
+  const images: string[] = product.images ? JSON.parse(product.images) : []
+  const firstImage = images[0] || null
+  const imageUrl = firstImage
+    ? (firstImage.startsWith('http') ? firstImage : `https://www.compucityonline.com.ar${firstImage}`)
+    : 'https://www.compucityonline.com.ar/images/og-image.jpg'
+
+  const activeSale = getActiveSale(product as any)
+  const displayPrice = activeSale !== null && activeSale < product.price ? activeSale : (product.comparePrice || product.price)
+
+  const description = product.description
+    ? `${product.description.slice(0, 155)}... - Comprá online en Compucity, La Falda, Córdoba.`
+    : `${product.name} por $${displayPrice.toLocaleString('es-AR')}. Comprá online con envío a todo el país desde La Falda, Córdoba.`
+
+  return {
+    title: `${product.name} - Comprá Online`,
+    description,
+    alternates: {
+      canonical: `https://www.compucityonline.com.ar/producto/${slug}`,
+    },
+    openGraph: {
+      title: `${product.name} | Compucity`,
+      description,
+      url: `https://www.compucityonline.com.ar/producto/${slug}`,
+      type: 'website',
+      images: [{
+        url: imageUrl,
+        width: 800,
+        height: 600,
+        alt: product.name,
+      }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: `${product.name} | Compucity`,
+      description,
+      images: [imageUrl],
+    },
+  }
 }
 
 export default async function ProductPage({ params }: Props) {
@@ -25,8 +76,35 @@ export default async function ProductPage({ params }: Props) {
   const formatPrice = (n: number) =>
     new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n)
 
+  // Build structured data for this product
+  const productJsonLd = getProductSchema({
+    name: product.name,
+    description: product.description,
+    image: images[0] || null,
+    price: product.price,
+    comparePrice: product.comparePrice,
+    sku: product.sku || null,
+    slug: product.slug,
+    stock: product.stock,
+    categoryName: product.category?.name || null,
+  })
+
+  // Build breadcrumb structured data
+  const breadcrumbItems = [
+    { name: 'Inicio', url: '/' },
+    ...(product.category
+      ? [{ name: product.category.name, url: `/categoria/${product.category.slug}` }]
+      : []),
+    { name: product.name },
+  ]
+  const breadcrumbJsonLd = getBreadcrumbSchema(breadcrumbItems)
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
+      {/* Structured Data: Product + Breadcrumb */}
+      <JsonLd data={productJsonLd} />
+      <JsonLd data={breadcrumbJsonLd} />
+
       {/* Breadcrumb */}
       <Breadcrumbs
         items={

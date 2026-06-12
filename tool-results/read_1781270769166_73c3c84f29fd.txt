@@ -1,0 +1,1607 @@
+     1→'use client'
+     2→
+     3→import React, { useState, useEffect, useCallback, useMemo } from 'react'
+     4→import Link from 'next/link'
+     5→import jsPDF from 'jspdf'
+     6→import {
+     7→  Cpu,
+     8→  CircuitBoard,
+     9→  Zap,
+    10→  HardDrive,
+    11→  Box,
+    12→  Monitor,
+    13→  Wind,
+    14→  Droplets,
+    15→  ChevronRight,
+    16→  ChevronLeft,
+    17→  ShoppingCart,
+    18→  MessageCircle,
+    19→  Trash2,
+    20→  Plus,
+    21→  Check,
+    22→  Loader2,
+    23→  Search,
+    24→  X,
+    25→  AlertTriangle,
+    26→  ShieldCheck,
+    27→  Info,
+    28→  Minus,
+    29→  Wifi,
+    30→  Mouse,
+    31→  Gamepad2,
+    32→  Plug,
+    33→  SlidersHorizontal,
+    34→  Download,
+    35→  ChevronDown,
+    36→
+    37→} from 'lucide-react'
+    38→import { Button } from '@/components/ui/button'
+    39→import { Input } from '@/components/ui/input'
+    40→import {
+    41→  extractCompatibility,
+    42→  buildCompatibilityFilters,
+    43→  SOCKET_LABELS,
+    44→  DDR_LABELS,
+    45→  type CompatibilityInfo,
+    46→  type CompatibilityFilters,
+    47→} from '@/lib/compatibility'
+    48→import { getVisibleSpecs } from '@/lib/product-specs'
+    49→import { COMPUCITY_LOGO_BASE64 } from '@/lib/compucity-logo-base64'
+    50→import PCAssistantChat from '@/components/pc-assistant-chat'
+    51→import { WhatsAppIcon } from '@/components/ui-custom/WhatsAppIcon'
+    52→
+    53→// ============================================
+    54→// Types
+    55→// ============================================
+    56→
+    57→interface ComponentSlot {
+    58→  slot: string
+    59→  label: string
+    60→  categorySlug: string
+    61→  count: number
+    62→  icon: React.ElementType
+    63→  required: boolean
+    64→}
+    65→
+    66→interface BuilderProduct {
+    67→  id: string
+    68→  name: string
+    69→  slug: string
+    70→  price: number
+    71→  comparePrice: number | null
+    72→  costPrice: number | null
+    73→  images: string
+    74→  stock: number
+    75→  specs: string
+    76→  _calculated: boolean
+    77→  compatInfo?: CompatibilityInfo
+    78→  isCompatible?: boolean
+    79→}
+    80→
+    81→interface SelectedComponent {
+    82→  slot: string
+    83→  product: BuilderProduct
+    84→  quantity: number
+    85→}
+    86→
+    87→// ============================================
+    88→// Slot Filter Definitions
+    89→// ============================================
+    90→
+    91→interface FilterOption {
+    92→  key: string        // filter group key (e.g., 'brand', 'ddr', 'type')
+    93→  label: string      // display label
+    94→  value: string      // filter value
+    95→  matchFn: (name: string) => boolean  // function to check if product name matches
+    96→}
+    97→
+    98→/**
+    99→ * Extract the primary storage capacity in GB from a product name.
+   100→ * Handles patterns like: 1TB, 1 TB, 2TB, 256GB, 480GB, 960GB, 1.92TB, etc.
+   101→ * Returns null if no recognizable storage capacity found.
+   102→ */
+   103→function extractCapacityGB(name: string): number | null {
+   104→  const n = name.replace(/,/g, '.').replace(/(SSD|HDD|DISCO)(\d)/gi, '$1 $2')
+   105→  const tbMatch = n.match(/\b(\d+\.?\d*)\s*TB?\b/i)
+   106→  if (tbMatch) {
+   107→    const val = parseFloat(tbMatch[1])
+   108→    if (val >= 0.1 && val <= 100) return val * 1000
+   109→  }
+   110→  const gbMatch = n.match(/\b(\d{2,4})\s*GB(?!\s*[\/PS])/i)
+   111→  if (gbMatch) {
+   112→    const val = parseInt(gbMatch[1])
+   113→    if (val >= 32 && val <= 16384) return val
+   114→  }
+   115→  return null
+   116→}
+   117→
+   118→const SLOT_FILTERS: Record<string, FilterOption[]> = {
+   119→  processor: [
+   120→    { key: 'brand', label: 'AMD', value: 'AMD', matchFn: (n) => /\bAMD\b|\bRYZEN\b|\bATHLON\b/i.test(n) },
+   121→    { key: 'brand', label: 'Intel', value: 'Intel', matchFn: (n) => /\bINTEL\b|\bCORE\s*I[3579]\b|\bPENTIUM\b|\bCELERON\b|\bCORE ULTRA\b/i.test(n) },
+   122→  ],
+   123→  motherboard: [
+   124→    { key: 'socket', label: 'AM4', value: 'AM4', matchFn: (n) => /\bAM4\b|\bB550\b|\bA520\b|\bX570\b|\bB450\b|\bA320\b/i.test(n)},
+   125→    { key: 'socket', label: 'AM5', value: 'AM5', matchFn: (n) => /\bAM5\b|\bB650\b|\bB850\b|\bB840\b|\bA620\b|\bX870\b|\bX670E?\b/i.test(n) },
+   126→    { key: 'socket', label: 'LGA 1700', value: '1700', matchFn: (n) => /(?:S|LGA\s*)?1700|\bB760\b|\bH610\b|\bB660\b|\bH670\b|\bZ690\b|\bZ790\b/i.test(n) },
+   127→    { key: 'socket', label: 'LGA 1851', value: '1851', matchFn: (n) => /(?:S|LGA\s*)?1851|\bB860\b|\bZ890\b|\bH810\b/i.test(n) },
+   128→    { key: 'ddr', label: 'DDR4', value: 'DDR4', matchFn: (n) => /\bDDR4\b/i.test(n) },
+   129→    { key: 'ddr', label: 'DDR5', value: 'DDR5', matchFn: (n) => /\bDDR5\b/i.test(n) },
+   130→  ],
+   131→  ram: [
+   132→    { key: 'ddr', label: 'DDR3', value: 'DDR3', matchFn: (n) => /\bDDR3\b/i.test(n) },
+   133→    { key: 'ddr', label: 'DDR4', value: 'DDR4', matchFn: (n) => /\bDDR4\b/i.test(n) },
+   134→    { key: 'ddr', label: 'DDR5', value: 'DDR5', matchFn: (n) => /\bDDR5\b/i.test(n) },
+   135→    { key: 'capacity', label: '8GB', value: '8gb', matchFn: (n) => /\b8\s*GB\b/i.test(n) },
+   136→    { key: 'capacity', label: '16GB', value: '16gb', matchFn: (n) => /\b16\s*GB\b/i.test(n) },
+   137→    { key: 'capacity', label: '32GB', value: '32gb', matchFn: (n) => /\b32\s*GB\b/i.test(n) },
+   138→    { key: 'capacity', label: '48GB+', value: '48gbplus', matchFn: (n) => { const m = n.match(/\b(\d+)\s*GB\b/i); return m ? parseInt(m[1]) >= 48 : false } },
+   139→  ],
+   140→  gpu: [
+   141→    { key: 'brand', label: 'NVIDIA', value: 'NVIDIA', matchFn: (n) => /\bRTX\b|\bGTX\b|\bGEFORCE\b|\bNVIDIA\b|\bQUADRO\b|\bGT 1030\b/i.test(n) },
+   142→    { key: 'brand', label: 'AMD', value: 'AMD', matchFn: (n) => /\bRADEON\b|\bRX\s\d/i.test(n) },
+   143→    { key: 'brand', label: 'Intel Arc', value: 'INTEL_ARC', matchFn: (n) => /\bARC\s*A[37]\b/i.test(n) },
+   144→    { key: 'vram', label: '4GB', value: '4gb', matchFn: (n) => /\b4\s*GB\b/i.test(n) && /\bRTX\b|\bGTX\b|\bRADEON\b|\bGEFORCE\b|\bGT\b|\bQUADRO\b|\bARC\b/i.test(n) },
+   145→    { key: 'vram', label: '6GB', value: '6gb', matchFn: (n) => /\b6\s*GB\b/i.test(n) && /\bRTX\b|\bGTX\b|\bRADEON\b|\bGEFORCE\b|\bARC\b/i.test(n) },
+   146→    { key: 'vram', label: '8GB', value: '8gb', matchFn: (n) => /\b8\s*GB\b/i.test(n) && /\bRTX\b|\bGTX\b|\bRADEON\b|\bGEFORCE\b|\bQUADRO\b|\bARC\b/i.test(n) },
+   147→    { key: 'vram', label: '12GB', value: '12gb', matchFn: (n) => /\b12\s*GB\b/i.test(n) && /\bRTX\b|\bGTX\b|\bRADEON\b|\bGEFORCE\b|\bQUADRO\b/i.test(n) },
+   148→    { key: 'vram', label: '16GB', value: '16gb', matchFn: (n) => /\b16\s*GB\b/i.test(n) && /\bRTX\b|\bGTX\b|\bRADEON\b|\bGEFORCE\b|\bQUADRO\b/i.test(n) },
+   149→    { key: 'vram', label: '24GB', value: '24gb', matchFn: (n) => /\b24\s*GB\b/i.test(n) && /\bRTX\b|\bGTX\b|\bRADEON\b|\bGEFORCE\b|\bQUADRO\b/i.test(n) },
+   150→    { key: 'series', label: 'RTX 5090', value: 'rtx5090', matchFn: (n) => /RTX\s*5090/i.test(n) },
+   151→    { key: 'series', label: 'RTX 5080', value: 'rtx5080', matchFn: (n) => /RTX\s*5080/i.test(n) },
+   152→    { key: 'series', label: 'RTX 5070', value: 'rtx5070', matchFn: (n) => /RTX\s*5070/i.test(n) },
+   153→    { key: 'series', label: 'RTX 5060', value: 'rtx5060', matchFn: (n) => /RTX\s*5060/i.test(n) },
+   154→    { key: 'series', label: 'RTX 5050', value: 'rtx5050', matchFn: (n) => /RTX\s*5050/i.test(n) },
+   155→    { key: 'series', label: 'RTX 3050', value: 'rtx3050', matchFn: (n) => /RTX\s*3050/i.test(n) },
+   156→    { key: 'series', label: 'RX 9070 XT', value: 'rx9070xt', matchFn: (n) => /RX\s*9070/i.test(n) },
+   157→    { key: 'series', label: 'RX 9060 XT', value: 'rx9060xt', matchFn: (n) => /RX\s*9060/i.test(n) },
+   158→    { key: 'series', label: 'RX 7600', value: 'rx7600', matchFn: (n) => /RX\s*7600/i.test(n) },
+   159→  ],
+   160→  ssd: [
+   161→    { key: 'brand', label: 'Kingston', value: 'KINGSTON', matchFn: (n) => /\bKINGSTON\b|\bFURY\b|\bA400\b|\bKC3000\b|\bKC600\b|\bNV3\b/i.test(n) },
+   162→    { key: 'brand', label: 'WD', value: 'WD', matchFn: (n) => /\bWESTERN\b|\bWD\b/i.test(n) && /\bSSD\b|\bNVME\b|\bM\.2\b|\bGREEN\b|\bBLUE\b|\bBLACK\b|\bRED\b/i.test(n) },
+   163→    { key: 'brand', label: 'Hiksemi', value: 'HIKSEMI', matchFn: (n) => /\bHIKSEMI\b/i.test(n) },
+   164→    { key: 'brand', label: 'ADATA / XPG', value: 'ADATA', matchFn: (n) => /\bADATA\b|\bXPG\b|\bGAMMIX\b|\bLEGEND\b|\bSPECTRIX\b/i.test(n) },
+   165→    { key: 'brand', label: 'Lexar', value: 'LEXAR', matchFn: (n) => /\bLEXAR\b/i.test(n) },
+   166→    { key: 'brand', label: 'Crucial', value: 'CRUCIAL', matchFn: (n) => /\bCRUCIAL\b/i.test(n) },
+   167→    { key: 'brand', label: 'Memox', value: 'MEMOX', matchFn: (n) => /\bMEMOX\b/i.test(n) },
+   168→    { key: 'brand', label: 'Samsung', value: 'SAMSUNG', matchFn: (n) => /\bSAMSUNG\b|\bEVO\b|\b9[79]0\b/i.test(n) && !/\bMONITOR\b/i.test(n) },
+   169→    { key: 'brand', label: 'MSI', value: 'MSI', matchFn: (n) => /\bMSI\b|\bSPATIUM\b/i.test(n) && /\bSSD\b|\bNVME\b|\bM\.2\b/i.test(n) },
+   170→    { key: 'type', label: 'M.2 / NVMe', value: 'NVME', matchFn: (n) => /\bNVME\b|\bM\.2\b|\bM2\b/i.test(n) },
+   171→    { key: 'type', label: 'SATA', value: 'SATA', matchFn: (n) => /\bSATA\b/i.test(n) && !/\bNVME\b|\bM\.2\b/i.test(n) },
+   172→    { key: 'capacity', label: 'Hasta 256GB', value: 'upto256', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c <= 256 } },
+   173→    { key: 'capacity', label: '480GB - 512GB', value: '480-512', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 480 && c <= 600 } },
+   174→    { key: 'capacity', label: '960GB - 1TB', value: '960-1tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 960 && c <= 1100 } },
+   175→    { key: 'capacity', label: '2TB', value: '2tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 1900 && c <= 2100 } },
+   176→    { key: 'capacity', label: '4TB+', value: '4tbplus', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 3800 } },
+   177→  ],
+   178→  hdd: [
+   179→    { key: 'brand', label: 'Seagate', value: 'SEAGATE', matchFn: (n) => /\bSEAGATE\b|\bBARRACUDA\b|\bIRONWOLF\b|\bSKYHAWK\b/i.test(n) },
+   180→    { key: 'brand', label: 'WD', value: 'WD', matchFn: (n) => /\bWESTERN\b|\bWD\b[ _]?|\bBLUE\b|\bBLACK\b|\bGOLD\b|\bRED\b|\bRED PLUS\b|\bPURPLE\b/i.test(n) && /\bHDD\b|\bDISCO\b|\bRIGIDO\b|\bINTERNAL\b/i.test(n) },
+   181→    { key: 'brand', label: 'Toshiba', value: 'TOSHIBA', matchFn: (n) => /\bTOSHIBA\b/i.test(n) },
+   182→    { key: 'capacity', label: '1TB', value: '1tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 900 && c <= 1100 } },
+   183→    { key: 'capacity', label: '2TB', value: '2tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 1900 && c <= 2100 } },
+   184→    { key: 'capacity', label: '4TB', value: '4tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 3800 && c <= 4200 } },
+   185→    { key: 'capacity', label: '6TB - 8TB', value: '6-8tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 5800 && c <= 8200 } },
+   186→    { key: 'capacity', label: '10TB - 12TB', value: '10-12tb', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 9800 && c <= 12500 } },
+   187→    { key: 'capacity', label: '16TB+', value: '16tbplus', matchFn: (n) => { const c = extractCapacityGB(n); return c !== null && c >= 15800 } },
+   188→  ],
+   189→  psu: [
+   190→    { key: 'wattage', label: 'Hasta 500W', value: 'upto500', matchFn: (n) => { const m = n.match(/(\d{3,4})\s*W/i); return m ? parseInt(m[1]) <= 500 : false; } },
+   191→    { key: 'wattage', label: '550W - 650W', value: '550-650', matchFn: (n) => { const m = n.match(/(\d{3,4})\s*W/i); return m ? (parseInt(m[1]) >= 550 && parseInt(m[1]) <= 650) : false; } },
+   192→    { key: 'wattage', label: '700W - 750W', value: '700-750', matchFn: (n) => { const m = n.match(/(\d{3,4})\s*W/i); return m ? (parseInt(m[1]) >= 700 && parseInt(m[1]) <= 750) : false; } },
+   193→    { key: 'wattage', label: '800W - 850W', value: '800-850', matchFn: (n) => { const m = n.match(/(\d{3,4})\s*W/i); return m ? (parseInt(m[1]) >= 800 && parseInt(m[1]) <= 850) : false; } },
+   194→    { key: 'wattage', label: '1000W+', value: '1000plus', matchFn: (n) => { const m = n.match(/(\d{3,4})\s*W/i); return m ? parseInt(m[1]) >= 1000 : false; } },
+   195→  ],
+   196→  cooling: [
+   197→    { key: 'type', label: 'AIO / Líquida', value: 'LIQUID', matchFn: (n) => /\bWATER\s*COOL\b|\bAIO\b|\bLIQUID\b|\bWATERFORCE\b|\bWATER COOL\b/i.test(n) },
+   198→    { key: 'type', label: 'Aire', value: 'AIR', matchFn: (n) => !/\bWATER\s*COOL\b|\bAIO\b|\bLIQUID\b|\bWATERFORCE\b/i.test(n) },
+   199→  ],
+   200→  case: [
+   201→    { key: 'type', label: 'Con Fuente', value: 'CON_FUENTE', matchFn: (n) => /\bCON FUENTE\b|\bC\/FUENTE\b|\bCF\b|\bINCLUYE FUENTE\b/i.test(n) },
+   202→    { key: 'type', label: 'Sin Fuente', value: 'SIN_FUENTE', matchFn: (n) => !/\bCON FUENTE\b|\bC\/FUENTE\b|\bCF\b|\bINCLUYE FUENTE\b/i.test(n) },
+   203→  ],
+   204→  monitor: [
+   205→    { key: 'size', label: '19"', value: '19', matchFn: (n) => /\b19[\s"']\s*\b/i.test(n) && !/\b190\d\b/.test(n) },
+   206→    { key: 'size', label: '22"', value: '22', matchFn: (n) => /\b22[\s"']\s*\b/i.test(n) && !/\b220\d\b/.test(n) },
+   207→    { key: 'size', label: '24"', value: '24', matchFn: (n) => /\b24\b/i.test(n) },
+   208→    { key: 'size', label: '27"', value: '27', matchFn: (n) => /\b27\b/i.test(n) },
+   209→    { key: 'size', label: '32"+', value: '32', matchFn: (n) => /\b3[2-9]\b|\b4[0-9]\b/i.test(n) },
+   210→    { key: 'hz', label: '100Hz', value: '100HZ', matchFn: (n) => /\b100\s*HZ\b|\b100HZ\b/i.test(n) },
+   211→    { key: 'hz', label: '144Hz', value: '144HZ', matchFn: (n) => /\b144\s*HZ\b|\b144HZ\b/i.test(n) },
+   212→    { key: 'hz', label: '165Hz', value: '165HZ', matchFn: (n) => /\b165\s*HZ\b|\b165HZ\b/i.test(n) },
+   213→    { key: 'hz', label: '180Hz', value: '180HZ', matchFn: (n) => /\b180\s*HZ\b|\b180HZ\b/i.test(n) },
+   214→    { key: 'resolution', label: 'Full HD', value: 'FHD', matchFn: (n) => /\bFULL\s*HD\b|\bFHD\b|\b1080\b/i.test(n) },
+   215→    { key: 'resolution', label: 'QHD', value: 'QHD', matchFn: (n) => /\bQHD\b|\b2K\b|\b1440\b/i.test(n) },
+   216→    { key: 'resolution', label: '4K / UHD', value: '4K', matchFn: (n) => /\b4K\b|\bUHD\b|\b2160\b/i.test(n) },
+   217→  ],
+   218→  network: [
+   219→    { key: 'type', label: 'PCIe', value: 'PCIE', matchFn: (n) => /\bPCIEX?\b|\bPCI-E\b|\bPCIX\b/i.test(n) && !/\bUSB\b/i.test(n) },
+   220→    { key: 'type', label: 'USB', value: 'USB', matchFn: (n) => /\bP\.?REDW?\s.*USB|USB.*RED|\bARCHER T\b/i.test(n) },
+   221→    { key: 'type', label: 'WiFi 6 / 6E', value: 'WIFI6', matchFn: (n) => /\bWIFI\s*6E?\b|\bAX\d{3,4}\b/i.test(n) },
+   222→  ],
+   223→  peripherals: [
+   224→    { key: 'type', label: 'Mouse', value: 'MOUSE', matchFn: (n) => /\bMOUSE\b/i.test(n) && !/\bMOUSEPAD\b/i.test(n) },
+   225→    { key: 'type', label: 'Teclado', value: 'TECLADO', matchFn: (n) => /\bTECLADO\b|\bKEYBOARD\b/i.test(n) || (/(\bMECANICO\b|\bMECHANICAL\b)/i.test(n) && !/\bMOUSE\b/i.test(n)) },
+   226→    { key: 'type', label: 'Auricular', value: 'AURICULAR', matchFn: (n) => /\bAURICULAR\b|\bHEADSET\b/i.test(n) },
+   227→    { key: 'type', label: 'Webcam', value: 'WEBCAM', matchFn: (n) => /\bWEBCAM\b|\bWEB CAM\b/i.test(n) },
+   228→    { key: 'type', label: 'Micrófono', value: 'MICROFONO', matchFn: (n) => /\bMICROFONO\b|\bMICRÓFONO\b/i.test(n) },
+   229→    { key: 'type', label: 'Volante', value: 'VOLANTE', matchFn: (n) => /\bVOLANTE\b|\bWHEEL\b|\bRACING\s*(WHEEL|VOLANTE)\b/i.test(n) },
+   230→    { key: 'type', label: 'Parlante', value: 'PARLANTE', matchFn: (n) => /\bPARLANTE\b|\bSPEAKER\b/i.test(n) },
+   231→    { key: 'type', label: 'Joystick', value: 'JOYSTICK', matchFn: (n) => /\bJOYSTICK\b|\bGAMEPAD\b|\bCONTROL\s*(PS|XBOX|XBOX\s*ONE|DECK|SWITCH)\b/i.test(n) },
+   232→  ],
+   233→}
+   234→
+   235→/**
+   236→ * Apply manual filters to a product list.
+   237→ * Logic: AND between different filter groups, OR within the same group.
+   238→ * If no filters active for a group, all products pass that group.
+   239→ */
+   240→function applyManualFilters(products: BuilderProduct[], filters: Record<string, string[]>, slotKey: string): BuilderProduct[] {
+   241→  const slotFilterOptions = SLOT_FILTERS[slotKey]
+   242→  if (!slotFilterOptions || slotFilterOptions.length === 0) return products
+   243→
+   244→  // Get active filter groups
+   245→  const activeGroups = new Map<string, FilterOption[]>()
+   246→  for (const [key, values] of Object.entries(filters)) {
+   247→    if (values.length === 0) continue
+   248→    const matchingOptions = slotFilterOptions.filter(o => o.key === key && values.includes(o.value))
+   249→    if (matchingOptions.length > 0) {
+   250→      activeGroups.set(key, matchingOptions)
+   251→    }
+   252→  }
+   253→
+   254→  if (activeGroups.size === 0) return products
+   255→
+   256→  return products.filter(product => {
+   257→    // Product must pass ALL active filter groups (AND logic between groups)
+   258→    for (const [, options] of activeGroups) {
+   259→      // Product must match at least one option in the group (OR logic within group)
+   260→      const matchesGroup = options.some(opt => opt.matchFn(product.name))
+   261→      if (!matchesGroup) return false
+   262→    }
+   263→    return true
+   264→  })
+   265→}
+   266→
+   267→// ============================================
+   268→// Slot Definitions
+   269→// ============================================
+   270→
+   271→const SLOTS: { slot: string; label: string; categorySlug: string; icon: React.ElementType; required: boolean; maxQty: number }[] = [
+   272→  { slot: 'processor', label: 'Microprocesador', categorySlug: 'microprocesadores', icon: Cpu, required: true, maxQty: 1 },
+   273→  { slot: 'motherboard', label: 'Motherboard', categorySlug: 'motherboards', icon: CircuitBoard, required: true, maxQty: 1 },
+   274→  { slot: 'ram', label: 'Memoria RAM', categorySlug: 'memorias-ram', icon: Zap, required: true, maxQty: 4 },
+   275→  { slot: 'gpu', label: 'Placa de Video', categorySlug: 'placas-de-video', icon: Gamepad2, required: false, maxQty: 1 },
+   276→  { slot: 'ssd', label: 'Disco SSD', categorySlug: 'discos-ssd', icon: HardDrive, required: true, maxQty: 4 },
+   277→  { slot: 'hdd', label: 'Disco HDD', categorySlug: 'discos-hdd', icon: HardDrive, required: false, maxQty: 2 },
+   278→  { slot: 'psu', label: 'Fuente', categorySlug: 'fuentes', icon: Plug, required: true, maxQty: 1 },
+   279→  { slot: 'case', label: 'Gabinete', categorySlug: 'gabinetes', icon: Box, required: true, maxQty: 1 },
+   280→  { slot: 'cooling', label: 'Refrigeración', categorySlug: 'refrigeracion', icon: Wind, required: false, maxQty: 1 },
+   281→  { slot: 'thermal', label: 'Pasta Térmica', categorySlug: 'pastas-termicas', icon: Droplets, required: false, maxQty: 1 },
+   282→  { slot: 'monitor', label: 'Monitor', categorySlug: 'monitores', icon: Monitor, required: false, maxQty: 2 },
+   283→  { slot: 'network', label: 'Placa de Red / WiFi', categorySlug: 'placas-de-red', icon: Wifi, required: false, maxQty: 1 },
+   284→  { slot: 'peripherals', label: 'Periféricos', categorySlug: 'perifericos', icon: Mouse, required: false, maxQty: 3 },
+   285→]
+   286→
+   287→// ============================================
+   288→// Helpers
+   289→// ============================================
+   290→
+   291→function formatPrice(n: number): string {
+   292→  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n)
+   293→}
+   294→
+   295→function safeParseFirstImage(images: string | null): string | null {
+   296→  if (!images) return null
+   297→  try { return JSON.parse(images)[0] } catch { return null }
+   298→}
+   299→
+   300→function parseSpecs(specs: string): Record<string, string> {
+   301→  try {
+   302→    return JSON.parse(specs)
+   303→  } catch {
+   304→    return {}
+   305→  }
+   306→}
+   307→
+   308→// ============================================
+   309→// Main Component
+   310→// ============================================
+   311→
+   312→export default function ArmaTuPCPage() {
+   313→  const [currentStep, setCurrentStep] = useState(0)
+   314→  const [selectedComponents, setSelectedComponents] = useState<SelectedComponent[]>([])
+   315→  const [products, setProducts] = useState<BuilderProduct[]>([])
+   316→  const [loading, setLoading] = useState(false)
+   317→  const [search, setSearch] = useState('')
+   318→  const [slotsWithCounts, setSlotsWithCounts] = useState<ComponentSlot[]>([])
+   319→  const [showIncompatible, setShowIncompatible] = useState(false)
+   320→  const [activeFilters, setActiveFilters] = useState<CompatibilityFilters>({})
+   321→  const [showMobileSummary, setShowMobileSummary] = useState(false)
+   322→  const [manualFilters, setManualFilters] = useState<Record<string, string[]>>({})
+   323→
+   324→  const currentSlot = SLOTS[currentStep]
+   325→  const selectedForCurrentSlot = selectedComponents.filter(c => c.slot === currentSlot.slot)
+   326→  const isMultiDiskSlot = currentSlot.slot === 'ssd' || currentSlot.slot === 'hdd'
+   327→
+   328→  // Build compatibility filters from selected components
+   329→  const compatibilityFilters = useMemo(() => {
+   330→    return buildCompatibilityFilters(selectedComponents.map(c => ({
+   331→      slot: c.slot,
+   332→      product: { name: c.product.name },
+   333→    })))
+   334→  }, [selectedComponents])
+   335→
+   336→  // Get compatibility info for the currently selected processor
+   337→  const selectedProcessor = selectedComponents.find(c => c.slot === 'processor')
+   338→  const processorInfo = selectedProcessor
+   339→    ? extractCompatibility('processor', selectedProcessor.product.name)
+   340→    : null
+   341→
+   342→  // Get compatibility info for the currently selected motherboard
+   343→  const selectedMotherboard = selectedComponents.find(c => c.slot === 'motherboard')
+   344→  const motherboardInfo = selectedMotherboard
+   345→    ? extractCompatibility('motherboard', selectedMotherboard.product.name)
+   346→    : null
+   347→
+   348→  // Get compatibility info for the currently selected GPU
+   349→  const selectedGpu = selectedComponents.find(c => c.slot === 'gpu')
+   350→  const gpuInfo = selectedGpu
+   351→    ? extractCompatibility('gpu', selectedGpu.product.name)
+   352→    : null
+   353→
+   354→  // Load slot counts on mount
+   355→  useEffect(() => {
+   356→    async function loadSlotCounts() {
+   357→      try {
+   358→        const res = await fetch('/api/pc-builder')
+   359→        const data = await res.json()
+   360→        if (data.ok && data.slots) {
+   361→          setSlotsWithCounts(
+   362→            data.slots.map((s: any) => {
+   363→              const slotDef = SLOTS.find(sl => sl.slot === s.slot)
+   364→              return {
+   365→                ...s,
+   366→                icon: slotDef?.icon || Cpu,
+   367→                required: slotDef?.required || false,
+   368→              }
+   369→            })
+   370→          )
+   371→        }
+   372→      } catch (error) {
+   373→        console.error('Error loading slot counts:', error)
+   374→      }
+   375→    }
+   376→    loadSlotCounts()
+   377→  }, [])
+   378→
+   379→  // Load products when step changes or compatibility filters change
+   380→  const loadProducts = useCallback(async () => {
+   381→    setLoading(true)
+   382→    setSearch('')
+   383→    setManualFilters({})
+   384→    try {
+   385→      const params = new URLSearchParams({ slot: currentSlot.slot })
+   386→
+   387→      // Pass compatibility filters to API
+   388→      if (currentSlot.slot === 'motherboard' && compatibilityFilters.socket) {
+   389→        params.set('socket', compatibilityFilters.socket)
+   390→      }
+   391→      if (currentSlot.slot === 'ram' && compatibilityFilters.ddr) {
+   392→        params.set('ddr', compatibilityFilters.ddr)
+   393→      }
+   394→      if (currentSlot.slot === 'psu' && compatibilityFilters.minWattage) {
+   395→        params.set('minWattage', String(compatibilityFilters.minWattage))
+   396→      }
+   397→
+   398→      const res = await fetch(`/api/pc-builder?${params.toString()}`)
+   399→      const data = await res.json()
+   400→      if (data.ok) {
+   401→        setProducts(data.products || [])
+   402→        setActiveFilters(data.filters || {})
+   403→      }
+   404→    } catch (error) {
+   405→      console.error('Error loading products:', error)
+   406→      setProducts([])
+   407→    } finally {
+   408→      setLoading(false)
+   409→    }
+   410→  }, [currentSlot.slot, compatibilityFilters])
+   411→
+   412→  useEffect(() => {
+   413→    loadProducts()
+   414→  }, [loadProducts])
+   415→
+   416→  const selectProduct = (product: BuilderProduct) => {
+   417→    const slot = currentSlot.slot
+   418→    setSelectedComponents(prev => {
+   419→      if (slot === 'ssd' || slot === 'hdd') {
+   420→        // Multi-disk: add new product or increment quantity of existing
+   421→        const existing = prev.find(c => c.slot === slot && c.product.id === product.id)
+   422→        if (existing) {
+   423→          // Product already selected in this slot - increment quantity
+   424→          const slotDef = SLOTS.find(s => s.slot === slot)
+   425→          const maxQty = slotDef?.maxQty || 4
+   426→          return prev.map(c =>
+   427→            c.slot === slot && c.product.id === product.id
+   428→              ? { ...c, quantity: Math.min(maxQty, c.quantity + 1) }
+   429→              : c
+   430→          )
+   431→        } else {
+   432→          // New product for this slot
+   433→          return [...prev, { slot, product, quantity: 1 }]
+   434→        }
+   435→      } else {
+   436→        // Single-product slot: replace existing selection
+   437→        const filtered = prev.filter(c => c.slot !== slot)
+   438→        return [...filtered, { slot, product, quantity: 1 }]
+   439→      }
+   440→    })
+   441→
+   442→    // Auto-advance to next slot for non-disk slots
+   443→    if (slot !== 'ssd' && slot !== 'hdd') {
+   444→      setTimeout(() => {
+   445→        if (currentStep < SLOTS.length - 1) {
+   446→          setCurrentStep(currentStep + 1)
+   447→        }
+   448→      }, 300)
+   449→    }
+   450→  }
+   451→
+   452→  const updateQuantity = (slot: string, delta: number) => {
+   453→    setSelectedComponents(prev =>
+   454→      prev.map(c => {
+   455→        if (c.slot !== slot) return c
+   456→        const slotDef = SLOTS.find(s => s.slot === slot)
+   457→        const maxQty = slotDef?.maxQty || 1
+   458→        const newQty = Math.max(1, Math.min(maxQty, c.quantity + delta))
+   459→        return { ...c, quantity: newQty }
+   460→      })
+   461→    )
+   462→  }
+   463→
+   464→  const updateQuantityForProduct = (slot: string, productId: string, delta: number) => {
+   465→    setSelectedComponents(prev =>
+   466→      prev.map(c => {
+   467→        if (c.slot !== slot || c.product.id !== productId) return c
+   468→        const slotDef = SLOTS.find(s => s.slot === slot)
+   469→        const maxQty = slotDef?.maxQty || 4
+   470→        const newQty = Math.max(1, Math.min(maxQty, c.quantity + delta))
+   471→        return { ...c, quantity: newQty }
+   472→      })
+   473→    )
+   474→  }
+   475→
+   476→  const removeProduct = (slot: string, productId?: string) => {
+   477→    if (productId) {
+   478→      // Remove a specific product from a multi-disk slot
+   479→      setSelectedComponents(prev => prev.filter(c => !(c.slot === slot && c.product.id === productId)))
+   480→    } else {
+   481→      // Remove all products from the slot
+   482→      setSelectedComponents(prev => prev.filter(c => c.slot !== slot))
+   483→    }
+   484→  }
+   485→
+   486→  const totalPrice = selectedComponents.reduce((sum, c) => sum + (c.product.comparePrice || c.product.price) * c.quantity, 0)
+   487→  const totalListPrice = selectedComponents.reduce((sum, c) => sum + c.product.price * c.quantity, 0)
+   488→  const completedRequired = SLOTS.filter(s => s.required).every(s => selectedComponents.some(c => c.slot === s.slot))
+   489→  const completedCount = selectedComponents.length
+   490→
+   491→  // Separate compatible and incompatible products
+   492→  const compatibleProducts = products.filter(p => p.isCompatible !== false)
+   493→  const incompatibleProducts = products.filter(p => p.isCompatible === false)
+   494→
+   495→  // Apply manual filters then search filter
+   496→  const manualFilteredCompatible = applyManualFilters(compatibleProducts, manualFilters, currentSlot.slot)
+   497→  const manualFilteredIncompatible = applyManualFilters(incompatibleProducts, manualFilters, currentSlot.slot)
+   498→
+   499→  const filteredCompatible = manualFilteredCompatible.filter(p =>
+   500→    p.name.toLowerCase().includes(search.toLowerCase())
+   501→  )
+   502→  const filteredIncompatible = manualFilteredIncompatible.filter(p =>
+   503→    p.name.toLowerCase().includes(search.toLowerCase())
+   504→  )
+   505→
+   506→  // Get available filter options for the current slot
+   507→  const currentSlotFilterOptions = SLOT_FILTERS[currentSlot.slot] || []
+   508→  // Group filter options by key for rendering
+   509→  const filterGroups = useMemo(() => {
+   510→    const groups: { key: string; label: string; options: FilterOption[] }[] = []
+   511→    const keyMap = new Map<string, FilterOption[]>()
+   512→    const keyLabels: Record<string, string> = {
+   513→      brand: 'Marca',
+   514→      socket: 'Socket',
+   515→      ddr: 'Memoria',
+   516→      type: 'Tipo',
+   517→      wattage: 'Potencia',
+   518→      size: 'Tamaño',
+   519→      hz: 'Frecuencia',
+   520→      resolution: 'Resolución',
+   521→      capacity: 'Capacidad',
+   522→      vram: 'VRAM',
+   523→      series: 'Serie',
+   524→    }
+   525→    for (const opt of currentSlotFilterOptions) {
+   526→      if (!keyMap.has(opt.key)) keyMap.set(opt.key, [])
+   527→      keyMap.get(opt.key)!.push(opt)
+   528→    }
+   529→    for (const [key, options] of keyMap) {
+   530→      groups.push({ key, label: keyLabels[key] || key, options })
+   531→    }
+   532→    return groups
+   533→  }, [currentSlot.slot])
+   534→
+   535→  // Toggle a manual filter value (kept for backward compat)
+   536→  const toggleFilter = (key: string, value: string) => {
+   537→    setManualFilters(prev => {
+   538→      const current = prev[key] || []
+   539→      const isActive = current.includes(value)
+   540→      const updated = isActive ? current.filter(v => v !== value) : [...current, value]
+   541→      return { ...prev, [key]: updated }
+   542→    })
+   543→  }
+   544→
+   545→  // Set a single-select filter value for a group (dropdown style)
+   546→  const setSelectFilter = (key: string, value: string) => {
+   547→    setManualFilters(prev => {
+   548→      if (value === '') {
+   549→        const { [key]: _, ...rest } = prev
+   550→        return rest
+   551→      }
+   552→      return { ...prev, [key]: [value] }
+   553→    })
+   554→  }
+   555→
+   556→  const clearFilters = () => setManualFilters({})
+   557→  const hasActiveFilters = Object.values(manualFilters).some(v => v.length > 0)
+   558→
+   559→  const goNext = () => {
+   560→    if (currentStep < SLOTS.length - 1) {
+   561→      setCurrentStep(currentStep + 1)
+   562→    }
+   563→  }
+   564→
+   565→  const goPrev = () => {
+   566→    if (currentStep > 0) {
+   567→      setCurrentStep(currentStep - 1)
+   568→    }
+   569→  }
+   570→
+   571→  // Generate WhatsApp message
+   572→  const buildWhatsAppUrl = () => {
+   573→    let msg = '🔧 *Quiero armar una PC a medida!*\n\n'
+   574→    selectedComponents.forEach(c => {
+   575→      const slotLabel = SLOTS.find(s => s.slot === c.slot)?.label || c.slot
+   576→      const unitPrice = c.product.comparePrice || c.product.price
+   577→      const totalPrice = unitPrice * c.quantity
+   578→      if (c.quantity > 1) {
+   579→        msg += `*${slotLabel}:* ${c.quantity}x ${c.product.name} - ${formatPrice(unitPrice)} c/u = ${formatPrice(totalPrice)}\n`
+   580→      } else {
+   581→        msg += `*${slotLabel}:* ${c.product.name} - ${formatPrice(unitPrice)}\n`
+   582→      }
+   583→    })
+   584→    msg += `\n💰 *Total en efectivo:* ${formatPrice(totalPrice)}\n`
+   585→    msg += `📋 *Total de lista:* ${formatPrice(totalListPrice)}\n\n`
+   586→    msg += `Consulto por la disponibilidad y tiempo de armado. Gracias!`
+   587→    return `https://wa.me/5493548402056?text=${encodeURIComponent(msg)}`
+   588→  }
+   589→
+   590→  // Generate PDF with selected components
+   591→  const generatePDF = () => {
+   592→    const doc = new jsPDF()
+   593→    const pageWidth = doc.internal.pageSize.getWidth()
+   594→    const margin = 20
+   595→    let y = 10
+   596→
+   597→    // Header - Compucity logo image
+   598→    // Logo: 547x220px, scale to fit header nicely
+   599→    const logoW = 55
+   600→    const logoH = (logoW * 220) / 547 // ~22.1
+   601→    doc.addImage(COMPUCITY_LOGO_BASE64, 'PNG', margin, y, logoW, logoH)
+   602→
+   603→    // Date on the right
+   604→    const dateStr = new Date().toLocaleDateString('es-AR', {
+   605→      day: '2-digit', month: '2-digit', year: 'numeric',
+   606→      hour: '2-digit', minute: '2-digit'
+   607→    })
+   608→    doc.setFontSize(9)
+   609→    doc.setTextColor(120, 120, 120)
+   610→    doc.text(dateStr, pageWidth - margin, y + 6, { align: 'right' })
+   611→    doc.text('Presupuesto generado en compucity.com.ar', pageWidth - margin, y + 12, { align: 'right' })
+   612→
+   613→    y = y + logoH + 8
+   614→
+   615→    // Green separator line
+   616→    doc.setDrawColor(58, 139, 104)
+   617→    doc.setLineWidth(1)
+   618→    doc.line(margin, y, pageWidth - margin, y)
+   619→    y += 8
+   620→
+   621→    // Title
+   622→    doc.setTextColor(30, 30, 30)
+   623→    doc.setFontSize(16)
+   624→    doc.setFont('helvetica', 'bold')
+   625→    doc.text('PC a Medida - Presupuesto', margin, y)
+   626→    y += 10
+   627→
+   628→    // Separator line
+   629→    doc.setDrawColor(58, 139, 104)
+   630→    doc.setLineWidth(0.5)
+   631→    doc.line(margin, y, pageWidth - margin, y)
+   632→    y += 8
+   633→
+   634→    // Components list
+   635→    doc.setFontSize(11)
+   636→    selectedComponents.forEach(c => {
+   637→      const slotLabel = SLOTS.find(s => s.slot === c.slot)?.label || c.slot
+   638→      const unitPrice = c.product.comparePrice || c.product.price
+   639→      const lineTotal = unitPrice * c.quantity
+   640→
+   641→      // Check if we need a new page
+   642→      if (y > 265) {
+   643→        doc.addPage()
+   644→        y = 20
+   645→      }
+   646→
+   647→      // Slot label (green)
+   648→      doc.setFont('helvetica', 'bold')
+   649→      doc.setTextColor(58, 139, 104)
+   650→      doc.text(`${slotLabel}:`, margin, y)
+   651→
+   652→      // Product name
+   653→      doc.setFont('helvetica', 'normal')
+   654→      doc.setTextColor(50, 50, 50)
+   655→      const nameX = margin + 2
+   656→      const maxNameWidth = pageWidth - margin * 2 - 45
+   657→      const nameLines = doc.splitTextToSize(c.product.name, maxNameWidth)
+   658→      doc.text(nameLines[0], nameX, y + 5)
+   659→
+   660→      // If name wraps to multiple lines, adjust y
+   661→      if (nameLines.length > 1) {
+   662→        for (let i = 1; i < nameLines.length; i++) {
+   663→          y += 5
+   664→          if (y > 265) { doc.addPage(); y = 20 }
+   665→          doc.text(nameLines[i], nameX, y + 5)
+   666→        }
+   667→      }
+   668→
+   669→      // Price on the right
+   670→      doc.setFont('helvetica', 'bold')
+   671→      doc.setTextColor(30, 30, 30)
+   672→      const priceText = c.quantity > 1
+   673→        ? `${c.quantity}x ${formatPrice(unitPrice)} c/u = ${formatPrice(lineTotal)}`
+   674→        : formatPrice(unitPrice)
+   675→      doc.text(priceText, pageWidth - margin, y + 5, { align: 'right' })
+   676→
+   677→      y += 14
+   678→    })
+   679→
+   680→    // Check if we need a new page for totals
+   681→    if (y > 240) {
+   682→      doc.addPage()
+   683→      y = 20
+   684→    }
+   685→
+   686→    // Separator line before totals
+   687→    y += 2
+   688→    doc.setDrawColor(200, 200, 200)
+   689→    doc.setLineWidth(0.3)
+   690→    doc.line(margin, y, pageWidth - margin, y)
+   691→    y += 8
+   692→
+   693→    // Total de lista
+   694→    doc.setFontSize(11)
+   695→    doc.setFont('helvetica', 'normal')
+   696→    doc.setTextColor(100, 100, 100)
+   697→    doc.text('Precio de lista:', margin, y)
+   698→    doc.setFont('helvetica', 'bold')
+   699→    doc.text(formatPrice(totalListPrice), pageWidth - margin, y, { align: 'right' })
+   700→    y += 8
+   701→
+   702→    // Total en efectivo (highlighted)
+   703→    doc.setFillColor(232, 245, 242) // #EFF5F2
+   704→    doc.roundedRect(margin - 3, y - 6, pageWidth - margin * 2 + 6, 14, 2, 2, 'F')
+   705→    doc.setFontSize(13)
+   706→    doc.setFont('helvetica', 'bold')
+   707→    doc.setTextColor(58, 139, 104)
+   708→    doc.text('Precio en efectivo:', margin, y)
+   709→    doc.text(formatPrice(totalPrice), pageWidth - margin, y, { align: 'right' })
+   710→    y += 18
+   711→
+   712→    // 96hs note
+   713→    if (y < 270) {
+   714→      doc.setFillColor(255, 248, 225)
+   715→      doc.roundedRect(margin - 3, y - 5, pageWidth - margin * 2 + 6, 12, 2, 2, 'F')
+   716→      doc.setFontSize(8)
+   717→      doc.setFont('helvetica', 'normal')
+   718→      doc.setTextColor(146, 100, 0)
+   719→      doc.text('El armado de los equipos puede tener una demora de hasta 96 horas hábiles.', margin, y + 2)
+   720→      y += 18
+   721→    }
+   722→
+   723→    // Footer on every page
+   724→    const totalPages = doc.getNumberOfPages()
+   725→    for (let i = 1; i <= totalPages; i++) {
+   726→      doc.setPage(i)
+   727→      doc.setFontSize(7)
+   728→      doc.setTextColor(150, 150, 150)
+   729→      doc.text('Compucity - Av. Sarmiento 462, La Falda, Córdoba | WhatsApp: 3548 40-2056', margin, 290)
+   730→      doc.text(`Página ${i} de ${totalPages}`, pageWidth - margin, 290, { align: 'right' })
+   731→    }
+   732→
+   733→    // Download
+   734→    doc.save('Compucity-PC-a-Medida.pdf')
+   735→  }
+   736→
+   737→  // Handle WhatsApp (no PDF)
+   738→  const handleWhatsApp = () => {
+   739→    window.open(buildWhatsAppUrl(), '_blank')
+   740→  }
+   741→
+   742→  // Build compatibility info banner text
+   743→  const getFilterBanner = () => {
+   744→    if (currentSlot.slot === 'motherboard' && compatibilityFilters.socket) {
+   745→      const label = SOCKET_LABELS[compatibilityFilters.socket] || compatibilityFilters.socket
+   746→      return {
+   747→        icon: <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />,
+   748→        text: `Mostrando mothers compatibles con ${label}`,
+   749→        detail: selectedProcessor ? `Procesador: ${selectedProcessor.product.name}` : undefined,
+   750→      }
+   751→    }
+   752→    if (currentSlot.slot === 'ram' && compatibilityFilters.ddr) {
+   753→      return {
+   754→        icon: <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />,
+   755→        text: `Mostrando memorias ${compatibilityFilters.ddr} (compatibles con tu mother)`,
+   756→        detail: selectedMotherboard ? `Mother: ${selectedMotherboard.product.name}` : undefined,
+   757→      }
+   758→    }
+   759→    if (currentSlot.slot === 'psu' && compatibilityFilters.minWattage) {
+   760→      return {
+   761→        icon: <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />,
+   762→        text: `Se recomienda fuente de ${compatibilityFilters.minWattage}W o más para tu placa de video`,
+   763→        detail: selectedGpu ? `GPU: ${selectedGpu.product.name}` : undefined,
+   764→      }
+   765→    }
+   766→    return null
+   767→  }
+   768→
+   769→  const filterBanner = getFilterBanner()
+   770→
+   771→  return (
+   772→    <div className="min-h-screen bg-gray-50">
+   773→      {/* Header */}
+   774→      <div className="bg-gradient-to-r from-gray-900 to-gray-800 text-white">
+   775→        <div className="max-w-7xl mx-auto px-4 py-8">
+   776→          <h1 className="text-3xl md:text-4xl font-bold mb-2">Arma tu PC a medida</h1>
+   777→          <p className="text-gray-300">Elegí los componentes y te la armamos. Envíos a todo el país.</p>
+   778→          <div className="mt-3 flex items-start gap-2 text-sm bg-amber-900/40 border border-amber-500/30 rounded-lg px-3 py-2">
+   779→            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+   780→            <span className="text-amber-200">
+   781→              El armado de los equipos puede tener una demora de hasta <strong>96 horas hábiles</strong>.
+   782→            </span>
+   783→          </div>
+   784→          {processorInfo?.socket && (
+   785→            <div className="mt-3 flex items-center gap-2 text-sm">
+   786→              <ShieldCheck className="w-4 h-4 text-green-400" />
+   787→              <span className="text-green-300">
+   788→                Filtrado por compatibilidad activado
+   789→              </span>
+   790→            </div>
+   791→          )}
+   792→        </div>
+   793→      </div>
+   794→
+   795→      <div className="max-w-7xl mx-auto px-4 py-6 pb-32 lg:pb-6 overflow-x-hidden">
+   796→        <div className="flex flex-col lg:flex-row gap-6 items-start">
+   797→          {/* ============================================ */}
+   798→          {/* Left: Stepper + Product Selection */}
+   799→          {/* ============================================ */}
+   800→          <div className={`flex-1 min-w-0 max-w-full ${showMobileSummary ? 'hidden lg:block' : ''}`}>
+   801→            {/* Step Indicator - Horizontal on desktop, progress on mobile */}
+   802→            <div className="bg-white rounded-xl border p-4 mb-6 overflow-x-auto">
+   803→              <div className="flex items-center gap-1 min-w-max">
+   804→                {SLOTS.map((slot, idx) => {
+   805→                  const Icon = slot.icon
+   806→                  const isSelected = selectedComponents.some(c => c.slot === slot.slot)
+   807→                  const isCurrent = idx === currentStep
+   808→                  // Check if this slot has a compatibility filter active
+   809→                  const hasFilter =
+   810→                    (slot.slot === 'motherboard' && !!compatibilityFilters.socket) ||
+   811→                    (slot.slot === 'ram' && !!compatibilityFilters.ddr) ||
+   812→                    (slot.slot === 'psu' && !!compatibilityFilters.minWattage)
+   813→                  const hasManualFilter = slot.slot === currentSlot.slot && hasActiveFilters
+   814→                  return (
+   815→                    <button
+   816→                      key={slot.slot}
+   817→                      onClick={() => setCurrentStep(idx)}
+   818→                      className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition whitespace-nowrap ${
+   819→                        isCurrent
+   820→                          ? 'bg-compucity-green text-white shadow-md'
+   821→                          : isSelected
+   822→                          ? 'bg-green-50 text-green-700 border border-green-200'
+   823→                          : hasFilter
+   824→                          ? 'bg-blue-50 text-blue-600 border border-blue-200'
+   825→                          : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+   826→                      }`}
+   827→                    >
+   828→                      {isSelected ? (
+   829→                        <Check className="h-3.5 w-3.5 shrink-0" />
+   830→                      ) : hasManualFilter ? (
+   831→                        <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
+   832→                      ) : hasFilter ? (
+   833→                        <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+   834→                      ) : (
+   835→                        <Icon className="h-3.5 w-3.5 shrink-0" />
+   836→                      )}
+   837→                      <span className="hidden sm:inline">{slot.label}</span>
+   838→                      {slot.required && !isSelected && (
+   839→                        <span className="text-[10px] text-red-400">*</span>
+   840→                      )}
+   841→                    </button>
+   842→                  )
+   843→                })}
+   844→              </div>
+   845→            </div>
+   846→
+   847→            {/* Current Step Header */}
+   848→            <div className="bg-white rounded-xl border p-5 mb-4">
+   849→              <div className="flex items-center justify-between">
+   850→                <div className="flex items-center gap-3">
+   851→                  <div className="w-10 h-10 rounded-lg bg-compucity-green-100 text-compucity-green flex items-center justify-center">
+   852→                    {(() => { const Icon = currentSlot.icon; return <Icon className="h-5 w-5" /> })()}
+   853→                  </div>
+   854→                  <div>
+   855→                    <h2 className="text-lg font-bold text-gray-900">
+   856→                      {currentSlot.label}
+   857→                      {currentSlot.required && <span className="text-red-500 ml-1">*</span>}
+   858→                    </h2>
+   859→                    <p className="text-sm text-gray-500">
+   860→                      Paso {currentStep + 1} de {SLOTS.length}
+   861→                      {!currentSlot.required && ' · Opcional'}
+   862→                    </p>
+   863→                  </div>
+   864→                </div>
+   865→                {selectedForCurrentSlot.length > 0 && !isMultiDiskSlot && (
+   866→                  <button
+   867→                    onClick={() => removeProduct(currentSlot.slot)}
+   868→                    className="text-red-500 hover:text-red-700 text-sm flex items-center gap-1 transition"
+   869→                  >
+   870→                    <Trash2 className="h-4 w-4" />
+   871→                    Quitar
+   872→                  </button>
+   873→                )}
+   874→                {selectedForCurrentSlot.length > 0 && isMultiDiskSlot && (
+   875→                  <button
+   876→                    onClick={() => removeProduct(currentSlot.slot)}
+   877→                    className="text-red-500 hover:text-red-700 text-sm flex items-center gap-1 transition"
+   878→                  >
+   879→                    <Trash2 className="h-4 w-4" />
+   880→                    Quitar todo
+   881→                  </button>
+   882→                )}
+   883→              </div>
+   884→
+   885→              {/* Currently selected for this slot */}
+   886→              {selectedForCurrentSlot.length > 0 && !isMultiDiskSlot && (() => {
+   887→                const sel = selectedForCurrentSlot[0]
+   888→                return (
+   889→                  <div className="mt-3 bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3">
+   890→                    <Check className="h-5 w-5 text-green-600 shrink-0" />
+   891→                    <div className="flex-1 min-w-0">
+   892→                      <p className="text-sm font-medium text-green-900 truncate">{sel.product.name}</p>
+   893→                      <div className="flex items-center gap-2 flex-wrap">
+   894→                        <p className="text-xs text-green-700">
+   895→                          Efectivo: {formatPrice((sel.product.comparePrice || sel.product.price) * sel.quantity)}
+   896→                          {sel.quantity > 1 && (
+   897→                            <span className="text-green-500 ml-1">
+   898→                              ({sel.quantity}x {formatPrice(sel.product.comparePrice || sel.product.price)} c/u)
+   899→                            </span>
+   900→                          )}
+   901→                        </p>
+   902→                      </div>
+   903→                    </div>
+   904→                    {/* Quantity selector for slots that allow multiple */}
+   905→                    {currentSlot.maxQty > 1 && (
+   906→                      <div className="flex items-center gap-1 shrink-0">
+   907→                        <button
+   908→                          onClick={(e) => { e.stopPropagation(); updateQuantity(currentSlot.slot, -1) }}
+   909→                          className="w-7 h-7 rounded-md bg-white border border-green-300 flex items-center justify-center text-green-700 hover:bg-green-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
+   910→                          disabled={sel.quantity <= 1}
+   911→                        >
+   912→                          <Minus className="w-3.5 h-3.5" />
+   913→                        </button>
+   914→                        <span className="w-7 text-center text-sm font-bold text-green-800">{sel.quantity}</span>
+   915→                        <button
+   916→                          onClick={(e) => { e.stopPropagation(); updateQuantity(currentSlot.slot, 1) }}
+   917→                          className="w-7 h-7 rounded-md bg-white border border-green-300 flex items-center justify-center text-green-700 hover:bg-green-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
+   918→                          disabled={sel.quantity >= currentSlot.maxQty}
+   919→                        >
+   920→                          <Plus className="w-3.5 h-3.5" />
+   921→                        </button>
+   922→                      </div>
+   923→                    )}
+   924→                  </div>
+   925→                )
+   926→              })()}
+   927→
+   928→              {/* Multi-disk selected list (SSD/HDD) */}
+   929→              {selectedForCurrentSlot.length > 0 && isMultiDiskSlot && (
+   930→                <div className="mt-3 space-y-2">
+   931→                  {selectedForCurrentSlot.map(sel => (
+   932→                    <div key={sel.product.id} className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3">
+   933→                      <Check className="h-5 w-5 text-green-600 shrink-0" />
+   934→                      <div className="flex-1 min-w-0">
+   935→                        <p className="text-sm font-medium text-green-900 truncate">{sel.product.name}</p>
+   936→                        <div className="flex items-center gap-2 flex-wrap">
+   937→                          <p className="text-xs text-green-700">
+   938→                            Efectivo: {formatPrice((sel.product.comparePrice || sel.product.price) * sel.quantity)}
+   939→                            {sel.quantity > 1 && (
+   940→                              <span className="text-green-500 ml-1">
+   941→                                ({sel.quantity}x {formatPrice(sel.product.comparePrice || sel.product.price)} c/u)
+   942→                              </span>
+   943→                            )}
+   944→                          </p>
+   945→                        </div>
+   946→                      </div>
+   947→                      {/* Per-product quantity selector */}
+   948→                      <div className="flex items-center gap-1 shrink-0">
+   949→                        <button
+   950→                          onClick={(e) => { e.stopPropagation(); updateQuantityForProduct(currentSlot.slot, sel.product.id, -1) }}
+   951→                          className="w-7 h-7 rounded-md bg-white border border-green-300 flex items-center justify-center text-green-700 hover:bg-green-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
+   952→                          disabled={sel.quantity <= 1}
+   953→                        >
+   954→                          <Minus className="w-3.5 h-3.5" />
+   955→                        </button>
+   956→                        <span className="w-7 text-center text-sm font-bold text-green-800">{sel.quantity}</span>
+   957→                        <button
+   958→                          onClick={(e) => { e.stopPropagation(); updateQuantityForProduct(currentSlot.slot, sel.product.id, 1) }}
+   959→                          className="w-7 h-7 rounded-md bg-white border border-green-300 flex items-center justify-center text-green-700 hover:bg-green-100 transition disabled:opacity-40 disabled:cursor-not-allowed"
+   960→                          disabled={sel.quantity >= currentSlot.maxQty}
+   961→                        >
+   962→                          <Plus className="w-3.5 h-3.5" />
+   963→                        </button>
+   964→                      </div>
+   965→                      {/* Per-product remove button */}
+   966→                      <button
+   967→                        onClick={(e) => { e.stopPropagation(); removeProduct(currentSlot.slot, sel.product.id) }}
+   968→                        className="text-red-400 hover:text-red-600 transition shrink-0"
+   969→                        title="Quitar este disco"
+   970→                      >
+   971→                        <Trash2 className="h-4 w-4" />
+   972→                      </button>
+   973→                    </div>
+   974→                  ))}
+   975→                </div>
+   976→              )}
+   977→            </div>
+   978→
+   979→            {/* Compatibility Filter Banner */}
+   980→            {filterBanner && (
+   981→              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+   982→                <div className="flex items-start gap-2">
+   983→                  {filterBanner.icon}
+   984→                  <div className="flex-1">
+   985→                    <p className="text-sm font-medium text-blue-800">{filterBanner.text}</p>
+   986→                    {filterBanner.detail && (
+   987→                      <p className="text-xs text-blue-600 mt-0.5">{filterBanner.detail}</p>
+   988→                    )}
+   989→                  </div>
+   990→                </div>
+   991→              </div>
+   992→            )}
+   993→
+   994→            {/* Search */}
+   995→            <div className="relative mb-3">
+   996→              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+   997→              <Input
+   998→                placeholder={`Buscar ${currentSlot.label.toLowerCase()}...`}
+   999→                value={search}
+  1000→                onChange={(e) => setSearch(e.target.value)}
+  1001→                className="pl-10"
+  1002→              />
+  1003→              {search && (
+  1004→                <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+  1005→                  <X className="w-4 h-4" />
+  1006→                </button>
+  1007→              )}
+  1008→            </div>
+  1009→
+  1010→            {/* Filter Chips */}
+  1011→            {filterGroups.length > 0 && (
+  1012→              <div className="bg-white rounded-xl border p-3 mb-4">
+  1013→                <div className="flex items-center justify-between mb-2">
+  1014→                  <div className="flex items-center gap-1.5">
+  1015→                    <SlidersHorizontal className="w-3.5 h-3.5 text-gray-400" />
+  1016→                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Filtros</span>
+  1017→                  </div>
+  1018→                  {hasActiveFilters && (
+  1019→                    <button
+  1020→                      onClick={clearFilters}
+  1021→                      className="text-xs text-red-500 hover:text-red-700 font-medium transition"
+  1022→                    >
+  1023→                      Limpiar filtros
+  1024→                    </button>
+  1025→                  )}
+  1026→                </div>
+  1027→                <div className="flex flex-wrap gap-2">
+  1028→                  {filterGroups.map(group => {
+  1029→                    const selectedValue = (manualFilters[group.key] || [])[0] || ''
+  1030→                    return (
+  1031→                      <div key={group.key} className="relative">
+  1032→                        <select
+  1033→                          value={selectedValue}
+  1034→                          onChange={(e) => setSelectFilter(group.key, e.target.value)}
+  1035→                          className="text-xs border border-gray-200 rounded-md pl-2.5 pr-7 py-1.5 bg-white text-gray-700 focus:outline-none focus:border-compucity-green cursor-pointer appearance-none"
+  1036→                        >
+  1037→                          <option value="">{group.label}</option>
+  1038→                          {group.options.map(opt => (
+  1039→                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+  1040→                          ))}
+  1041→                        </select>
+  1042→                        <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
+  1043→                      </div>
+  1044→                    )
+  1045→                  })}
+  1046→                </div>
+  1047→                {hasActiveFilters && (
+  1048→                  <p className="text-[11px] text-gray-400 mt-2">
+  1049→                    Mostrando {filteredCompatible.length + filteredIncompatible.length} de {compatibleProducts.length + incompatibleProducts.length} productos
+  1050→                  </p>
+  1051→                )}
+  1052→              </div>
+  1053→            )}
+  1054→
+  1055→            {/* Product List */}
+  1056→            <div className="space-y-2">
+  1057→              {loading ? (
+  1058→                <div className="flex items-center justify-center py-16 bg-white rounded-xl border">
+  1059→                  <Loader2 className="w-8 h-8 animate-spin text-compucity-green" />
+  1060→                </div>
+  1061→              ) : filteredCompatible.length === 0 && filteredIncompatible.length === 0 ? (
+  1062→                <div className="text-center py-16 bg-white rounded-xl border">
+  1063→                  <Cpu className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+  1064→                  <p className="text-gray-500 mb-1">No hay productos disponibles</p>
+  1065→                  <p className="text-sm text-gray-400">
+  1066→                    {products.length === 0
+  1067→                      ? 'Próximamente agregaremos productos de esta categoría'
+  1068→                      : 'No se encontraron resultados para tu búsqueda'}
+  1069→                  </p>
+  1070→                </div>
+  1071→              ) : (
+  1072→                <>
+  1073→                  {/* Compatible products */}
+  1074→                  {filteredCompatible.map((product) => {
+  1075→                    const isSelected = selectedForCurrentSlot.some(c => c.product.id === product.id)
+  1076→                    const image = safeParseFirstImage(product.images)
+  1077→                    const specs = parseSpecs(product.specs)
+  1078→                    const specEntries = getVisibleSpecs(specs).slice(0, 4)
+  1079→                    const compatInfo = product.compatInfo
+  1080→
+  1081→                    return (
+  1082→                      <button
+  1083→                        key={product.id}
+  1084→                        onClick={() => selectProduct(product)}
+  1085→                        className={`w-full text-left bg-white rounded-xl border p-4 flex items-start gap-4 transition hover:shadow-md ${
+  1086→                          isSelected
+  1087→                            ? 'border-compucity-green bg-compucity-green-50/50 ring-2 ring-compucity-green-100'
+  1088→                            : 'border-gray-200 hover:border-compucity-green-100'
+  1089→                        }`}
+  1090→                      >
+  1091→                        {/* Image */}
+  1092→                        <div className="w-16 h-16 rounded-lg bg-gray-100 overflow-hidden shrink-0">
+  1093→                          {image ? (
+  1094→                            <img src={image} alt={product.name} className="w-full h-full object-cover" />
+  1095→                          ) : (
+  1096→                            <div className="w-full h-full flex items-center justify-center text-gray-300">
+  1097→                              <Cpu className="w-6 h-6" />
+  1098→                            </div>
+  1099→                          )}
+  1100→                        </div>
+  1101→
+  1102→                        {/* Info */}
+  1103→                        <div className="flex-1 min-w-0">
+  1104→                          <h3 className="font-medium text-gray-900 text-sm mb-1 line-clamp-2">{product.name}</h3>
+  1105→                          {/* Compatibility badges */}
+  1106→                          {compatInfo && (compatInfo.socket || compatInfo.ddr) && (
+  1107→                            <div className="flex flex-wrap gap-1.5 mb-2">
+  1108→                              {compatInfo.socket && (
+  1109→                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700">
+  1110→                                  <ShieldCheck className="w-3 h-3" />
+  1111→                                  {SOCKET_LABELS[compatInfo.socket] || compatInfo.socket}
+  1112→                                </span>
+  1113→                              )}
+  1114→                              {compatInfo.ddr && (
+  1115→                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-700">
+  1116→                                  <Zap className="w-3 h-3" />
+  1117→                                  {compatInfo.ddr}
+  1118→                                </span>
+  1119→                              )}
+  1120→                              {compatInfo.wattage && currentSlot.slot === 'psu' && (
+  1121→                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700">
+  1122→                                  <Zap className="w-3 h-3" />
+  1123→                                  {compatInfo.wattage}W
+  1124→                                </span>
+  1125→                              )}
+  1126→                            </div>
+  1127→                          )}
+  1128→                          {specEntries.length > 0 && (
+  1129→                            <div className="flex flex-wrap gap-x-3 gap-y-0.5 mb-2">
+  1130→                              {specEntries.map(([key, value]) => (
+  1131→                                <span key={key} className="text-xs text-gray-500">
+  1132→                                  <span className="text-gray-400">{key}:</span> {value}
+  1133→                                </span>
+  1134→                              ))}
+  1135→                            </div>
+  1136→                          )}
+  1137→                          <div className="flex items-center gap-3">
+  1138→                            <span className="text-xs text-gray-400">Lista: {formatPrice(product.price)}</span>
+  1139→                            {product.comparePrice && product.comparePrice < product.price && (
+  1140→                              <span className="text-sm font-bold text-green-600">
+  1141→                                Efectivo: {formatPrice(product.comparePrice)}
+  1142→                              </span>
+  1143→                            )}
+  1144→                            {!product.comparePrice && (
+  1145→                              <span className="text-sm font-bold text-gray-900">{formatPrice(product.price)}</span>
+  1146→                            )}
+  1147→
+  1148→                          </div>
+  1149→                        </div>
+  1150→
+  1151→                        {/* Selection indicator */}
+  1152→                        <div className="shrink-0 mt-1">
+  1153→                          {isSelected ? (
+  1154→                            <div className="w-8 h-8 rounded-full bg-compucity-green flex items-center justify-center">
+  1155→                              <Check className="w-4 h-4 text-white" />
+  1156→                            </div>
+  1157→                          ) : (
+  1158→                            <div className="w-8 h-8 rounded-full border-2 border-gray-200 flex items-center justify-center group-hover:border-compucity-cyan-light transition">
+  1159→                              <Plus className="w-4 h-4 text-gray-300" />
+  1160→                            </div>
+  1161→                          )}
+  1162→                        </div>
+  1163→                      </button>
+  1164→                    )
+  1165→                  })}
+  1166→
+  1167→                  {/* Incompatible products toggle */}
+  1168→                  {filteredIncompatible.length > 0 && (
+  1169→                    <div className="mt-4">
+  1170→                      <button
+  1171→                        onClick={() => setShowIncompatible(!showIncompatible)}
+  1172→                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium hover:bg-amber-100 transition"
+  1173→                      >
+  1174→                        <AlertTriangle className="w-4 h-4" />
+  1175→                        {showIncompatible
+  1176→                          ? 'Ocultar productos no compatibles'
+  1177→                          : `${filteredIncompatible.length} producto${filteredIncompatible.length > 1 ? 's' : ''} no compatible${filteredIncompatible.length > 1 ? 's' : ''} (ver todos)`}
+  1178→                      </button>
+  1179→
+  1180→                      {showIncompatible && (
+  1181→                        <div className="mt-2 space-y-2">
+  1182→                          {filteredIncompatible.map((product) => {
+  1183→                            const isSelected = selectedForCurrentSlot.some(c => c.product.id === product.id)
+  1184→                            const image = safeParseFirstImage(product.images)
+  1185→                            const specs = parseSpecs(product.specs)
+  1186→                            const specEntries = getVisibleSpecs(specs).slice(0, 4)
+  1187→                            const compatInfo = product.compatInfo
+  1188→
+  1189→                            // Determine incompatibility reason
+  1190→                            let reason = ''
+  1191→                            if (currentSlot.slot === 'motherboard' && compatibilityFilters.socket && compatInfo?.socket && compatInfo.socket !== compatibilityFilters.socket) {
+  1192→                              reason = `Socket ${compatInfo.socket} no compatible con tu procesador (${SOCKET_LABELS[compatibilityFilters.socket] || compatibilityFilters.socket})`
+  1193→                            } else if (currentSlot.slot === 'ram' && compatibilityFilters.ddr && compatInfo?.ddr && compatInfo.ddr !== compatibilityFilters.ddr) {
+  1194→                              reason = `${compatInfo.ddr} no compatible con tu mother (requiere ${compatibilityFilters.ddr})`
+  1195→                            } else if (currentSlot.slot === 'ram' && compatInfo?.ddrType === 'sodimm' && !compatibilityFilters.ddr) {
+  1196→                              reason = 'Memoria SODIMM (notebook), no compatible con PCs de escritorio'
+  1197→                            } else if (currentSlot.slot === 'psu' && compatibilityFilters.minWattage && compatInfo?.wattage && compatInfo.wattage < compatibilityFilters.minWattage) {
+  1198→                              reason = `${compatInfo.wattage}W insuficiente (se recomienda ${compatibilityFilters.minWattage}W+ para tu placa de video)`
+  1199→                            }
+  1200→
+  1201→                            return (
+  1202→                              <button
+  1203→                                key={product.id}
+  1204→                                onClick={() => selectProduct(product)}
+  1205→                                className={`w-full text-left bg-white rounded-xl border p-4 flex items-start gap-4 transition hover:shadow-md opacity-60 hover:opacity-80 ${
+  1206→                                  isSelected
+  1207→                                    ? 'border-amber-400 bg-amber-50/50'
+  1208→                                    : 'border-amber-200 hover:border-amber-300'
+  1209→                                }`}
+  1210→                              >
+  1211→                                {/* Image */}
+  1212→                                <div className="w-16 h-16 rounded-lg bg-gray-100 overflow-hidden shrink-0">
+  1213→                                  {image ? (
+  1214→                                    <img src={image} alt={product.name} className="w-full h-full object-cover grayscale" />
+  1215→                                  ) : (
+  1216→                                    <div className="w-full h-full flex items-center justify-center text-gray-300">
+  1217→                                      <Cpu className="w-6 h-6" />
+  1218→                                    </div>
+  1219→                                  )}
+  1220→                                </div>
+  1221→
+  1222→                                {/* Info */}
+  1223→                                <div className="flex-1 min-w-0">
+  1224→                                  <h3 className="font-medium text-gray-700 text-sm mb-1 line-clamp-2">{product.name}</h3>
+  1225→                                  {/* Incompatibility reason */}
+  1226→                                  {reason && (
+  1227→                                    <div className="flex items-start gap-1.5 mb-2 p-1.5 rounded bg-amber-50 border border-amber-100">
+  1228→                                      <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0 mt-0.5" />
+  1229→                                      <span className="text-[11px] text-amber-700">{reason}</span>
+  1230→                                    </div>
+  1231→                                  )}
+  1232→                                  {specEntries.length > 0 && (
+  1233→                                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 mb-2">
+  1234→                                      {specEntries.map(([key, value]) => (
+  1235→                                        <span key={key} className="text-xs text-gray-500">
+  1236→                                          <span className="text-gray-400">{key}:</span> {value}
+  1237→                                        </span>
+  1238→                                      ))}
+  1239→                                    </div>
+  1240→                                  )}
+  1241→                                  <div className="flex items-center gap-3">
+  1242→                                    <span className="text-xs text-gray-400">Lista: {formatPrice(product.price)}</span>
+  1243→                                    {product.comparePrice && product.comparePrice < product.price && (
+  1244→                                      <span className="text-sm font-bold text-gray-500">
+  1245→                                        Efectivo: {formatPrice(product.comparePrice)}
+  1246→                                      </span>
+  1247→                                    )}
+  1248→                                  </div>
+  1249→                                </div>
+  1250→
+  1251→                                {/* Selection indicator */}
+  1252→                                <div className="shrink-0 mt-1">
+  1253→                                  {isSelected ? (
+  1254→                                    <div className="w-8 h-8 rounded-full bg-amber-400 flex items-center justify-center">
+  1255→                                      <AlertTriangle className="w-4 h-4 text-white" />
+  1256→                                    </div>
+  1257→                                  ) : (
+  1258→                                    <div className="w-8 h-8 rounded-full border-2 border-amber-200 flex items-center justify-center">
+  1259→                                      <Plus className="w-4 h-4 text-amber-300" />
+  1260→                                    </div>
+  1261→                                  )}
+  1262→                                </div>
+  1263→                              </button>
+  1264→                            )
+  1265→                          })}
+  1266→                        </div>
+  1267→                      )}
+  1268→                    </div>
+  1269→                  )}
+  1270→                </>
+  1271→              )}
+  1272→            </div>
+  1273→
+  1274→            {/* Desktop Navigation */}
+  1275→            <div className="hidden lg:flex items-center justify-between mt-4">
+  1276→              <Button
+  1277→                variant="outline"
+  1278→                onClick={goPrev}
+  1279→                disabled={currentStep === 0}
+  1280→                className="gap-2"
+  1281→              >
+  1282→                <ChevronLeft className="w-4 h-4" />
+  1283→                Anterior
+  1284→              </Button>
+  1285→
+  1286→              {currentStep < SLOTS.length - 1 ? (
+  1287→                <Button onClick={goNext} className="bg-compucity-green hover:bg-compucity-green-dark gap-2">
+  1288→                  Siguiente
+  1289→                  <ChevronRight className="w-4 h-4" />
+  1290→                </Button>
+  1291→              ) : (
+  1292→                <div className="flex items-center gap-2">
+  1293→                  <Button
+  1294→                    onClick={() => {
+  1295→                      if (completedRequired) {
+  1296→                        handleWhatsApp()
+  1297→                      }
+  1298→                    }}
+  1299→                    className="bg-[#25D366] hover:bg-[#20BD5A] gap-2"
+  1300→                    disabled={!completedRequired}
+  1301→                  >
+  1302→                    <WhatsAppIcon className="w-4 h-4" />
+  1303→                    Consultar por WhatsApp
+  1304→                  </Button>
+  1305→                  <Button
+  1306→                    onClick={() => {
+  1307→                      if (completedRequired) {
+  1308→                        generatePDF()
+  1309→                      }
+  1310→                    }}
+  1311→                    variant="outline"
+  1312→                    className="gap-2"
+  1313→                    disabled={!completedRequired}
+  1314→                  >
+  1315→                    <Download className="w-4 h-4" />
+  1316→                    PDF
+  1317→                  </Button>
+  1318→                </div>
+  1319→              )}
+  1320→            </div>
+  1321→
+  1322→            {/* Desktop Skip optional */}
+  1323→            {!currentSlot.required && currentStep < SLOTS.length - 1 && (
+  1324→              <div className="hidden lg:block text-center mt-3">
+  1325→                <button
+  1326→                  onClick={goNext}
+  1327→                  className="text-sm text-gray-400 hover:text-gray-600 transition"
+  1328→                >
+  1329→                  Saltar este paso →
+  1330→                </button>
+  1331→              </div>
+  1332→            )}
+  1333→          </div>
+  1334→
+  1335→          {/* ============================================ */}
+  1336→          {/* Right: Summary Sidebar */}
+  1337→          {/* ============================================ */}
+  1338→          <div className={`w-full lg:w-80 shrink-0 ${!showMobileSummary ? 'hidden lg:block' : ''}`}>
+  1339→            <div className="bg-white rounded-xl border lg:sticky lg:top-24">
+  1340→              {/* Summary Header */}
+  1341→              <div className="p-5 border-b">
+  1342→                <div className="flex items-center justify-between">
+  1343→                  <div>
+  1344→                    <h3 className="font-bold text-gray-900 mb-1">Tu PC a medida</h3>
+  1345→                    <p className="text-sm text-gray-500">{completedCount} de {SLOTS.length} componentes</p>
+  1346→                  </div>
+  1347→                  {/* Mobile: Back button */}
+  1348→                  <Button
+  1349→                    variant="ghost"
+  1350→                    onClick={() => setShowMobileSummary(false)}
+  1351→                    className="lg:hidden gap-1 text-sm text-gray-500 hover:text-gray-700 -mr-2"
+  1352→                  >
+  1353→                    <ChevronLeft className="w-4 h-4" />
+  1354→                    Volver
+  1355→                  </Button>
+  1356→                </div>
+  1357→              </div>
+  1358→
+  1359→              {/* Compatibility Status */}
+  1360→              {(processorInfo || motherboardInfo) && (
+  1361→                <div className="px-5 py-3 bg-blue-50 border-b border-blue-100">
+  1362→                  <div className="flex items-center gap-2 mb-1.5">
+  1363→                    <ShieldCheck className="w-4 h-4 text-blue-600" />
+  1364→                    <span className="text-xs font-semibold text-blue-800">Compatibilidad</span>
+  1365→                  </div>
+  1366→                  <div className="space-y-1">
+  1367→                    {processorInfo?.socket && (
+  1368→                      <p className="text-[11px] text-blue-700">
+  1369→                        Procesador: {SOCKET_LABELS[processorInfo.socket] || processorInfo.socket}
+  1370→                      </p>
+  1371→                    )}
+  1372→                    {motherboardInfo?.ddr && (
+  1373→                      <p className="text-[11px] text-blue-700">
+  1374→                        Memoria: {motherboardInfo.ddr} requerida
+  1375→                      </p>
+  1376→                    )}
+  1377→                    {gpuInfo?.wattage && (
+  1378→                      <p className="text-[11px] text-blue-700">
+  1379→                        Fuente recomendada: {gpuInfo.wattage}W+
+  1380→                      </p>
+  1381→                    )}
+  1382→                  </div>
+  1383→                </div>
+  1384→              )}
+  1385→
+  1386→              {/* Selected Components List */}
+  1387→              <div className="p-4 space-y-2 max-h-[50vh] overflow-y-auto">
+  1388→                {SLOTS.map((slot) => {
+  1389→                  const selected = selectedComponents.find(c => c.slot === slot.slot)
+  1390→                  const Icon = slot.icon
+  1391→
+  1392→                  if (selected) {
+  1393→                    const unitPrice = selected.product.comparePrice || selected.product.price
+  1394→                    const lineTotal = unitPrice * selected.quantity
+  1395→                    return (
+  1396→                      <div key={slot.slot} className="flex items-center gap-2 p-2 bg-green-50 rounded-lg">
+  1397→                        <Icon className="w-4 h-4 text-green-600 shrink-0" />
+  1398→                        <div className="flex-1 min-w-0">
+  1399→                          <p className="text-xs text-green-700 font-medium">
+  1400→                            {slot.label}
+  1401→                            {selected.quantity > 1 && <span className="ml-1 text-green-500">({selected.quantity}u)</span>}
+  1402→                          </p>
+  1403→                          <p className="text-xs text-green-900 truncate">{selected.product.name}</p>
+  1404→                        </div>
+  1405→                        <span className="text-xs font-medium text-green-700 whitespace-nowrap">
+  1406→                          {formatPrice(lineTotal)}
+  1407→                        </span>
+  1408→                      </div>
+  1409→                    )
+  1410→                  }
+  1411→
+  1412→                  // Show filtered status for unselected slots
+  1413→                  const hasFilter =
+  1414→                    (slot.slot === 'motherboard' && !!compatibilityFilters.socket) ||
+  1415→                    (slot.slot === 'ram' && !!compatibilityFilters.ddr) ||
+  1416→                    (slot.slot === 'psu' && !!compatibilityFilters.minWattage)
+  1417→
+  1418→                  return (
+  1419→                    <div key={slot.slot} className={`flex items-center gap-2 p-2 rounded-lg ${hasFilter ? 'bg-blue-50 border border-blue-100' : 'bg-gray-50'}`}>
+  1420→                      {hasFilter ? (
+  1421→                        <ShieldCheck className="w-4 h-4 text-blue-400 shrink-0" />
+  1422→                      ) : (
+  1423→                        <Icon className="w-4 h-4 text-gray-300 shrink-0" />
+  1424→                      )}
+  1425→                      <span className={`text-xs flex-1 ${hasFilter ? 'text-blue-600' : 'text-gray-400'}`}>
+  1426→                        {slot.label}
+  1427→                        {slot.slot === 'motherboard' && compatibilityFilters.socket && (
+  1428→                          <span className="text-blue-500 ml-1">({SOCKET_LABELS[compatibilityFilters.socket] || compatibilityFilters.socket})</span>
+  1429→                        )}
+  1430→                        {slot.slot === 'ram' && compatibilityFilters.ddr && (
+  1431→                          <span className="text-blue-500 ml-1">({compatibilityFilters.ddr})</span>
+  1432→                        )}
+  1433→                        {slot.slot === 'psu' && compatibilityFilters.minWattage && (
+  1434→                          <span className="text-blue-500 ml-1">({compatibilityFilters.minWattage}W+)</span>
+  1435→                        )}
+  1436→                      </span>
+  1437→                      {slot.required && <span className="text-[10px] text-red-400">Requerido</span>}
+  1438→                    </div>
+  1439→                  )
+  1440→                })}
+  1441→              </div>
+  1442→
+  1443→              {/* Totals */}
+  1444→              <div className="p-5 border-t space-y-2">
+  1445→                {totalListPrice > 0 && (
+  1446→                  <div className="flex items-center justify-between text-sm">
+  1447→                    <span className="text-gray-500">Precio de lista</span>
+  1448→                    <span className="text-gray-900">{formatPrice(totalListPrice)}</span>
+  1449→                  </div>
+  1450→                )}
+  1451→                {totalPrice > 0 && totalPrice < totalListPrice && (
+  1452→                  <div className="flex items-center justify-between">
+  1453→                    <span className="text-green-700 font-medium">Precio en efectivo</span>
+  1454→                    <span className="text-green-700 font-bold text-lg">{formatPrice(totalPrice)}</span>
+  1455→                  </div>
+  1456→                )}
+  1457→                {totalPrice === 0 && (
+  1458→                  <div className="text-center text-sm text-gray-400 py-2">
+  1459→                    Seleccioná componentes para ver el total
+  1460→                  </div>
+  1461→                )}
+  1462→              </div>
+  1463→
+  1464→              {/* Actions */}
+  1465→              <div className="p-5 border-t space-y-3">
+  1466→                {completedCount > 0 && (
+  1467→                  <div className="flex items-start gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+  1468→                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+  1469→                    <span>El armado de los equipos puede tener una demora de hasta <strong>96 horas hábiles</strong>.</span>
+  1470→                  </div>
+  1471→                )}
+  1472→                <div className="flex flex-col gap-2">
+  1473→                  <a
+  1474→                    href={completedCount > 0 ? buildWhatsAppUrl() : undefined}
+  1475→                    target="_blank"
+  1476→                    rel="noopener noreferrer"
+  1477→                    className={`flex items-center justify-center gap-2 py-3 rounded-lg font-semibold text-sm transition ${
+  1478→                      completedCount > 0
+  1479→                        ? 'bg-[#25D366] hover:bg-[#20BD5A] text-white cursor-pointer'
+  1480→                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+  1481→                    }`}
+  1482→                    onClick={(e) => {
+  1483→                      if (completedCount === 0) {
+  1484→                        e.preventDefault()
+  1485→                      }
+  1486→                    }}
+  1487→                  >
+  1488→                    <WhatsAppIcon className="w-4 h-4" />
+  1489→                    Consultar por WhatsApp
+  1490→                  </a>
+  1491→                  <button
+  1492→                    onClick={() => {
+  1493→                      if (completedCount > 0) generatePDF()
+  1494→                    }}
+  1495→                    className={`flex items-center justify-center gap-2 py-2.5 rounded-lg font-medium text-sm transition ${
+  1496→                      completedCount > 0
+  1497→                        ? 'bg-gray-100 hover:bg-gray-200 text-gray-700 cursor-pointer'
+  1498→                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+  1499→                    }`}
+  1500→                    disabled={completedCount === 0}
+  1501→                  >
+  1502→                    <Download className="w-4 h-4" />
+  1503→                    Descargar PDF
+  1504→                  </button>
+  1505→                </div>
+  1506→
+  1507→                {completedCount > 0 && (
+  1508→                  <button
+  1509→                    onClick={() => {
+  1510→                      setSelectedComponents([])
+  1511→                      setCurrentStep(0)
+  1512→                    }}
+  1513→                    className="w-full text-sm text-gray-400 hover:text-red-500 transition py-1"
+  1514→                  >
+  1515→                    Limpiar selección
+  1516→                  </button>
+  1517→                )}
+  1518→              </div>
+  1519→            </div>
+  1520→          </div>
+  1521→        </div>
+  1522→
+  1523→        {/* ============================================ */}
+  1524→        {/* Mobile Sticky Bottom Bar */}
+  1525→        {/* ============================================ */}
+  1526→        {!showMobileSummary && (
+  1527→          <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-[0_-4px_12px_rgba(0,0,0,0.1)] z-50 safe-area-bottom">
+  1528→            {/* Ver Tu PC a medida */}
+  1529→            <div className="px-3 pt-2">
+  1530→              <Button
+  1531→                onClick={() => setShowMobileSummary(true)}
+  1532→                className="w-full bg-compucity-green hover:bg-compucity-green-dark gap-2 py-2.5 text-sm"
+  1533→              >
+  1534→                <ShoppingCart className="w-4 h-4" />
+  1535→                Ver Tu PC a medida{completedCount > 0 ? ` (${completedCount})` : ''}
+  1536→              </Button>
+  1537→            </div>
+  1538→            {/* Navigation row */}
+  1539→            <div className="flex items-center gap-2 px-3 py-2">
+  1540→              <Button
+  1541→                variant="outline"
+  1542→                onClick={goPrev}
+  1543→                disabled={currentStep === 0}
+  1544→                className="gap-1 flex-1 h-9 text-xs"
+  1545→              >
+  1546→                <ChevronLeft className="w-3.5 h-3.5" />
+  1547→                Anterior
+  1548→              </Button>
+  1549→              {!currentSlot.required && currentStep < SLOTS.length - 1 && (
+  1550→                <Button
+  1551→                  variant="ghost"
+  1552→                  onClick={goNext}
+  1553→                  className="text-xs text-gray-400 h-9"
+  1554→                >
+  1555→                  Saltar →
+  1556→                </Button>
+  1557→              )}
+  1558→              {currentStep < SLOTS.length - 1 ? (
+  1559→                <Button onClick={goNext} className="bg-compucity-green hover:bg-compucity-green-dark gap-1 flex-1 h-9 text-xs">
+  1560→                  Siguiente
+  1561→                  <ChevronRight className="w-3.5 h-3.5" />
+  1562→                </Button>
+  1563→              ) : (
+  1564→                <div className="flex gap-1 flex-1">
+  1565→                  <Button
+  1566→                    onClick={() => {
+  1567→                      if (completedRequired) {
+  1568→                        generatePDF()
+  1569→                      }
+  1570→                    }}
+  1571→                    variant="outline"
+  1572→                    className="gap-1 h-9 text-xs flex-1"
+  1573→                    disabled={!completedRequired}
+  1574→                  >
+  1575→                    <Download className="w-3.5 h-3.5" />
+  1576→                    PDF
+  1577→                  </Button>
+  1578→                  <Button
+  1579→                    onClick={() => {
+  1580→                      if (completedRequired) {
+  1581→                        handleWhatsApp()
+  1582→                      }
+  1583→                    }}
+  1584→                    className="bg-[#25D366] hover:bg-[#20BD5A] gap-1 h-9 text-xs flex-1"
+  1585→                    disabled={!completedRequired}
+  1586→                  >
+  1587→                    <WhatsAppIcon className="w-3.5 h-3.5" />
+  1588→                    WhatsApp
+  1589→                  </Button>
+  1590→                </div>
+  1591→              )}
+  1592→            </div>
+  1593→          </div>
+  1594→        )}
+  1595→      </div>
+  1596→
+  1597→      {/* AI Assistant Chat */}
+  1598→      <PCAssistantChat
+  1599→        onLoadBuild={(components) => {
+  1600→          setSelectedComponents(components)
+  1601→          setCurrentStep(0)
+  1602→        }}
+  1603→      />
+  1604→    </div>
+  1605→  )
+  1606→}
+  1607→

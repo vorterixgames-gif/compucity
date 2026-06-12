@@ -4,8 +4,16 @@ import NotebookAssistantChat from '@/components/notebook-assistant-chat'
 import EligeTuNotebookClient from './EligeTuNotebookClient'
 
 export const metadata = {
-  title: 'Elegí tu Notebook | Compucity',
-  description: 'Dejate asesorar por Citi, nuestro asistente inteligente, y encontrá la notebook ideal para vos. Gaming, oficina, estudio o diseño.',
+  title: 'Elegí tu Notebook',
+  description: 'Dejate asesorar por Citi, nuestro asistente inteligente, y encontrá la notebook ideal para vos. Gaming, oficina, estudio o diseño. Envíos a todo el país.',
+  alternates: {
+    canonical: 'https://www.compucityonline.com.ar/elige-tu-notebook',
+  },
+  openGraph: {
+    title: 'Elegí tu Notebook | Compucity',
+    description: 'Asistente inteligente para elegir tu notebook ideal. Gaming, oficina, estudio o diseño.',
+    url: 'https://www.compucityonline.com.ar/elige-tu-notebook',
+  },
 }
 
 export default function EligeTuNotebookPage() {

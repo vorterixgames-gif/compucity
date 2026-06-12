@@ -1,4 +1,18 @@
 import { MapPin, Phone, Mail, MessageCircle, Clock } from 'lucide-react'
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  title: 'Contacto',
+  description: 'Contactá a Compucity, tu tienda de informática en La Falda, Córdoba. WhatsApp, email y atención presencial en Av. Sarmiento 462. Envíos a todo el país.',
+  alternates: {
+    canonical: 'https://www.compucityonline.com.ar/contacto',
+  },
+  openGraph: {
+    title: 'Contacto | Compucity',
+    description: 'Contactá a Compucity, tu tienda de informática en La Falda, Córdoba.',
+    url: 'https://www.compucityonline.com.ar/contacto',
+  },
+}
 
 export default function ContactoPage() {
   return (

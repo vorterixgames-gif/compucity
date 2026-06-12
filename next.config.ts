@@ -2,12 +2,13 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
-  /* config options here */
   typescript: {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
   allowedDevOrigins: ['0.0.0.0'],
+  // Security: Don't expose X-Powered-By header
+  poweredByHeader: false,
   images: {
     remotePatterns: [
       {

@@ -1,0 +1,1342 @@
+     1→'use client'
+     2→
+     3→import { useState, useEffect, useCallback } from 'react'
+     4→import { motion, AnimatePresence } from 'framer-motion'
+     5→import {
+     6→  User, Mail, Lock, Phone, FileText, Package, LogOut,
+     7→  ChevronDown, ChevronUp, Truck, MapPin, Loader2, Eye, EyeOff,
+     8→  ShoppingBag, Clock, CheckCircle2, PackageCheck, CircleDot, XCircle, Search,
+     9→  Edit3, Save, ExternalLink, Home
+    10→} from 'lucide-react'
+    11→import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+    12→import { Input } from '@/components/ui/input'
+    13→import { Button } from '@/components/ui/button'
+    14→import { Label } from '@/components/ui/label'
+    15→import { Badge } from '@/components/ui/badge'
+    16→import { Separator } from '@/components/ui/separator'
+    17→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+    18→import Link from 'next/link'
+    19→
+    20→// ============================================
+    21→// Types
+    22→// ============================================
+    23→
+    24→interface CustomerData {
+    25→  id: string
+    26→  name: string
+    27→  email: string
+    28→  phone: string | null
+    29→  dni: string | null
+    30→  address?: string | null
+    31→  city?: string | null
+    32→  province?: string | null
+    33→  postalCode?: string | null
+    34→}
+    35→
+    36→interface ShippingDetailsJSON {
+    37→  method?: string
+    38→  description?: string
+    39→  carrier?: string
+    40→  carrierName?: string
+    41→  service?: string
+    42→  serviceName?: string
+    43→  price?: number
+    44→  estimatedDays?: string
+    45→}
+    46→
+    47→interface OrderItem {
+    48→  id: string
+    49→  name: string
+    50→  price: number
+    51→  quantity: number
+    52→  productId?: string | null
+    53→}
+    54→
+    55→interface OrderData {
+    56→  id: string
+    57→  orderNumber: string
+    58→  customerName: string
+    59→  customerEmail: string | null
+    60→  customerPhone: string | null
+    61→  customerDni: string | null
+    62→  shippingAddress: string | null
+    63→  shippingCity: string | null
+    64→  shippingProvince: string | null
+    65→  shippingZip: string | null
+    66→  shippingMethod: string | null
+    67→  shippingCost: number
+    68→  shippingDetails: string | null
+    69→  trackingNumber: string | null
+    70→  status: string
+    71→  paymentMethod: string | null
+    72→  total: number
+    73→  notes: string | null
+    74→  customerId: string | null
+    75→  createdAt: string
+    76→  updatedAt: string
+    77→  items: OrderItem[]
+    78→}
+    79→
+    80→// ============================================
+    81→// Status Configuration
+    82→// ============================================
+    83→
+    84→const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string; icon: React.ElementType }> = {
+    85→  pendiente: {
+    86→    label: 'Pendiente',
+    87→    color: 'text-amber-700',
+    88→    bgColor: 'bg-amber-50 border-amber-200',
+    89→    icon: Clock,
+    90→  },
+    91→  pending: {
+    92→    label: 'Pendiente',
+    93→    color: 'text-amber-700',
+    94→    bgColor: 'bg-amber-50 border-amber-200',
+    95→    icon: Clock,
+    96→  },
+    97→  paid: {
+    98→    label: 'Pagado',
+    99→    color: 'text-blue-700',
+   100→    bgColor: 'bg-blue-50 border-blue-200',
+   101→    icon: CheckCircle2,
+   102→  },
+   103→  pago: {
+   104→    label: 'Pagado',
+   105→    color: 'text-blue-700',
+   106→    bgColor: 'bg-blue-50 border-blue-200',
+   107→    icon: CheckCircle2,
+   108→  },
+   109→  preparing: {
+   110→    label: 'Preparando',
+   111→    color: 'text-purple-700',
+   112→    bgColor: 'bg-purple-50 border-purple-200',
+   113→    icon: PackageCheck,
+   114→  },
+   115→  preparando: {
+   116→    label: 'Preparando',
+   117→    color: 'text-purple-700',
+   118→    bgColor: 'bg-purple-50 border-purple-200',
+   119→    icon: PackageCheck,
+   120→  },
+   121→  shipped: {
+   122→    label: 'Enviado',
+   123→    color: 'text-compucity-green-dark',
+   124→    bgColor: 'bg-compucity-green-50 border-compucity-green-100',
+   125→    icon: Truck,
+   126→  },
+   127→  enviado: {
+   128→    label: 'Enviado',
+   129→    color: 'text-compucity-green-dark',
+   130→    bgColor: 'bg-compucity-green-50 border-compucity-green-100',
+   131→    icon: Truck,
+   132→  },
+   133→  delivered: {
+   134→    label: 'Entregado',
+   135→    color: 'text-green-700',
+   136→    bgColor: 'bg-green-50 border-green-200',
+   137→    icon: CircleDot,
+   138→  },
+   139→  entregado: {
+   140→    label: 'Entregado',
+   141→    color: 'text-green-700',
+   142→    bgColor: 'bg-green-50 border-green-200',
+   143→    icon: CircleDot,
+   144→  },
+   145→  cancelled: {
+   146→    label: 'Cancelado',
+   147→    color: 'text-red-700',
+   148→    bgColor: 'bg-red-50 border-red-200',
+   149→    icon: XCircle,
+   150→  },
+   151→  cancelado: {
+   152→    label: 'Cancelado',
+   153→    color: 'text-red-700',
+   154→    bgColor: 'bg-red-50 border-red-200',
+   155→    icon: XCircle,
+   156→  },
+   157→}
+   158→
+   159→const PROVINCES = [
+   160→  'Buenos Aires', 'CABA', 'Catamarca', 'Chaco', 'Chubut', 'Córdoba',
+   161→  'Corrientes', 'Entre Ríos', 'Formosa', 'Jujuy', 'La Pampa', 'La Rioja',
+   162→  'Mendoza', 'Misiones', 'Neuquén', 'Río Negro', 'Salta', 'San Juan',
+   163→  'San Luis', 'Santa Cruz', 'Santa Fe', 'Santiago del Estero',
+   164→  'Tierra del Fuego', 'Tucumán',
+   165→]
+   166→
+   167→function getStatusConfig(status: string) {
+   168→  return STATUS_CONFIG[status] || STATUS_CONFIG['pending']
+   169→}
+   170→
+   171→// ============================================
+   172→// Helpers
+   173→// ============================================
+   174→
+   175→const formatPrice = (n: number) =>
+   176→  new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n)
+   177→
+   178→const formatDate = (dateStr: string) => {
+   179→  try {
+   180→    const date = new Date(dateStr)
+   181→    return date.toLocaleDateString('es-AR', {
+   182→      day: '2-digit',
+   183→      month: '2-digit',
+   184→      year: 'numeric',
+   185→      hour: '2-digit',
+   186→      minute: '2-digit',
+   187→    })
+   188→  } catch {
+   189→    return dateStr
+   190→  }
+   191→}
+   192→
+   193→/**
+   194→ * Parse shipping details from JSON or legacy notes format
+   195→ */
+   196→function parseShippingDetails(order: OrderData): ShippingDetailsJSON | null {
+   197→  // Try new JSON format first
+   198→  if (order.shippingDetails) {
+   199→    try {
+   200→      return JSON.parse(order.shippingDetails)
+   201→    } catch {
+   202→      // Not valid JSON, fall through
+   203→    }
+   204→  }
+   205→
+   206→  // Try legacy format from notes (e.g. "[Envío: Andreani Estándar · 3-7 días · Andreani]")
+   207→  if (order.notes) {
+   208→    const match = order.notes.match(/\[Envío: (.+?)\]/)
+   209→    if (match) {
+   210→      return { description: match[1], serviceName: match[1] }
+   211→    }
+   212→  }
+   213→
+   214→  return null
+   215→}
+   216→
+   217→/**
+   218→ * Get tracking URL based on tracking number format
+   219→ */
+   220→function getTrackingUrl(trackingNumber: string): { url: string; carrier: string } | null {
+   221→  if (!trackingNumber) return null
+   222→  const tn = trackingNumber.trim().toUpperCase()
+   223→
+   224→  // Andreani tracking numbers are typically numeric, 10-14 digits
+   225→  if (/^\d{10,14}$/.test(tn)) {
+   226→    return { url: `https://www.andreani.com/Centralizador-de-envios/Consulta?numero=${tn}`, carrier: 'Andreani' }
+   227→  }
+   228→
+   229→  // Correo Argentino tracking starts with specific patterns
+   230→  if (/^[A-Z]{2}\d{9}[A-Z]{2}$/.test(tn) || tn.startsWith('CA') || tn.startsWith('RA')) {
+   231→    return { url: `https://www.correoargentino.com.ar/formularios/e-commerce`, carrier: 'Correo Argentino' }
+   232→  }
+   233→
+   234→  // OCA tracking
+   235→  if (tn.startsWith('OCA') || /^[A-Z]{3}\d+$/.test(tn)) {
+   236→    return { url: `https://www.oca.com.ar/Seguimiento/Envio/${tn}`, carrier: 'OCA' }
+   237→  }
+   238→
+   239→  // Generic — return the number without a specific URL
+   240→  return { url: '', carrier: 'Transporte' }
+   241→}
+   242→
+   243→// ============================================
+   244→// Main Page Component
+   245→// ============================================
+   246→
+   247→export default function MisPedidosPage() {
+   248→  const [customer, setCustomer] = useState<CustomerData | null>(null)
+   249→  const [orders, setOrders] = useState<OrderData[]>([])
+   250→  const [loading, setLoading] = useState(true)
+   251→  const [expandedOrder, setExpandedOrder] = useState<string | null>(null)
+   252→
+   253→  // Order lookup by number
+   254→  const [lookupNumber, setLookupNumber] = useState('')
+   255→  const [lookupResult, setLookupResult] = useState<OrderData | null>(null)
+   256→  const [lookupLoading, setLookupLoading] = useState(false)
+   257→  const [lookupError, setLookupError] = useState('')
+   258→
+   259→  // Check auth on mount
+   260→  const checkAuth = useCallback(async () => {
+   261→    try {
+   262→      const res = await fetch('/api/customer/me')
+   263→      if (res.ok) {
+   264→        const data = await res.json()
+   265→        setCustomer(data.customer)
+   266→        // Fetch orders
+   267→        const ordersRes = await fetch('/api/customer/orders')
+   268→        if (ordersRes.ok) {
+   269→          const ordersData = await ordersRes.json()
+   270→          setOrders(ordersData.orders || [])
+   271→        }
+   272→      }
+   273→    } catch {
+   274→      // Not authenticated
+   275→    } finally {
+   276→      setLoading(false)
+   277→    }
+   278→  }, [])
+   279→
+   280→  useEffect(() => {
+   281→    checkAuth()
+   282→  }, [checkAuth])
+   283→
+   284→  const handleLogout = async () => {
+   285→    await fetch('/api/customer/logout', { method: 'POST' })
+   286→    setCustomer(null)
+   287→    setOrders([])
+   288→  }
+   289→
+   290→  const handleLookupOrder = async () => {
+   291→    if (!lookupNumber.trim()) return
+   292→    setLookupLoading(true)
+   293→    setLookupError('')
+   294→    setLookupResult(null)
+   295→    try {
+   296→      const res = await fetch(`/api/orders?orderNumber=${encodeURIComponent(lookupNumber.trim())}`)
+   297→      const data = await res.json()
+   298→      if (data.ok && data.order) {
+   299→        setLookupResult(data.order)
+   300→      } else {
+   301→        setLookupError(data.error || 'Pedido no encontrado')
+   302→      }
+   303→    } catch {
+   304→      setLookupError('Error al buscar el pedido')
+   305→    } finally {
+   306→      setLookupLoading(false)
+   307→    }
+   308→  }
+   309→
+   310→  // Loading state
+   311→  if (loading) {
+   312→    return (
+   313→      <div className="min-h-[60vh] flex items-center justify-center">
+   314→        <div className="flex flex-col items-center gap-3">
+   315→          <Loader2 className="h-8 w-8 text-compucity-green animate-spin" />
+   316→          <p className="text-sm text-gray-500">Cargando...</p>
+   317→        </div>
+   318→      </div>
+   319→    )
+   320→  }
+   321→
+   322→  return (
+   323→    <div className="min-h-screen bg-gray-50">
+   324→      {/* Header */}
+   325→      <div className="bg-gradient-to-r from-compucity-green-dark to-compucity-green text-white">
+   326→        <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
+   327→          <div className="flex items-center gap-3 mb-2">
+   328→            <ShoppingBag className="h-7 w-7" />
+   329→            <h1 className="text-2xl sm:text-3xl font-bold">Mis Pedidos</h1>
+   330→          </div>
+   331→          <p className="text-white/80 text-sm sm:text-base">
+   332→            {customer
+   333→              ? `Hola, ${customer.name} — Seguí tus pedidos acá`
+   334→              : 'Ingresá a tu cuenta para ver tus pedidos'}
+   335→          </p>
+   336→        </div>
+   337→      </div>
+   338→
+   339→      <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
+   340→        <AnimatePresence mode="wait">
+   341→          {customer ? (
+   342→            <motion.div
+   343→              key="dashboard"
+   344→              initial={{ opacity: 0, y: 12 }}
+   345→              animate={{ opacity: 1, y: 0 }}
+   346→              exit={{ opacity: 0, y: -12 }}
+   347→              transition={{ duration: 0.3 }}
+   348→            >
+   349→              <CustomerDashboard
+   350→                customer={customer}
+   351→                orders={orders}
+   352→                expandedOrder={expandedOrder}
+   353→                setExpandedOrder={setExpandedOrder}
+   354→                onLogout={handleLogout}
+   355→                onProfileUpdate={(updated) => setCustomer(updated)}
+   356→              />
+   357→            </motion.div>
+   358→          ) : (
+   359→            <motion.div
+   360→              key="auth"
+   361→              initial={{ opacity: 0, y: 12 }}
+   362→              animate={{ opacity: 1, y: 0 }}
+   363→              exit={{ opacity: 0, y: -12 }}
+   364→              transition={{ duration: 0.3 }}
+   365→            >
+   366→              {/* Quick order lookup */}
+   367→              <Card className="mb-6 border-0 shadow-sm">
+   368→                <CardContent className="p-4 sm:p-6">
+   369→                  <div className="flex items-center gap-2 mb-3">
+   370→                    <Search className="h-4 w-4 text-compucity-green" />
+   371→                    <p className="text-sm font-medium text-gray-700">Buscar pedido por número</p>
+   372→                  </div>
+   373→                  <div className="flex gap-2">
+   374→                    <Input
+   375→                      placeholder="Ej: CP-LH5XYZ"
+   376→                      value={lookupNumber}
+   377→                      onChange={(e) => setLookupNumber(e.target.value.toUpperCase())}
+   378→                      onKeyDown={(e) => e.key === 'Enter' && handleLookupOrder()}
+   379→                      className="flex-1"
+   380→                    />
+   381→                    <Button
+   382→                      onClick={handleLookupOrder}
+   383→                      disabled={lookupLoading || !lookupNumber.trim()}
+   384→                      className="bg-compucity-green hover:bg-compucity-green-dark text-white"
+   385→                    >
+   386→                      {lookupLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+   387→                    </Button>
+   388→                  </div>
+   389→                  {lookupError && (
+   390→                    <p className="text-sm text-red-600 mt-2">{lookupError}</p>
+   391→                  )}
+   392→                  {lookupResult && (
+   393→                    <OrderCard
+   394→                      order={lookupResult}
+   395→                      expanded={expandedOrder === lookupResult.id}
+   396→                      onToggle={() => setExpandedOrder(expandedOrder === lookupResult.id ? null : lookupResult.id)}
+   397→                    />
+   398→                  )}
+   399→                  <Separator className="my-4" />
+   400→
+   401→                  <div className="text-center">
+   402→                    <p className="text-sm text-gray-500 mb-1">¿Querés ver todos tus pedidos?</p>
+   403→                    <p className="text-xs text-gray-400">Ingresá a tu cuenta abajo para ver el historial completo</p>
+   404→                  </div>
+   405→                </CardContent>
+   406→              </Card>
+   407→
+   408→              <AuthForms onLoginSuccess={(cust) => {
+   409→                setCustomer(cust)
+   410→                checkAuth()
+   411→              }} />
+   412→            </motion.div>
+   413→          )}
+   414→        </AnimatePresence>
+   415→      </div>
+   416→    </div>
+   417→  )
+   418→}
+   419→
+   420→// ============================================
+   421→// Auth Forms Component (Login / Register)
+   422→// ============================================
+   423→
+   424→function AuthForms({ onLoginSuccess }: { onLoginSuccess: (customer: CustomerData) => void }) {
+   425→  const [activeTab, setActiveTab] = useState('login')
+   426→
+   427→  // Login state
+   428→  const [loginEmail, setLoginEmail] = useState('')
+   429→  const [loginPassword, setLoginPassword] = useState('')
+   430→  const [loginError, setLoginError] = useState('')
+   431→  const [loginLoading, setLoginLoading] = useState(false)
+   432→  const [showLoginPassword, setShowLoginPassword] = useState(false)
+   433→
+   434→  // Register state
+   435→  const [regName, setRegName] = useState('')
+   436→  const [regEmail, setRegEmail] = useState('')
+   437→  const [regPhone, setRegPhone] = useState('')
+   438→  const [regPassword, setRegPassword] = useState('')
+   439→  const [regDni, setRegDni] = useState('')
+   440→  const [regAddress, setRegAddress] = useState('')
+   441→  const [regCity, setRegCity] = useState('')
+   442→  const [regProvince, setRegProvince] = useState('')
+   443→  const [regPostalCode, setRegPostalCode] = useState('')
+   444→  const [regError, setRegError] = useState('')
+   445→  const [regLoading, setRegLoading] = useState(false)
+   446→  const [showRegPassword, setShowRegPassword] = useState(false)
+   447→
+   448→  const handleLogin = async (e: React.FormEvent) => {
+   449→    e.preventDefault()
+   450→    setLoginError('')
+   451→    setLoginLoading(true)
+   452→    try {
+   453→      const res = await fetch('/api/customer/login', {
+   454→        method: 'POST',
+   455→        headers: { 'Content-Type': 'application/json' },
+   456→        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+   457→      })
+   458→      const data = await res.json()
+   459→      if (!res.ok) {
+   460→        setLoginError(data.error || 'Error al iniciar sesión')
+   461→        return
+   462→      }
+   463→      onLoginSuccess(data.customer)
+   464→    } catch {
+   465→      setLoginError('Error de conexión')
+   466→    } finally {
+   467→      setLoginLoading(false)
+   468→    }
+   469→  }
+   470→
+   471→  const handleRegister = async (e: React.FormEvent) => {
+   472→    e.preventDefault()
+   473→    setRegError('')
+   474→    setRegLoading(true)
+   475→    try {
+   476→      const res = await fetch('/api/customer/register', {
+   477→        method: 'POST',
+   478→        headers: { 'Content-Type': 'application/json' },
+   479→        body: JSON.stringify({
+   480→          name: regName,
+   481→          email: regEmail,
+   482→          phone: regPhone,
+   483→          password: regPassword,
+   484→          dni: regDni,
+   485→          address: regAddress,
+   486→          city: regCity,
+   487→          province: regProvince,
+   488→          postalCode: regPostalCode,
+   489→        }),
+   490→      })
+   491→      const data = await res.json()
+   492→      if (!res.ok) {
+   493→        setRegError(data.error || 'Error al registrarse')
+   494→        return
+   495→      }
+   496→      onLoginSuccess(data.customer)
+   497→    } catch {
+   498→      setRegError('Error de conexión')
+   499→    } finally {
+   500→      setRegLoading(false)
+   501→    }
+   502→  }
+   503→
+   504→  return (
+   505→    <Card className="border-0 shadow-sm overflow-hidden">
+   506→      <Tabs value={activeTab} onValueChange={setActiveTab}>
+   507→        <div className="border-b">
+   508→          <TabsList className="w-full rounded-none border-0 bg-transparent h-auto p-0">
+   509→            <TabsTrigger
+   510→              value="login"
+   511→              className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-compucity-green data-[state=active]:bg-transparent data-[state=active]:shadow-none py-3.5 text-sm font-medium data-[state=active]:text-compucity-green-dark"
+   512→            >
+   513→              Iniciar Sesión
+   514→            </TabsTrigger>
+   515→            <TabsTrigger
+   516→              value="register"
+   517→              className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-compucity-green data-[state=active]:bg-transparent data-[state=active]:shadow-none py-3.5 text-sm font-medium data-[state=active]:text-compucity-green-dark"
+   518→            >
+   519→              Crear Cuenta
+   520→            </TabsTrigger>
+   521→          </TabsList>
+   522→        </div>
+   523→
+   524→        <TabsContent value="login" className="mt-0">
+   525→          <CardContent className="p-6">
+   526→            <div className="text-center mb-6">
+   527→              <div className="w-14 h-14 rounded-full bg-compucity-green-50 flex items-center justify-center mx-auto mb-3">
+   528→                <User className="h-7 w-7 text-compucity-green" />
+   529→              </div>
+   530→              <h2 className="text-lg font-semibold text-gray-900">Bienvenido de vuelta</h2>
+   531→              <p className="text-sm text-gray-500 mt-1">Ingresá con tu email y contraseña</p>
+   532→            </div>
+   533→
+   534→            <form onSubmit={handleLogin} className="space-y-4">
+   535→              <div className="space-y-2">
+   536→                <Label htmlFor="login-email">Email</Label>
+   537→                <div className="relative">
+   538→                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+   539→                  <Input
+   540→                    id="login-email"
+   541→                    type="email"
+   542→                    placeholder="tu@email.com"
+   543→                    value={loginEmail}
+   544→                    onChange={(e) => setLoginEmail(e.target.value)}
+   545→                    className="pl-10"
+   546→                    required
+   547→                  />
+   548→                </div>
+   549→              </div>
+   550→              <div className="space-y-2">
+   551→                <Label htmlFor="login-password">Contraseña</Label>
+   552→                <div className="relative">
+   553→                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+   554→                  <Input
+   555→                    id="login-password"
+   556→                    type={showLoginPassword ? 'text' : 'password'}
+   557→                    placeholder="••••••••"
+   558→                    value={loginPassword}
+   559→                    onChange={(e) => setLoginPassword(e.target.value)}
+   560→                    className="pl-10 pr-10"
+   561→                    required
+   562→                  />
+   563→                  <button
+   564→                    type="button"
+   565→                    onClick={() => setShowLoginPassword(!showLoginPassword)}
+   566→                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+   567→                  >
+   568→                    {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+   569→                  </button>
+   570→                </div>
+   571→              </div>
+   572→
+   573→              {loginError && (
+   574→                <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2.5 rounded-lg">
+   575→                  {loginError}
+   576→                </div>
+   577→              )}
+   578→
+   579→              <Button
+   580→                type="submit"
+   581→                disabled={loginLoading}
+   582→                className="w-full bg-compucity-green hover:bg-compucity-green-dark text-white h-11"
+   583→              >
+   584→                {loginLoading ? (
+   585→                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+   586→                ) : null}
+   587→                Iniciar Sesión
+   588→              </Button>
+   589→            </form>
+   590→
+   591→            <div className="text-center mt-2">
+   592→              <Link href="/recuperar-contrasena" className="text-sm text-compucity-green hover:text-compucity-green-dark transition">
+   593→                ¿Olvidaste tu contraseña?
+   594→              </Link>
+   595→            </div>
+   596→
+   597→            <div className="mt-4 text-center">
+   598→              <p className="text-sm text-gray-500">
+   599→                ¿No tenés cuenta?{' '}
+   600→                <button
+   601→                  onClick={() => setActiveTab('register')}
+   602→                  className="text-compucity-green hover:text-compucity-green-dark font-medium"
+   603→                >
+   604→                  Registrate acá
+   605→                </button>
+   606→              </p>
+   607→            </div>
+   608→          </CardContent>
+   609→        </TabsContent>
+   610→
+   611→        <TabsContent value="register" className="mt-0">
+   612→          <CardContent className="p-6">
+   613→            <div className="text-center mb-6">
+   614→              <div className="w-14 h-14 rounded-full bg-compucity-green-50 flex items-center justify-center mx-auto mb-3">
+   615→                <User className="h-7 w-7 text-compucity-green" />
+   616→              </div>
+   617→              <h2 className="text-lg font-semibold text-gray-900">Creá tu cuenta</h2>
+   618→              <p className="text-sm text-gray-500 mt-1">Registrate para hacer seguimiento de tus pedidos</p>
+   619→            </div>
+   620→
+   621→            <form onSubmit={handleRegister} className="space-y-4">
+   622→              {/* Datos personales */}
+   623→              <div className="space-y-2">
+   624→                <Label htmlFor="reg-name">Nombre completo *</Label>
+   625→                <div className="relative">
+   626→                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+   627→                  <Input
+   628→                    id="reg-name"
+   629→                    type="text"
+   630→                    placeholder="Juan Pérez"
+   631→                    value={regName}
+   632→                    onChange={(e) => setRegName(e.target.value)}
+   633→                    className="pl-10"
+   634→                    required
+   635→                  />
+   636→                </div>
+   637→              </div>
+   638→              <div className="grid sm:grid-cols-2 gap-4">
+   639→                <div className="space-y-2">
+   640→                  <Label htmlFor="reg-email">Email *</Label>
+   641→                  <div className="relative">
+   642→                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+   643→                    <Input
+   644→                      id="reg-email"
+   645→                      type="email"
+   646→                      placeholder="tu@email.com"
+   647→                      value={regEmail}
+   648→                      onChange={(e) => setRegEmail(e.target.value)}
+   649→                      className="pl-10"
+   650→                      required
+   651→                    />
+   652→                  </div>
+   653→                </div>
+   654→                <div className="space-y-2">
+   655→                  <Label htmlFor="reg-phone">Teléfono</Label>
+   656→                  <div className="relative">
+   657→                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+   658→                    <Input
+   659→                      id="reg-phone"
+   660→                      type="tel"
+   661→                      placeholder="351 1234567"
+   662→                      value={regPhone}
+   663→                      onChange={(e) => setRegPhone(e.target.value)}
+   664→                      className="pl-10"
+   665→                    />
+   666→                  </div>
+   667→                </div>
+   668→              </div>
+   669→              <div className="grid sm:grid-cols-2 gap-4">
+   670→                <div className="space-y-2">
+   671→                  <Label htmlFor="reg-password">Contraseña *</Label>
+   672→                  <div className="relative">
+   673→                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+   674→                    <Input
+   675→                      id="reg-password"
+   676→                      type={showRegPassword ? 'text' : 'password'}
+   677→                      placeholder="Mínimo 6 caracteres"
+   678→                      value={regPassword}
+   679→                      onChange={(e) => setRegPassword(e.target.value)}
+   680→                      className="pl-10 pr-10"
+   681→                      required
+   682→                      minLength={6}
+   683→                    />
+   684→                    <button
+   685→                      type="button"
+   686→                      onClick={() => setShowRegPassword(!showRegPassword)}
+   687→                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+   688→                    >
+   689→                      {showRegPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+   690→                    </button>
+   691→                  </div>
+   692→                </div>
+   693→                <div className="space-y-2">
+   694→                  <Label htmlFor="reg-dni">DNI <span className="text-gray-400 font-normal">(opcional)</span></Label>
+   695→                  <div className="relative">
+   696→                    <FileText className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+   697→                    <Input
+   698→                      id="reg-dni"
+   699→                      type="text"
+   700→                      placeholder="12345678"
+   701→                      value={regDni}
+   702→                      onChange={(e) => setRegDni(e.target.value)}
+   703→                      className="pl-10"
+   704→                    />
+   705→                  </div>
+   706→                </div>
+   707→              </div>
+   708→
+   709→              {/* Dirección de envío */}
+   710→              <div className="pt-2">
+   711→                <div className="flex items-center gap-2 mb-3">
+   712→                  <Home className="h-4 w-4 text-compucity-green" />
+   713→                  <p className="text-sm font-medium text-gray-700">Dirección de envío <span className="text-gray-400 font-normal">(opcional)</span></p>
+   714→                </div>
+   715→                <div className="space-y-3 bg-gray-50 rounded-lg p-4">
+   716→                  <div className="space-y-2">
+   717→                    <Label htmlFor="reg-address" className="text-xs">Dirección</Label>
+   718→                    <Input
+   719→                      id="reg-address"
+   720→                      type="text"
+   721→                      placeholder="Calle, número, piso, depto"
+   722→                      value={regAddress}
+   723→                      onChange={(e) => setRegAddress(e.target.value)}
+   724→                    />
+   725→                  </div>
+   726→                  <div className="grid sm:grid-cols-3 gap-3">
+   727→                    <div className="space-y-2">
+   728→                      <Label htmlFor="reg-city" className="text-xs">Ciudad</Label>
+   729→                      <Input
+   730→                        id="reg-city"
+   731→                        type="text"
+   732→                        placeholder="Córdoba Capital"
+   733→                        value={regCity}
+   734→                        onChange={(e) => setRegCity(e.target.value)}
+   735→                      />
+   736→                    </div>
+   737→                    <div className="space-y-2">
+   738→                      <Label htmlFor="reg-province" className="text-xs">Provincia</Label>
+   739→                      <select
+   740→                        id="reg-province"
+   741→                        value={regProvince}
+   742→                        onChange={(e) => setRegProvince(e.target.value)}
+   743→                        className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+   744→                      >
+   745→                        <option value="">Seleccionar</option>
+   746→                        {PROVINCES.map((p) => (
+   747→                          <option key={p} value={p}>{p}</option>
+   748→                        ))}
+   749→                      </select>
+   750→                    </div>
+   751→                    <div className="space-y-2">
+   752→                      <Label htmlFor="reg-postalCode" className="text-xs">Código Postal</Label>
+   753→                      <Input
+   754→                        id="reg-postalCode"
+   755→                        type="text"
+   756→                        placeholder="5000"
+   757→                        value={regPostalCode}
+   758→                        onChange={(e) => setRegPostalCode(e.target.value.replace(/\D/g, '').slice(0, 5))}
+   759→                        maxLength={5}
+   760→                      />
+   761→                    </div>
+   762→                  </div>
+   763→                </div>
+   764→              </div>
+   765→
+   766→              {regError && (
+   767→                <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2.5 rounded-lg">
+   768→                  {regError}
+   769→                </div>
+   770→              )}
+   771→
+   772→              <Button
+   773→                type="submit"
+   774→                disabled={regLoading}
+   775→                className="w-full bg-compucity-green hover:bg-compucity-green-dark text-white h-11"
+   776→              >
+   777→                {regLoading ? (
+   778→                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+   779→                ) : null}
+   780→                Crear Cuenta
+   781→              </Button>
+   782→            </form>
+   783→
+   784→            <div className="mt-4 text-center">
+   785→              <p className="text-sm text-gray-500">
+   786→                ¿Ya tenés cuenta?{' '}
+   787→                <button
+   788→                  onClick={() => setActiveTab('login')}
+   789→                  className="text-compucity-green hover:text-compucity-green-dark font-medium"
+   790→                >
+   791→                  Iniciá sesión
+   792→                </button>
+   793→              </p>
+   794→            </div>
+   795→          </CardContent>
+   796→        </TabsContent>
+   797→      </Tabs>
+   798→    </Card>
+   799→  )
+   800→}
+   801→
+   802→// ============================================
+   803→// Customer Dashboard Component
+   804→// ============================================
+   805→
+   806→function CustomerDashboard({
+   807→  customer,
+   808→  orders,
+   809→  expandedOrder,
+   810→  setExpandedOrder,
+   811→  onLogout,
+   812→  onProfileUpdate,
+   813→}: {
+   814→  customer: CustomerData
+   815→  orders: OrderData[]
+   816→  expandedOrder: string | null
+   817→  setExpandedOrder: (id: string | null) => void
+   818→  onLogout: () => void
+   819→  onProfileUpdate: (customer: CustomerData) => void
+   820→}) {
+   821→  const [editingProfile, setEditingProfile] = useState(false)
+   822→  const [profileData, setProfileData] = useState({
+   823→    name: customer.name,
+   824→    phone: customer.phone || '',
+   825→    dni: customer.dni || '',
+   826→    address: customer.address || '',
+   827→    city: customer.city || '',
+   828→    province: customer.province || '',
+   829→    postalCode: customer.postalCode || '',
+   830→  })
+   831→  const [savingProfile, setSavingProfile] = useState(false)
+   832→  const [profileMsg, setProfileMsg] = useState('')
+   833→
+   834→  useEffect(() => {
+   835→    setProfileData({
+   836→      name: customer.name,
+   837→      phone: customer.phone || '',
+   838→      dni: customer.dni || '',
+   839→      address: customer.address || '',
+   840→      city: customer.city || '',
+   841→      province: customer.province || '',
+   842→      postalCode: customer.postalCode || '',
+   843→    })
+   844→  }, [customer])
+   845→
+   846→  const handleSaveProfile = async () => {
+   847→    setSavingProfile(true)
+   848→    setProfileMsg('')
+   849→    try {
+   850→      const res = await fetch('/api/customer/profile', {
+   851→        method: 'PUT',
+   852→        headers: { 'Content-Type': 'application/json' },
+   853→        body: JSON.stringify(profileData),
+   854→      })
+   855→      const data = await res.json()
+   856→      if (res.ok) {
+   857→        onProfileUpdate(data.customer)
+   858→        setEditingProfile(false)
+   859→        setProfileMsg('Perfil actualizado correctamente')
+   860→        setTimeout(() => setProfileMsg(''), 3000)
+   861→      } else {
+   862→        setProfileMsg(data.error || 'Error al actualizar')
+   863→      }
+   864→    } catch {
+   865→      setProfileMsg('Error de conexión')
+   866→    } finally {
+   867→      setSavingProfile(false)
+   868→    }
+   869→  }
+   870→
+   871→  const hasAddress = customer.address || customer.city || customer.province
+   872→
+   873→  return (
+   874→    <div className="space-y-6">
+   875→      {/* Customer Info Card */}
+   876→      <Card className="border-0 shadow-sm">
+   877→        <CardContent className="p-4 sm:p-6">
+   878→          <div className="flex items-start justify-between gap-4 mb-4">
+   879→            <div className="flex items-center gap-3">
+   880→              <div className="w-12 h-12 rounded-full bg-compucity-green flex items-center justify-center text-white font-bold text-lg shrink-0">
+   881→                {customer.name.charAt(0).toUpperCase()}
+   882→              </div>
+   883→              <div>
+   884→                <h2 className="font-semibold text-gray-900">{customer.name}</h2>
+   885→                <p className="text-sm text-gray-500">{customer.email}</p>
+   886→                {customer.phone && <p className="text-xs text-gray-400">{customer.phone}</p>}
+   887→              </div>
+   888→            </div>
+   889→            <div className="flex items-center gap-2">
+   890→              <Button
+   891→                variant="outline"
+   892→                size="sm"
+   893→                onClick={() => setEditingProfile(!editingProfile)}
+   894→                className="text-gray-500 hover:text-compucity-green hover:border-compucity-green-100"
+   895→              >
+   896→                <Edit3 className="h-4 w-4 mr-1" />
+   897→                Editar
+   898→              </Button>
+   899→              <Button
+   900→                variant="outline"
+   901→                size="sm"
+   902→                onClick={onLogout}
+   903→                className="text-gray-500 hover:text-red-600 hover:border-red-200"
+   904→              >
+   905→                <LogOut className="h-4 w-4 mr-1" />
+   906→                Salir
+   907→              </Button>
+   908→            </div>
+   909→          </div>
+   910→
+   911→          {/* Address info (non-editing) */}
+   912→          {!editingProfile && hasAddress && (
+   913→            <div className="mt-2 p-3 bg-gray-50 rounded-lg flex items-start gap-2">
+   914→              <Home className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
+   915→              <div className="text-sm text-gray-600">
+   916→                {customer.address && <span>{customer.address}, </span>}
+   917→                {customer.city && <span>{customer.city}</span>}
+   918→                {customer.province && <span>, {customer.province}</span>}
+   919→                {customer.postalCode && <span className="text-gray-400"> (CP {customer.postalCode})</span>}
+   920→              </div>
+   921→            </div>
+   922→          )}
+   923→
+   924→          {/* No address notice */}
+   925→          {!editingProfile && !hasAddress && (
+   926→            <div className="mt-2 p-3 bg-amber-50 border border-amber-100 rounded-lg flex items-start gap-2">
+   927→              <MapPin className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+   928→              <div className="text-sm text-amber-700">
+   929→                No tenés dirección de envío configurada.{' '}
+   930→                <button
+   931→                  onClick={() => setEditingProfile(true)}
+   932→                  className="font-medium underline hover:text-amber-800"
+   933→                >
+   934→                  Agregá tu dirección
+   935→                </button>
+   936→                {' '}para que se autocomplete en tus próximas compras.
+   937→              </div>
+   938→            </div>
+   939→          )}
+   940→
+   941→          {/* Profile success/error message */}
+   942→          {profileMsg && (
+   943→            <div className={`mt-2 p-3 rounded-lg text-sm ${profileMsg.includes('correctamente') ? 'bg-green-50 border border-green-100 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
+   944→              {profileMsg}
+   945→            </div>
+   946→          )}
+   947→
+   948→          {/* Edit Profile Form */}
+   949→          <AnimatePresence>
+   950→            {editingProfile && (
+   951→              <motion.div
+   952→                initial={{ height: 0, opacity: 0 }}
+   953→                animate={{ height: 'auto', opacity: 1 }}
+   954→                exit={{ height: 0, opacity: 0 }}
+   955→                transition={{ duration: 0.2 }}
+   956→                className="overflow-hidden"
+   957→              >
+   958→                <div className="pt-4 mt-4 border-t space-y-3">
+   959→                  <div className="grid sm:grid-cols-2 gap-3">
+   960→                    <div className="space-y-1.5">
+   961→                      <Label className="text-xs">Nombre</Label>
+   962→                      <Input
+   963→                        value={profileData.name}
+   964→                        onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
+   965→                      />
+   966→                    </div>
+   967→                    <div className="space-y-1.5">
+   968→                      <Label className="text-xs">Teléfono</Label>
+   969→                      <Input
+   970→                        value={profileData.phone}
+   971→                        onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+   972→                        placeholder="351 1234567"
+   973→                      />
+   974→                    </div>
+   975→                    <div className="space-y-1.5">
+   976→                      <Label className="text-xs">DNI</Label>
+   977→                      <Input
+   978→                        value={profileData.dni}
+   979→                        onChange={(e) => setProfileData({ ...profileData, dni: e.target.value })}
+   980→                        placeholder="12345678"
+   981→                      />
+   982→                    </div>
+   983→                  </div>
+   984→                  <Separator />
+   985→                  <div className="flex items-center gap-2 mb-1">
+   986→                    <Home className="h-4 w-4 text-compucity-green" />
+   987→                    <p className="text-sm font-medium text-gray-700">Dirección de envío</p>
+   988→                  </div>
+   989→                  <div className="space-y-3">
+   990→                    <div className="space-y-1.5">
+   991→                      <Label className="text-xs">Dirección</Label>
+   992→                      <Input
+   993→                        value={profileData.address}
+   994→                        onChange={(e) => setProfileData({ ...profileData, address: e.target.value })}
+   995→                        placeholder="Calle, número, piso, depto"
+   996→                      />
+   997→                    </div>
+   998→                    <div className="grid sm:grid-cols-3 gap-3">
+   999→                      <div className="space-y-1.5">
+  1000→                        <Label className="text-xs">Ciudad</Label>
+  1001→                        <Input
+  1002→                          value={profileData.city}
+  1003→                          onChange={(e) => setProfileData({ ...profileData, city: e.target.value })}
+  1004→                          placeholder="Córdoba Capital"
+  1005→                        />
+  1006→                      </div>
+  1007→                      <div className="space-y-1.5">
+  1008→                        <Label className="text-xs">Provincia</Label>
+  1009→                        <select
+  1010→                          value={profileData.province}
+  1011→                          onChange={(e) => setProfileData({ ...profileData, province: e.target.value })}
+  1012→                          className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+  1013→                        >
+  1014→                          <option value="">Seleccionar</option>
+  1015→                          {PROVINCES.map((p) => (
+  1016→                            <option key={p} value={p}>{p}</option>
+  1017→                          ))}
+  1018→                        </select>
+  1019→                      </div>
+  1020→                      <div className="space-y-1.5">
+  1021→                        <Label className="text-xs">Código Postal</Label>
+  1022→                        <Input
+  1023→                          value={profileData.postalCode}
+  1024→                          onChange={(e) => setProfileData({ ...profileData, postalCode: e.target.value.replace(/\D/g, '').slice(0, 5) })}
+  1025→                          placeholder="5000"
+  1026→                          maxLength={5}
+  1027→                        />
+  1028→                      </div>
+  1029→                    </div>
+  1030→                  </div>
+  1031→                  <div className="flex gap-2 pt-2">
+  1032→                    <Button
+  1033→                      onClick={handleSaveProfile}
+  1034→                      disabled={savingProfile}
+  1035→                      className="bg-compucity-green hover:bg-compucity-green-dark text-white"
+  1036→                    >
+  1037→                      {savingProfile ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
+  1038→                      Guardar cambios
+  1039→                    </Button>
+  1040→                    <Button
+  1041→                      variant="outline"
+  1042→                      onClick={() => setEditingProfile(false)}
+  1043→                    >
+  1044→                      Cancelar
+  1045→                    </Button>
+  1046→                  </div>
+  1047→                </div>
+  1048→              </motion.div>
+  1049→            )}
+  1050→          </AnimatePresence>
+  1051→        </CardContent>
+  1052→      </Card>
+  1053→
+  1054→      {/* Orders Section */}
+  1055→      <div>
+  1056→        <div className="flex items-center justify-between mb-4">
+  1057→          <h2 className="text-lg font-semibold text-gray-900">
+  1058→            Tus Pedidos ({orders.length})
+  1059→          </h2>
+  1060→        </div>
+  1061→
+  1062→        {orders.length === 0 ? (
+  1063→          <Card className="border-0 shadow-sm">
+  1064→            <CardContent className="p-8 text-center">
+  1065→              <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+  1066→              <p className="text-gray-500 font-medium">No tenés pedidos todavía</p>
+  1067→              <p className="text-sm text-gray-400 mt-1">
+  1068→                Cuando realices una compra con este email, tus pedidos van a aparecer acá
+  1069→              </p>
+  1070→              <Link
+  1071→                href="/"
+  1072→                className="inline-block mt-4 px-5 py-2.5 bg-compucity-green text-white rounded-lg text-sm font-medium hover:bg-compucity-green-dark transition"
+  1073→              >
+  1074→                Ir a la tienda
+  1075→              </Link>
+  1076→            </CardContent>
+  1077→          </Card>
+  1078→        ) : (
+  1079→          <div className="space-y-3">
+  1080→            {orders.map((order) => (
+  1081→              <OrderCard
+  1082→                key={order.id}
+  1083→                order={order}
+  1084→                expanded={expandedOrder === order.id}
+  1085→                onToggle={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
+  1086→              />
+  1087→            ))}
+  1088→          </div>
+  1089→        )}
+  1090→      </div>
+  1091→    </div>
+  1092→  )
+  1093→}
+  1094→
+  1095→// ============================================
+  1096→// Order Card Component
+  1097→// ============================================
+  1098→
+  1099→function OrderCard({
+  1100→  order,
+  1101→  expanded,
+  1102→  onToggle,
+  1103→}: {
+  1104→  order: OrderData
+  1105→  expanded: boolean
+  1106→  onToggle: () => void
+  1107→}) {
+  1108→  const statusConfig = getStatusConfig(order.status)
+  1109→  const StatusIcon = statusConfig.icon
+  1110→  const orderItems = (order.items || []) as OrderItem[]
+  1111→  const itemsCount = orderItems.reduce((sum, item) => sum + item.quantity, 0)
+  1112→  const shippingInfo = parseShippingDetails(order)
+  1113→
+  1114→  return (
+  1115→    <Card className="border-0 shadow-sm overflow-hidden">
+  1116→      {/* Order Header - always visible */}
+  1117→      <button
+  1118→        onClick={onToggle}
+  1119→        className="w-full text-left p-4 sm:p-5 hover:bg-gray-50/50 transition-colors"
+  1120→      >
+  1121→        <div className="flex items-center justify-between gap-3">
+  1122→          <div className="flex items-center gap-3 min-w-0">
+  1123→            <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+  1124→              <Package className="h-5 w-5 text-gray-500" />
+  1125→            </div>
+  1126→            <div className="min-w-0">
+  1127→              <p className="font-semibold text-gray-900 text-sm sm:text-base truncate">
+  1128→                {order.orderNumber}
+  1129→              </p>
+  1130→              <p className="text-xs text-gray-500 mt-0.5">
+  1131→                {formatDate(order.createdAt)} · {itemsCount} {itemsCount === 1 ? 'producto' : 'productos'}
+  1132→              </p>
+  1133→            </div>
+  1134→          </div>
+  1135→
+  1136→          <div className="flex items-center gap-3 shrink-0">
+  1137→            <Badge
+  1138→              variant="outline"
+  1139→              className={`${statusConfig.bgColor} ${statusConfig.color} border-0 text-xs font-medium gap-1`}
+  1140→            >
+  1141→              <StatusIcon className="h-3 w-3" />
+  1142→              {statusConfig.label}
+  1143→            </Badge>
+  1144→            <div className="text-right hidden sm:block">
+  1145→              <p className="font-bold text-gray-900 text-sm">{formatPrice(order.total)}</p>
+  1146→            </div>
+  1147→            {expanded ? (
+  1148→              <ChevronUp className="h-4 w-4 text-gray-400" />
+  1149→            ) : (
+  1150→              <ChevronDown className="h-4 w-4 text-gray-400" />
+  1151→            )}
+  1152→          </div>
+  1153→        </div>
+  1154→
+  1155→        {/* Mobile price */}
+  1156→        <div className="sm:hidden mt-2 flex items-center justify-between">
+  1157→          <p className="font-bold text-gray-900 text-sm">{formatPrice(order.total)}</p>
+  1158→        </div>
+  1159→      </button>
+  1160→
+  1161→      {/* Order Details - expanded */}
+  1162→      <AnimatePresence>
+  1163→        {expanded && (
+  1164→          <motion.div
+  1165→            initial={{ height: 0, opacity: 0 }}
+  1166→            animate={{ height: 'auto', opacity: 1 }}
+  1167→            exit={{ height: 0, opacity: 0 }}
+  1168→            transition={{ duration: 0.2 }}
+  1169→            className="overflow-hidden"
+  1170→          >
+  1171→            <div className="px-4 sm:px-5 pb-4 sm:pb-5 space-y-4">
+  1172→              <Separator />
+  1173→
+  1174→              {/* Status Progress */}
+  1175→              <div>
+  1176→                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Estado del pedido</p>
+  1177→                <div className="flex items-center gap-1">
+  1178→                  {['pending', 'paid', 'preparing', 'shipped', 'delivered'].map((step, i) => {
+  1179→                    const stepConfig = getStatusConfig(step)
+  1180→                    const statusOrder = ['pending', 'pendiente', 'paid', 'pago', 'preparing', 'preparando', 'shipped', 'enviado', 'delivered', 'entregado']
+  1181→                    const currentIdx = statusOrder.indexOf(order.status)
+  1182→                    const stepIdx = statusOrder.indexOf(step)
+  1183→                    const isCompleted = currentIdx >= stepIdx && stepIdx !== -1
+  1184→                    const StepIcon = stepConfig.icon
+  1185→
+  1186→                    return (
+  1187→                      <div key={step} className="flex items-center flex-1">
+  1188→                        <div
+  1189→                          className={`w-7 h-7 rounded-full flex items-center justify-center text-xs transition-colors ${
+  1190→                            isCompleted
+  1191→                              ? 'bg-compucity-green text-white'
+  1192→                              : 'bg-gray-100 text-gray-400'
+  1193→                          }`}
+  1194→                        >
+  1195→                          <StepIcon className="h-3.5 w-3.5" />
+  1196→                        </div>
+  1197→                        {i < 4 && (
+  1198→                          <div className={`flex-1 h-0.5 mx-1 ${isCompleted ? 'bg-compucity-green' : 'bg-gray-200'}`} />
+  1199→                        )}
+  1200→                      </div>
+  1201→                    )
+  1202→                  })}
+  1203→                </div>
+  1204→                <div className="flex justify-between mt-1">
+  1205→                  {['Pendiente', 'Pagado', 'Preparando', 'Enviado', 'Entregado'].map((label, i) => (
+  1206→                    <span key={i} className="text-[10px] text-gray-400 flex-1 text-center">{label}</span>
+  1207→                  ))}
+  1208→                </div>
+  1209→              </div>
+  1210→
+  1211→              {/* Items */}
+  1212→              <div>
+  1213→                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Productos</p>
+  1214→                <div className="bg-gray-50 rounded-lg divide-y divide-gray-100">
+  1215→                  {orderItems.map((item) => (
+  1216→                    <div key={item.id} className="flex items-center justify-between px-3 py-2.5">
+  1217→                      <div className="min-w-0 flex-1">
+  1218→                        <p className="text-sm text-gray-800 truncate">{item.name}</p>
+  1219→                        <p className="text-xs text-gray-400">
+  1220→                          {formatPrice(item.price)} × {item.quantity}
+  1221→                        </p>
+  1222→                      </div>
+  1223→                      <p className="text-sm font-medium text-gray-900 ml-3">
+  1224→                        {formatPrice(item.price * item.quantity)}
+  1225→                      </p>
+  1226→                    </div>
+  1227→                  ))}
+  1228→                </div>
+  1229→              </div>
+  1230→
+  1231→              {/* Shipping & Totals */}
+  1232→              <div className="grid sm:grid-cols-2 gap-4">
+  1233→                {/* Shipping info */}
+  1234→                <div>
+  1235→                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Envío</p>
+  1236→                  <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+  1237→                    {order.shippingMethod === 'retiro' || (shippingInfo?.method === 'retiro') ? (
+  1238→                      <div className="flex items-center gap-2">
+  1239→                        <MapPin className="h-4 w-4 text-compucity-green shrink-0" />
+  1240→                        <p className="text-sm text-gray-700">Retiro en local — Av. Sarmiento 462, La Falda, Córdoba</p>
+  1241→                      </div>
+  1242→                    ) : (
+  1243→                      <>
+  1244→                        {/* Address */}
+  1245→                        {(order.shippingAddress || order.shippingCity) && (
+  1246→                          <div className="flex items-start gap-2">
+  1247→                            <MapPin className="h-4 w-4 text-compucity-green shrink-0 mt-0.5" />
+  1248→                            <div className="text-sm text-gray-700">
+  1249→                              {order.shippingAddress && <p>{order.shippingAddress}</p>}
+  1250→                              <p>
+  1251→                                {order.shippingCity}
+  1252→                                {order.shippingProvince ? `, ${order.shippingProvince}` : ''}
+  1253→                              </p>
+  1254→                              {order.shippingZip && <p className="text-xs text-gray-400">CP: {order.shippingZip}</p>}
+  1255→                            </div>
+  1256→                          </div>
+  1257→                        )}
+  1258→
+  1259→                        {/* Carrier/Service info from shippingDetails */}
+  1260→                        {shippingInfo && shippingInfo.serviceName && (
+  1261→                          <div className="flex items-center gap-2">
+  1262→                            <Truck className="h-4 w-4 text-gray-400 shrink-0" />
+  1263→                            <p className="text-sm text-gray-600">
+  1264→                              {shippingInfo.carrierName || shippingInfo.carrier || 'Transporte'} · {shippingInfo.serviceName}
+  1265→                            </p>
+  1266→                          </div>
+  1267→                        )}
+  1268→                        {shippingInfo?.estimatedDays && shippingInfo.estimatedDays !== 'Inmediato' && (
+  1269→                          <div className="flex items-center gap-2">
+  1270→                            <Clock className="h-4 w-4 text-gray-400 shrink-0" />
+  1271→                            <p className="text-sm text-gray-600">Plazo estimado: {shippingInfo.estimatedDays}</p>
+  1272→                          </div>
+  1273→                        )}
+  1274→
+  1275→                        {/* Tracking number */}
+  1276→                        {order.trackingNumber && (() => {
+  1277→                          const tracking = getTrackingUrl(order.trackingNumber)
+  1278→                          return (
+  1279→                            <div className="flex items-center gap-2 pt-1 border-t border-gray-200 mt-1">
+  1280→                              <PackageCheck className="h-4 w-4 text-compucity-green shrink-0" />
+  1281→                              <div className="text-sm">
+  1282→                                <span className="text-gray-500">Seguimiento:</span>{' '}
+  1283→                                {tracking?.url ? (
+  1284→                                  <a
+  1285→                                    href={tracking.url}
+  1286→                                    target="_blank"
+  1287→                                    rel="noopener noreferrer"
+  1288→                                    className="font-medium text-compucity-green hover:text-compucity-green-dark inline-flex items-center gap-1"
+  1289→                                  >
+  1290→                                    {order.trackingNumber}
+  1291→                                    <ExternalLink className="h-3 w-3" />
+  1292→                                  </a>
+  1293→                                ) : (
+  1294→                                  <span className="font-medium text-gray-800">{order.trackingNumber}</span>
+  1295→                                )}
+  1296→                              </div>
+  1297→                            </div>
+  1298→                          )
+  1299→                        })()}
+  1300→                      </>
+  1301→                    )}
+  1302→                  </div>
+  1303→                </div>
+  1304→
+  1305→                {/* Totals */}
+  1306→                <div>
+  1307→                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Resumen</p>
+  1308→                  <div className="bg-gray-50 rounded-lg p-3 space-y-1.5">
+  1309→                    <div className="flex justify-between text-sm">
+  1310→                      <span className="text-gray-500">Subtotal</span>
+  1311→                      <span className="text-gray-700">{formatPrice(order.total - (order.shippingCost || 0))}</span>
+  1312→                    </div>
+  1313→                    <div className="flex justify-between text-sm">
+  1314→                      <span className="text-gray-500">Envío</span>
+  1315→                      <span className="text-gray-700">
+  1316→                        {order.shippingCost > 0 ? formatPrice(order.shippingCost) : 'Gratis'}
+  1317→                      </span>
+  1318→                    </div>
+  1319→                    <Separator />
+  1320→                    <div className="flex justify-between font-bold">
+  1321→                      <span>Total</span>
+  1322→                      <span className="text-compucity-green-dark">{formatPrice(order.total)}</span>
+  1323→                    </div>
+  1324→                  </div>
+  1325→                </div>
+  1326→              </div>
+  1327→
+  1328→              {/* Notes (only show actual notes, not legacy shipping details) */}
+  1329→              {order.notes && !order.notes.startsWith('[Envío:') && (
+  1330→                <div>
+  1331→                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Notas</p>
+  1332→                  <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">{order.notes}</p>
+  1333→                </div>
+  1334→              )}
+  1335→            </div>
+  1336→          </motion.div>
+  1337→        )}
+  1338→      </AnimatePresence>
+  1339→    </Card>
+  1340→  )
+  1341→}
+  1342→

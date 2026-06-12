@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import CategoryIcons from '@/components/layout/CategoryIcons'
 import BrandLogos from '@/components/layout/BrandLogos'
 import ProductCard from '@/components/ui-custom/ProductCard'
@@ -10,6 +11,20 @@ import Link from 'next/link'
 import { Truck, Shield, MessageCircle, Headphones, ArrowRight } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
+
+export const metadata: Metadata = {
+  title: 'Compucity - Tu Mundo Digital | Tienda de Informática en La Falda, Córdoba',
+  description: 'Tienda online de notebooks, componentes, periféricos y accesorios de informática. Envíos a todo el país desde La Falda, Córdoba. Asesoramiento personalizado y las mejores marcas.',
+  alternates: {
+    canonical: 'https://www.compucityonline.com.ar',
+  },
+  openGraph: {
+    title: 'Compucity - Tu Mundo Digital | Tienda de Informática',
+    description: 'Tienda online de notebooks, componentes, periféricos y accesorios. Envíos a todo el país desde La Falda, Córdoba.',
+    url: 'https://www.compucityonline.com.ar',
+    images: [{ url: '/images/og-image.jpg', width: 1200, height: 630, alt: 'Compucity - Tienda de Informática' }],
+  },
+}
 
 function safeParseFirstImage(images: string | null): string | null {
   if (!images) return null
@@ -56,6 +71,9 @@ export default async function HomePage() {
 
   return (
     <div>
+      {/* SEO: Main H1 for homepage - visually hidden but accessible to crawlers */}
+      <h1 className="sr-only">Compucity - Tienda de Informática en La Falda, Córdoba</h1>
+
       {/* ==========================================
           TOP BANNERS (above hero)
           ========================================== */}

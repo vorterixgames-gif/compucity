@@ -2,9 +2,11 @@ import CategoryProducts from '@/components/ui-custom/CategoryProducts'
 import Breadcrumbs from '@/components/ui-custom/Breadcrumbs'
 import NotebookChatBanner from '@/components/ui-custom/NotebookChatBanner'
 import NotebookAssistantChat from '@/components/notebook-assistant-chat'
-import { getEnabledCategories, getProductsByCategory, getAllActiveProducts, searchProducts } from '@/lib/queries'
+import { getEnabledCategories, getProductsByCategory, getAllActiveProducts, searchProducts, getCategoryBySlug } from '@/lib/queries'
 import { db } from '@/lib/db'
 import { notFound } from 'next/navigation'
+import { Metadata } from 'next'
+import JsonLd, { getBreadcrumbSchema } from '@/components/seo/JsonLd'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -12,6 +14,47 @@ interface Props {
 }
 
 export const dynamic = 'force-dynamic'
+
+// Dynamic metadata for category pages
+export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
+  const { slug } = await params
+  const { q } = await searchParams
+
+  if (q) {
+    return {
+      title: `Resultados para "${q}"`,
+      description: `Resultados de búsqueda para "${q}" en Compucity. Encontrá notebooks, componentes y periféricos online.`,
+      alternates: {
+        canonical: `https://www.compucityonline.com.ar/categoria/${slug}?q=${encodeURIComponent(q)}`,
+      },
+    }
+  }
+
+  const category = await getCategoryBySlug(slug)
+
+  if (!category && slug !== 'todos') {
+    return { title: 'Categoría no encontrada' }
+  }
+
+  const name = slug === 'todos' ? 'Todos los productos' : category?.name ?? slug
+  const description = slug === 'todos'
+    ? 'Explorá todo nuestro catálogo de productos de informática. Notebooks, componentes, periféricos y más. Envíos a todo el país desde La Falda, Córdoba.'
+    : `${name} en Compucity. Comprá online con envíos a todo el país desde La Falda, Córdoba. Las mejores marcas y asesoramiento personalizado.`
+
+  return {
+    title: `${name} - Comprá Online`,
+    description,
+    alternates: {
+      canonical: `https://www.compucityonline.com.ar/categoria/${slug}`,
+    },
+    openGraph: {
+      title: `${name} | Compucity`,
+      description,
+      url: `https://www.compucityonline.com.ar/categoria/${slug}`,
+      type: 'website',
+    },
+  }
+}
 
 export default async function CategoryPage({ params, searchParams }: Props) {
   const { slug } = await params
@@ -84,8 +127,20 @@ export default async function CategoryPage({ params, searchParams }: Props) {
   const NOTEBOOK_CATEGORIES = new Set(['notebooks', 'gamer-y-diseno', 'oficina'])
   const isNotebookCategory = NOTEBOOK_CATEGORIES.has(slug)
 
+  // Build breadcrumb structured data
+  const breadcrumbData = [
+    { name: 'Inicio', url: '/' },
+    ...(parentCategory && parentCategory.id !== currentCategory?.id
+      ? [{ name: parentCategory.name, url: `/categoria/${parentCategory.slug}` }]
+      : []),
+    { name: categoryName, url: `/categoria/${slug}` },
+  ]
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
+      {/* Structured Data: Breadcrumb */}
+      <JsonLd data={getBreadcrumbSchema(breadcrumbData)} />
+
       {/* Breadcrumb */}
       <Breadcrumbs
         items={

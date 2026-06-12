@@ -200,8 +200,8 @@ export default function HeroSection() {
               <span className="text-sm text-white font-semibold tracking-wide">{slide.badge}</span>
             </motion.div>
 
-            {/* Title */}
-            <motion.h1
+            {/* Title - h2 since homepage h1 is on the page wrapper */}
+            <motion.h2
               variants={contentVariants}
               initial="hidden"
               animate="show"
@@ -222,7 +222,7 @@ export default function HeroSection() {
                   {i < arr.length - 1 && <br />}
                 </span>
               ))}
-            </motion.h1>
+            </motion.h2>
 
             {/* Description */}
             <motion.p
