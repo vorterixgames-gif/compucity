@@ -1,0 +1,864 @@
+     1→     1→import { NextRequest, NextResponse } from 'next/server'
+     2→     2→import { grokChat } from '@/lib/grok'
+     3→     3→import { db } from '@/lib/db'
+     4→     4→import { fetchDollarRate, calculateProductPrices } from '@/lib/dollar'
+     5→     5→import { extractCompatibility } from '@/lib/compatibility'
+     6→     6→
+     7→     7→// ============================================
+     8→     8→// Types
+     9→     9→// ============================================
+    10→    10→
+    11→    11→interface ChatMessage {
+    12→    12→  role: 'user' | 'assistant'
+    13→    13→  content: string
+    14→    14→}
+    15→    15→
+    16→    16→interface ProductWithArsPrice {
+    17→    17→  id: string
+    18→    18→  name: string
+    19→    19→  slug: string
+    20→    20→  priceUsd: number
+    21→    21→  comparePriceUsd: number | null
+    22→    22→  costPrice: number | null
+    23→    23→  images: string | null
+    24→    24→  specs: string | null
+    25→    25→  stock: number
+    26→    26→  categoryId: string
+    27→    27→  markup: number | null
+    28→    28→  cashDiscount: number | null
+    29→    29→  ivaRate: number | null
+    30→    30→  salePrice: number | null
+    31→    31→  saleStart: string | null
+    32→    32→  saleEnd: string | null
+    33→    33→  // ARS prices (calculated once)
+    34→    34→  arsPrice: number
+    35→    35→  arsComparePrice: number
+    36→    36→  slot: string
+    37→    37→}
+    38→    38→
+    39→    39→interface BuildComponent {
+    40→    40→  slot: string
+    41→    41→  label: string
+    42→    42→  productId: string
+    43→    43→  productName: string
+    44→    44→  productPrice: number
+    45→    45→  productComparePrice: number
+    46→    46→  productSlug: string
+    47→    47→  productImages: string
+    48→    48→  productStock: number
+    49→    49→  productSpecs: string
+    50→    50→  quantity: number
+    51→    51→}
+    52→    52→
+    53→    53→interface SuggestedBuild {
+    54→    54→  name: string
+    55→    55→  description: string
+    56→    56→  totalPrice: number
+    57→    57→  totalListPrice: number
+    58→    58→  components: BuildComponent[]
+    59→    59→}
+    60→    60→
+    61→    61→// Slot definitions
+    62→    62→const SLOTS = [
+    63→    63→  { slot: 'processor', label: 'Microprocesador', categorySlug: 'microprocesadores', required: true },
+    64→    64→  { slot: 'motherboard', label: 'Motherboard', categorySlug: 'motherboards', required: true },
+    65→    65→  { slot: 'ram', label: 'Memoria RAM', categorySlug: 'memorias-ram', required: true },
+    66→    66→  { slot: 'gpu', label: 'Placa de Video', categorySlug: 'placas-de-video', required: false },
+    67→    67→  { slot: 'ssd', label: 'Disco SSD', categorySlug: 'discos-ssd', required: true },
+    68→    68→  { slot: 'psu', label: 'Fuente', categorySlug: 'fuentes', required: true },
+    69→    69→  { slot: 'case', label: 'Gabinete', categorySlug: 'gabinetes', additionalSlugs: ['gabinetes-con-fuente'], required: true },
+    70→    70→  { slot: 'cooling', label: 'Refrigeración', categorySlug: 'refrigeracion', required: false },
+    71→    71→]
+    72→    72→
+    73→    73→// Budget allocation profiles per use case
+    74→    74→const BUDGET_PROFILES: Record<string, Record<string, number>> = {
+    75→    75→  gaming: { processor: 0.16, motherboard: 0.08, ram: 0.08, gpu: 0.32, ssd: 0.10, psu: 0.07, case: 0.06, cooling: 0.04 },
+    76→    76→  oficina: { processor: 0.22, motherboard: 0.12, ram: 0.15, gpu: 0, ssd: 0.18, psu: 0.08, case: 0.08, cooling: 0.02 },
+    77→    77→  edicion: { processor: 0.20, motherboard: 0.08, ram: 0.14, gpu: 0.20, ssd: 0.14, psu: 0.07, case: 0.06, cooling: 0.04 },
+    78→    78→  general: { processor: 0.18, motherboard: 0.10, ram: 0.12, gpu: 0.18, ssd: 0.14, psu: 0.07, case: 0.07, cooling: 0.03 },
+    79→    79→}
+    80→    80→
+    81→    81→const BUILD_TIERS = [
+    82→    82→  { name: 'Económica', multiplier: 0.80, emoji: '🟢' },
+    83→    83→  { name: 'Recomendada', multiplier: 1.00, emoji: '🟡' },
+    84→    84→  { name: 'Premium', multiplier: 1.15, emoji: '🔴' },
+    85→    85→]
+    86→    86→
+    87→    87→// Include/exclude patterns
+    88→    88→const BUILDER_INCLUDE_PATTERNS: Record<string, string[]> = {
+    89→    89→  processor: ['RYZEN', 'INTEL I3', 'INTEL I5', 'INTEL I7', 'INTEL I9', 'CORE I3', 'CORE I5', 'CORE I7', 'CORE I9', 'PENTIUM', 'CORE ULTRA', 'CELERON', 'ATHLON', 'XEON', 'I3-', 'I5-', 'I7-', 'I9-', 'CPU '],
+    90→    90→  motherboard: ['MOTHER', 'MB ', 'H610', 'B760', 'H810', 'A520', 'A620', 'B650', 'B550', 'H510', 'Z790', 'Z690', 'B660', 'H670', 'X670', 'A320', 'B450', 'X570', 'X870', 'X870E', 'B860', 'AM4', 'AM5', 'LGA'],
+    91→    91→  ram: ['DDR3', 'DDR4', 'DDR5', 'DIMM', 'MEMORIA RAM', 'CORSAIR VENGEANCE', 'CORSAIR MEMORY', 'KINGSTON FURY', 'G.SKILL', 'XPG', 'RAM'],
+    92→    92→  gpu: ['RTX', 'GTX', 'RADEON RX', 'GEFORCE', 'GRAPHICS CARD', 'QUADRO RTX', 'PLACA DE VIDEO', 'VGA', 'RX ', 'ARC ', 'GT 1030', 'PLACA POWERCOLOR', 'PLACA SAPPHIRE'],
+    93→    93→  ssd: ['SSD', 'NVME', 'M.2', 'GEN4', 'GEN3', 'SOLID STATE', 'DISCO INTERNO SSD', 'DISCO CRUCIAL'],
+    94→    94→  psu: ['FUENTE', 'POWER SUPPLY', 'PSU', 'CORSAIR RM', 'CORSAIR CX', 'SEASONIC', 'EVGA ', 'COUGAR', 'THERMALTAKE SMART', 'NOX ', 'AEROCOOL', 'XPG CORE', 'GAMEMAX', 'COOLER MASTER', 'WATT', 'GIGABYTE UD', 'GIGABYTE GP', 'GIGABYTE P', 'GIGABYTE AORUS', 'ASUS TUF', 'ASUS ROG', 'ASUS PRIME', 'XPG KYBER', 'MSI MPG', '80 PLUS', '80+', 'CX ATX', 'PERFORMANCE '],
+    95→    95→  case: ['GABINETE', 'CHASSIS', 'TOWER', 'CASE ', 'CTE ', '5000T', '4500X', 'BLAZE FORCE', 'INFINITY GLASS', 'CORSAIR ', 'COOLER MASTER ', 'NZXT ', 'FRONTAL ', 'GAB ', 'XPG ', 'GAMEMAX', 'THERMALTAKE', 'AEROCOOL', 'DEEPCOOL', 'BITFENIX', 'SENTEY', 'NACEB', 'NOX', 'KEPLERTEK', 'GAMING', 'KIT KELYX', 'RAPTOR', 'CON FUENTE', 'C/FUENTE', 'CF ', 'INCLUYE FUENTE'],
+    96→    96→  cooling: ['COOLER', 'WATER COOL', 'LIQUID COOL', 'DISIPADOR', 'HEATSINK', 'SWAFAN', 'FAN COOLER', 'ICUE LINK', 'AIO ', 'AK620', 'NH-D15', 'NH-U12', 'DARK ROCK', 'HYPER ', 'FAN ', 'LIQUID', 'ASUS LIQUID', 'THERMALTAKE', 'ARCTIC', 'GAMEMAX', 'CORSAIR', 'NOCTUA', 'BE QUIET', 'TT ', 'WATERFORCE', 'XPG LEVANTE', 'AORUS WATER'],
+    97→    97→}
+    98→    98→
+    99→    99→const BUILDER_EXCLUDE_PATTERNS: Record<string, string[]> = {
+   100→   100→  processor: ['NOTEBOOK', 'LAPTOP', 'PC GAMER', 'PC KELYX', 'PC LENOVO', 'SIST.', 'MINI PC', 'BAREBONE'],
+   101→   101→  motherboard: ['NOTEBOOK', 'LAPTOP', 'PC GAMER', 'PC KELYX', 'PC LENOVO', 'SIST.', 'MINI PC', 'BAREBONE'],
+   102→   102→  ram: ['SIMM', 'SODIMM', 'P/DELL SERVER', 'P/HP SERVER', 'P/LENOVO SERVER', 'MOTHER', 'MB ', 'NOTEBOOK', 'LAPTOP', 'PC GAMER', 'PC KELYX', 'PC LENOVO', 'SIST.', 'MINI PC', 'BAREBONE'],
+   103→   103→  gpu: ['DELL P2', 'DELL E2', 'HP Z', 'MONITOR', 'M/M', 'MTS', 'IP CAM', 'REPUESTO', '(RMA)', 'MB ', 'NOTEBOOK', 'LAPTOP', 'PC GAMER', 'PC KELYX', 'PC LENOVO', 'SIST.', 'MINI PC', 'BAREBONE', 'CABLE', 'ADAPTADOR'],
+   104→   104→  ssd: ['EXTERNO', 'EXTERNA', 'PORTABLE', 'XS1000', 'SXS1000', 'SHIELD', 'SC750', 'DUAL', 'DELL', 'TARJETA DE MEMORIA', 'EXTENSION', 'DISK P/', 'MIRRORING', 'THINKSYSTEM', 'NAS', 'CONSOLA', 'P/SERVER', 'DVR/NVR', 'NOTEBOOK', 'LAPTOP', 'PC GAMER', 'PC KELYX', 'PC LENOVO', 'SIST.', 'MINI PC', 'BAREBONE'],
+   105→   105→  psu: ['MAENI', '5V CARGA', 'DE ALIMENTACION', 'DE EPL', 'REDUNDANTE', 'AUXILIAR', 'LENOVO', 'ENCHUFE', 'HP FUENTE REDUNDANTE', 'HP RPS', 'HPX311', 'NOTEBOOK', 'LAPTOP', 'PC GAMER', 'PC KELYX', 'PC LENOVO', 'SIST.', 'MINI PC', 'BAREBONE', 'GABINETE', 'S/FUENTE'],
+   106→   106→  case: ['HP X421', 'FUENTE DE ALIMENTACI', 'NOTEBOOK', 'LAPTOP', 'PC KELYX', 'PC LENOVO', 'SIST.', 'MINI PC', 'BAREBONE'],
+   107→   107→  cooling: ['PRINTER', 'DELL', 'AIO 24', 'HP SMART', 'NOTEBOOK', 'LAPTOP', 'PC GAMER', 'PC KELYX', 'PC LENOVO', 'SIST.', 'MINI PC', 'BAREBONE'],
+   108→   108→}
+   109→   109→
+   110→   110→function isExcludedFromBuilder(slot: string, name: string): boolean {
+   111→   111→  const upper = name.toUpperCase()
+   112→   112→  const includePatterns = BUILDER_INCLUDE_PATTERNS[slot]
+   113→   113→  if (includePatterns && includePatterns.length > 0) {
+   114→   114→    if (!includePatterns.some(p => upper.includes(p.toUpperCase()))) return true
+   115→   115→  }
+   116→   116→  const excludePatterns = BUILDER_EXCLUDE_PATTERNS[slot]
+   117→   117→  if (excludePatterns) {
+   118→   118→    if (excludePatterns.some(p => upper.includes(p.toUpperCase()))) return true
+   119→   119→  }
+   120→   120→  return false
+   121→   121→}
+   122→   122→
+   123→   123→// ============================================
+   124→   124→// Feature Flag
+   125→   125→// ============================================
+   126→   126→
+   127→   127→async function isAiEnabled(): Promise<boolean> {
+   128→   128→  try {
+   129→   129→    const result = await db.execute({
+   130→   130→      sql: 'SELECT value FROM store_config WHERE key = ?',
+   131→   131→      args: ['ai_enabled'],
+   132→   132→    })
+   133→   133→    const rows = result.rows as any[]
+   134→   134→    if (rows.length > 0) {
+   135→   135→      try { return JSON.parse(rows[0].value).value === true } catch { return false }
+   136→   136→    }
+   137→   137→    return false
+   138→   138→  } catch { return false }
+   139→   139→}
+   140→   140→
+   141→   141→// ============================================
+   142→   142→// JSON Parser
+   143→   143→// ============================================
+   144→   144→
+   145→   145→function parseLlmJson(raw: string): any | null {
+   146→   146→  try { return JSON.parse(raw) } catch {}
+   147→   147→  const codeBlockMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/)
+   148→   148→  if (codeBlockMatch) { try { return JSON.parse(codeBlockMatch[1].trim()) } catch {} }
+   149→   149→  const braceStart = raw.indexOf('{')
+   150→   150→  const braceEnd = raw.lastIndexOf('}')
+   151→   151→  if (braceStart !== -1 && braceEnd > braceStart) { try { return JSON.parse(raw.substring(braceStart, braceEnd + 1)) } catch {} }
+   152→   152→  return null
+   153→   153→}
+   154→   154→
+   155→   155→// ============================================
+   156→   156→// Fetch ALL Products for ALL Slots at Once
+   157→   157→// ============================================
+   158→   158→
+   159→   159→async function fetchAllProductsWithArsPrices(): Promise<Map<string, ProductWithArsPrice[]>> {
+   160→   160→  const slotProducts = new Map<string, ProductWithArsPrice[]>()
+   161→   161→
+   162→   162→  try {
+   163→   163→    // 1. Collect all category IDs for all slots
+   164→   164→    const allCategoryIds = new Map<string, string[]>() // slug -> [categoryId, ...subCategoryIds]
+   165→   165→
+   166→   166→    for (const slotDef of SLOTS) {
+   167→   167→      const slugs = [slotDef.categorySlug, ...(slotDef.additionalSlugs || [])]
+   168→   168→      const ids: string[] = []
+   169→   169→
+   170→   170→      for (const slug of slugs) {
+   171→   171→        if (allCategoryIds.has(slug)) {
+   172→   172→          ids.push(...allCategoryIds.get(slug)!)
+   173→   173→          continue
+   174→   174→        }
+   175→   175→        const catResult = await db.execute({
+   176→   176→          sql: 'SELECT id FROM categories WHERE slug = ?',
+   177→   177→          args: [slug],
+   178→   178→        })
+   179→   179→        const catRows = catResult.rows as any[]
+   180→   180→        if (catRows.length === 0) {
+   181→   181→          console.warn(`[pc-assistant] Category slug not found: ${slug}`)
+   182→   182→          allCategoryIds.set(slug, [])
+   183→   183→          continue
+   184→   184→        }
+   185→   185→
+   186→   186→        const catId = catRows[0].id
+   187→   187→        const subResult = await db.execute({
+   188→   188→          sql: 'SELECT id FROM categories WHERE parentId = ?',
+   189→   189→          args: [catId],
+   190→   190→        })
+   191→   191→        const catIds = [catId, ...(subResult.rows as any[]).map(r => r.id)]
+   192→   192→        allCategoryIds.set(slug, catIds)
+   193→   193→        ids.push(...catIds)
+   194→   194→      }
+   195→   195→
+   196→   196→      if (ids.length === 0) {
+   197→   197→        slotProducts.set(slotDef.slot, [])
+   198→   198→        continue
+   199→   199→      }
+   200→   200→
+   201→   201→      // 2. Fetch products for this slot
+   202→   202→      const placeholders = ids.map(() => '?').join(',')
+   203→   203→      const query = `
+   204→   204→        SELECT p.id, p.name, p.slug, p.price, p.comparePrice, p.costPrice, p.images, p.specs, p.stock,
+   205→   205→               p.markup, p.cashDiscount, p.ivaRate, p.salePrice, p.saleStart, p.saleEnd, p.categoryId
+   206→   206→        FROM products p
+   207→   207→        WHERE p.categoryId IN (${placeholders}) AND p.isActive = 1 AND p.stock > 0
+   208→   208→        ORDER BY p.price ASC
+   209→   209→        LIMIT 100
+   210→   210→      `
+   211→   211→      const result = await db.execute({ sql: query, args: ids })
+   212→   212→      const products = (result.rows as any[]).filter(p => !isExcludedFromBuilder(slotDef.slot, p.name))
+   213→   213→
+   214→   214→      slotProducts.set(slotDef.slot, products.map(p => ({
+   215→   215→        id: p.id,
+   216→   216→        name: p.name,
+   217→   217→        slug: p.slug,
+   218→   218→        priceUsd: p.price,
+   219→   219→        comparePriceUsd: p.comparePrice,
+   220→   220→        costPrice: p.costPrice,
+   221→   221→        images: p.images,
+   222→   222→        specs: p.specs,
+   223→   223→        stock: p.stock,
+   224→   224→        categoryId: p.categoryId,
+   225→   225→        markup: p.markup,
+   226→   226→        cashDiscount: p.cashDiscount,
+   227→   227→        ivaRate: p.ivaRate,
+   228→   228→        salePrice: p.salePrice,
+   229→   229→        saleStart: p.saleStart,
+   230→   230→        saleEnd: p.saleEnd,
+   231→   231→        arsPrice: 0,   // will be filled below
+   232→   232→        arsComparePrice: 0,
+   233→   233→        slot: slotDef.slot,
+   234→   234→      })))
+   235→   235→    }
+   236→   236→
+   237→   237→    // 3. Calculate ARS prices for ALL products at once
+   238→   238→    const allProducts = [...slotProducts.values()].flat()
+   239→   239→
+   240→   240→    if (allProducts.length === 0) {
+   241→   241→      console.warn('[pc-assistant] No products found in any category')
+   242→   242→      return slotProducts
+   243→   243→    }
+   244→   244→
+   245→   245→    try {
+   246→   246→      const dollar = await fetchDollarRate()
+   247→   247→      console.log(`[pc-assistant] Dollar rate: ${dollar.rate}`)
+   248→   248→
+   249→   249→      const markupResult = await db.execute({ sql: "SELECT value FROM store_config WHERE key = 'markup'", args: [] })
+   250→   250→      const markupRows = markupResult.rows as any[]
+   251→   251→      const globalMarkup = markupRows.length > 0 ? (JSON.parse(markupRows[0].value).value ?? 30) : 30
+   252→   252→
+   253→   253→      const cashDiscountResult = await db.execute({ sql: "SELECT value FROM store_config WHERE key = 'cash_discount'", args: [] })
+   254→   254→      const cashDiscountRows = cashDiscountResult.rows as any[]
+   255→   255→      const globalCashDiscount = cashDiscountRows.length > 0 ? (JSON.parse(cashDiscountRows[0].value).value ?? 10) : 10
+   256→   256→
+   257→   257→      const catMarkupResult = await db.execute('SELECT id, markup, cashDiscount, ivaRate FROM categories')
+   258→   258→      const catMarkupMap = new Map<string, any>()
+   259→   259→      for (const row of (catMarkupResult.rows as any[])) { catMarkupMap.set(row.id, row) }
+   260→   260→
+   261→   261→      for (const p of allProducts) {
+   262→   262→        const catMarkup = catMarkupMap.get(p.categoryId)
+   263→   263→        const calculated = calculateProductPrices(p, dollar.rate, globalMarkup, globalCashDiscount, catMarkup || null)
+   264→   264→        p.arsPrice = calculated.price || p.priceUsd || 0
+   265→   265→        p.arsComparePrice = calculated.comparePrice || p.comparePriceUsd || calculated.price || 0
+   266→   266→      }
+   267→   267→    } catch (error) {
+   268→   268→      console.error('[pc-assistant] Error calculating ARS prices, using USD fallback:', error)
+   269→   269→      // Fallback: estimate ARS as USD * 1200 (rough estimate)
+   270→   270→      for (const p of allProducts) {
+   271→   271→        p.arsPrice = (p.priceUsd || 0) * 1200
+   272→   272→        p.arsComparePrice = (p.comparePriceUsd || p.priceUsd || 0) * 1200
+   273→   273→      }
+   274→   274→    }
+   275→   275→
+   276→   276→    // Log product counts and price ranges per slot
+   277→   277→    for (const [slot, products] of slotProducts) {
+   278→   278→      if (products.length === 0) {
+   279→   279→        console.warn(`[pc-assistant] ${slot}: 0 products`)
+   280→   280→      } else {
+   281→   281→        const prices = products.map(p => p.arsComparePrice).filter(p => p > 0)
+   282→   282→        const minP = prices.length > 0 ? Math.min(...prices) : 0
+   283→   283→        const maxP = prices.length > 0 ? Math.max(...prices) : 0
+   284→   284→        console.log(`[pc-assistant] ${slot}: ${products.length} products, ARS range: $${Math.round(minP).toLocaleString()} - $${Math.round(maxP).toLocaleString()}`)
+   285→   285→      }
+   286→   286→    }
+   287→   287→
+   288→   288→  } catch (error) {
+   289→   289→    console.error('[pc-assistant] Error fetching products:', error)
+   290→   290→  }
+   291→   291→
+   292→   292→  return slotProducts
+   293→   293→}
+   294→   294→
+   295→   295→// ============================================
+   296→   296→// Pick Best Product for a Slot
+   297→   297→// ============================================
+   298→   298→
+   299→   299→function pickProductForSlot(
+   300→   300→  products: ProductWithArsPrice[],
+   301→   301→  idealMin: number,
+   302→   302→  idealMax: number,
+   303→   303→  compatFilter?: (p: ProductWithArsPrice) => boolean
+   304→   304→): ProductWithArsPrice | null {
+   305→   305→  if (products.length === 0) return null
+   306→   306→
+   307→   307→  // Apply compatibility filter if provided
+   308→   308→  let pool = compatFilter ? products.filter(compatFilter) : products
+   309→   309→
+   310→   310→  // If compatibility filter removed everything, fall back to unfiltered
+   311→   311→  if (pool.length === 0) {
+   312→   312→    console.warn('[pc-assistant] Compatibility filter removed all products, using unfiltered pool')
+   313→   313→    pool = products
+   314→   314→  }
+   315→   315→
+   316→   316→  if (pool.length === 0) return null
+   317→   317→
+   318→   318→  // Score products: prefer products near the midpoint of the ideal range
+   319→   319→  // but allow significant flexibility (up to 2x idealMax for expensive components)
+   320→   320→  const midPrice = (idealMin + idealMax) / 2
+   321→   321→
+   322→   322→  // First try: products within ideal range
+   323→   323→  let candidates = pool.filter(p => {
+   324→   324→    const price = p.arsComparePrice || p.arsPrice
+   325→   325→    return price >= idealMin * 0.3 && price <= idealMax * 1.5
+   326→   326→  })
+   327→   327→
+   328→   328→  // Second try: just cap at 2x max, no min
+   329→   329→  if (candidates.length === 0) {
+   330→   330→    candidates = pool.filter(p => {
+   331→   331→      const price = p.arsComparePrice || p.arsPrice
+   332→   332→      return price <= idealMax * 2
+   333→   333→    })
+   334→   334→  }
+   335→   335→
+   336→   336→  // Third try: any product, sorted by price
+   337→   337→  if (candidates.length === 0) {
+   338→   338→    candidates = pool
+   339→   339→  }
+   340→   340→
+   341→   341→  if (candidates.length === 0) return null
+   342→   342→
+   343→   343→  // Score: prefer products closest to the midpoint of the allocation
+   344→   344→  // This fills the budget better - midPrice is the sweet spot for value
+   345→   345→  candidates.sort((a, b) => {
+   346→   346→    const priceA = a.arsComparePrice || a.arsPrice
+   347→   347→    const priceB = b.arsComparePrice || b.arsPrice
+   348→   348→    const scoreA = Math.abs(priceA - midPrice)
+   349→   349→    const scoreB = Math.abs(priceB - midPrice)
+   350→   350→    return scoreA - scoreB
+   351→   351→  })
+   352→   352→
+   353→   353→  return candidates[0]
+   354→   354→}
+   355→   355→
+   356→   356→// ============================================
+   357→   357→// Build Configuration (Simplified & Robust)
+   358→   358→// ============================================
+   359→   359→
+   360→   360→function buildConfiguration(
+   361→   361→  allProducts: Map<string, ProductWithArsPrice[]>,
+   362→   362→  useCase: string,
+   363→   363→  budget: number,
+   364→   364→  tierMultiplier: number,
+   365→   365→  profile: Record<string, number>
+   366→   366→): BuildComponent[] | null {
+   367→   367→  const effectiveBudget = budget * tierMultiplier
+   368→   368→  const components: BuildComponent[] = []
+   369→   369→  const debugLog: string[] = []
+   370→   370→
+   371→   371→  debugLog.push(`Budget: $${budget.toLocaleString()}, Effective: $${Math.round(effectiveBudget).toLocaleString()}, Tier: ${tierMultiplier}`)
+   372→   372→
+   373→   373→  // Track compatibility constraints
+   374→   374→  let processorSocket: string | null = null
+   375→   375→  let motherboardDdr: string | null = null
+   376→   376→  let gpuMinWattage: number | null = null
+   377→   377→
+   378→   378→  // Calculate price allocations per slot
+   379→   379→  const allocations: Record<string, number> = {}
+   380→   380→  for (const [slot, pct] of Object.entries(profile)) {
+   381→   381→    if (pct === 0) continue
+   382→   382→    allocations[slot] = effectiveBudget * pct
+   383→   383→  }
+   384→   384→
+   385→   385→  // ---- Step 1: Processor ----
+   386→   386→  const processorProducts = allProducts.get('processor') || []
+   387→   387→  const procAlloc = allocations['processor']
+   388→   388→  if (!procAlloc || processorProducts.length === 0) {
+   389→   389→    console.error(`[pc-assistant] Cannot build: processor alloc=${procAlloc}, products=${processorProducts.length}`)
+   390→   390→    return null
+   391→   391→  }
+   392→   392→
+   393→   393→  const processor = pickProductForSlot(processorProducts, procAlloc * 0.4, procAlloc * 1.3)
+   394→   394→  if (!processor) {
+   395→   395→    console.error('[pc-assistant] Cannot build: no processor selected')
+   396→   396→    return null
+   397→   397→  }
+   398→   398→
+   399→   399→  const procCompat = extractCompatibility('processor', processor.name)
+   400→   400→  processorSocket = procCompat.socket || null
+   401→   401→  debugLog.push(`Processor: ${processor.name} ($${Math.round(processor.arsComparePrice).toLocaleString()} ARS) socket=${processorSocket}`)
+   402→   402→
+   403→   403→  components.push(makeComponent(processor, 'processor', 'Microprocesador'))
+   404→   404→
+   405→   405→  // ---- Step 2: Motherboard ----
+   406→   406→  const mbProducts = allProducts.get('motherboard') || []
+   407→   407→  const mbAlloc = allocations['motherboard']
+   408→   408→  if (!mbAlloc || mbProducts.length === 0) {
+   409→   409→    console.error(`[pc-assistant] Cannot build: motherboard alloc=${mbAlloc}, products=${mbProducts.length}`)
+   410→   410→    return null
+   411→   411→  }
+   412→   412→
+   413→   413→  // Filter by socket compatibility
+   414→   414→  const mbCompatFilter = processorSocket
+   415→   415→    ? (p: ProductWithArsPrice) => {
+   416→   416→        const upper = p.name.toUpperCase()
+   417→   417→        const socketPatterns: Record<string, string[]> = {
+   418→   418→          AM4: ['AM4', 'B550', 'A520', 'X570', 'B450'],
+   419→   419→          AM5: ['AM5', 'B650', 'B850', 'A620', 'X670', 'X870'],
+   420→   420→          '1700': ['1700', 'B760', 'H610', 'B660', 'Z690', 'Z790'],
+   421→   421→          '1851': ['1851', 'B860', 'Z890', 'H810'],
+   422→   422→        }
+   423→   423→        const patterns = socketPatterns[processorSocket]
+   424→   424→        return patterns ? patterns.some(pat => upper.includes(pat.toUpperCase())) : true
+   425→   425→      }
+   426→   426→    : undefined
+   427→   427→
+   428→   428→  const motherboard = pickProductForSlot(mbProducts, mbAlloc * 0.4, mbAlloc * 1.5, mbCompatFilter)
+   429→   429→  if (!motherboard) {
+   430→   430→    console.error('[pc-assistant] Cannot build: no motherboard selected')
+   431→   431→    return null
+   432→   432→  }
+   433→   433→
+   434→   434→  const mbCompat = extractCompatibility('motherboard', motherboard.name)
+   435→   435→  motherboardDdr = mbCompat.ddr || null
+   436→   436→  debugLog.push(`Motherboard: ${motherboard.name} ($${Math.round(motherboard.arsComparePrice).toLocaleString()} ARS) ddr=${motherboardDdr}`)
+   437→   437→
+   438→   438→  components.push(makeComponent(motherboard, 'motherboard', 'Motherboard'))
+   439→   439→
+   440→   440→  // ---- Step 3: RAM ----
+   441→   441→  const ramProducts = allProducts.get('ram') || []
+   442→   442→  const ramAlloc = allocations['ram']
+   443→   443→  if (!ramAlloc || ramProducts.length === 0) {
+   444→   444→    console.error(`[pc-assistant] Cannot build: RAM alloc=${ramAlloc}, products=${ramProducts.length}`)
+   445→   445→    return null
+   446→   446→  }
+   447→   447→
+   448→   448→  const ramCompatFilter = motherboardDdr
+   449→   449→    ? (p: ProductWithArsPrice) => p.name.toUpperCase().includes(motherboardDdr!.toUpperCase())
+   450→   450→    : undefined
+   451→   451→
+   452→   452→  const ram = pickProductForSlot(ramProducts, ramAlloc * 0.3, ramAlloc * 1.5, ramCompatFilter)
+   453→   453→  if (!ram) {
+   454→   454→    console.error('[pc-assistant] Cannot build: no RAM selected')
+   455→   455→    return null
+   456→   456→  }
+   457→   457→
+   458→   458→  debugLog.push(`RAM: ${ram.name} ($${Math.round(ram.arsComparePrice).toLocaleString()} ARS)`)
+   459→   459→  components.push(makeComponent(ram, 'ram', 'Memoria RAM'))
+   460→   460→
+   461→   461→  // ---- Step 4: GPU (optional for some use cases) ----
+   462→   462→  if (profile.gpu > 0) {
+   463→   463→    const gpuProducts = allProducts.get('gpu') || []
+   464→   464→    const gpuAlloc = allocations['gpu']
+   465→   465→
+   466→   466→    if (gpuAlloc && gpuProducts.length > 0) {
+   467→   467→      const gpu = pickProductForSlot(gpuProducts, gpuAlloc * 0.3, gpuAlloc * 1.5)
+   468→   468→
+   469→   469→      if (gpu) {
+   470→   470→        const gpuCompat = extractCompatibility('gpu', gpu.name)
+   471→   471→        gpuMinWattage = gpuCompat.gpuTdp ? gpuCompat.gpuTdp * 1.5 + 100 : null
+   472→   472→        debugLog.push(`GPU: ${gpu.name} ($${Math.round(gpu.arsComparePrice).toLocaleString()} ARS) wattage_needed=${gpuMinWattage}`)
+   473→   473→        components.push(makeComponent(gpu, 'gpu', 'Placa de Video'))
+   474→   474→      } else {
+   475→   475→        debugLog.push(`GPU: none found in budget range $${Math.round(gpuAlloc * 0.3).toLocaleString()}-$${Math.round(gpuAlloc * 1.5).toLocaleString()}`)
+   476→   476→      }
+   477→   477→    }
+   478→   478→  }
+   479→   479→
+   480→   480→  // ---- Step 5: SSD ----
+   481→   481→  const ssdProducts = allProducts.get('ssd') || []
+   482→   482→  const ssdAlloc = allocations['ssd']
+   483→   483→
+   484→   484→  if (ssdAlloc && ssdProducts.length > 0) {
+   485→   485→    const ssd = pickProductForSlot(ssdProducts, ssdAlloc * 0.3, ssdAlloc * 1.5)
+   486→   486→    if (ssd) {
+   487→   487→      debugLog.push(`SSD: ${ssd.name} ($${Math.round(ssd.arsComparePrice).toLocaleString()} ARS)`)
+   488→   488→      components.push(makeComponent(ssd, 'ssd', 'Disco SSD'))
+   489→   489→    } else {
+   490→   490→      debugLog.push('SSD: none found')
+   491→   491→      return null // SSD is required
+   492→   492→    }
+   493→   493→  } else {
+   494→   494→    return null
+   495→   495→  }
+   496→   496→
+   497→   497→  // ---- Step 6: PSU ----
+   498→   498→  const psuProducts = allProducts.get('psu') || []
+   499→   499→  const psuAlloc = allocations['psu']
+   500→   500→
+   501→   501→  if (psuAlloc && psuProducts.length > 0) {
+   502→   502→    // If we know GPU wattage, prefer PSUs that can handle it
+   503→   503→    let psuCompatFilter: ((p: ProductWithArsPrice) => boolean) | undefined
+   504→   504→    if (gpuMinWattage) {
+   505→   505→      psuCompatFilter = (p: ProductWithArsPrice) => {
+   506→   506→        const wattMatch = p.name.match(/(\d{3,4})\s*W/i)
+   507→   507→        return wattMatch ? parseInt(wattMatch[1]) >= gpuMinWattage! : true // allow PSUs without wattage in name
+   508→   508→      }
+   509→   509→    }
+   510→   510→
+   511→   511→    const psu = pickProductForSlot(psuProducts, psuAlloc * 0.3, psuAlloc * 1.5, psuCompatFilter)
+   512→   512→    if (psu) {
+   513→   513→      debugLog.push(`PSU: ${psu.name} ($${Math.round(psu.arsComparePrice).toLocaleString()} ARS)`)
+   514→   514→      components.push(makeComponent(psu, 'psu', 'Fuente'))
+   515→   515→    } else {
+   516→   516→      debugLog.push('PSU: none found')
+   517→   517→      return null // PSU is required
+   518→   518→    }
+   519→   519→  } else {
+   520→   520→    return null
+   521→   521→  }
+   522→   522→
+   523→   523→  // ---- Step 7: Case (optional - don't fail if not found) ----
+   524→   524→  const caseProducts = allProducts.get('case') || []
+   525→   525→  const caseAlloc = allocations['case']
+   526→   526→
+   527→   527→  if (caseAlloc && caseProducts.length > 0) {
+   528→   528→    const caseProduct = pickProductForSlot(caseProducts, caseAlloc * 0.2, caseAlloc * 1.5)
+   529→   529→    if (caseProduct) {
+   530→   530→      debugLog.push(`Case: ${caseProduct.name} ($${Math.round(caseProduct.arsComparePrice).toLocaleString()} ARS)`)
+   531→   531→      components.push(makeComponent(caseProduct, 'case', 'Gabinete'))
+   532→   532→    } else {
+   533→   533→      debugLog.push('Case: none in budget (non-fatal)')
+   534→   534→    }
+   535→   535→  }
+   536→   536→
+   537→   537→  // ---- Step 8: Cooling (optional) ----
+   538→   538→  if (profile.cooling > 0) {
+   539→   539→    const coolingProducts = allProducts.get('cooling') || []
+   540→   540→    const coolingAlloc = allocations['cooling']
+   541→   541→
+   542→   542→    if (coolingAlloc && coolingProducts.length > 0) {
+   543→   543→      const cooling = pickProductForSlot(coolingProducts, coolingAlloc * 0.2, coolingAlloc * 1.5)
+   544→   544→      if (cooling) {
+   545→   545→        debugLog.push(`Cooling: ${cooling.name} ($${Math.round(cooling.arsComparePrice).toLocaleString()} ARS)`)
+   546→   546→        components.push(makeComponent(cooling, 'cooling', 'Refrigeración'))
+   547→   547→      }
+   548→   548→    }
+   549→   549→  }
+   550→   550→
+   551→   551→  // Log the full build
+   552→   552→  const totalPrice = components.reduce((sum, c) => sum + c.productComparePrice * c.quantity, 0)
+   553→   553→  debugLog.push(`Total: $${Math.round(totalPrice).toLocaleString()} ARS (${components.length} components)`)
+   554→   554→  console.log(`[pc-assistant] Build result:\n${debugLog.join('\n')}`)
+   555→   555→
+   556→   556→  return components
+   557→   557→}
+   558→   558→
+   559→   559→function makeComponent(p: ProductWithArsPrice, slot: string, label: string): BuildComponent {
+   560→   560→  return {
+   561→   561→    slot,
+   562→   562→    label,
+   563→   563→    productId: p.id,
+   564→   564→    productName: p.name,
+   565→   565→    productPrice: p.arsPrice,
+   566→   566→    productComparePrice: p.arsComparePrice,
+   567→   567→    productSlug: p.slug || '',
+   568→   568→    productImages: p.images || '[]',
+   569→   569→    productStock: p.stock || 0,
+   570→   570→    productSpecs: p.specs || '{}',
+   571→   571→    quantity: 1,
+   572→   572→  }
+   573→   573→}
+   574→   574→
+   575→   575→// ============================================
+   576→   576→// Generate Build Descriptions with AI
+   577→   577→// ============================================
+   578→   578→
+   579→   579→async function generateBuildDescriptions(
+   580→   580→  builds: SuggestedBuild[],
+   581→   581→  useCase: string,
+   582→   582→  budget: number
+   583→   583→): Promise<void> {
+   584→   584→  try {
+   585→   585→    const buildsInfo = builds.map(b => ({
+   586→   586→      name: b.name,
+   587→   587→      totalPrice: b.totalPrice,
+   588→   588→      components: b.components.map(c => `${c.label}: ${c.productName} ($${c.productComparePrice.toLocaleString('es-AR')} efectivo)`).join(', '),
+   589→   589→    }))
+   590→   590→
+   591→   591→    const prompt = `Sos Citi, el asistente de ventas de Compucity, una tienda de informática en Argentina. El cliente busca una PC para ${useCase} con un presupuesto de $${budget.toLocaleString('es-AR')} ARS.
+   592→   592→
+   593→   593→Se le armaron ${builds.length} opciones. Escribí un mensaje corto y amigable (máximo 3 oraciones) describiendo brevemente las opciones, destacando las diferencias principales entre ellas. No uses markdown ni formato especial, solo texto plano. Hablá en argentino familiar (vos, no tú).`
+   594→   594→
+   595→   595→    const result = await grokChat({
+   596→   596→      messages: [
+   597→   597→        { role: 'system', content: prompt },
+   598→   598→        { role: 'user', content: `Opciones:\n${buildsInfo.map(b => `${b.name}: ${b.components} - Total: $${b.totalPrice.toLocaleString('es-AR')}`).join('\n\n')}` },
+   599→   599→      ],
+   600→   600→      temperature: 0.7,
+   601→   601→      maxTokens: 300,
+   602→   602→    })
+   603→   603→
+   604→   604→    if (result.content) {
+   605→   605→      builds[0].description = result.content.trim()
+   606→   606→    }
+   607→   607→  } catch (error) {
+   608→   608→    console.error('[pc-assistant] Error generating descriptions:', error)
+   609→   609→    builds[0].description = `Armé ${builds.length} opciones para tu PC ${useCase}. La Económica te entra justo en presupuesto, la Recomendada es la mejor relación precio/rendimiento, y la Premium apreta un poco más pero con los mejores componentes.`
+   610→   610→  }
+   611→   611→}
+   612→   612→
+   613→   613→// ============================================
+   614→   614→// System Prompt for Chat
+   615→   615→// ============================================
+   616→   616→
+   617→   617→const CHAT_SYSTEM_PROMPT = `Sos Citi, el asistente virtual de Compucity, una tienda de componentes de PC en Argentina. Tu trabajo es ayudar al cliente a elegir la PC ideal.
+   618→   618→
+   619→   619→Reglas:
+   620→   620→- Hablá en argentino familiar (usá "vos", no "tú")
+   621→   621→- Sé amable y entusiasta
+   622→   622→- Respondé SIEMPRE en JSON válido sin markdown
+   623→   623→- Si no tenés suficiente info, preguntá
+   624→   624→- No inventes productos ni precios
+   625→   625→
+   626→   626→Formato de respuesta JSON:
+   627→   627→{
+   628→   628→  "message": "Tu mensaje al cliente en texto plano",
+   629→   629→  "ready": false,
+   630→   630→  "use_case": null | "gaming" | "oficina" | "edicion" | "general",
+   631→   631→  "budget": null | número (en ARS, sin símbolo)
+   632→   632→}
+   633→   633→
+   634→   634→- "ready" es true cuando ya sabés el uso Y el presupuesto
+   635→   635→- Si el cliente da un presupuesto en dólares, convertilo estimando que 1 USD ≈ 1200 ARS (aproximado)
+   636→   636→- Si el cliente dice algo como "para juegos", "para jugar", "gamer" → use_case = "gaming"
+   637→   637→- Si dice "para trabajar", "oficina", "administrar" → use_case = "oficina"
+   638→   638→- Si dice "para editar video", "diseño", "render", "photoshop" → use_case = "edicion"
+   639→   639→- Si no está claro → use_case = "general"
+   640→   640→
+   641→   641→Ejemplos:
+   642→   642→- Cliente: "Quiero una PC para jugar" → message: "¡Buena onda! ¿Cuál es tu presupuesto aproximado? Decime en pesos si podés.", ready: false, use_case: "gaming", budget: null
+   643→   643→- Cliente: "Tengo 500000 pesos para gaming" → message: "¡Perfecto! Voy a armar unas opciones para vos.", ready: true, use_case: "gaming", budget: 500000`
+   644→   644→
+   645→   645→const POST_BUILD_SYSTEM_PROMPT = `Sos Citi, el asistente virtual de Compucity, una tienda de componentes de PC en Argentina. Ya le armaste opciones de PC al cliente y ahora está haciendo consultas adicionales.
+   646→   646→
+   647→   647→Reglas:
+   648→   648→- Hablá en argentino familiar (usá "vos", no "tú")
+   649→   649→- Sé amable y entusiasta
+   650→   650→- Respondé SIEMPRE en JSON válido sin markdown
+   651→   651→- Ayudá al cliente con sus dudas sobre las opciones que le presentaste
+   652→   652→- Si pregunta por cambios o alternativas, explicale qué podría modificar
+   653→   653→- Si pregunta por compatibilidad, tranquilizalo que todas las opciones son compatibles
+   654→   654→- Si quiere ajustar el presupuesto, decile que puede tocar el botón de reinicio (✨) para empezar de nuevo
+   655→   655→- No inventes productos ni precios específicos
+   656→   656→
+   657→   657→Formato de respuesta JSON:
+   658→   658→{
+   659→   659→  "message": "Tu mensaje al cliente en texto plano",
+   660→   660→  "ready": false,
+   661→   661→  "use_case": null,
+   662→   662→  "budget": null
+   663→   663→}
+   664→   664→
+   665→   665→IMPORTANTE: ready siempre debe ser false en esta fase de conversación. No generes nuevas builds.`
+   666→   666→
+   667→   667→// ============================================
+   668→   668→// Debug GET Endpoint
+   669→   669→// ============================================
+   670→   670→
+   671→   671→export async function GET() {
+   672→   672→  try {
+   673→   673→    const allProducts = await fetchAllProductsWithArsPrices()
+   674→   674→
+   675→   675→    const debug: Record<string, any> = {}
+   676→   676→    for (const [slot, products] of allProducts) {
+   677→   677→      const prices = products.map(p => p.arsComparePrice || p.arsPrice).filter(p => p > 0)
+   678→   678→      debug[slot] = {
+   679→   679→        count: products.length,
+   680→   680→        priceRange: prices.length > 0
+   681→   681→          ? `$${Math.round(Math.min(...prices)).toLocaleString()} - $${Math.round(Math.max(...prices)).toLocaleString()} ARS`
+   682→   682→          : 'N/A',
+   683→   683→        cheapest3: products.slice(0, 3).map(p => ({
+   684→   684→          name: p.name,
+   685→   685→          arsPrice: `$${Math.round(p.arsComparePrice || p.arsPrice).toLocaleString()}`,
+   686→   686→        })),
+   687→   687→      }
+   688→   688→    }
+   689→   689→
+   690→   690→    return NextResponse.json({ debug, timestamp: new Date().toISOString() })
+   691→   691→  } catch (error: any) {
+   692→   692→    return NextResponse.json({ error: error.message }, { status: 500 })
+   693→   693→  }
+   694→   694→}
+   695→   695→
+   696→   696→// ============================================
+   697→   697→// POST Handler
+   698→   698→// ============================================
+   699→   699→
+   700→   700→export async function POST(request: NextRequest) {
+   701→   701→  try {
+   702→   702→    // Check feature flag
+   703→   703→    const aiEnabled = await isAiEnabled()
+   704→   704→    if (!aiEnabled) {
+   705→   705→      return NextResponse.json({ error: 'IA deshabilitada' }, { status: 403 })
+   706→   706→    }
+   707→   707→
+   708→   708→    // Parse request
+   709→   709→    let body: { messages: ChatMessage[] }
+   710→   710→    try {
+   711→   711→      body = await request.json()
+   712→   712→    } catch {
+   713→   713→      return NextResponse.json({ error: 'Body inválido' }, { status: 400 })
+   714→   714→    }
+   715→   715→
+   716→   716→    const { messages } = body
+   717→   717→    if (!Array.isArray(messages) || messages.length === 0) {
+   718→   718→      return NextResponse.json({ error: 'Se requiere un array de mensajes' }, { status: 400 })
+   719→   719→    }
+   720→   720→
+   721→   721→    // Detect if builds were already shown (post-build conversation mode)
+   722→   722→    // If the assistant already returned builds, subsequent messages should be
+   723→   723→    // treated as normal chat, not trigger a rebuild
+   724→   724→    const assistantMessages = messages.filter(m => m.role === 'assistant')
+   725→   725→    const buildsAlreadyShown = assistantMessages.some(m =>
+   726→   726→      m.content.includes('opciones') || m.content.includes('Opciones') || m.content.includes('armé') || m.content.includes('Armé')
+   727→   727→    )
+   728→   728→    const userMessages = messages.filter(m => m.role === 'user')
+   729→   729→    const hasMultipleUserMessagesAfterBuild = userMessages.length > 2 // user asked use case + budget + more
+   730→   730→
+   731→   731→    // Call Groq for chat response
+   732→   732→    const controller = new AbortController()
+   733→   733→    const timeoutId = setTimeout(() => controller.abort(), 15000)
+   734→   734→
+   735→   735→    // Use a different system prompt for post-build conversation
+   736→   736→    const systemPrompt = buildsAlreadyShown && hasMultipleUserMessagesAfterBuild
+   737→   737→      ? POST_BUILD_SYSTEM_PROMPT
+   738→   738→      : CHAT_SYSTEM_PROMPT
+   739→   739→
+   740→   740→    let chatResult: any = null
+   741→   741→    try {
+   742→   742→      const result = await grokChat({
+   743→   743→        messages: [
+   744→   744→          { role: 'system', content: systemPrompt },
+   745→   745→          ...messages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+   746→   746→        ],
+   747→   747→        temperature: 0.5,
+   748→   748→        maxTokens: 400,
+   749→   749→        signal: controller.signal,
+   750→   750→      })
+   751→   751→
+   752→   752→      clearTimeout(timeoutId)
+   753→   753→
+   754→   754→      if (!result.content) {
+   755→   755→        return NextResponse.json({
+   756→   756→          message: 'Disculpá, no pude procesar tu mensaje. ¿Podés repetirlo?',
+   757→   757→          ready: false,
+   758→   758→          builds: null,
+   759→   759→        })
+   760→   760→      }
+   761→   761→
+   762→   762→      chatResult = parseLlmJson(result.content)
+   763→   763→      if (!chatResult) {
+   764→   764→        return NextResponse.json({
+   765→   765→          message: result.content,
+   766→   766→          ready: false,
+   767→   767→          builds: null,
+   768→   768→        })
+   769→   769→      }
+   770→   770→    } catch (error) {
+   771→   771→      clearTimeout(timeoutId)
+   772→   772→      console.error('[pc-assistant] Groq chat error:', error)
+   773→   773→      return NextResponse.json({
+   774→   774→        message: 'Disculpá, estoy teniendo problemas para conectarme. ¿Podés intentar de nuevo?',
+   775→   775→        ready: false,
+   776→   776→        builds: null,
+   777→   777→      })
+   778→   778→    }
+   779→   779→
+   780→   780→    const responseMessage = chatResult.message || '¿En qué más te puedo ayudar?'
+   781→   781→    const isReady = chatResult.ready === true
+   782→   782→    const useCase = chatResult.use_case || null
+   783→   783→    const budget = typeof chatResult.budget === 'number' ? chatResult.budget : null
+   784→   784→
+   785→   785→    // If builds were already shown, skip build generation and just chat
+   786→   786→    if (buildsAlreadyShown && hasMultipleUserMessagesAfterBuild) {
+   787→   787→      return NextResponse.json({
+   788→   788→        message: responseMessage,
+   789→   789→        ready: false,
+   790→   790→        builds: null,
+   791→   791→      })
+   792→   792→    }
+   793→   793→
+   794→   794→    // If not ready yet, just return the chat message
+   795→   795→    if (!isReady || !useCase || !budget) {
+   796→   796→      return NextResponse.json({
+   797→   797→        message: responseMessage,
+   798→   798→        ready: false,
+   799→   799→        builds: null,
+   800→   800→      })
+   801→   801→    }
+   802→   802→
+   803→   803→    // Ready to build! Fetch all products upfront
+   804→   804→    console.log(`[pc-assistant] Building configs for useCase=${useCase}, budget=${budget}`)
+   805→   805→
+   806→   806→    const allProducts = await fetchAllProductsWithArsPrices()
+   807→   807→    const profile = BUDGET_PROFILES[useCase] || BUDGET_PROFILES.general
+   808→   808→    const builds: SuggestedBuild[] = []
+   809→   809→
+   810→   810→    for (const tier of BUILD_TIERS) {
+   811→   811→      try {
+   812→   812→        const components = buildConfiguration(allProducts, useCase, budget, tier.multiplier, profile)
+   813→   813→        if (components && components.length >= 5) {
+   814→   814→          const totalPrice = components.reduce((sum, c) => sum + c.productComparePrice * c.quantity, 0)
+   815→   815→          const totalListPrice = components.reduce((sum, c) => sum + c.productPrice * c.quantity, 0)
+   816→   816→
+   817→   817→          builds.push({
+   818→   818→            name: `${tier.emoji} ${tier.name}`,
+   819→   819→            description: '',
+   820→   820→            totalPrice,
+   821→   821→            totalListPrice,
+   822→   822→            components,
+   823→   823→          })
+   824→   824→        } else {
+   825→   825→          console.warn(`[pc-assistant] Tier ${tier.name}: only ${components?.length || 0} components, need 5+`)
+   826→   826→        }
+   827→   827→      } catch (error) {
+   828→   828→        console.error(`[pc-assistant] Error building tier ${tier.name}:`, error)
+   829→   829→      }
+   830→   830→    }
+   831→   831→
+   832→   832→    if (builds.length === 0) {
+   833→   833→      // Provide more helpful error message with debug info
+   834→   834→      const slotCounts: string[] = []
+   835→   835→      for (const [slot, products] of allProducts) {
+   836→   836→        if (products.length > 0) slotCounts.push(`${slot}: ${products.length}`)
+   837→   837→      }
+   838→   838→      console.error(`[pc-assistant] No builds possible. Product counts: ${slotCounts.join(', ')}`)
+   839→   839→
+   840→   840→      return NextResponse.json({
+   841→   841→        message: `Disculpá, no pude armar una configuración con ese presupuesto. ¿Podrías aumentar un poco el presupuesto o probar con otro tipo de uso?`,
+   842→   842→        ready: false,
+   843→   843→        builds: null,
+   844→   844→      })
+   845→   845→    }
+   846→   846→
+   847→   847→    // Generate friendly AI descriptions for the builds
+   848→   848→    await generateBuildDescriptions(builds, useCase, budget)
+   849→   849→
+   850→   850→    return NextResponse.json({
+   851→   851→      message: responseMessage,
+   852→   852→      ready: true,
+   853→   853→      builds,
+   854→   854→    })
+   855→   855→  } catch (error) {
+   856→   856→    console.error('[pc-assistant] Unexpected error:', error)
+   857→   857→    return NextResponse.json({
+   858→   858→      message: 'Ocurrió un error inesperado. Intentá de nuevo.',
+   859→   859→      ready: false,
+   860→   860→      builds: null,
+   861→   861→    })
+   862→   862→  }
+   863→   863→}
+   864→   864→
