@@ -1220,17 +1220,25 @@ export async function syncInvid(supplier: any): Promise<SyncResult> {
  */
 function stripPhpNotices(text: string): string {
   let cleaned = text
-    // Remove complete PHP notice/warning/error blocks (HTML format with <b> tags)
-    // Pattern: optional <br />, then <b>Type</b>: message in /path/file.php on line NNN
-    .replace(/(?:<br\s*\/?>\s*)?<b>(?:Notice|Warning|Fatal error|Parse error|Deprecated)<\/b>:\s*.*?on line \d+\s*/gis, '')
-    // Remove plain-text PHP notices (without HTML tags)
-    .replace(/(?:^|\n)\s*(?:Notice|Warning|Fatal error|Parse error|Deprecated):\s*.*?on line \d+\s*/gis, '')
-    // Remove any remaining standalone <br /> tags
-    .replace(/<br\s*\/?>\s*/gi, '')
-    // Remove leftover <b> or </b> tags
+    // Step 1: Remove <b> and </b> tags FIRST.
+    // Air Intra wraps file paths AND line numbers in <b> tags:
+    //   "in <b>/path/file.php</b> on line <b>54</b>"
+    // The old regex expected "on line \d+" (plain digits) and failed to match,
+    // leaving notices inside JSON objects and making them unparseable.
     .replace(/<\/?b>/gi, '')
-    // Fix trailing commas before ] or } (can happen after removing notices)
+    // Step 2: Remove <br /> and <br> tags
+    .replace(/<br\s*\/?>\s*/gi, '')
+    // Step 3: Remove PHP notice/warning/error blocks (now plain text after HTML tag removal).
+    // Matches: "Notice: <any text> on line <digits>" — non-greedy so it stops at the
+    // first "on line NNN" (one notice at a time, even if multiple are consecutive).
+    .replace(/(?:Notice|Warning|Fatal error|Parse error|Deprecated):\s*.*?on line\s+\d+\s*/gis, '')
+    // Step 4: Fix trailing commas before ] or } (happens when a notice is removed from
+    // between the last value and the closing brace, e.g. {"k":"v",Notice:...} → {"k":"v",})
     .replace(/,\s*([}\]])/g, '$1')
+    // Step 5: Fix missing commas between objects: }{ should be },{
+    .replace(/}\s*{/g, '},{')
+    // Step 6: Fix double commas (happens when a notice is removed from between two commas)
+    .replace(/,\s*,/g, ',')
 
   return cleaned.trim()
 }
