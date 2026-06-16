@@ -3,6 +3,10 @@ import { db } from '@/lib/db'
 import { formatProductName, generateSlug } from '@/lib/format-product'
 import { getCurrentAdmin } from '@/lib/admin-auth'
 
+// Allow up to 300s on Vercel Pro (Hobby plan caps at 60s — harmless if set higher)
+// This matches the cron sync route's timeout.
+export const maxDuration = 300
+
 interface SyncResult {
   ok: boolean
   total: number
@@ -2309,6 +2313,8 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
 async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Promise<SyncResult> {
   const baseUrl = supplier.apiBaseUrl || 'https://api.air-intra.com/v2'
   const result: SyncResult = { ok: false, total: 0, created: 0, updated: 0, skipped: 0, errors: 0, message: '' }
+  const t0 = Date.now()
+  const logTime = (label: string) => console.log(`[Air Intra Batch ⏱] ${label}: ${Date.now() - t0}ms`)
 
   try {
     // Check if we synced recently (Air Intra has a 5-min rate limit between cycles)
@@ -2327,6 +2333,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
     // Build category lookups
     const { slugToId, idToParentId, parentSlugToChildSlugs } = await buildCategoryLookup()
     const supplierMappings = await buildSupplierMappingLookup(supplier.id)
+    logTime('category lookups built')
 
     // Pre-load existing products for this supplier (fresh for each batch)
     console.log(`[Air Intra Batch] Pre-loading existing products from DB...`)
@@ -2336,11 +2343,16 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
     })
     const existingBySku: Record<string, { id: string; slug: string }> = {}
     const allExistingSlugs = new Set<string>()
+    const allFetchedSkus = new Set<string>() // seeded from existing products for cross-batch dedup
     for (const row of existingProductsResult.rows as any[]) {
-      if (row.providerSku) existingBySku[row.providerSku] = { id: row.id, slug: row.slug }
+      if (row.providerSku) {
+        existingBySku[row.providerSku] = { id: row.id, slug: row.slug }
+        allFetchedSkus.add(row.providerSku)
+      }
       if (row.slug) allExistingSlugs.add(row.slug)
     }
     console.log(`[Air Intra Batch] Loaded ${Object.keys(existingBySku).length} existing products`)
+    logTime('existing products loaded')
 
     // Login if no token provided
     let token = batch.token || ''
@@ -2364,6 +2376,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
       token = authData.token
       exchangeRate = parseFloat(authData.cotiza || '0')
       console.log(`[Air Intra Batch] Login OK. Cotización: ${exchangeRate}`)
+      logTime('login')
     }
 
     // Fetch products page by page within the specified range
@@ -2376,22 +2389,13 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
     let errors = 0
     let usedExtractionFallback = false
     let totalRecoveredByExtractor = 0
-    // Track all SKUs fetched in this batch to detect duplicates across pages
-    const allFetchedSkus = new Set<string>()
-    // Also load SKUs from previous batches (from DB) for cross-batch dedup
-    const previousSkusResult = await db.execute({
-      sql: 'SELECT providerSku FROM products WHERE providerId = ? AND providerSku IS NOT NULL',
-      args: [supplier.id],
-    })
-    for (const row of previousSkusResult.rows as any[]) {
-      if (row.providerSku) allFetchedSkus.add(row.providerSku)
-    }
 
     let reachedEnd = false
     let lastProcessedPage = batch.startPage - 1
 
     for (let page = batch.startPage; page <= batch.endPage; page++) {
       console.log(`[Air Intra Batch] Fetching page ${page}...`)
+      const pageT0 = Date.now()
       let products: any[] | null = null
       let pageSucceeded = false
       let retryCount = 0
@@ -2651,11 +2655,14 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
       }
 
       // Execute all DB operations with limited concurrency (lazy evaluation)
+      const dbT0 = Date.now()
       const BATCH_CONCURRENCY = 20
       for (let i = 0; i < dbOperations.length; i += BATCH_CONCURRENCY) {
         const batchChunk = dbOperations.slice(i, i + BATCH_CONCURRENCY)
         await Promise.all(batchChunk.map(fn => fn()))
       }
+      console.log(`[Air Intra Batch ⏱] Page ${page}: fetch=${Date.now() - pageT0}ms (API), DB writes=${Date.now() - dbT0}ms (${dbOperations.length} ops)`)
+      logTime(`after page ${page} DB writes`)
 
       console.log(`[Air Intra Batch] Page ${page} processed: ${products.length} items (batch total: ${totalFetched})`)
 
