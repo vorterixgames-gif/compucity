@@ -2329,6 +2329,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
 const AIRINTRA_COOLDOWN_KEY = 'airintra_rate_limited_until'
 const AIRINTRA_LAST_PAGE_KEY = 'airintra_last_sync_page'
 const AIRINTRA_BROKEN_PAGE_COUNT_KEY = 'airintra_broken_page_count'
+const AIRINTRA_CATALOG_END_PAGE_KEY = 'airintra_catalog_end_page'
 const AIRINTRA_COOLDOWN_MS = 10 * 60 * 1000 // 10 minutes
 const AIRINTRA_BROKEN_PAGE_THRESHOLD = 3 // consecutive broken pages → conclude end of catalog
 
@@ -2430,6 +2431,46 @@ async function clearAirIntraBrokenPageCount(): Promise<void> {
   }
 }
 
+// ─── Catalog end page ──────────────────────────────────────────────────────
+// When END_OF_CATALOG is detected (3 consecutive broken pages), we persist
+// the last page that returned products (e.g. 23). The next sync resumes from
+// catalog_end_page + 1 (page 24) — ONE request to detect whether Air Intra
+// has added new products, vs. 20+ requests to re-walk pages 0..23.
+//
+// Reset to -1 when a page beyond the recorded end returns products (catalog
+// grew) so the next END_OF_CATALOG detection starts fresh.
+async function getAirIntraCatalogEndPage(): Promise<number> {
+  try {
+    const r = await db.execute({ sql: `SELECT value FROM store_config WHERE key = ?`, args: [AIRINTRA_CATALOG_END_PAGE_KEY] })
+    const v = (r.rows as any[])[0]?.value
+    if (v === undefined || v === null) return -1
+    const n = parseInt(v, 10)
+    return Number.isFinite(n) ? n : -1
+  } catch {
+    return -1
+  }
+}
+
+async function setAirIntraCatalogEndPage(page: number): Promise<void> {
+  try {
+    await db.execute({
+      sql: `INSERT INTO store_config (id, key, value, updatedAt) VALUES (?, ?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updatedAt = excluded.updatedAt`,
+      args: [`cfg_${AIRINTRA_CATALOG_END_PAGE_KEY}`, AIRINTRA_CATALOG_END_PAGE_KEY, String(page), new Date().toISOString()],
+    })
+  } catch (e) {
+    console.error('[Air Intra] Failed to persist catalog end page:', e)
+  }
+}
+
+async function clearAirIntraCatalogEndPage(): Promise<void> {
+  try {
+    await db.execute({ sql: `DELETE FROM store_config WHERE key = ?`, args: [AIRINTRA_CATALOG_END_PAGE_KEY] })
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * Batched Air Intra sync: processes a range of pages from the 'articulos' endpoint.
  * Each batch processes PAGES_PER_BATCH pages (1 page × 500 products = ~500).
@@ -2464,22 +2505,40 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
       return result
     }
 
-    // ─── Resume from last successful page ──────────────────────────────────
-    // On the initial call (no token), if a previous sync was interrupted mid-way
-    // (e.g. by a rate limit), resume from the page after the last one we wrote
-    // to DB. This avoids re-fetching pages 0..N-1 that are already up to date.
+    // ─── Resume from last successful page (or known catalog end) ──────────
+    // On the initial call (no token), there are two resume scenarios:
+    //
+    // 1. Interrupted mid-sync (lastSyncPage set): resume from lastPage + 1
+    //    to continue where we left off.
+    //
+    // 2. Previous sync completed with END_OF_CATALOG (catalogEndPage set,
+    //    lastSyncPage cleared): resume from catalogEndPage + 1. This means
+    //    ONE request to check if Air Intra added new products, vs. 20+
+    //    requests to re-walk pages 0..N-1 that are already in DB.
+    //    - If the page returns products → catalog grew → clear catalogEndPage,
+    //      continue iterating normally.
+    //    - If the page is broken → END_OF_CATALOG again, immediately.
     if (!batch.token && batch.startPage === 0) {
       const lastPage = await getAirIntraLastSyncPage()
       if (lastPage >= 0) {
         const resumeFrom = lastPage + 1
         console.log(`[Air Intra Batch] Resuming from page ${resumeFrom} (last successful page was ${lastPage}).`)
         batch = { ...batch, startPage: resumeFrom, endPage: resumeFrom + (batch.endPage - batch.startPage) }
+      } else {
+        const catalogEndPage = await getAirIntraCatalogEndPage()
+        if (catalogEndPage >= 0) {
+          const resumeFrom = catalogEndPage + 1
+          console.log(`[Air Intra Batch] Catalog previously ended at page ${catalogEndPage}. Probing page ${resumeFrom} to detect new products.`)
+          batch = { ...batch, startPage: resumeFrom, endPage: resumeFrom + (batch.endPage - batch.startPage) }
+        }
       }
     }
 
     // ─── Legacy 5-min rate limit on a fully-completed cycle ────────────────
     // Only relevant on the initial call AND when we have no resume state.
     // (If we are resuming, the cooldown check above already gated us.)
+    // EXEMPTION: when probing past catalog_end_page (single page to detect new
+    // products), skip this check — it's not a full cycle, just one quick fetch.
     if (batch.startPage === 0 && !batch.token && supplier.lastSyncAt) {
       const lastSync = new Date(supplier.lastSyncAt).getTime()
       const elapsed = Date.now() - lastSync
@@ -2693,13 +2752,16 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
                   // return this exact response. Air Intra's PHP throws notices for
                   // pages beyond the catalog end instead of returning a clean `[]`.
                   //
-                  // This is END OF CATALOG, NOT a rate limit. We must finalize the sync
-                  // and clear state so the next sync starts fresh from page 0.
-                  console.log(`[Air Intra Batch] ${newBrokenCount} consecutive broken pages reached. Treating as END OF CATALOG (not rate limit).`)
+                  // This is END OF CATALOG, NOT a rate limit. Persist the last
+                  // successful page so the next sync probes ONE page past it
+                  // (catalog_end_page + 1) instead of re-walking 0..N-1.
+                  const catalogEndPage = page - newBrokenCount
+                  console.log(`[Air Intra Batch] ${newBrokenCount} consecutive broken pages reached. Treating as END OF CATALOG (not rate limit). Catalog ends at page ${catalogEndPage}.`)
+                  await setAirIntraCatalogEndPage(catalogEndPage)
                   await clearAirIntraLastSyncPage()
                   await clearAirIntraBrokenPageCount()
                   result.ok = true
-                  result.message = `END_OF_CATALOG: ${newBrokenCount} páginas consecutivas (desde la ${page - newBrokenCount + 1} hasta la ${page}) devolvieron respuestas vacías (notices PHP sin datos de productos). Esto indica que el catálogo de Air Intra termina en la página ${page - newBrokenCount}. Se procesaron ${totalFetched} productos en este lote. La sync se marcó como completa.`
+                  result.message = `END_OF_CATALOG: ${newBrokenCount} páginas consecutivas (desde la ${catalogEndPage + 1} hasta la ${page}) devolvieron respuestas vacías (notices PHP sin datos de productos). El catálogo de Air Intra termina en la página ${catalogEndPage}. Se procesaron ${totalFetched} productos en este lote. La sync se marcó como completa. La próxima sincronización verificará automáticamente si hay productos nuevos.`
                   result.total = totalFetched
                   result.created = created
                   result.updated = updated
@@ -2752,6 +2814,14 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
             }
             // Success — reset the broken page counter
             await setAirIntraBrokenPageCount(0)
+            // If this page is past the previously-recorded catalog end, the
+            // catalog grew — clear the catalog_end_page marker so the next
+            // END_OF_CATALOG detection starts fresh from the new end.
+            const knownCatalogEnd = await getAirIntraCatalogEndPage()
+            if (knownCatalogEnd >= 0 && page > knownCatalogEnd) {
+              console.log(`[Air Intra Batch] Page ${page} returned products past recorded catalog end (${knownCatalogEnd}). Catalog grew — clearing marker.`)
+              await clearAirIntraCatalogEndPage()
+            }
             products = parsedProducts
 
             // Robustness verification: always run extractor as verification
@@ -3440,12 +3510,15 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
     // ─── Clear sync state: cooldown + last sync page + broken page counter ──
     // The whole cycle (articulos pages + syp + recovery) completed successfully,
     // so there is nothing to resume from and no need to keep the cooldown active.
+    // NOTE: catalog_end_page is intentionally PRESERVED — it tells the next sync
+    // to probe catalog_end_page+1 (1 request) instead of re-walking pages 0..N-1.
+    // It is cleared only when a page past it returns products (catalog grew).
     await Promise.all([
       clearAirIntraCooldown(),
       clearAirIntraLastSyncPage(),
       clearAirIntraBrokenPageCount(),
     ])
-    console.log('[Air Intra Finalize] Cleared cooldown + last sync page + broken page counter (cycle complete).')
+    console.log('[Air Intra Finalize] Cleared cooldown + last sync page + broken page counter (cycle complete; catalog_end_page preserved if set).')
 
     result.ok = true
     result.total = totalFetched
@@ -3663,10 +3736,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ apiType: supplier.apiType, cooldownRemaining: 0, lastSyncPage: -1 })
     }
 
-    const [cooldownMs, lastPage, brokenCount] = await Promise.all([
+    const [cooldownMs, lastPage, brokenCount, catalogEndPage] = await Promise.all([
       getAirIntraCooldown(),
       getAirIntraLastSyncPage(),
       getAirIntraBrokenPageCount(),
+      getAirIntraCatalogEndPage(),
     ])
 
     return NextResponse.json({
@@ -3674,6 +3748,7 @@ export async function GET(request: Request) {
       cooldownRemaining: cooldownMs,        // ms remaining (0 = no cooldown)
       lastSyncPage: lastPage,               // last successfully processed page (-1 = none)
       brokenPageCount: brokenCount,         // consecutive broken pages (resets on success)
+      catalogEndPage,                       // last known catalog end (-1 = unknown/not yet detected)
       lastSyncAt: supplier.lastSyncAt ?? null,
     })
   } catch (error: any) {

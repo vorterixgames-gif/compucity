@@ -1,6 +1,13 @@
 // One-off script to clear the existing Air Intra cooldown + reset broken page counter.
 // Run this after deploying the broken-page-skip fix so the user can retry immediately
 // without waiting for the old 10-min cooldown to expire.
+//
+// Optionally accepts a catalog end page as first arg, which sets
+// airintra_catalog_end_page so the next sync probes only that page+1
+// (1 request) instead of re-walking from page 0.
+//
+//   node scripts/clear-airintra-cooldown.mjs            # just clear cooldown
+//   node scripts/clear-airintra-cooldown.mjs 23         # also set catalog end = 23
 
 import { createClient } from '@libsql/client'
 import 'dotenv/config'
@@ -14,6 +21,8 @@ if (!url) {
 }
 
 const db = createClient({ url, authToken })
+
+const catalogEndArg = process.argv[2] ? parseInt(process.argv[2], 10) : null
 
 async function main() {
   console.log('Clearing Air Intra sync state...')
@@ -44,15 +53,36 @@ async function main() {
     console.log(`  No last sync page recorded — next sync will start from page 0`)
   }
 
-  // 4. Show current state for verification
-  const r4 = await db.execute({
+  // 4. Catalog end page: set if arg provided, otherwise show current
+  if (catalogEndArg !== null && Number.isFinite(catalogEndArg)) {
+    await db.execute({
+      sql: `INSERT INTO store_config (id, key, value, updatedAt) VALUES (?, ?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updatedAt = excluded.updatedAt`,
+      args: ['cfg_airintra_catalog_end_page', 'airintra_catalog_end_page', String(catalogEndArg), new Date().toISOString()],
+    })
+    console.log(`  Catalog end page SET to ${catalogEndArg}. Next sync will probe page ${catalogEndArg + 1} (1 request to detect new products).`)
+  } else {
+    const r4 = await db.execute({
+      sql: `SELECT value FROM store_config WHERE key = ?`,
+      args: ['airintra_catalog_end_page'],
+    })
+    const cep = r4.rows[0]?.value
+    if (cep !== undefined) {
+      console.log(`  Catalog end page: ${cep} (next sync will probe page ${parseInt(cep, 10) + 1})`)
+    } else {
+      console.log(`  Catalog end page: not set (next sync will start from page 0 or lastSyncPage+1)`)
+    }
+  }
+
+  // 5. Show current state for verification
+  const r5 = await db.execute({
     sql: `SELECT key, value FROM store_config WHERE key LIKE 'airintra_%'`,
   })
   console.log(`\nFinal Air Intra state in store_config:`)
-  if (r4.rows.length === 0) {
+  if (r5.rows.length === 0) {
     console.log('  (no airintra_* keys — clean slate)')
   } else {
-    for (const row of r4.rows) {
+    for (const row of r5.rows) {
       console.log(`  ${row.key} = ${row.value}`)
     }
   }
