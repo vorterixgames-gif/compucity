@@ -13,7 +13,12 @@ interface Props {
   searchParams: Promise<{ q?: string }>
 }
 
-export const dynamic = 'force-dynamic'
+// Sesion 43: era `force-dynamic` (cada visita = queries frescas a Turso).
+// Cambiado a revalidate=300 (5 min) para reducir rows reads en Turso.
+// Las categorías grandes (cables 393, mouse 384, motherboards 309) sin caché
+// causaban el 80% del consumo de Turso. 5 min de stale es aceptable porque
+// los precios/stock se actualizan via cron solo 1 vez por día.
+export const revalidate = 300
 
 // Dynamic metadata for category pages
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {

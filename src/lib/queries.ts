@@ -2,6 +2,38 @@ import { db } from './db'
 import { fetchDollarRate, getStoreConfigNumber, calculateProductPrices, CategoryMarkup } from './dollar'
 
 // ============================================
+// CACHÉ EN MEMORIA (sesion 43 — reduce rows reads en Turso)
+// ============================================
+// El plan Free de Turso tiene 500M rows reads/mes. Sin esta caché, cada
+// request a la home o a categorías dispara múltiples queries idénticas
+// (getCategoryMarkupMap, fetchDollarRate, getStoreConfigNumber) que leen
+// siempre las mismas filas. Cachear 5 minutos en memoria del módulo
+// reduce drásticamente el consumo sin afectar la frescura de los datos.
+const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutos
+
+interface CacheEntry<T> {
+  data: T
+  expiresAt: number
+}
+
+const memoryCache = new Map<string, CacheEntry<unknown>>()
+
+async function cached<T>(key: string, ttlMs: number, loader: () => Promise<T>): Promise<T> {
+  const now = Date.now()
+  const entry = memoryCache.get(key)
+  if (entry && entry.expiresAt > now) {
+    return entry.data as T
+  }
+  const data = await loader()
+  memoryCache.set(key, { data, expiresAt: now + ttlMs })
+  return data
+}
+
+export function __clearQueriesCache(): void {
+  memoryCache.clear()
+}
+
+// ============================================
 // CATEGORÍAS
 // ============================================
 
@@ -143,36 +175,41 @@ export interface Product {
 
 // Helper: build a map of categoryId -> CategoryMarkup for fast lookup
 // Includes parent inheritance: if subcategory has null, inherits from parent
+// CACHEADO en memoria 5 min (sesion 43) — esta query se llama en TODAS las
+// páginas de producto/categoría/home. Sin caché, cada visita lee las 73
+// filas de categories. Con caché, solo 1 vez cada 5 min por cold start.
 async function getCategoryMarkupMap(): Promise<Map<string, CategoryMarkup>> {
-  const catResult = await db.execute('SELECT id, parentId, markup, cashDiscount, ivaRate FROM categories')
-  const rawMap = new Map<string, { parentId: string | null; markup: number | null; cashDiscount: number | null; ivaRate: number | null }>()
-  for (const row of catResult.rows as any[]) {
-    rawMap.set(row.id, {
-      parentId: row.parentId,
-      markup: row.markup != null ? Number(row.markup) : null,
-      cashDiscount: row.cashDiscount != null ? Number(row.cashDiscount) : null,
-      ivaRate: row.ivaRate != null ? Number(row.ivaRate) : null,
-    })
-  }
+  return cached('category_markup_map', CACHE_TTL_MS, async () => {
+    const catResult = await db.execute('SELECT id, parentId, markup, cashDiscount, ivaRate FROM categories')
+    const rawMap = new Map<string, { parentId: string | null; markup: number | null; cashDiscount: number | null; ivaRate: number | null }>()
+    for (const row of catResult.rows as any[]) {
+      rawMap.set(row.id, {
+        parentId: row.parentId,
+        markup: row.markup != null ? Number(row.markup) : null,
+        cashDiscount: row.cashDiscount != null ? Number(row.cashDiscount) : null,
+        ivaRate: row.ivaRate != null ? Number(row.ivaRate) : null,
+      })
+    }
 
-  // Build resolved map with parent inheritance
-  const map = new Map<string, CategoryMarkup>()
-  const resolve = (id: string, field: 'markup' | 'cashDiscount' | 'ivaRate'): number | null => {
-    const entry = rawMap.get(id)
-    if (!entry) return null
-    if (entry[field] != null) return entry[field]
-    if (entry.parentId) return resolve(entry.parentId, field)
-    return null
-  }
+    // Build resolved map with parent inheritance
+    const map = new Map<string, CategoryMarkup>()
+    const resolve = (id: string, field: 'markup' | 'cashDiscount' | 'ivaRate'): number | null => {
+      const entry = rawMap.get(id)
+      if (!entry) return null
+      if (entry[field] != null) return entry[field]
+      if (entry.parentId) return resolve(entry.parentId, field)
+      return null
+    }
 
-  for (const [id] of rawMap) {
-    map.set(id, {
-      markup: resolve(id, 'markup'),
-      cashDiscount: resolve(id, 'cashDiscount'),
-      ivaRate: resolve(id, 'ivaRate'),
-    })
-  }
-  return map
+    for (const [id] of rawMap) {
+      map.set(id, {
+        markup: resolve(id, 'markup'),
+        cashDiscount: resolve(id, 'cashDiscount'),
+        ivaRate: resolve(id, 'ivaRate'),
+      })
+    }
+    return map
+  })
 }
 
 // Helper: enrich products with brandName from brands table
@@ -258,7 +295,8 @@ export async function getProductsByCategory(slug: string): Promise<Product[]> {
     db.execute({
       sql: `SELECT p.* FROM products p
             WHERE p.categoryId IN (${placeholders}) AND p.isActive = 1 AND p.stock > 0
-            ORDER BY CASE WHEN p.images IS NOT NULL AND p.images != '[]' THEN 0 ELSE 1 END, COALESCE(p.createdAt, p.updatedAt) DESC`,
+            ORDER BY CASE WHEN p.images IS NOT NULL AND p.images != '[]' THEN 0 ELSE 1 END, COALESCE(p.createdAt, p.updatedAt) DESC
+            LIMIT 200`,
       args: allIds,
     }),
     fetchDollarRate(),

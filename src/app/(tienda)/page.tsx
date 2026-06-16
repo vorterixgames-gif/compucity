@@ -10,7 +10,11 @@ import { ensureMigrations } from '@/lib/db'
 import Link from 'next/link'
 import { Truck, Shield, MessageCircle, Headphones, ArrowRight } from 'lucide-react'
 
-export const dynamic = 'force-dynamic'
+// Sesion 43: era `force-dynamic` (cada visita = queries frescas a Turso).
+// Cambiado a revalidate=300 (5 min) para reducir rows reads en Turso.
+// El contenido de la home cambia raramente (productos destacados, banners,
+// categorías top) — 5 min de stale es aceptable y reduce 100x las queries.
+export const revalidate = 300
 
 export const metadata: Metadata = {
   title: 'Compucity - Tu Mundo Digital | Tienda de Informática en La Falda, Córdoba',
