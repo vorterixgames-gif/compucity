@@ -19,7 +19,7 @@
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 - **Sesiones totales:** 43
-- **Plan Turso:** Scaler ($29/mes, 25B rows reads) - upgradeado sesion 43
+- **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
 - **Framework:** Next.js 16.1 + TypeScript 6
@@ -701,9 +701,9 @@ scripts/check-critical-files.mjs           -- Verificacion pre-deploy
 ### Limites y Uso de Plataformas (actualizado sesion 43)
 | Plataforma | Recurso | Uso actual | Limite | Plan | % Uso | Estado |
 |------------|---------|-----------|--------|------|-------|--------|
-| **Turso** | Almacenamiento | 44 MB | 20 GB | Scaler | 0.2% | Holgado |
-| **Turso** | Filas leidas/mes | ~517M (acumulado ciclo) | 25B/mes | Scaler | 2% | Holgado |
-| **Turso** | Filas escritas/mes | ~143K | 250M/mes | Scaler | <0.1% | Holgado |
+| **Turso** | Almacenamiento | 44 MB | 10 GB | Scaler | 0.4% | Holgado |
+| **Turso** | Filas leidas/mes | ~519M (acumulado ciclo) | 2.5B/mes | Scaler | 20.8% | Holgado |
+| **Turso** | Filas escritas/mes | ~143K | 25M/mes | Scaler | 0.6% | Holgado |
 | **Vercel** | Deploys/mes | ~25 | 100 | Hobby | 25% | OK |
 | **Vercel** | Ancho de banda | ~500 MB | 100 GB | Hobby | <1% | Holgado |
 | **Vercel** | Serverless ejecuciones | ~5K/dia | Ilimitado | Hobby | - | OK |
@@ -711,7 +711,7 @@ scripts/check-critical-files.mjs           -- Verificacion pre-deploy
 
 **Nota Vercel timeout:** El plan Hobby limita serverless a max 60s (`maxDuration`). El cron sync actual usa 80s en produccion pero Vercel respeta el `maxDuration: 300` declarado en vercel.json (excepcion poco documentada). Si Vercel empieza a cortar a 60s, dividir el cron en 2 endpoints separados (Elit+Invid por un lado, Air Intra por otro).
 
-**Nota Turso Scaler (sesion 43):** Se upgradeo del plan Free al Scaler ($29/mes) despues de agotar el limite de 500M rows reads/mes. Con los fixes de cache aplicados en sesion 43, el consumo proyectado es ~15M/mes = 0.06% del plan Scaler. Sin riesgo de overages.
+**Nota Turso Scaler (sesion 43):** Se upgradeo del plan Free al Scaler ($5.99/mes, 2.5B rows reads) despues de agotar el limite de 500M rows reads/mes. Con los fixes de cache aplicados en sesion 43, el consumo proyectado es ~15-50M/mes = 0.6-2% del plan Scaler. Sin riesgo de overages. Mantener Scaler como red de seguridad (costo bajo vs riesgo de caida del sitio).
 
 ### Leccion aprendida sesion 43: por que nos fuimos del limite Turso
 
@@ -982,7 +982,7 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
-- **2026-06-16 (s43):** Cron Air Intra chunked + cache Turso + paginacion + upgrade Scaler. 4 commits: (1) a7490d2 fix(cron-sync): Air Intra chunked rotation + delay + 403 retry. PAGES_PER_RUN=3, rotacion circular con airintra_cron_next_page en store_config, delay 1.5s, retry 30s en 403, time budget 50s. (2) 1289eac perf(turso): reduce rows reads 90% con LIMIT + cache + revalidate. Cache en memoria para getCategoryMarkupMap (TTL 5 min), revalidate=300 en home y categorias. (3) ec74b49 feat(catalog): paginacion client-side 50 productos por pagina. Botones Anterior/Siguiente + numeros de pagina con ellipsis. Reset automatico a pagina 1 al cambiar filtros. (4) Fix directo SKU 212937 (DDR4 8GB Hiksemi): costPrice $76.09 -> $58.24 (oferta 5% off Air Intra), stock 239 -> 287. Diagnostico: CRON_SECRET no estaba en Vercel (configurado por user), Turso al 103% del free tier (517M de 500M) -> upgrade a Scaler $29/mes. Backup DB: compucity_turso_backup_s43_2026-06-16T21-13-37-462Z.json (45 MB, 12,460 filas). Documentada "Leccion aprendida sesion 43" en PROJECT_STATUS.md explicando los 4 supuestos erroneos que llevaron a subestimar el consumo Turso y la regla de oro para futuras estimaciones.
+- **2026-06-16 (s43):** Cron Air Intra chunked + cache Turso + paginacion + upgrade Scaler. 4 commits: (1) a7490d2 fix(cron-sync): Air Intra chunked rotation + delay + 403 retry. PAGES_PER_RUN=3, rotacion circular con airintra_cron_next_page en store_config, delay 1.5s, retry 30s en 403, time budget 50s. (2) 1289eac perf(turso): reduce rows reads 90% con LIMIT + cache + revalidate. Cache en memoria para getCategoryMarkupMap (TTL 5 min), revalidate=300 en home y categorias. (3) ec74b49 feat(catalog): paginacion client-side 50 productos por pagina. Botones Anterior/Siguiente + numeros de pagina con ellipsis. Reset automatico a pagina 1 al cambiar filtros. (4) Fix directo SKU 212937 (DDR4 8GB Hiksemi): costPrice $76.09 -> $58.24 (oferta 5% off Air Intra), stock 239 -> 287. Diagnostico: CRON_SECRET no estaba en Vercel (configurado por user), Turso al 103% del free tier (517M de 500M) -> upgrade a Scaler $5.99/mes (2.5B rows reads). Backup DB: compucity_turso_backup_s43_2026-06-16T21-13-37-462Z.json (45 MB, 12,460 filas). Documentada "Leccion aprendida sesion 43" en PROJECT_STATUS.md explicando los 4 supuestos erroneos que llevaron a subestimar el consumo Turso y la regla de oro para futuras estimaciones.
 - **2026-06-13 (s42):** Backup completo + documentacion exhaustiva. (1) Backup DB Turso: compucity_turso_backup_2026-06-12T22-14-38-625Z.json (41MB, 16 tablas, 10,053 productos, 91 marcas). (2) Backup codigo fuente completo: compucity_src_backup_2026-06-13.tar.gz (101MB). (3) Backup codigo esencial: compucity_src_only_backup_2026-06-13.tar.gz (1.2MB). (4) Backup DB local: compucity_local_db_backup_2026-06-13.db (112KB). (5) PROJECT_STATUS.md completamente reescrito y actualizado con toda la documentacion del proyecto (42 sesiones). (6) SAFETY-RULES.md integrado como seccion del PROJECT_STATUS. Commit: a3ca817
 - **2026-06-12 (s41):** SEO + GEO completo. Root layout OG/Twitter, product/category metadata dinamico, JSON-LD, sitemap, robots, 404, canonical URLs, admin noindex. Git tag: v-seo-optimized. Commit: c5b7458
 - **2026-06-12 (s40):** Dominio propio + datos contacto + logos marcas fix + upload route fix. Commits: 277f323, 2649100, cefdf73, 69ead02, afdd330, 212bf9e
