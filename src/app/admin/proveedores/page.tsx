@@ -849,11 +849,9 @@ export default function AdminProveedores() {
           syncResult.ok
             ? syncResult.message?.includes('BROKEN_PAGE_SKIPPED')
               ? 'bg-amber-50 text-amber-800 border border-amber-200'
-              : syncResult.message?.includes('ALREADY_VERIFIED')
-                ? 'bg-sky-50 text-sky-800 border border-sky-200'
-                : syncResult.message?.includes('END_OF_CATALOG')
-                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                  : 'bg-green-50 text-green-700 border border-green-200'
+              : syncResult.message?.includes('END_OF_CATALOG')
+                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                : 'bg-green-50 text-green-700 border border-green-200'
             : 'bg-red-50 text-red-700 border border-red-200'
         }`}>
           {syncResult.ok
