@@ -2491,6 +2491,25 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
             pageSucceeded = true
           } else {
             if (!Array.isArray(parsedProducts) || parsedProducts.length === 0) {
+              // Log raw response for diagnostics (rate limit often returns 200 with empty array)
+              const rawPreview = rawResponseText ? rawResponseText.substring(0, 500) : '(empty body)'
+              console.log(`[Air Intra Batch] Page ${page} returned empty array. Raw response (${rawResponseText?.length || 0} bytes): ${rawPreview}`)
+
+              // If page 0 returns 0 products, this is almost certainly a rate limit or auth issue
+              // (Air Intra has ~10k products, so page 0 should never be empty).
+              // Treat as a soft error so the user sees a clear message instead of "0 productos".
+              if (page === batch.startPage) {
+                result.ok = false
+                result.message = rawResponseText && rawResponseText.length > 0
+                  ? `Air Intra devolvió 0 productos en la página ${page} (respuesta de ${rawResponseText.length} bytes). Probablemente rate limit o token expirado. Espere 5 minutos e intente de nuevo. Preview: ${rawPreview}`
+                  : `Air Intra devolvió respuesta vacía en la página ${page}. Probablemente rate limit. Espere 5 minutos e intente de nuevo.`
+                result.total = totalFetched
+                result.created = created
+                result.updated = updated
+                result.skipped = skipped
+                result.errors = errors + 1
+                return result
+              }
               console.log(`[Air Intra Batch] Page ${page} returned empty array. End of data.`)
               pageSucceeded = true
               reachedEnd = true
