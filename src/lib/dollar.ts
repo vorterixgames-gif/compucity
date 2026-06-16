@@ -1,8 +1,28 @@
 import { db } from './db'
 
-// DolarApi.com - free, no API key needed
-const DOLAR_API_OFICIAL = 'https://dolarapi.com/v1/dolares/oficial'
-const DOLAR_API_BLUE = 'https://dolarapi.com/v1/dolares/blue'
+// ─── Fuentes de cotización ─────────────────────────────────────────────────
+// Sesión 43: cambiado de DolarApi.com a Bluelytics.
+// DolarApi.com dejó de actualizar el 12/6/2026 (datos stale 4+ días),
+// lo que causaba que el sitio mostrara cotizaciones viejas vs el Banco Nación.
+// Bluelytics actualiza cada ~1h y es la API más usada por e-commerce argentino.
+//
+// Formato de respuesta Bluelytics:
+//   {
+//     "oficial": { "value_avg": 1429, "value_sell": 1454, "value_buy": 1404 },
+//     "blue":     { "value_avg": 1460, "value_sell": 1470, "value_buy": 1450 },
+//     "last_update": "2026-06-16T18:45:54-03:00"
+//   }
+const DOLAR_API_OFICIAL = 'https://api.bluelytics.com.ar/v2/latest'
+const DOLAR_API_BLUE = 'https://api.bluelytics.com.ar/v2/latest' // misma URL, usamos el campo "blue"
+
+// ─── Caché en memoria (sesión 43) ──────────────────────────────────────────
+// fetchDollarRate se llama en TODAS las queries de productos (home, categorías,
+// detalle, búsqueda, PC Builder, etc). Sin caché, cada request del storefront
+// hace 1 SELECT a store_config + 1 fetch externo + 1 SELECT + 1 UPDATE a
+// dollar_rates = 3 queries Turso por request. Con este caché de 5 min, las
+// queries se reducen a 3 cada 5 min por cold start del serverless.
+const DOLLAR_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutos
+let dollarCache: { data: DollarInfo; expiresAt: number } | null = null
 
 export interface DollarInfo {
   rate: number
@@ -14,8 +34,14 @@ export interface DollarInfo {
 }
 
 export async function fetchDollarRate(): Promise<DollarInfo> {
+  // 1. Caché en memoria (sin tocar Turso)
+  const now = Date.now()
+  if (dollarCache && dollarCache.expiresAt > now) {
+    return dollarCache.data
+  }
+
   try {
-    // Get configured source
+    // 2. Leer fuente configurada desde store_config
     const sourceResult = await db.execute({
       sql: "SELECT value FROM store_config WHERE key = 'dollar_source'",
       args: [],
@@ -34,19 +60,22 @@ export async function fetchDollarRate(): Promise<DollarInfo> {
       return raw || 'nacion'
     })()
 
-    // Fetch from DolarApi
-    const apiUrl = configSource === 'blue' ? DOLAR_API_BLUE : DOLAR_API_OFICIAL
-    const res = await fetch(apiUrl, {
-      next: { revalidate: 900 }, // cache 15 minutes on Next.js side
+    // 3. Fetch a Bluelytics (cacheado 15 min por Next.js además del caché en memoria)
+    const res = await fetch(DOLAR_API_OFICIAL, {
+      next: { revalidate: 900 },
     })
-
-    if (!res.ok) throw new Error('DolarApi no responde')
+    if (!res.ok) throw new Error('Bluelytics no responde')
 
     const data = await res.json()
-    const rate = data.venta
+    // Bluelytics tiene un solo endpoint con oficial + blue adentro
+    const dolarData = configSource === 'blue' ? data.blue : data.oficial
+    const rate = dolarData.value_sell
+    const compra = dolarData.value_buy
+    const venta = dolarData.value_sell
+    const fecha = data.last_update
 
-    // Save to database
-    const now = new Date().toISOString()
+    // 4. Guardar en DB (UPDATE si existe, INSERT si no)
+    const nowIso = new Date().toISOString()
     const existing = await db.execute({
       sql: 'SELECT id FROM dollar_rates ORDER BY updatedAt DESC LIMIT 1',
       args: [],
@@ -55,31 +84,36 @@ export async function fetchDollarRate(): Promise<DollarInfo> {
     if (existing.rows.length > 0) {
       await db.execute({
         sql: 'UPDATE dollar_rates SET rate = ?, source = ?, compra = ?, venta = ?, updatedAt = ? WHERE id = ?',
-        args: [rate, configSource, data.compra, data.venta, now, (existing.rows[0] as any).id],
+        args: [rate, configSource, compra, venta, nowIso, (existing.rows[0] as any).id],
       })
     } else {
       const id = crypto.randomUUID()
       await db.execute({
         sql: 'INSERT INTO dollar_rates (id, rate, source, compra, venta, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
-        args: [id, rate, configSource, data.compra, data.venta, now],
+        args: [id, rate, configSource, compra, venta, nowIso],
       })
     }
 
-    return {
+    const result: DollarInfo = {
       rate,
       source: configSource === 'blue' ? 'Dólar Blue' : 'Banco Nación',
-      compra: data.compra,
-      venta: data.venta,
-      fecha: data.fechaActualizacion,
+      compra,
+      venta,
+      fecha,
       cached: false,
     }
+
+    // 5. Guardar en caché en memoria
+    dollarCache = { data: result, expiresAt: now + DOLLAR_CACHE_TTL_MS }
+
+    return result
   } catch {
-    // Fallback: return stored rate from DB
+    // Fallback: devolver valor guardado en DB
     try {
       const result = await db.execute('SELECT * FROM dollar_rates ORDER BY updatedAt DESC LIMIT 1')
       const rows = result.rows as any[]
       if (rows.length > 0) {
-        return {
+        const fallback: DollarInfo = {
           rate: rows[0].rate,
           source: rows[0].source + ' (cache)',
           compra: null,
@@ -87,10 +121,13 @@ export async function fetchDollarRate(): Promise<DollarInfo> {
           fecha: rows[0].updatedAt,
           cached: true,
         }
+        // Cachear también el fallback por 1 min para no spammear DB si la API cae
+        dollarCache = { data: fallback, expiresAt: now + 60_000 }
+        return fallback
       }
     } catch {}
     // Ultimate fallback
-    return {
+    const ultimate: DollarInfo = {
       rate: 1415,
       source: 'Fallback',
       compra: null,
@@ -98,7 +135,13 @@ export async function fetchDollarRate(): Promise<DollarInfo> {
       fecha: new Date().toISOString(),
       cached: true,
     }
+    return ultimate
   }
+}
+
+/** Invalida el caché en memoria del dolar (ej: al cambiar dollar_source desde el admin) */
+export function __clearDollarCache(): void {
+  dollarCache = null
 }
 
 export async function getStoreConfigNumber(key: string, defaultValue: number): Promise<number> {
