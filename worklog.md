@@ -151,3 +151,31 @@ Stage Summary:
 - Root cause of "no esta funcionando": the fix existed locally but was never pushed, so production Vercel kept running the old infinite-cooldown code.
 - Production DB is now cleared of stale cooldown state. airintra_last_sync_page = 19 preserved.
 - Vercel will rebuild from origin/main (typically 1-3 min). Once deployed, the user can retry Sync — it will start at page 20, skip any broken pages automatically (up to 5 before re-triggering a cooldown).
+
+---
+Task ID: air-intra-end-of-catalog-fix
+Agent: main
+Task: User reported the broken-page-skip cooldown loop fired AGAIN with "6 páginas consecutivas devolvieron respuestas rotas". Need a different solution.
+
+Work Log:
+- Wrote scripts/diagnose-airintra-pages.mjs to dump raw responses of pages 20-25 from production Air Intra API
+- Diagnosis: ALL 6 pages return EXACTLY the same 1489-byte response. Pure PHP notices about "Undefined property: stdClass::$estado / ::$codiart / ::$rubro / ::$grupo" in /home/uairintra/domains/air-intra.com/public_html/api/v2/consulta.php. NO JSON, NO `[]`, NO product data, NO recoverable objects.
+- Wrote scripts/probe-airintra-after-broken.mjs to test pages 26, 27, 28, 29, 30, 35, 40, 50, 100, 200
+- Result: 0/10 returned data. ALL 10 returned the same 1489-byte notice response.
+- Conclusion: Air Intra's catalog ENDS at page 19 (= 10,000 products synced across 20 pages × 500/page). Pages 20+ throw PHP notices instead of returning a clean empty array — this is a bug in their PHP code, NOT a rate limit.
+- The previous "5 consecutive broken pages → cooldown" logic created an infinite loop: cooldown expires → retry page 20 → broken → ... → cooldown again. Never finalizes.
+
+Fix:
+- Lowered AIRINTRA_BROKEN_PAGE_THRESHOLD from 5 to 3 (3 consecutive broken pages is enough evidence of end-of-catalog).
+- Rewrote the threshold-reached branch in syncAirIntraBatch:
+  * OLD: setAirIntraCooldown(10min) + ok=false + hasMore=true + message="RATE_LIMITED_COOLDOWN: ..." → frontend retries forever
+  * NEW: clearAirIntraLastSyncPage + clearAirIntraBrokenPageCount + ok=true + hasMore=false + message="END_OF_CATALOG: ..." → frontend stops, sync marked complete
+- Updated frontend syncResult banner:
+  * END_OF_CATALOG messages render in emerald green (distinct from amber BROKEN_PAGE_SKIPPED and red errors)
+  * Strip "END_OF_CATALOG:" prefix from displayed message for cleanliness
+- Cleared production Turso DB state: airintra_rate_limited_until + airintra_broken_page_count deleted. airintra_last_sync_page=23 preserved (next sync resumes at page 24).
+- Committed as b473e80 and pushed to origin/main.
+
+Stage Summary:
+- When user retries sync after Vercel deploys (~2-3 min): frontend auto-iterates page 24 (broken, count=1) → page 25 (broken, count=2) → page 26 (broken, count=3, threshold reached) → END_OF_CATALOG, ok=true, hasMore=false. Sync stops cleanly. Total time ~30s.
+- No more cooldown loop. No more wasted retries. The sync will be marked as complete with a clear message about the catalog ending at page 19 (10,000 products).
