@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-13 (sesion 42 - Backup + Documentacion completa)
+**Ultima actualizacion:** 2026-06-16 (sesion 43 - Cron Air Intra chunked + cache Turso + paginacion + upgrade Scaler)
 
 ---
 
@@ -14,11 +14,12 @@
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
-- **Commit estable:** a3ca817 (fix: restore missing upload route for product images)
-- **Commit actual:** a3ca817
+- **Commit estable:** ec74b49 (feat: paginacion client-side 50 productos por pagina)
+- **Commit actual:** ec74b49
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 42
+- **Sesiones totales:** 43
+- **Plan Turso:** Scaler ($29/mes, 25B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
 - **Framework:** Next.js 16.1 + TypeScript 6
@@ -112,18 +113,18 @@
 - **Resultado:** Air Intra paso de 1,702 a 7,511 productos (7,324 activos)
 - **Commits:** da050a3, 3ed8b21, 2cf33b5
 
-### Estado actual de productos (2026-06-13 sesion 42 - backup)
+### Estado actual de productos (2026-06-16 sesion 43 - backup)
 | Metrica | Cantidad |
 |---------|----------|
-| Total productos en DB | 10,053 |
-| Marcas en DB | 91 |
-| Categorias | 72 |
+| Total productos en DB | 10,960 |
+| Marcas en DB | 112 |
+| Categorias | 73 |
 | Proveedores | 5 |
-| Imagenes (product_images) | 1,059 |
+| Imagenes (product_images) | 1,192 |
 | Clientes | 2 |
 | Admins | 1 |
 | Mapeos proveedor-categoria | 86 |
-| Store config keys | 21 |
+| Store config keys | 25 |
 
 ---
 
@@ -697,18 +698,20 @@ scripts/check-critical-files.mjs           -- Verificacion pre-deploy
 - **Host:** compucity-vorterixgames-gif.aws-us-east-1.turso.io
 - **Tablas (16):** products (10,053), categories (72), brands (91), suppliers (5), orders (0), order_items (0), customers (2), product_images (1,059), dollar_rates (1), store_config (21), supplier_category_mappings (86), admins (1), banners (0), coupons (0), password_reset_tokens (2), rate_limits (1)
 
-### Limites y Uso de Plataformas
-| Plataforma | Recurso | Uso actual | Limite Free | % Uso | Estado |
-|------------|---------|-----------|-------------|-------|--------|
-| **Turso** | Almacenamiento | ~50 MB | 5 GB | ~1% | Holgado |
-| **Turso** | Filas leidas/mes | ~1M | 500M/mes | <0.1% | Holgado |
-| **Turso** | Filas escritas/mes | ~100K | 10M/mes | ~1% | Holgado |
-| **Vercel** | Deploys/mes | ~20 | 100 | 20% | OK |
-| **Vercel** | Ancho de banda | ~500 MB | 100 GB | <1% | Holgado |
-| **Vercel** | Serverless ejecuciones | ~5K/dia | Ilimitado | - | OK |
-| **Vercel** | Timeout serverless | 60s max | 60s (Hobby) | - | Ver nota |
+### Limites y Uso de Plataformas (actualizado sesion 43)
+| Plataforma | Recurso | Uso actual | Limite | Plan | % Uso | Estado |
+|------------|---------|-----------|--------|------|-------|--------|
+| **Turso** | Almacenamiento | 44 MB | 20 GB | Scaler | 0.2% | Holgado |
+| **Turso** | Filas leidas/mes | ~517M (acumulado ciclo) | 25B/mes | Scaler | 2% | Holgado |
+| **Turso** | Filas escritas/mes | ~143K | 250M/mes | Scaler | <0.1% | Holgado |
+| **Vercel** | Deploys/mes | ~25 | 100 | Hobby | 25% | OK |
+| **Vercel** | Ancho de banda | ~500 MB | 100 GB | Hobby | <1% | Holgado |
+| **Vercel** | Serverless ejecuciones | ~5K/dia | Ilimitado | Hobby | - | OK |
+| **Vercel** | Timeout serverless | 60s max | 60s | Hobby | - | Ver nota |
 
-**Nota Vercel timeout:** El plan Hobby limita serverless a max 60s (`maxDuration`). El sync de Air Intra usa batched sync (session 19) que divide en lotes de ~10-15s. Si se necesita mas, migrar a Vercel Pro ($20/mes, max 300s).
+**Nota Vercel timeout:** El plan Hobby limita serverless a max 60s (`maxDuration`). El cron sync actual usa 80s en produccion pero Vercel respeta el `maxDuration: 300` declarado en vercel.json (excepcion poco documentada). Si Vercel empieza a cortar a 60s, dividir el cron en 2 endpoints separados (Elit+Invid por un lado, Air Intra por otro).
+
+**Nota Turso Scaler (sesion 43):** Se upgradeo del plan Free al Scaler ($29/mes) despues de agotar el limite de 500M rows reads/mes. Con los fixes de cache aplicados en sesion 43, el consumo proyectado es ~15M/mes = 0.06% del plan Scaler. Sin riesgo de overages.
 
 ### Schema Products
 ```
@@ -798,6 +801,7 @@ createdAt TEXT, updatedAt TEXT
 | 2026-06-13 | Codigo fuente completo | 101 MB | compucity_src_backup_2026-06-13.tar.gz |
 | 2026-06-13 | Codigo esencial (src+configs) | 1.2 MB | compucity_src_only_backup_2026-06-13.tar.gz |
 | 2026-06-13 | DB local SQLite | 112 KB | compucity_local_db_backup_2026-06-13.db |
+| 2026-06-16 | DB Turso completa (JSON) | 45 MB | compucity_turso_backup_s43_2026-06-16T21-13-37-462Z.json |
 
 ### Backups remotos (GoFile)
 | Fecha | Tipo | Tamano | URL |
@@ -807,7 +811,7 @@ createdAt TEXT, updatedAt TEXT
 
 ### Backup Git
 - **GitHub:** https://github.com/vorterixgames-gif/compucity (repo completo)
-- **Ultimo commit:** a3ca817 (fix: restore missing upload route for product images)
+- **Ultimo commit:** ec74b49 (feat: paginacion client-side 50 productos por pagina)
 - **Tags:** v-seo-optimized (commit c5b7458)
 
 ### Script de backup automatico
@@ -828,17 +832,19 @@ createdAt TEXT, updatedAt TEXT
 1. **Pasarela de pagos:** Integrar Mobbex o MercadoPago para pagos online
 2. **Andreani shipping:** Credenciales incompletas (falta codigoCliente + contratoDomicilio)
 3. **Correo Argentino:** Credenciales todas NULL en store_config, sin API funcional
+4. **Sync manual completa Air Intra:** Desde /admin/proveedores para arrancar rotacion con datos frescos (los ~7000 productos que llevan dias sin actualizar se van a refrescar). El cron diario mantiene todo al dia despues.
 
 ### Media Prioridad
-4. **Re-sincronizar Air Intra:** Para que el stock (suma de todos los depositos) y precios se actualicen
 5. **Imagenes para Air Intra:** ~1,563 productos sin imagen
 6. **Descripcion IA:** Usar z-ai-web-dev-sdk para generar descripciones faltantes
 7. **WhatsApp Business:** Migrar de Personal a Business App (misma app, mismo numero)
+8. **Monitorear consumo Turso Scaler:** Verificar en 24-48h que la pendiente de uso se acható por los fixes de cache aplicados
 
 ### Baja Prioridad
-8. **Optimizar imagenes:** Thumbnails del catalogo podrian usar tamano reducido
-9. **Limpiar claves duplicadas en store_config:** slogan/whatsapp duplicados con store_slogan/whatsapp_number
-10. **Marcas navbar:** Reactivar cuando se decida mostrar nuevamente
+9. **Optimizar imagenes:** Thumbnails del catalogo podrian usar tamano reducido
+10. **Limpiar claves duplicadas en store_config:** slogan/whatsapp duplicados con store_slogan/whatsapp_number
+11. **Marcas navbar:** Reactivar cuando se decida mostrar nuevamente
+12. **Indices Turso:** Agregar indices en products (categoryId, isActive, stock) para reducir full scans (opcional, con Scaler ya no es urgente)
 
 ### Tareas Completadas (sesiones anteriores)
 - ~~Discos multiples en PC Builder~~ - RESUELTO (sesion 27)
@@ -910,6 +916,7 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-06-16 (s43):** Cron Air Intra chunked + cache Turso + paginacion + upgrade Scaler. 4 commits: (1) a7490d2 fix(cron-sync): Air Intra chunked rotation + delay + 403 retry. PAGES_PER_RUN=3, rotacion circular con airintra_cron_next_page en store_config, delay 1.5s, retry 30s en 403, time budget 50s. (2) 1289eac perf(turso): reduce rows reads 90% con LIMIT + cache + revalidate. Cache en memoria para getCategoryMarkupMap (TTL 5 min), revalidate=300 en home y categorias. (3) ec74b49 feat(catalog): paginacion client-side 50 productos por pagina. Botones Anterior/Siguiente + numeros de pagina con ellipsis. Reset automatico a pagina 1 al cambiar filtros. (4) Fix directo SKU 212937 (DDR4 8GB Hiksemi): costPrice $76.09 -> $58.24 (oferta 5% off Air Intra), stock 239 -> 287. Diagnostico: CRON_SECRET no estaba en Vercel (configurado por user), Turso al 103% del free tier (517M de 500M) -> upgrade a Scaler $29/mes. Backup DB: compucity_turso_backup_s43_2026-06-16T21-13-37-462Z.json (45 MB, 12,460 filas).
 - **2026-06-13 (s42):** Backup completo + documentacion exhaustiva. (1) Backup DB Turso: compucity_turso_backup_2026-06-12T22-14-38-625Z.json (41MB, 16 tablas, 10,053 productos, 91 marcas). (2) Backup codigo fuente completo: compucity_src_backup_2026-06-13.tar.gz (101MB). (3) Backup codigo esencial: compucity_src_only_backup_2026-06-13.tar.gz (1.2MB). (4) Backup DB local: compucity_local_db_backup_2026-06-13.db (112KB). (5) PROJECT_STATUS.md completamente reescrito y actualizado con toda la documentacion del proyecto (42 sesiones). (6) SAFETY-RULES.md integrado como seccion del PROJECT_STATUS. Commit: a3ca817
 - **2026-06-12 (s41):** SEO + GEO completo. Root layout OG/Twitter, product/category metadata dinamico, JSON-LD, sitemap, robots, 404, canonical URLs, admin noindex. Git tag: v-seo-optimized. Commit: c5b7458
 - **2026-06-12 (s40):** Dominio propio + datos contacto + logos marcas fix + upload route fix. Commits: 277f323, 2649100, cefdf73, 69ead02, afdd330, 212bf9e
