@@ -27,8 +27,10 @@ interface AirIntraBatchParams {
   finalize?: boolean
 }
 
-// Number of pages per batch (2 × 500 = 1000 products, keeps each batch well under 60s)
-const PAGES_PER_BATCH = 2
+// Number of pages per batch (1 × 500 = 500 products, keeps each batch well under 60s)
+// Previously 2 (1000 products) but still timed out on Vercel Hobby 60s limit.
+// 1 page per batch keeps total request time at ~10-15s including DB writes.
+const PAGES_PER_BATCH = 1
 
 // Subcategory keyword rules: when a product maps to a parent category that has subcategories,
 // these rules determine which subcategory to assign based on product name/supplier category.
@@ -2298,7 +2300,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
 
 /**
  * Batched Air Intra sync: processes a range of pages from the 'articulos' endpoint.
- * Each batch processes PAGES_PER_BATCH pages (4 pages × 500 products = ~2000).
+ * Each batch processes PAGES_PER_BATCH pages (1 page × 500 products = ~500).
  * This keeps each request well within Vercel Hobby's 60s timeout (~10-15s per batch).
  *
  * When no token is provided, performs login first.
@@ -2748,7 +2750,9 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
     let sypCreated = 0
     let sypUpdated = 0
     let sypPage = 0
-    const SYP_MAX_PAGES = 30
+    // Reduced from 30 to 10 to avoid Vercel Hobby 60s timeout on the finalize step.
+    // Each syp page adds ~1-2s of API fetch + DB writes; 10 pages = ~15-20s max.
+    const SYP_MAX_PAGES = 10
     const sypEndpoint = 'syp'
 
     while (sypPage < SYP_MAX_PAGES) {
@@ -3030,7 +3034,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
 
       try {
         console.log(`[Air Intra Finalize] Recovery search: ${description}`)
-        let recoveryRes = await fetch(searchUrl, {
+        const recoveryRes = await fetch(searchUrl, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -3039,36 +3043,12 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
           body: JSON.stringify(searchParams),
         })
 
-        // Handle rate limit: wait 5 minutes and retry ONCE
+        // Handle rate limit: skip immediately (no 5-min wait, would exceed Vercel 60s timeout)
         if (recoveryRes.status === 403) {
           const errText = await recoveryRes.text().catch(() => '')
           if (errText.includes('Too many queries')) {
-            console.log(`[Air Intra Finalize] Recovery "${description}" rate-limited. Waiting 5 minutes before retry...`)
-            await new Promise(r => setTimeout(r, 5 * 60 * 1000))
-
-            // Re-login after waiting
-            console.log('[Air Intra Finalize] Re-logging in after rate limit wait...')
-            const reAuthRes = await fetch(`${baseUrl}/?q=login&user=${encodeURIComponent(supplier.apiUsername)}&pass=${encodeURIComponent(supplier.apiPassword)}`)
-            if (reAuthRes.ok) {
-              const { data: reAuthData, error: reAuthError } = await safeParseAirIntraResponse(reAuthRes)
-              if (!reAuthError && reAuthData?.token) {
-                const newToken = reAuthData.token
-                recoveryRes = await fetch(searchUrl, {
-                  method: 'POST',
-                  headers: {
-                    'Authorization': `Bearer ${newToken}`,
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify(searchParams),
-                })
-              } else {
-                console.log(`[Air Intra Finalize] Re-login failed: ${reAuthError}. Skipping recovery "${description}".`)
-                return null
-              }
-            } else {
-              console.log(`[Air Intra Finalize] Re-login HTTP ${reAuthRes.status}. Skipping recovery "${description}".`)
-              return null
-            }
+            console.log(`[Air Intra Finalize] Recovery "${description}" rate-limited. Skipping (no wait to fit in 60s).`)
+            return null
           }
         }
 
@@ -3110,9 +3090,9 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
           if (providerSku) { allFetchedSkus.add(providerSku); totalFetched++ }
         }
       }
-      // Wait 2 seconds between recovery searches to avoid rate limiting
+      // Wait 500ms between recovery searches to avoid rate limiting (reduced from 2s for 60s budget)
       if (RECOVERY_TEXT_SEARCHES.indexOf(searchTerm) < RECOVERY_TEXT_SEARCHES.length - 1) {
-        await new Promise(r => setTimeout(r, 2000))
+        await new Promise(r => setTimeout(r, 500))
       }
     }
 
@@ -3157,7 +3137,9 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
 
     if (MISSING_SKUS.length > 0) {
       console.log(`[Air Intra Finalize] Found ${MISSING_SKUS.length} potentially missing SKUs to recover: ${MISSING_SKUS.slice(0, 20).join(', ')}${MISSING_SKUS.length > 20 ? '...' : ''}`)
-      const skusToSearch = MISSING_SKUS.slice(0, 20)
+      // Reduced from 20 to 5 to fit within Vercel Hobby 60s timeout.
+      // Each SKU search costs ~500ms wait + ~500ms fetch + DB writes = ~1-2s.
+      const skusToSearch = MISSING_SKUS.slice(0, 5)
       for (const sku of skusToSearch) {
         const products = await fetchRecoveryResults({ codiart: sku }, `codiart=${sku}`)
         if (products) {
@@ -3170,7 +3152,8 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
           }
         }
         if (skusToSearch.indexOf(sku) < skusToSearch.length - 1) {
-          await new Promise(r => setTimeout(r, 3000))
+          // Reduced from 3s to 500ms to fit within 60s Vercel timeout budget.
+          await new Promise(r => setTimeout(r, 500))
         }
       }
     }
@@ -3497,16 +3480,24 @@ export async function POST(request: Request) {
           { namePattern: "name LIKE 'MONITOR%PORTATIL%' OR name LIKE 'MONITOR%USB%'", wrongSlug: 'notebooks', correctSlug: 'monitores' },
         ]
 
+        // Run all QUICK_FIXES UPDATEs in parallel (limited concurrency) to avoid
+        // spending 30+ sequential UPDATE round-trips inside the 60s Vercel timeout.
         let autoFixed = 0
-        for (const fix of QUICK_FIXES) {
+        const fixOps = QUICK_FIXES.map(fix => async () => {
           const wrongCatId = slugToId[fix.wrongSlug]
           const correctCatId = slugToId[fix.correctSlug]
-          if (!wrongCatId || !correctCatId) continue
+          if (!wrongCatId || !correctCatId) return 0
           const r = await db.execute({
             sql: `UPDATE products SET categoryId = ?, categorySource = 'auto', updatedAt = datetime('now') WHERE categoryId = ? AND (${fix.namePattern}) AND (categorySource IS NULL OR categorySource != 'manual')`,
             args: [correctCatId, wrongCatId],
           })
-          autoFixed += (r.rowsAffected as number) || 0
+          return (r.rowsAffected as number) || 0
+        })
+        const FIX_CONCURRENCY = 10
+        for (let i = 0; i < fixOps.length; i += FIX_CONCURRENCY) {
+          const chunk = fixOps.slice(i, i + FIX_CONCURRENCY)
+          const results = await Promise.all(chunk.map(fn => fn()))
+          autoFixed += results.reduce((a, b) => a + b, 0)
         }
         if (autoFixed > 0) {
           console.log(`[sync] Post-sync validation: auto-fixed ${autoFixed} miscategorized products`)

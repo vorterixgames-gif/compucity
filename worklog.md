@@ -48,3 +48,37 @@ Stage Summary:
 - PROJECT_STATUS.md completamente actualizado con info de 42 sesiones
 - SAFETY-RULES integrado como seccion del PROJECT_STATUS
 - Commit actual: a3ca817 (fix: restore missing upload route for product images)
+
+---
+Task ID: 3
+Agent: main
+Task: Fix Air Intra manual sync timeout ("La sincronización tardó demasiado (timeout de Vercel)")
+
+Work Log:
+- Diagnosticado el error: safeFetchJson en page.tsx detecta respuesta no-JSON (504 o texto con "timeout") y lanza el mensaje
+- Identificada causa raíz en src/app/api/admin/suppliers/sync/route.ts:
+  * PAGES_PER_BATCH=2 (1000 productos/lote) seguía excediendo el límite de 60s de Vercel Hobby
+  * syncAirIntraFinalize tenía espera de 5 minutos al recibir rate-limit (garantizaba timeout)
+  * SYP_MAX_PAGES=30 → hasta 30 páginas × ~1-2s = 30-60s solo en syp
+  * Recovery: 20 SKU searches × 3s wait = 60s mínimo (más 4 texto searches × 2s = 8s)
+  * Post-sync QUICK_FIXES: ~30 UPDATEs secuenciales
+- Aplicados los siguientes cambios en sync/route.ts:
+  * PAGES_PER_BATCH: 2 → 1 (1 página × 500 productos por lote, ~10-15s por request)
+  * Comentario del docstring actualizado (decía "4 pages × 500" - stale)
+  * syncAirIntraFinalize.SYP_MAX_PAGES: 30 → 10 (con comentario explicativo)
+  * syncAirIntraFinalize.fetchRecoveryResults: removida espera de 5min en rate-limit (ahora retorna null inmediatamente)
+  * syncAirIntraFinalize text search wait: 2000ms → 500ms
+  * syncAirIntraFinalize SKU recovery: slice(0,20) → slice(0,5), wait 3000ms → 500ms
+  * POST handler QUICK_FIXES: serializado → paralelizado con FIX_CONCURRENCY=10
+- Aplicados los siguientes cambios en src/app/admin/proveedores/page.tsx:
+  * PAGES_PER_BATCH: 2 → 1 (sincronizado con el backend)
+  * safeFetchJson error message: actualizado para mencionar "1 página (~500 productos)"
+- Verificado: npx tsc --noEmit no muestra nuevos errores en los archivos editados
+- Verificado: el cron job (/api/cron/sync) usa syncAirIntraStock propia, no se ve afectado
+- Verificado: el antiguo syncAirIntra no-batch es dead code (POST siempre enruta a syncAirIntraBatch/Finalize para air_intra)
+
+Stage Summary:
+- Tiempo total estimado por request ahora: ~10-15s por lote (articulos), ~20-30s para finalize (mucho menor a 60s)
+- Lotes de 1 página × ~500 productos con login en primer lote
+- Finalize: hasta 10 páginas syp + 4 texto searches (500ms c/u) + 5 SKU searches (500ms c/u) + recategorización + post-sync QUICK_FIXES en paralelo
+- Archivos modificados: src/app/api/admin/suppliers/sync/route.ts, src/app/admin/proveedores/page.tsx

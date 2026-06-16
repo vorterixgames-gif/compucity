@@ -352,7 +352,7 @@ export default function AdminProveedores() {
     // Response is not JSON (HTML error page, Vercel timeout, etc.)
     const text = await res.text().catch(() => '')
     if (res.status === 504 || text.includes('timeout') || text.includes('TIMEOUT')) {
-      throw new Error('La sincronización tardó demasiado (timeout de Vercel). Intente de nuevo — los lotes ahora son más pequeños.')
+      throw new Error('La sincronización tardó demasiado (timeout de Vercel 60s). Intente de nuevo — los lotes ahora son de 1 página (~500 productos) para encajar en el límite.')
     }
     if (res.status === 413) {
       throw new Error('El archivo es demasiado grande para subir (límite de Vercel).')
@@ -370,8 +370,9 @@ export default function AdminProveedores() {
     try {
       if (supplier.apiType === 'air_intra') {
         // Batched sync for Air Intra to avoid Vercel Hobby 60s timeout
-        // Each batch processes PAGES_PER_BATCH (2) pages of ~500 products each
-        const PAGES_PER_BATCH = 2
+        // Each batch processes PAGES_PER_BATCH (1) page of ~500 products
+        // (reduced from 2 pages because 2 still timed out on Vercel)
+        const PAGES_PER_BATCH = 1
         let token: string | undefined
         let exchangeRate: number | undefined
         let nextPage: number | undefined
