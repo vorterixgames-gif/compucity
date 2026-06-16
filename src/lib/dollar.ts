@@ -19,9 +19,15 @@ const DOLAR_API_BLUE = 'https://api.bluelytics.com.ar/v2/latest' // misma URL, u
 // fetchDollarRate se llama en TODAS las queries de productos (home, categorías,
 // detalle, búsqueda, PC Builder, etc). Sin caché, cada request del storefront
 // hace 1 SELECT a store_config + 1 fetch externo + 1 SELECT + 1 UPDATE a
-// dollar_rates = 3 queries Turso por request. Con este caché de 5 min, las
-// queries se reducen a 3 cada 5 min por cold start del serverless.
-const DOLLAR_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutos
+// dollar_rates = 3 queries Turso por request. Con este caché de 15 min, las
+// queries se reducen a 3 cada 15 min por cold start del serverless.
+//
+// TTL de 15 min (sesión 43): balance entre frescura y consumo Turso.
+// - Bluelytics actualiza su valor cada ~1h, así que 15 min es suficiente
+//   para detectar el nuevo valor ~15 min después de que se publica.
+// - Queries Turso/día: ~96 (vs ~288 con TTL de 5 min) = 67% reducción.
+// - Banco Nación actualiza 1-2 veces por día, así que 15 min es bien fresco.
+const DOLLAR_CACHE_TTL_MS = 15 * 60 * 1000 // 15 minutos
 let dollarCache: { data: DollarInfo; expiresAt: number } | null = null
 
 export interface DollarInfo {
