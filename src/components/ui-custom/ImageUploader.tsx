@@ -116,6 +116,19 @@ export default function ImageUploader({ images, onChange, maxImages = 6 }: Image
           body: formData,
         })
 
+        // Handle non-JSON responses (Vercel error pages, timeouts)
+        const contentType = res.headers.get('content-type') || ''
+        if (!contentType.includes('application/json')) {
+          const text = await res.text().catch(() => '')
+          if (res.status === 413) {
+            throw new Error('La imagen es demasiado grande para subir (límite de Vercel).')
+          }
+          if (res.status === 504 || res.status === 502) {
+            throw new Error('Timeout del servidor al subir imagen. Intente de nuevo.')
+          }
+          throw new Error(`Error del servidor (${res.status}) al subir imagen`)
+        }
+
         const data = await res.json()
         if (data.ok && data.url) {
           newUrls.push(data.url)

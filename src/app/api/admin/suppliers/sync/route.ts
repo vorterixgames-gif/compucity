@@ -27,8 +27,8 @@ interface AirIntraBatchParams {
   finalize?: boolean
 }
 
-// Number of pages per batch (4 × 500 = 2000 products, ~10-15s per batch)
-const PAGES_PER_BATCH = 4
+// Number of pages per batch (2 × 500 = 1000 products, keeps each batch well under 60s)
+const PAGES_PER_BATCH = 2
 
 // Subcategory keyword rules: when a product maps to a parent category that has subcategories,
 // these rules determine which subcategory to assign based on product name/supplier category.
@@ -1821,7 +1821,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
           break
         }
 
-        const sypDbOps: Promise<void>[] = []
+        const sypDbOps: (() => Promise<void>)[] = []
 
         for (const product of sypData) {
           try {
@@ -1874,7 +1874,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
 
             if (existingProduct) {
               // Update stock/price for product already in DB
-              sypDbOps.push(
+              sypDbOps.push(() =>
                 db.execute({
                   sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, stockByWarehouse = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
                   args: [costPrice, sellingPrice, totalStock, stockByWarehouseJson, isActive, now, existingProduct.id],
@@ -1893,7 +1893,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
               const specs: Record<string, string> = {}
               if (product.moneda) specs['Moneda'] = product.moneda
 
-              sypDbOps.push(
+              sypDbOps.push(() =>
                 db.execute({
                   sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
                         VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
@@ -1915,10 +1915,10 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
           }
         }
 
-        // Execute syp DB operations
-        for (let i = 0; i < sypDbOps.length; i += BATCH_CONCURRENCY) {
-          const batch = sypDbOps.slice(i, i + BATCH_CONCURRENCY)
-          await Promise.all(batch)
+        // Execute syp DB operations (lazy evaluation to limit concurrency)
+        for (let i = 0; i < sypDbOps.length; i += 20) {
+          const batch = sypDbOps.slice(i, i + 20)
+          await Promise.all(batch.map(fn => fn()))
         }
 
         console.log(`[Air Intra] syp page ${sypPage}: ${sypData.length} items processed`)
@@ -2542,7 +2542,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
       lastProcessedPage = page
 
       // Process products on this page
-      const dbOperations: Promise<void>[] = []
+      const dbOperations: (() => Promise<void>)[] = []
 
       for (const product of products) {
         try {
@@ -2602,7 +2602,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
 
           if (existingProduct) {
             // UPDATE existing product
-            dbOperations.push(
+            dbOperations.push(() =>
               db.execute({
                 sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, stockByWarehouse = ?, supplierCategory = ?, categoryId = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
                 args: [costPrice, sellingPrice, totalStock, stockByWarehouseJson, supplierCategory, categoryId, airIntraIsActive, now, existingProduct.id],
@@ -2629,7 +2629,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
             if (product.tipo?.name) specs['Tipo'] = product.tipo.name
             if (product.estado?.name) specs['Estado'] = product.estado.name
 
-            dbOperations.push(
+            dbOperations.push(() =>
               db.execute({
                 sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
                       VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
@@ -2648,11 +2648,11 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
         }
       }
 
-      // Execute all DB operations in parallel (limited concurrency)
+      // Execute all DB operations with limited concurrency (lazy evaluation)
       const BATCH_CONCURRENCY = 20
       for (let i = 0; i < dbOperations.length; i += BATCH_CONCURRENCY) {
         const batchChunk = dbOperations.slice(i, i + BATCH_CONCURRENCY)
-        await Promise.all(batchChunk)
+        await Promise.all(batchChunk.map(fn => fn()))
       }
 
       console.log(`[Air Intra Batch] Page ${page} processed: ${products.length} items (batch total: ${totalFetched})`)
@@ -2780,7 +2780,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
           break
         }
 
-        const sypDbOps: Promise<void>[] = []
+        const sypDbOps: (() => Promise<void>)[] = []
 
         for (const product of sypData) {
           try {
@@ -2831,7 +2831,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
             const now = new Date().toISOString()
 
             if (existingProduct) {
-              sypDbOps.push(
+              sypDbOps.push(() =>
                 db.execute({
                   sql: `UPDATE products SET costPrice = ?, price = ?, stock = ?, stockByWarehouse = ?, isActive = ?, updatedAt = ? WHERE id = ?`,
                   args: [costPrice, sellingPrice, totalStock, stockByWarehouseJson, isActive, now, existingProduct.id],
@@ -2849,7 +2849,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
               const specs: Record<string, string> = {}
               if (product.moneda) specs['Moneda'] = product.moneda
 
-              sypDbOps.push(
+              sypDbOps.push(() =>
                 db.execute({
                   sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
                         VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
@@ -2870,10 +2870,10 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
           }
         }
 
-        // Execute syp DB operations
+        // Execute syp DB operations (lazy evaluation for limited concurrency)
         for (let i = 0; i < sypDbOps.length; i += 20) {
           const batchChunk = sypDbOps.slice(i, i + 20)
-          await Promise.all(batchChunk)
+          await Promise.all(batchChunk.map(fn => fn()))
         }
 
         console.log(`[Air Intra Finalize] syp page ${sypPage}: ${sypData.length} items processed`)

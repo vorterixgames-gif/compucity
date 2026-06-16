@@ -864,6 +864,10 @@ function BannersTab() {
                         formData.append('file', compressed)
                         try {
                           const res = await fetch('/api/admin/upload', { method: 'POST', body: formData })
+                          const contentType = res.headers.get('content-type') || ''
+                          if (!contentType.includes('application/json')) {
+                            throw new Error('El servidor no respondió correctamente')
+                          }
                           const data = await res.json()
                           if (data.ok && data.url) {
                             updateForm('imageUrl', data.url)

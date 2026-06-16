@@ -342,6 +342,24 @@ export default function AdminProveedores() {
     }
   }
 
+  // Safe JSON parser - handles non-JSON responses (Vercel timeouts, error pages)
+  const safeFetchJson = async (url: string, options: RequestInit): Promise<any> => {
+    const res = await fetch(url, options)
+    const contentType = res.headers.get('content-type') || ''
+    if (contentType.includes('application/json')) {
+      return await res.json()
+    }
+    // Response is not JSON (HTML error page, Vercel timeout, etc.)
+    const text = await res.text().catch(() => '')
+    if (res.status === 504 || text.includes('timeout') || text.includes('TIMEOUT')) {
+      throw new Error('La sincronización tardó demasiado (timeout de Vercel). Intente de nuevo — los lotes ahora son más pequeños.')
+    }
+    if (res.status === 413) {
+      throw new Error('El archivo es demasiado grande para subir (límite de Vercel).')
+    }
+    throw new Error(`Error del servidor (${res.status}): ${text.substring(0, 150) || 'Respuesta no válida'}`)
+  }
+
   // Sync handler
   const handleSync = async (e: React.MouseEvent, supplier: Supplier) => {
     e.stopPropagation()
@@ -352,8 +370,8 @@ export default function AdminProveedores() {
     try {
       if (supplier.apiType === 'air_intra') {
         // Batched sync for Air Intra to avoid Vercel Hobby 60s timeout
-        // Each batch processes PAGES_PER_BATCH (4) pages of ~500 products each
-        const PAGES_PER_BATCH = 4
+        // Each batch processes PAGES_PER_BATCH (2) pages of ~500 products each
+        const PAGES_PER_BATCH = 2
         let token: string | undefined
         let exchangeRate: number | undefined
         let nextPage: number | undefined
@@ -364,12 +382,11 @@ export default function AdminProveedores() {
         let totalErrors = 0
 
         // First call: login + first batch
-        const firstRes = await fetch('/api/admin/suppliers/sync', {
+        const firstData = await safeFetchJson('/api/admin/suppliers/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ supplierId: supplier.id }),
         })
-        const firstData = await firstRes.json()
 
         if (!firstData.ok && !firstData.hasMore) {
           setSyncResult({ ok: false, message: firstData.message || 'Error en sincronización' })
@@ -391,7 +408,7 @@ export default function AdminProveedores() {
           batchNum++
           setSyncProgress({ current: batchNum, total: -1 }) // -1 = unknown total batches
 
-          const batchRes = await fetch('/api/admin/suppliers/sync', {
+          const batchData = await safeFetchJson('/api/admin/suppliers/sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -404,8 +421,6 @@ export default function AdminProveedores() {
               },
             }),
           })
-
-          const batchData = await batchRes.json()
 
           if (!batchData.ok && !batchData.hasMore) {
             // Error on a batch — report what we've accumulated so far
@@ -435,7 +450,7 @@ export default function AdminProveedores() {
 
         // Finalize step: syp sync, recategorization, recovery
         if (token) {
-          const finalizeRes = await fetch('/api/admin/suppliers/sync', {
+          const finalizeData = await safeFetchJson('/api/admin/suppliers/sync', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -449,8 +464,6 @@ export default function AdminProveedores() {
               },
             }),
           })
-
-          const finalizeData = await finalizeRes.json()
           totalCreated += finalizeData.created || 0
           totalUpdated += finalizeData.updated || 0
           totalFetched += finalizeData.total || 0
@@ -472,13 +485,11 @@ export default function AdminProveedores() {
         }
       } else {
         // Non-Air Intra suppliers: single request sync (Invid, Elit)
-        const res = await fetch('/api/admin/suppliers/sync', {
+        const data = await safeFetchJson('/api/admin/suppliers/sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ supplierId: supplier.id }),
         })
-
-        const data = await res.json()
         setSyncResult({ ok: data.ok, message: data.message || 'Sincronización completada' })
       }
 
@@ -498,7 +509,7 @@ export default function AdminProveedores() {
     setTestResult(null)
 
     try {
-      const res = await fetch('/api/admin/suppliers/test', {
+      const data = await safeFetchJson('/api/admin/suppliers/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -510,8 +521,6 @@ export default function AdminProveedores() {
           apiToken: supplier.apiToken,
         }),
       })
-
-      const data = await res.json()
       setTestResult({ ok: data.ok, message: data.message })
     } catch (error: any) {
       setTestResult({ ok: false, message: `Error: ${error.message}` })
