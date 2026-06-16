@@ -106,3 +106,29 @@ Stage Summary:
 - New behavior: when Air Intra returns a severe rate-limit response, the server sets a 10-min cooldown and refuses further sync attempts. Frontend shows an amber countdown banner and disables the Sync button. When cooldown expires, the next sync resumes from the last successful page + 1 instead of restarting from page 0.
 - End-user impact: no more wasted Vercel function calls on doomed retries. No more re-syncing pages 0..N-1 that are already in DB.
 - Files modified: src/app/api/admin/suppliers/sync/route.ts, src/app/api/cron/sync/route.ts, src/app/admin/proveedores/page.tsx, scripts/test-strip-php-notices.mjs, scripts/test-cooldown-helpers.mjs (new).
+
+---
+Task ID: air-intra-broken-page-skip
+Agent: main
+Task: Fix the infinite cooldown loop — 1489 bytes is deterministic (broken page), not a rate limit.
+
+Work Log:
+- Diagnosed: the user reported the SAME cooldown message twice. The raw response is exactly 1489 bytes both times = deterministic, not transient. This is a broken page on Air Intra's side (PHP notices during response construction → empty array), not a rate limit.
+- Added AIRINTRA_BROKEN_PAGE_THRESHOLD = 5 constant and airintra_broken_page_count key in store_config.
+- Added getAirIntraBrokenPageCount / setAirIntraBrokenPageCount / clearAirIntraBrokenPageCount helpers.
+- Rewrote the 0-products detection branch in syncAirIntraBatch:
+  * isBrokenPage = rawLen > 100 && (cleanedText.trim() === '[]' || cleanedText.length < 10)
+  * If broken page: increment counter, advance lastSyncPage, return ok=true + hasMore=true + nextPage=page+1 (frontend continues automatically).
+  * If counter reaches 5: set cooldown (real rate limit / systemic issue).
+  * If small raw response (≤ 100 bytes): legitimate end-of-data, proceed to finalize.
+  * On success: reset broken page counter to 0.
+- Updated syncAirIntraFinalize to also clear airintra_broken_page_count on success.
+- Updated GET endpoint to expose brokenPageCount.
+- Frontend: BROKEN_PAGE_SKIPPED messages show as amber info banner (not red error), so user knows sync is still progressing.
+- Added scripts/clear-airintra-cooldown.mjs for manual cooldown clearing (local dev / emergencies).
+- Committed as 1aff20f and pushed to origin/main.
+
+Stage Summary:
+- The sync will no longer get stuck in an infinite cooldown loop on a single broken page. It will skip up to 5 consecutive broken pages before concluding it's a real rate limit.
+- For the user's current situation: they need to wait for the existing 10-min cooldown to expire (it was set by the old code). When they retry, the new logic will skip page 16 and continue to pages 17, 18, etc. If those are also broken, it'll skip up to 5 before setting another cooldown.
+- If Air Intra pages 16-20 are ALL broken, the sync will set a cooldown after 5 skips. At that point the user should contact Air Intra — their API has a systemic issue with those specific pages.
