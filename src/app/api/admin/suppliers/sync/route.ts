@@ -2328,7 +2328,9 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
 
 const AIRINTRA_COOLDOWN_KEY = 'airintra_rate_limited_until'
 const AIRINTRA_LAST_PAGE_KEY = 'airintra_last_sync_page'
+const AIRINTRA_BROKEN_PAGE_COUNT_KEY = 'airintra_broken_page_count'
 const AIRINTRA_COOLDOWN_MS = 10 * 60 * 1000 // 10 minutes
+const AIRINTRA_BROKEN_PAGE_THRESHOLD = 5 // consecutive broken pages before cooldown
 
 async function getAirIntraCooldown(): Promise<number> {
   // Returns ms remaining in cooldown, or 0 if expired/not set.
@@ -2392,6 +2394,37 @@ async function setAirIntraLastSyncPage(page: number): Promise<void> {
 async function clearAirIntraLastSyncPage(): Promise<void> {
   try {
     await db.execute({ sql: `DELETE FROM store_config WHERE key = ?`, args: [AIRINTRA_LAST_PAGE_KEY] })
+  } catch {
+    /* ignore */
+  }
+}
+
+async function getAirIntraBrokenPageCount(): Promise<number> {
+  try {
+    const r = await db.execute({ sql: `SELECT value FROM store_config WHERE key = ?`, args: [AIRINTRA_BROKEN_PAGE_COUNT_KEY] })
+    const v = (r.rows as any[])[0]?.value
+    const n = v ? parseInt(v, 10) : 0
+    return Number.isFinite(n) ? n : 0
+  } catch {
+    return 0
+  }
+}
+
+async function setAirIntraBrokenPageCount(count: number): Promise<void> {
+  try {
+    await db.execute({
+      sql: `INSERT INTO store_config (id, key, value, updatedAt) VALUES (?, ?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updatedAt = excluded.updatedAt`,
+      args: [`cfg_${AIRINTRA_BROKEN_PAGE_COUNT_KEY}`, AIRINTRA_BROKEN_PAGE_COUNT_KEY, String(count), new Date().toISOString()],
+    })
+  } catch (e) {
+    console.error('[Air Intra] Failed to persist broken page count:', e)
+  }
+}
+
+async function clearAirIntraBrokenPageCount(): Promise<void> {
+  try {
+    await db.execute({ sql: `DELETE FROM store_config WHERE key = ?`, args: [AIRINTRA_BROKEN_PAGE_COUNT_KEY] })
   } catch {
     /* ignore */
   }
@@ -2625,31 +2658,80 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
               const rawPreview = rawResponseText ? rawResponseText.substring(0, 500) : '(empty body)'
               const cleanedText = rawResponseText ? stripPhpNotices(rawResponseText) : ''
               const cleanedPreview = cleanedText.substring(0, 500)
+              const rawLen = rawResponseText?.length || 0
               console.log(`[Air Intra Batch] Page ${page} returned 0 products.`)
-              console.log(`[Air Intra Batch]   Raw response (${rawResponseText?.length || 0} bytes): ${rawPreview}`)
+              console.log(`[Air Intra Batch]   Raw response (${rawLen} bytes): ${rawPreview}`)
               console.log(`[Air Intra Batch]   Cleaned response (${cleanedText.length} bytes): ${cleanedPreview}`)
 
-              // If page 0 returns 0 products, this is almost certainly a rate limit or auth issue
-              // (Air Intra has ~10k products, so page 0 should never be empty).
-              if (page === batch.startPage) {
-                result.ok = false
-                // Check if the cleaned response is just an empty array or very small
-                if (cleanedText.trim() === '[]' || cleanedText.length < 10) {
-                  // ─── Set cooldown so the next sync attempt is refused for 10 minutes ───
-                  // This prevents the user from clicking "Sync" again immediately and
-                  // burning another Vercel function call on a doomed request.
+              // ─── Distinguish broken page from end-of-data ───────────────────────
+              // A LEGITIMATE end-of-data response is small: just `[]` (2 bytes) or
+              // a few bytes of whitespace around it. Raw length ≤ 100 = end of data.
+              //
+              // A BROKEN PAGE has the same cleaned result (`[]`) but a LARGE raw
+              // response (e.g. 1489 bytes of PHP notices about undefined properties).
+              // This happens when Air Intra's PHP code triggers notices while
+              // building the response but still returns an empty array. The same
+              // page will return the same broken response every time — retrying is
+              // pointless. We must SKIP it and move to the next page.
+              //
+              // Only after AIRINTRA_BROKEN_PAGE_THRESHOLD consecutive broken pages
+              // do we conclude it's a real rate limit / API issue and set cooldown.
+
+              const isBrokenPage = rawLen > 100 && (cleanedText.trim() === '[]' || cleanedText.length < 10)
+
+              if (isBrokenPage) {
+                // Increment the consecutive broken page counter
+                const brokenCount = await getAirIntraBrokenPageCount()
+                const newBrokenCount = brokenCount + 1
+                await setAirIntraBrokenPageCount(newBrokenCount)
+                console.log(`[Air Intra Batch] Page ${page} is a BROKEN PAGE (raw=${rawLen}B, cleaned=[]). Consecutive broken count: ${newBrokenCount}/${AIRINTRA_BROKEN_PAGE_THRESHOLD}`)
+
+                if (newBrokenCount >= AIRINTRA_BROKEN_PAGE_THRESHOLD) {
+                  // 5+ consecutive broken pages — this is likely a real rate limit or
+                  // a systemic Air Intra API issue. Set cooldown and abort.
                   await setAirIntraCooldown(AIRINTRA_COOLDOWN_MS)
-                  result.message = `RATE_LIMITED_COOLDOWN: Air Intra devolvió una respuesta vacía (notices PHP + array vacío, ${rawResponseText?.length || 0} bytes raw). Esto indica rate limit severo. Se activó un cooldown de 10 minutos — intente de nuevo después.`
-                } else {
-                  // Non-empty but 0 products — less severe, set a shorter 5-min cooldown
-                  await setAirIntraCooldown(5 * 60 * 1000)
-                  result.message = `RATE_LIMITED_COOLDOWN: Air Intra devolvió 0 productos en la página ${page}. Respuesta limpia: ${cleanedPreview}. Probablemente rate limit o token expirado. Se activó un cooldown de 5 minutos.`
+                  result.ok = false
+                  result.message = `RATE_LIMITED_COOLDOWN: ${newBrokenCount} páginas consecutivas devolvieron respuestas rotas (notices PHP + array vacío). Esto indica rate limit severo o problema en la API de Air Intra. Cooldown de 10 minutos activado. Se reanudará desde la página ${page + 1} cuando expire.`
+                  result.total = totalFetched
+                  result.created = created
+                  result.updated = updated
+                  result.skipped = skipped
+                  result.errors = errors + 1
+                  return result
                 }
+
+                // Skip the broken page: advance lastSyncPage so we don't retry it,
+                // and tell the frontend to continue with the next page.
+                await setAirIntraLastSyncPage(page)
+                result.ok = true
                 result.total = totalFetched
                 result.created = created
                 result.updated = updated
                 result.skipped = skipped
-                result.errors = errors + 1
+                result.errors = errors
+                result.hasMore = true
+                result.nextPage = page + 1
+                result.token = token
+                result.exchangeRate = exchangeRate
+                result.message = `BROKEN_PAGE_SKIPPED: Página ${page} devolvió respuesta corrupta (${rawLen} bytes de notices PHP, 0 productos). Se salteó y se continuará con la página ${page + 1}. Páginas rotas consecutivas: ${newBrokenCount}/${AIRINTRA_BROKEN_PAGE_THRESHOLD}.`
+                return result
+              }
+
+              // Small raw response + empty cleaned = legitimate end of data
+              if (page === batch.startPage) {
+                // If the very first page of a batch returns a legitimate empty response,
+                // we've reached the end of the product catalog.
+                console.log(`[Air Intra Batch] Page ${page} returned legitimate empty array (raw=${rawLen}B). End of data.`)
+                result.ok = true
+                result.total = totalFetched
+                result.created = created
+                result.updated = updated
+                result.skipped = skipped
+                result.errors = errors
+                result.hasMore = false
+                result.token = token
+                result.exchangeRate = exchangeRate
+                result.message = `Fin del catálogo alcanzado en página ${page} (${totalFetched} productos procesados en este lote).`
                 return result
               }
               console.log(`[Air Intra Batch] Page ${page} returned empty array. End of data.`)
@@ -2657,6 +2739,8 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
               reachedEnd = true
               break
             }
+            // Success — reset the broken page counter
+            await setAirIntraBrokenPageCount(0)
             products = parsedProducts
 
             // Robustness verification: always run extractor as verification
@@ -3342,11 +3426,15 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
       args: [syncNow, syncNow, supplier.id],
     })
 
-    // ─── Clear sync state: cooldown + last sync page ──────────────────────
+    // ─── Clear sync state: cooldown + last sync page + broken page counter ──
     // The whole cycle (articulos pages + syp + recovery) completed successfully,
     // so there is nothing to resume from and no need to keep the cooldown active.
-    await Promise.all([clearAirIntraCooldown(), clearAirIntraLastSyncPage()])
-    console.log('[Air Intra Finalize] Cleared cooldown + last sync page (cycle complete).')
+    await Promise.all([
+      clearAirIntraCooldown(),
+      clearAirIntraLastSyncPage(),
+      clearAirIntraBrokenPageCount(),
+    ])
+    console.log('[Air Intra Finalize] Cleared cooldown + last sync page + broken page counter (cycle complete).')
 
     result.ok = true
     result.total = totalFetched
@@ -3564,15 +3652,17 @@ export async function GET(request: Request) {
       return NextResponse.json({ apiType: supplier.apiType, cooldownRemaining: 0, lastSyncPage: -1 })
     }
 
-    const [cooldownMs, lastPage] = await Promise.all([
+    const [cooldownMs, lastPage, brokenCount] = await Promise.all([
       getAirIntraCooldown(),
       getAirIntraLastSyncPage(),
+      getAirIntraBrokenPageCount(),
     ])
 
     return NextResponse.json({
       apiType: 'air_intra',
       cooldownRemaining: cooldownMs,        // ms remaining (0 = no cooldown)
       lastSyncPage: lastPage,               // last successfully processed page (-1 = none)
+      brokenPageCount: brokenCount,         // consecutive broken pages (resets on success)
       lastSyncAt: supplier.lastSyncAt ?? null,
     })
   } catch (error: any) {

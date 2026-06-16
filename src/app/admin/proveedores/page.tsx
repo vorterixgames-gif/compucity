@@ -824,13 +824,19 @@ export default function AdminProveedores() {
         </div>
       )}
       {syncResult && !cooldownRemaining && (
-        <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
+        <div className={`flex items-start gap-2 p-3 rounded-lg text-sm ${
           syncResult.ok
-            ? 'bg-green-50 text-green-700 border border-green-200'
+            ? syncResult.message?.includes('BROKEN_PAGE_SKIPPED')
+              ? 'bg-amber-50 text-amber-800 border border-amber-200'
+              : 'bg-green-50 text-green-700 border border-green-200'
             : 'bg-red-50 text-red-700 border border-red-200'
         }`}>
-          {syncResult.ok ? <CheckCircle className="w-4 h-4 flex-shrink-0" /> : <AlertTriangle className="w-4 h-4 flex-shrink-0" />}
-          {syncResult.message}
+          {syncResult.ok
+            ? syncResult.message?.includes('BROKEN_PAGE_SKIPPED')
+              ? <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              : <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            : <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />}
+          <span className="flex-1">{syncResult.message}</span>
           <button onClick={() => setSyncResult(null)} className="ml-auto text-current opacity-60 hover:opacity-100">✕</button>
         </div>
       )}
@@ -844,7 +850,7 @@ export default function AdminProveedores() {
               Air Intra en cooldown — rate limit severo detectado
             </div>
             <div className="text-amber-700 text-xs mt-0.5">
-              {syncResult?.message?.replace(/^RATE_LIMITED_COOLDOWN:\s*/, '') ?? 'Espere antes de reintentar.'}
+              {syncResult?.message?.replace(/^(RATE_LIMITED_COOLDOWN|BROKEN_PAGE_SKIPPED):\s*/, '') ?? 'Espere antes de reintentar.'}
             </div>
             <div className="text-amber-900 text-xs mt-1">
               La sincronización se reanudará automáticamente desde la última página exitosa cuando expire el cooldown.
