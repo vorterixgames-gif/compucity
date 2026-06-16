@@ -132,3 +132,22 @@ Stage Summary:
 - The sync will no longer get stuck in an infinite cooldown loop on a single broken page. It will skip up to 5 consecutive broken pages before concluding it's a real rate limit.
 - For the user's current situation: they need to wait for the existing 10-min cooldown to expire (it was set by the old code). When they retry, the new logic will skip page 16 and continue to pages 17, 18, etc. If those are also broken, it'll skip up to 5 before setting another cooldown.
 - If Air Intra pages 16-20 are ALL broken, the sync will set a cooldown after 5 skips. At that point the user should contact Air Intra — their API has a systemic issue with those specific pages.
+
+---
+Task ID: air-intra-push-and-clear
+Agent: main
+Task: User reported "no esta funcionando" - the broken-page-skip fix was committed locally (1aff20f) but never pushed to origin/main, so Vercel was still running the OLD code that got stuck in an infinite cooldown loop.
+
+Work Log:
+- Checked git status: 1 commit ahead of origin/main (the broken-page-skip fix + worklog update)
+- Pushed commits 1aff20f (fix: skip broken pages) and bd6f3d0 (worklog) to origin/main - Vercel will auto-deploy
+- Ran scripts/clear-airintra-cooldown.mjs against the production Turso DB to:
+  * Clear airintra_rate_limited_until (was blocking all sync attempts)
+  * Clear airintra_broken_page_count (reset to 0)
+  * PRESERVE airintra_last_sync_page = 19 (so next sync resumes from page 20, not page 0)
+- Verified frontend code is in place: BROKEN_PAGE_SKIPPED messages render as amber info banner (not red error), cooldown banner shows countdown when active
+
+Stage Summary:
+- Root cause of "no esta funcionando": the fix existed locally but was never pushed, so production Vercel kept running the old infinite-cooldown code.
+- Production DB is now cleared of stale cooldown state. airintra_last_sync_page = 19 preserved.
+- Vercel will rebuild from origin/main (typically 1-3 min). Once deployed, the user can retry Sync — it will start at page 20, skip any broken pages automatically (up to 5 before re-triggering a cooldown).
