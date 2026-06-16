@@ -5,7 +5,8 @@ function stripPhpNotices(text) {
   let cleaned = text
     .replace(/<\/?b>/gi, '')
     .replace(/<br\s*\/?>\s*/gi, '')
-    .replace(/(?:Notice|Warning|Fatal error|Parse error|Deprecated):\s*.*?on line\s+\d+\s*/gis, '')
+    // Using [\s\S] instead of . + 's' flag — works on ES2017 targets (tsconfig target).
+    .replace(/(?:Notice|Warning|Fatal error|Parse error|Deprecated):\s*[\s\S]*?on line\s+\d+\s*/gi, '')
     .replace(/,\s*([}\]])/g, '$1')
     .replace(/}\s*{/g, '},{')
     .replace(/,\s*,/g, ',')

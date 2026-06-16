@@ -180,6 +180,9 @@ export default function AdminProveedores() {
   const [syncingId, setSyncingId] = useState<string | null>(null)
   const [syncResult, setSyncResult] = useState<{ ok: boolean; message: string } | null>(null)
   const [syncProgress, setSyncProgress] = useState<{ current: number; total: number } | null>(null)
+  // Cooldown state: when > 0, sync button is disabled and a countdown is shown.
+  // Set when the server returns a RATE_LIMITED_COOLDOWN message.
+  const [cooldownRemaining, setCooldownRemaining] = useState(0)
 
   // Test connection
   const [testingId, setTestingId] = useState<string | null>(null)
@@ -222,6 +225,45 @@ export default function AdminProveedores() {
   useEffect(() => {
     loadSuppliers()
   }, [loadSuppliers])
+
+  // On mount: check if there's an active cooldown from a previous session
+  // (e.g. user closed the tab and reopened). We pick the first Air Intra
+  // supplier we can find to query the cooldown status.
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/suppliers?page=1')
+        const data = await res.json()
+        if (!data.ok) return
+        const airIntra = (data.suppliers || []).find((s: Supplier) => s.apiType === 'air_intra')
+        if (!airIntra) return
+        const st = await fetch(`/api/admin/suppliers/sync?supplierId=${encodeURIComponent(airIntra.id)}`)
+        if (!st.ok) return
+        const stData = await st.json()
+        if (stData.cooldownRemaining && stData.cooldownRemaining > 0) {
+          setCooldownRemaining(Math.ceil(stData.cooldownRemaining / 1000))
+        }
+      } catch (e) {
+        // best-effort — ignore
+      }
+    })()
+  }, [])
+
+  // Countdown effect: tick cooldownRemaining down every second until it hits 0.
+  // When it reaches 0, clear the cooldown banner automatically.
+  useEffect(() => {
+    if (cooldownRemaining <= 0) return
+    const id = setInterval(() => {
+      setCooldownRemaining(prev => {
+        if (prev <= 1) {
+          clearInterval(id)
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(id)
+  }, [cooldownRemaining])
 
   const handleSearch = () => {
     setLoading(true)
@@ -390,6 +432,7 @@ export default function AdminProveedores() {
         })
 
         if (!firstData.ok) {
+          armCooldownIfPresent(firstData.message)
           setSyncResult({ ok: false, message: firstData.message || 'Error en sincronización' })
           setSyncingId(null)
           setSyncProgress(null)
@@ -428,6 +471,7 @@ export default function AdminProveedores() {
             // Previously checked `!batchData.ok && !batchData.hasMore`, but the rate limit path
             // returns ok=false + hasMore=true, which let the loop continue through 16+ failing
             // batches with 0 products each. Now we stop on ANY batch failure.
+            armCooldownIfPresent(batchData.message)
             setSyncResult({
               ok: totalFetched > 0,
               message: totalFetched > 0
@@ -509,6 +553,28 @@ export default function AdminProveedores() {
   }
 
   // Test connection handler
+  // Helper: detect RATE_LIMITED_COOLDOWN marker in server response, extract
+  // remaining seconds, and arm the countdown UI. Returns true if a cooldown
+  // was detected (so caller can skip further processing).
+  const armCooldownIfPresent = (message: string | undefined): boolean => {
+    if (!message) return false
+    // Match "(NNNs)" anywhere in the message — server always formats it as "Espere ~X minuto(s) (NNNs)"
+    const m = message.match(/\((\d+)s\)/)
+    if (m) {
+      const secs = parseInt(m[1], 10)
+      if (Number.isFinite(secs) && secs > 0) {
+        setCooldownRemaining(secs)
+        return true
+      }
+    }
+    // Fallback: marker present but no "(NNs)" → assume 5 min default
+    if (message.includes('RATE_LIMITED_COOLDOWN')) {
+      setCooldownRemaining(5 * 60)
+      return true
+    }
+    return false
+  }
+
   const handleTestConnection = async (e: React.MouseEvent, supplier: Supplier) => {
     e.stopPropagation()
     setTestingId(supplier.id)
@@ -757,7 +823,7 @@ export default function AdminProveedores() {
           </div>
         </div>
       )}
-      {syncResult && (
+      {syncResult && !cooldownRemaining && (
         <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
           syncResult.ok
             ? 'bg-green-50 text-green-700 border border-green-200'
@@ -766,6 +832,31 @@ export default function AdminProveedores() {
           {syncResult.ok ? <CheckCircle className="w-4 h-4 flex-shrink-0" /> : <AlertTriangle className="w-4 h-4 flex-shrink-0" />}
           {syncResult.message}
           <button onClick={() => setSyncResult(null)} className="ml-auto text-current opacity-60 hover:opacity-100">✕</button>
+        </div>
+      )}
+
+      {/* Cooldown banner: shown when server reported a severe Air Intra rate limit */}
+      {cooldownRemaining > 0 && (
+        <div className="flex items-center gap-3 p-3 rounded-lg text-sm bg-amber-50 text-amber-800 border border-amber-300">
+          <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+          <div className="flex-1">
+            <div className="font-semibold">
+              Air Intra en cooldown — rate limit severo detectado
+            </div>
+            <div className="text-amber-700 text-xs mt-0.5">
+              {syncResult?.message?.replace(/^RATE_LIMITED_COOLDOWN:\s*/, '') ?? 'Espere antes de reintentar.'}
+            </div>
+            <div className="text-amber-900 text-xs mt-1">
+              La sincronización se reanudará automáticamente desde la última página exitosa cuando expire el cooldown.
+              No es necesario volver a sincronizar las páginas ya procesadas.
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            <span className="font-mono text-lg font-bold tabular-nums">
+              {Math.floor(cooldownRemaining / 60)}:{(cooldownRemaining % 60).toString().padStart(2, '0')}
+            </span>
+            <span className="text-xs opacity-70">min:seg</span>
+          </div>
         </div>
       )}
 
@@ -1017,10 +1108,15 @@ export default function AdminProveedores() {
                               size="sm"
                               className="text-compucity-green hover:bg-compucity-green-50 gap-1"
                               onClick={(e) => handleSync(e, supplier)}
-                              disabled={isSyncing}
+                              disabled={isSyncing || (cooldownRemaining > 0 && supplier.apiType === 'air_intra')}
+                              title={cooldownRemaining > 0 && supplier.apiType === 'air_intra'
+                                ? `En cooldown (${Math.floor(cooldownRemaining / 60)}:${(cooldownRemaining % 60).toString().padStart(2, '0')})`
+                                : undefined}
                             >
                               {isSyncing ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : cooldownRemaining > 0 && supplier.apiType === 'air_intra' ? (
+                                <AlertTriangle className="w-4 h-4 text-amber-600" />
                               ) : (
                                 <RefreshCw className="w-4 h-4" />
                               )}
@@ -1028,7 +1124,9 @@ export default function AdminProveedores() {
                                 ? `Lote ${syncProgress.current}/${syncProgress.total > 0 ? syncProgress.total : '...'}`
                                 : isSyncing
                                   ? 'Sincronizando...'
-                                  : 'Sincronizar Productos'
+                                  : cooldownRemaining > 0 && supplier.apiType === 'air_intra'
+                                    ? `Cooldown ${Math.floor(cooldownRemaining / 60)}:${(cooldownRemaining % 60).toString().padStart(2, '0')}`
+                                    : 'Sincronizar Productos'
                               }
                             </Button>
                             <Button

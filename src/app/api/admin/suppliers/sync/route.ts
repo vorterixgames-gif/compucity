@@ -1231,7 +1231,8 @@ function stripPhpNotices(text: string): string {
     // Step 3: Remove PHP notice/warning/error blocks (now plain text after HTML tag removal).
     // Matches: "Notice: <any text> on line <digits>" — non-greedy so it stops at the
     // first "on line NNN" (one notice at a time, even if multiple are consecutive).
-    .replace(/(?:Notice|Warning|Fatal error|Parse error|Deprecated):\s*.*?on line\s+\d+\s*/gis, '')
+    // Uses [\s\S] instead of . + 's' flag so this works on ES2017 targets.
+    .replace(/(?:Notice|Warning|Fatal error|Parse error|Deprecated):\s*[\s\S]*?on line\s+\d+\s*/gi, '')
     // Step 4: Fix trailing commas before ] or } (happens when a notice is removed from
     // between the last value and the closing brace, e.g. {"k":"v",Notice:...} → {"k":"v",})
     .replace(/,\s*([}\]])/g, '$1')
@@ -2310,6 +2311,92 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
   return result
 }
 
+// ============================================
+// Air Intra sync state (cooldown + resume)
+// ============================================
+// Stored in the store_config table so it survives across Vercel cold starts.
+// Two keys:
+//   - airintra_rate_limited_until : ISO timestamp; if in the future, sync refuses to start
+//   - airintra_last_sync_page     : last successfully processed 0-indexed page; resume from page+1
+//
+// Lifecycle:
+//   * Severe rate limit detected (page 0 of a batch returns only PHP notices / empty array)
+//       → set airintra_rate_limited_until = now + 10 min
+//   * Each page processed successfully → update airintra_last_sync_page
+//   * Finalize step completes successfully → clear both keys (clean slate for next cycle)
+//   * Finalize step fails              → keep airintra_last_sync_page (resume on retry)
+
+const AIRINTRA_COOLDOWN_KEY = 'airintra_rate_limited_until'
+const AIRINTRA_LAST_PAGE_KEY = 'airintra_last_sync_page'
+const AIRINTRA_COOLDOWN_MS = 10 * 60 * 1000 // 10 minutes
+
+async function getAirIntraCooldown(): Promise<number> {
+  // Returns ms remaining in cooldown, or 0 if expired/not set.
+  try {
+    const r = await db.execute({ sql: `SELECT value FROM store_config WHERE key = ?`, args: [AIRINTRA_COOLDOWN_KEY] })
+    const v = (r.rows as any[])[0]?.value
+    if (!v) return 0
+    const until = new Date(v).getTime()
+    const remaining = until - Date.now()
+    return remaining > 0 ? remaining : 0
+  } catch {
+    return 0
+  }
+}
+
+async function setAirIntraCooldown(msFromNow: number = AIRINTRA_COOLDOWN_MS): Promise<void> {
+  try {
+    const until = new Date(Date.now() + msFromNow).toISOString()
+    await db.execute({
+      sql: `INSERT INTO store_config (id, key, value, updatedAt) VALUES (?, ?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updatedAt = excluded.updatedAt`,
+      args: [`cfg_${AIRINTRA_COOLDOWN_KEY}`, AIRINTRA_COOLDOWN_KEY, until, new Date().toISOString()],
+    })
+    console.log(`[Air Intra] Cooldown set until ${until}`)
+  } catch (e) {
+    console.error('[Air Intra] Failed to set cooldown:', e)
+  }
+}
+
+async function clearAirIntraCooldown(): Promise<void> {
+  try {
+    await db.execute({ sql: `DELETE FROM store_config WHERE key = ?`, args: [AIRINTRA_COOLDOWN_KEY] })
+  } catch {
+    /* ignore */
+  }
+}
+
+async function getAirIntraLastSyncPage(): Promise<number> {
+  try {
+    const r = await db.execute({ sql: `SELECT value FROM store_config WHERE key = ?`, args: [AIRINTRA_LAST_PAGE_KEY] })
+    const v = (r.rows as any[])[0]?.value
+    const n = v ? parseInt(v, 10) : -1
+    return Number.isFinite(n) ? n : -1
+  } catch {
+    return -1
+  }
+}
+
+async function setAirIntraLastSyncPage(page: number): Promise<void> {
+  try {
+    await db.execute({
+      sql: `INSERT INTO store_config (id, key, value, updatedAt) VALUES (?, ?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updatedAt = excluded.updatedAt`,
+      args: [`cfg_${AIRINTRA_LAST_PAGE_KEY}`, AIRINTRA_LAST_PAGE_KEY, String(page), new Date().toISOString()],
+    })
+  } catch (e) {
+    console.error('[Air Intra] Failed to persist last sync page:', e)
+  }
+}
+
+async function clearAirIntraLastSyncPage(): Promise<void> {
+  try {
+    await db.execute({ sql: `DELETE FROM store_config WHERE key = ?`, args: [AIRINTRA_LAST_PAGE_KEY] })
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * Batched Air Intra sync: processes a range of pages from the 'articulos' endpoint.
  * Each batch processes PAGES_PER_BATCH pages (1 page × 500 products = ~500).
@@ -2317,6 +2404,12 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
  *
  * When no token is provided, performs login first.
  * Returns partial results with hasMore/token so the frontend can continue.
+ *
+ * COOLDOWN + RESUME:
+ *   - If a previous batch hit a severe rate limit, getAirIntraCooldown() > 0 and the
+ *     POST handler refuses the call before we get here.
+ *   - On the initial call (no token), we resume from airintra_last_sync_page + 1 if set,
+ *     so retries don't waste Vercel budget re-syncing pages 0..N-1 that are already in DB.
  */
 async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Promise<SyncResult> {
   const baseUrl = supplier.apiBaseUrl || 'https://api.air-intra.com/v2'
@@ -2325,8 +2418,35 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
   const logTime = (label: string) => console.log(`[Air Intra Batch ⏱] ${label}: ${Date.now() - t0}ms`)
 
   try {
-    // Check if we synced recently (Air Intra has a 5-min rate limit between cycles)
-    // Only check on the first batch (startPage === 0 and no token yet = initial call)
+    // ─── Cooldown check ────────────────────────────────────────────────────
+    // If a previous batch hit a severe rate limit, refuse ALL new sync attempts
+    // (initial or continuation) until the cooldown expires. The frontend shows
+    // a dedicated countdown UI when it sees the "RATE_LIMITED_COOLDOWN" marker.
+    const cooldownMs = await getAirIntraCooldown()
+    if (cooldownMs > 0) {
+      const waitSeconds = Math.ceil(cooldownMs / 1000)
+      const waitMinutes = Math.ceil(waitSeconds / 60)
+      result.message = `RATE_LIMITED_COOLDOWN: Air Intra está enfriando tras un rate limit severo. Espere ~${waitMinutes} minuto(s) (${waitSeconds}s) e intente de nuevo.`
+      console.log(`[Air Intra Batch] Refused: cooldown active for ${waitSeconds}s more.`)
+      return result
+    }
+
+    // ─── Resume from last successful page ──────────────────────────────────
+    // On the initial call (no token), if a previous sync was interrupted mid-way
+    // (e.g. by a rate limit), resume from the page after the last one we wrote
+    // to DB. This avoids re-fetching pages 0..N-1 that are already up to date.
+    if (!batch.token && batch.startPage === 0) {
+      const lastPage = await getAirIntraLastSyncPage()
+      if (lastPage >= 0) {
+        const resumeFrom = lastPage + 1
+        console.log(`[Air Intra Batch] Resuming from page ${resumeFrom} (last successful page was ${lastPage}).`)
+        batch = { ...batch, startPage: resumeFrom, endPage: resumeFrom + (batch.endPage - batch.startPage) }
+      }
+    }
+
+    // ─── Legacy 5-min rate limit on a fully-completed cycle ────────────────
+    // Only relevant on the initial call AND when we have no resume state.
+    // (If we are resuming, the cooldown check above already gated us.)
     if (batch.startPage === 0 && !batch.token && supplier.lastSyncAt) {
       const lastSync = new Date(supplier.lastSyncAt).getTime()
       const elapsed = Date.now() - lastSync
@@ -2427,7 +2547,9 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
             // Check for rate limit error
             if (errText.includes('Too many queries') || errText.includes('error_id":403')) {
               console.log(`[Air Intra Batch] Rate limited on page ${page}. Stopping batch.`)
-              result.message = `Rate limit de Air Intra alcanzado en página ${page}. Se procesaron ${totalFetched} productos en este lote.`
+              // Set a short cooldown (5 min) — the API explicitly told us to back off.
+              await setAirIntraCooldown(5 * 60 * 1000)
+              result.message = `RATE_LIMITED_COOLDOWN: Rate limit de Air Intra alcanzado en página ${page}. Se procesaron ${totalFetched} productos en este lote. Cooldown de 5 minutos activado.`
               result.ok = totalFetched > 0
               result.total = totalFetched
               result.created = created
@@ -2513,9 +2635,15 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
                 result.ok = false
                 // Check if the cleaned response is just an empty array or very small
                 if (cleanedText.trim() === '[]' || cleanedText.length < 10) {
-                  result.message = `Air Intra devolvió una respuesta vacía (notices PHP + array vacío, ${rawResponseText?.length || 0} bytes raw). Esto indica rate limit severo. Espere 10-15 minutos e intente de nuevo.`
+                  // ─── Set cooldown so the next sync attempt is refused for 10 minutes ───
+                  // This prevents the user from clicking "Sync" again immediately and
+                  // burning another Vercel function call on a doomed request.
+                  await setAirIntraCooldown(AIRINTRA_COOLDOWN_MS)
+                  result.message = `RATE_LIMITED_COOLDOWN: Air Intra devolvió una respuesta vacía (notices PHP + array vacío, ${rawResponseText?.length || 0} bytes raw). Esto indica rate limit severo. Se activó un cooldown de 10 minutos — intente de nuevo después.`
                 } else {
-                  result.message = `Air Intra devolvió 0 productos en la página ${page}. Respuesta limpia: ${cleanedPreview}. Probablemente rate limit o token expirado. Espere 5-10 minutos e intente de nuevo.`
+                  // Non-empty but 0 products — less severe, set a shorter 5-min cooldown
+                  await setAirIntraCooldown(5 * 60 * 1000)
+                  result.message = `RATE_LIMITED_COOLDOWN: Air Intra devolvió 0 productos en la página ${page}. Respuesta limpia: ${cleanedPreview}. Probablemente rate limit o token expirado. Se activó un cooldown de 5 minutos.`
                 }
                 result.total = totalFetched
                 result.created = created
@@ -2698,6 +2826,11 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
       logTime(`after page ${page} DB writes`)
 
       console.log(`[Air Intra Batch] Page ${page} processed: ${products.length} items (batch total: ${totalFetched})`)
+
+      // Persist progress so a future retry can resume from page+1 instead of
+      // re-fetching pages 0..N-1 that are already up-to-date in the DB.
+      // Best-effort: failure here does not block the current batch.
+      await setAirIntraLastSyncPage(page)
 
       // If this page returned 0 products, we've reached the end
       if (products.length === 0) {
@@ -3209,6 +3342,12 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
       args: [syncNow, syncNow, supplier.id],
     })
 
+    // ─── Clear sync state: cooldown + last sync page ──────────────────────
+    // The whole cycle (articulos pages + syp + recovery) completed successfully,
+    // so there is nothing to resume from and no need to keep the cooldown active.
+    await Promise.all([clearAirIntraCooldown(), clearAirIntraLastSyncPage()])
+    console.log('[Air Intra Finalize] Cleared cooldown + last sync page (cycle complete).')
+
     result.ok = true
     result.total = totalFetched
     result.created = created
@@ -3400,6 +3539,46 @@ export async function syncElit(supplier: any): Promise<SyncResult> {
   }
 
   return result
+}
+
+export async function GET(request: Request) {
+  try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+    const url = new URL(request.url)
+    const supplierId = url.searchParams.get('supplierId')
+    if (!supplierId) {
+      return NextResponse.json({ error: 'supplierId requerido' }, { status: 400 })
+    }
+
+    const supplierResult = await db.execute({
+      sql: 'SELECT apiType, lastSyncAt FROM suppliers WHERE id = ?',
+      args: [supplierId],
+    })
+    const supplier = (supplierResult.rows as any[])[0]
+    if (!supplier) {
+      return NextResponse.json({ error: 'Proveedor no encontrado' }, { status: 404 })
+    }
+    if (supplier.apiType !== 'air_intra') {
+      return NextResponse.json({ apiType: supplier.apiType, cooldownRemaining: 0, lastSyncPage: -1 })
+    }
+
+    const [cooldownMs, lastPage] = await Promise.all([
+      getAirIntraCooldown(),
+      getAirIntraLastSyncPage(),
+    ])
+
+    return NextResponse.json({
+      apiType: 'air_intra',
+      cooldownRemaining: cooldownMs,        // ms remaining (0 = no cooldown)
+      lastSyncPage: lastPage,               // last successfully processed page (-1 = none)
+      lastSyncAt: supplier.lastSyncAt ?? null,
+    })
+  } catch (error: any) {
+    console.error('[sync GET] Error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 }
 
 export async function POST(request: Request) {

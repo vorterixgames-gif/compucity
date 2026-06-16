@@ -404,8 +404,8 @@ async function syncInvidStock(): Promise<{ ok: boolean; updated: number; errors:
  */
 function stripPhpNotices(text: string): string {
   return text
-    .replace(/(?:<br\s*\/?>\s*)?<b>(?:Notice|Warning|Fatal error|Parse error|Deprecated)<\/b>:\s*.*?on line \d+\s*/gis, '')
-    .replace(/(?:^|\n)\s*(?:Notice|Warning|Fatal error|Parse error|Deprecated):\s*.*?on line \d+\s*/gis, '')
+    .replace(/(?:<br\s*\/?>\s*)?<b>(?:Notice|Warning|Fatal error|Parse error|Deprecated)<\/b>:\s*[\s\S]*?on line \d+\s*/gi, '')
+    .replace(/(?:^|\n)\s*(?:Notice|Warning|Fatal error|Parse error|Deprecated):\s*[\s\S]*?on line \d+\s*/gi, '')
     .replace(/<br\s*\/?>\s*/gi, '')
     .replace(/<\/?b>/gi, '')
     .replace(/,\s*([}\]])/g, '$1')
