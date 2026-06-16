@@ -423,6 +423,9 @@ export default function AdminProveedores() {
         let totalUpdated = 0
         let totalFetched = 0
         let totalErrors = 0
+        // Track end-of-catalog context so the final summary reflects WHY
+        // the sync terminated (vs. just showing "0 productos").
+        let endOfCatalogNote = ''
 
         // First call: login + first batch
         const firstData = await safeFetchJson('/api/admin/suppliers/sync', {
@@ -446,6 +449,9 @@ export default function AdminProveedores() {
         token = firstData.token
         exchangeRate = firstData.exchangeRate
         nextPage = firstData.nextPage
+        if (typeof firstData.message === 'string' && firstData.message.includes('END_OF_CATALOG')) {
+          endOfCatalogNote = firstData.message.replace(/^END_OF_CATALOG:\s*/, '')
+        }
 
         // Continue with subsequent batches if there are more pages
         while (firstData.hasMore && nextPage !== undefined && token) {
@@ -491,6 +497,9 @@ export default function AdminProveedores() {
           token = batchData.token || token
           exchangeRate = batchData.exchangeRate || exchangeRate
           nextPage = batchData.nextPage
+          if (typeof batchData.message === 'string' && batchData.message.includes('END_OF_CATALOG')) {
+            endOfCatalogNote = batchData.message.replace(/^END_OF_CATALOG:\s*/, '')
+          }
 
           // Update firstData.hasMore for the loop condition
           firstData.hasMore = batchData.hasMore
@@ -523,10 +532,20 @@ export default function AdminProveedores() {
             ? (finalizeData.message || 'Post-procesamiento completado')
             : `Advertencia en post-procesamiento: ${finalizeData.message}`
 
-          setSyncResult({
-            ok: true,
-            message: `Sincronización completada: ${totalFetched} productos, ${totalCreated} nuevos, ${totalUpdated} actualizados, ${totalErrors} errores. ${finalizeNote}`,
-          })
+          // If the batch phase hit END_OF_CATALOG, lead with that context —
+          // otherwise the user sees "0 productos" and thinks the sync failed,
+          // when in reality the catalog is already fully synced.
+          if (endOfCatalogNote) {
+            setSyncResult({
+              ok: true,
+              message: `END_OF_CATALOG: ${endOfCatalogNote} Post-procesamiento: ${totalCreated} nuevos, ${totalUpdated} actualizados, ${totalErrors} errores.`,
+            })
+          } else {
+            setSyncResult({
+              ok: true,
+              message: `Sincronización completada: ${totalFetched} productos, ${totalCreated} nuevos, ${totalUpdated} actualizados, ${totalErrors} errores. ${finalizeNote}`,
+            })
+          }
         } else {
           setSyncResult({
             ok: true,
