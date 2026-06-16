@@ -1,0 +1,676 @@
+     1→import { NextResponse } from 'next/server'
+     2→import { db } from '@/lib/db'
+     3→
+     4→export const dynamic = 'force-dynamic'
+     5→export const maxDuration = 300 // 5 minutes max for Vercel
+     6→
+     7→/**
+     8→ * Cron endpoint for automated daily supplier sync (stock + price updates only).
+     9→ * Secured via CRON_SECRET env variable.
+    10→ * 
+    11→ * This does a lightweight sync: fetches current stock/prices from supplier APIs
+    12→ * and updates existing products. Does NOT create new products or recategorize.
+    13→ * For full sync (with new products), use the admin panel manually.
+    14→ * 
+    15→ * Call with: GET /api/cron/sync?secret=YOUR_CRON_SECRET
+    16→ */
+    17→export async function GET(request: Request) {
+    18→  const startTime = Date.now()
+    19→  console.log('[cron-sync] Starting daily stock/price sync...')
+    20→
+    21→  // Verify cron secret
+    22→  const { searchParams } = new URL(request.url)
+    23→  const secret = searchParams.get('secret')
+    24→  const cronSecret = process.env.CRON_SECRET
+    25→
+    26→  if (!cronSecret) {
+    27→    console.error('[cron-sync] CRON_SECRET not configured')
+    28→    return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 500 })
+    29→  }
+    30→
+    31→  if (secret !== cronSecret) {
+    32→    console.warn('[cron-sync] Invalid cron secret')
+    33→    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    34→  }
+    35→
+    36→  const results: Record<string, { ok: boolean; updated: number; errors: number; message: string }> = {}
+    37→
+    38→  // ─── Sync Elit ─────────────────────────────────────────────────────────────
+    39→  try {
+    40→    const elitResult = await syncElitStock()
+    41→    results['Elit'] = elitResult
+    42→    console.log(`[cron-sync] Elit: ${elitResult.updated} updated, ${elitResult.errors} errors`)
+    43→  } catch (err: any) {
+    44→    console.error('[cron-sync] Elit error:', err.message)
+    45→    results['Elit'] = { ok: false, updated: 0, errors: 1, message: err.message }
+    46→  }
+    47→
+    48→  // ─── Sync Invid ────────────────────────────────────────────────────────────
+    49→  try {
+    50→    const invidResult = await syncInvidStock()
+    51→    results['Invid'] = invidResult
+    52→    console.log(`[cron-sync] Invid: ${invidResult.updated} updated, ${invidResult.errors} errors`)
+    53→  } catch (err: any) {
+    54→    console.error('[cron-sync] Invid error:', err.message)
+    55→    results['Invid'] = { ok: false, updated: 0, errors: 1, message: err.message }
+    56→  }
+    57→
+    58→  // ─── Sync Air Intra ─────────────────────────────────────────────────────────
+    59→  try {
+    60→    const airIntraResult = await syncAirIntraStock()
+    61→    results['Air Intra'] = airIntraResult
+    62→    console.log(`[cron-sync] Air Intra: ${airIntraResult.updated} updated, ${airIntraResult.errors} errors`)
+    63→  } catch (err: any) {
+    64→    console.error('[cron-sync] Air Intra error:', err.message)
+    65→    results['Air Intra'] = { ok: false, updated: 0, errors: 1, message: err.message }
+    66→  }
+    67→
+    68→  // ─── Update lastSyncAt for both ────────────────────────────────────────────
+    69→  const now = new Date().toISOString()
+    70→  try {
+    71→    await db.execute({
+    72→      sql: `UPDATE suppliers SET lastSyncAt = ?, updatedAt = ? WHERE apiType IN ('elit', 'invid', 'air_intra') AND isActive = 1`,
+    73→      args: [now, now],
+    74→    })
+    75→  } catch { /* non-critical */ }
+    76→
+    77→  // ─── Re-detect brands after sync ────────────────────────────────────────
+    78→  try {
+    79→    const { BRAND_PATTERNS } = await import('@/lib/brand-patterns')
+    80→    const productResult = await db.execute({ sql: 'SELECT id, name, specs FROM products WHERE isActive = 1', args: [] })
+    81→    const allProducts = productResult.rows as { id: string; name: string; specs: string }[]
+    82→
+    83→    const brandProductCounts = new Map<string, number>()
+    84→    const brandProductIds = new Map<string, string[]>()
+    85→
+    86→    // Step 1: Detect brands from regex patterns (known brands)
+    87→    for (const product of allProducts) {
+    88→      for (const bp of BRAND_PATTERNS) {
+    89→        if (bp.pattern.test(product.name)) {
+    90→          const key = bp.slug
+    91→          brandProductCounts.set(key, (brandProductCounts.get(key) || 0) + 1)
+    92→          if (!brandProductIds.has(key)) brandProductIds.set(key, [])
+    93→          brandProductIds.get(key)!.push(product.id)
+    94→          break
+    95→        }
+    96→      }
+    97→    }
+    98→
+    99→    // Step 2: Detect brands from supplier "marca" field in specs (catches new/unknown brands)
+   100→    for (const product of allProducts) {
+   101→      // Skip products already matched by regex patterns
+   102→      const alreadyMatched = [...brandProductIds.values()].some(ids => ids.includes(product.id))
+   103→      if (alreadyMatched) continue
+   104→
+   105→      try {
+   106→        const specs = typeof product.specs === 'string' ? JSON.parse(product.specs) : product.specs
+   107→        const marca = specs?.['Marca']
+   108→        if (!marca || typeof marca !== 'string' || marca.trim().length < 2) continue
+   109→
+   110→        const brandName = marca.trim()
+   111→        const slug = brandName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+   112→        if (!slug) continue
+   113→
+   114→        brandProductCounts.set(slug, (brandProductCounts.get(slug) || 0) + 1)
+   115→        if (!brandProductIds.has(slug)) brandProductIds.set(slug, [])
+   116→        brandProductIds.get(slug)!.push(product.id)
+   117→      } catch { /* invalid specs JSON, skip */ }
+   118→    }
+   119→
+   120→    let brandsCreated = 0
+   121→    // Create/update brands from both pattern-matched and marca-detected
+   122→    for (const [slug, count] of brandProductCounts) {
+   123→      const existing = await db.execute({ sql: 'SELECT id FROM brands WHERE slug = ?', args: [slug] })
+   124→      if (existing.rows.length > 0) {
+   125→        await db.execute({ sql: 'UPDATE brands SET productCount = ?, updatedAt = ? WHERE slug = ?', args: [count, now, slug] })
+   126→      } else if (count > 0) {
+   127→        // Find brand name: from patterns first, then generate from slug
+   128→        const pattern = BRAND_PATTERNS.find(bp => bp.slug === slug)
+   129→        const brandName = pattern?.name || slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+   130→        const id = crypto.randomUUID()
+   131→        await db.execute({
+   132→          sql: `INSERT INTO brands (id, name, slug, logoUrl, logoWidth, logoHeight, isActive, "order", productCount, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?)`,
+   133→          args: [id, brandName, slug, `https://cdn.simpleicons.org/${slug}/9ca3af`, 80, 24, count, now, now],
+   134→        })
+   135→        brandsCreated++
+   136→      }
+   137→    }
+   138→
+   139→    // Assign brandId to products that don't have one
+   140→    for (const [slug, pids] of brandProductIds) {
+   141→      const brandRow = await db.execute({ sql: 'SELECT id FROM brands WHERE slug = ?', args: [slug] })
+   142→      if (brandRow.rows.length === 0) continue
+   143→      const brandId = (brandRow.rows[0] as any).id
+   144→      for (const pid of pids) {
+   145→        try { await db.execute({ sql: 'UPDATE products SET brandId = ? WHERE id = ? AND brandId IS NULL', args: [brandId, pid] }) } catch { /* skip */ }
+   146→      }
+   147→    }
+   148→
+   149→    console.log(`[cron-sync] Brands updated: ${brandsCreated} new brands detected (total brands: ${brandProductCounts.size})`)
+   150→  } catch (err: any) {
+   151→    console.error('[cron-sync] Brand update error (non-critical):', err.message)
+   152→  }
+   153→
+   154→  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
+   155→  console.log(`[cron-sync] Daily stock/price sync completed in ${elapsed}s`)
+   156→
+   157→  return NextResponse.json({
+   158→    ok: true,
+   159→    elapsed: `${elapsed}s`,
+   160→    timestamp: now,
+   161→    suppliers: results,
+   162→  })
+   163→}
+   164→
+   165→// ─── Elit lightweight sync ────────────────────────────────────────────────────
+   166→
+   167→async function syncElitStock(): Promise<{ ok: boolean; updated: number; errors: number; message: string }> {
+   168→  // Get supplier credentials
+   169→  const supplierResult = await db.execute({
+   170→    sql: 'SELECT * FROM suppliers WHERE apiType = ? AND isActive = 1',
+   171→    args: ['elit'],
+   172→  })
+   173→  const supplier = (supplierResult.rows as any[])[0]
+   174→  if (!supplier) return { ok: false, updated: 0, errors: 0, message: 'Elit supplier not found' }
+   175→
+   176→  const baseUrl = supplier.apiBaseUrl || 'https://clientes.elit.com.ar'
+   177→  const userId = parseInt(supplier.apiUserId || '0')
+   178→  const token = supplier.apiToken || ''
+   179→  const markup = supplier.markup || 30
+   180→
+   181→  if (!userId || !token) return { ok: false, updated: 0, errors: 0, message: 'Missing credentials' }
+   182→
+   183→  // Load existing Elit products from DB
+   184→  const dbResult = await db.execute({
+   185→    sql: 'SELECT id, providerSku, stock, price, costPrice FROM products WHERE providerId = ?',
+   186→    args: [supplier.id],
+   187→  })
+   188→  const dbMap = new Map<string, { id: string; stock: number; price: number; costPrice: number }>()
+   189→  for (const row of dbResult.rows as any[]) {
+   190→    if (row.providerSku) dbMap.set(row.providerSku, row)
+   191→  }
+   192→  console.log(`[cron-sync] Elit: ${dbMap.size} products in DB`)
+   193→
+   194→  // Fetch all products from Elit API (paginated)
+   195→  const apiProducts: Map<string, { stock: number; price: number; costPrice: number }> = new Map()
+   196→  let offset = 1
+   197→  const pageSize = 100
+   198→
+   199→  while (true) {
+   200→    try {
+   201→      const url = `${baseUrl}/v1/api/productos?limit=${pageSize}&offset=${offset}`
+   202→      const resp = await fetch(url, {
+   203→        method: 'POST',
+   204→        headers: { 'Content-Type': 'application/json' },
+   205→        body: JSON.stringify({ user_id: userId, token }),
+   206→      })
+   207→
+   208→      if (!resp.ok) {
+   209→        console.error(`[cron-sync] Elit API error: HTTP ${resp.status}`)
+   210→        break
+   211→      }
+   212→
+   213→      const data = await resp.json()
+   214→      const products = data.resultado || []
+   215→      if (!Array.isArray(products) || products.length === 0) break
+   216→
+   217→      for (const p of products) {
+   218→        const sku = p.codigo_alfa
+   219→        if (!sku) continue
+   220→        const stock = parseInt(p.stock_total || '0')
+   221→        const costPrice = parseFloat(p.precio || '0')
+   222→        if (costPrice <= 0) continue
+   223→        const price = costPrice * (1 + markup / 100)
+   224→        apiProducts.set(sku, { stock, price, costPrice })
+   225→      }
+   226→
+   227→      if (products.length < pageSize) break
+   228→      offset += pageSize
+   229→    } catch (err: any) {
+   230→      console.error(`[cron-sync] Elit fetch error at offset ${offset}:`, err.message)
+   231→      break
+   232→    }
+   233→  }
+   234→
+   235→  console.log(`[cron-sync] Elit: ${apiProducts.size} products from API`)
+   236→
+   237→  // Compare and build updates
+   238→  const now = new Date().toISOString()
+   239→  const updates: { id: string; stock: number; price: number; costPrice: number }[] = []
+   240→
+   241→  for (const [sku, apiData] of apiProducts) {
+   242→    const dbData = dbMap.get(sku)
+   243→    if (!dbData) continue // Skip new products (full sync needed)
+   244→
+   245→    if (apiData.stock !== dbData.stock || Math.abs(apiData.price - dbData.price) > 1) {
+   246→      updates.push({ id: dbData.id, stock: apiData.stock, price: apiData.price, costPrice: apiData.costPrice })
+   247→    }
+   248→  }
+   249→
+   250→  // Apply updates in batches
+   251→  let applied = 0
+   252→  let errors = 0
+   253→  for (let i = 0; i < updates.length; i += 50) {
+   254→    const batch = updates.slice(i, i + 50)
+   255→    const stmts = batch.map(u => ({
+   256→      sql: 'UPDATE products SET stock = ?, price = ?, costPrice = ?, updatedAt = ? WHERE id = ?',
+   257→      args: [u.stock, u.price, u.costPrice, now, u.id],
+   258→    }))
+   259→    try {
+   260→      await db.batch(stmts)
+   261→      applied += batch.length
+   262→    } catch {
+   263→      for (const stmt of stmts) {
+   264→        try { await db.execute(stmt); applied++ } catch { errors++ }
+   265→      }
+   266→    }
+   267→  }
+   268→
+   269→  return { ok: true, updated: applied, errors, message: `Updated ${applied} of ${updates.length} changes` }
+   270→}
+   271→
+   272→// ─── Invid lightweight sync ───────────────────────────────────────────────────
+   273→
+   274→async function syncInvidStock(): Promise<{ ok: boolean; updated: number; errors: number; message: string }> {
+   275→  // Get supplier credentials
+   276→  const supplierResult = await db.execute({
+   277→    sql: 'SELECT * FROM suppliers WHERE apiType = ? AND isActive = 1',
+   278→    args: ['invid'],
+   279→  })
+   280→  const supplier = (supplierResult.rows as any[])[0]
+   281→  if (!supplier) return { ok: false, updated: 0, errors: 0, message: 'Invid supplier not found' }
+   282→
+   283→  const baseUrl = supplier.apiBaseUrl || 'https://www.invidcomputers.com'
+   284→  const username = supplier.apiUsername
+   285→  const password = supplier.apiPassword
+   286→  const markup = supplier.markup || 30
+   287→
+   288→  if (!username || !password) return { ok: false, updated: 0, errors: 0, message: 'Missing Invid credentials (username/password)' }
+   289→
+   290→  // Step 1: Authenticate to get token
+   291→  let token: string
+   292→  try {
+   293→    const authRes = await fetch(`${baseUrl}/api/v1/auth.php`, {
+   294→      method: 'POST',
+   295→      headers: { 'Content-Type': 'application/json' },
+   296→      body: JSON.stringify({ username, password }),
+   297→    })
+   298→
+   299→    if (!authRes.ok) {
+   300→      return { ok: false, updated: 0, errors: 1, message: `Invid auth failed: HTTP ${authRes.status}` }
+   301→    }
+   302→
+   303→    const authData = await authRes.json()
+   304→    if (!authData.access_token) {
+   305→      return { ok: false, updated: 0, errors: 1, message: 'No access_token from Invid' }
+   306→    }
+   307→    token = authData.access_token
+   308→  } catch (err: any) {
+   309→    return { ok: false, updated: 0, errors: 1, message: `Invid auth error: ${err.message}` }
+   310→  }
+   311→
+   312→  // Load existing Invid products from DB
+   313→  const dbResult = await db.execute({
+   314→    sql: 'SELECT id, providerSku, stock, price, costPrice FROM products WHERE providerId = ?',
+   315→    args: [supplier.id],
+   316→  })
+   317→  const dbMap = new Map<string, { id: string; stock: number; price: number; costPrice: number }>()
+   318→  for (const row of dbResult.rows as any[]) {
+   319→    if (row.providerSku) dbMap.set(row.providerSku, row)
+   320→  }
+   321→  console.log(`[cron-sync] Invid: ${dbMap.size} products in DB`)
+   322→
+   323→  // Step 2: Fetch all products from Invid API (paginated)
+   324→  const apiProducts = new Map<string, { stock: number; price: number; costPrice: number }>()
+   325→  let offset = 0
+   326→  const pageSize = 100
+   327→
+   328→  while (true) {
+   329→    try {
+   330→      const url = `${baseUrl}/api/v1/articulo.php?offset=${offset}`
+   331→      const resp = await fetch(url, {
+   332→        headers: { 'Authorization': `Bearer ${token}` },
+   333→      })
+   334→
+   335→      if (!resp.ok) {
+   336→        console.error(`[cron-sync] Invid API error at offset ${offset}: HTTP ${resp.status}`)
+   337→        break
+   338→      }
+   339→
+   340→      const data = await resp.json()
+   341→      const products = data.data || []
+   342→      if (!Array.isArray(products) || products.length === 0) break
+   343→
+   344→      for (const p of products) {
+   345→        const sku = p.codigo_alfa || p.sku || ''
+   346→        if (!sku) continue
+   347→        const stock = parseInt(p.stock_total || p.stock || '0')
+   348→        const costPrice = parseFloat(p.precio || p.pvp || p.price || '0')
+   349→        if (costPrice <= 0) continue
+   350→        const price = costPrice * (1 + markup / 100)
+   351→        apiProducts.set(sku, { stock, price, costPrice })
+   352→      }
+   353→
+   354→      if (products.length < pageSize) break
+   355→      offset += pageSize
+   356→    } catch (err: any) {
+   357→      console.error(`[cron-sync] Invid fetch error at offset ${offset}:`, err.message)
+   358→      break
+   359→    }
+   360→  }
+   361→
+   362→  console.log(`[cron-sync] Invid: ${apiProducts.size} products from API`)
+   363→
+   364→  // Compare and build updates
+   365→  const now = new Date().toISOString()
+   366→  const updates: { id: string; stock: number; price: number; costPrice: number }[] = []
+   367→
+   368→  for (const [sku, apiData] of apiProducts) {
+   369→    const dbData = dbMap.get(sku)
+   370→    if (!dbData) continue
+   371→
+   372→    if (apiData.stock !== dbData.stock || Math.abs(apiData.price - dbData.price) > 1) {
+   373→      updates.push({ id: dbData.id, stock: apiData.stock, price: apiData.price, costPrice: apiData.costPrice })
+   374→    }
+   375→  }
+   376→
+   377→  // Apply updates
+   378→  let applied = 0
+   379→  let errors = 0
+   380→  for (let i = 0; i < updates.length; i += 50) {
+   381→    const batch = updates.slice(i, i + 50)
+   382→    const stmts = batch.map(u => ({
+   383→      sql: 'UPDATE products SET stock = ?, price = ?, costPrice = ?, updatedAt = ? WHERE id = ?',
+   384→      args: [u.stock, u.price, u.costPrice, now, u.id],
+   385→    }))
+   386→    try {
+   387→      await db.batch(stmts)
+   388→      applied += batch.length
+   389→    } catch {
+   390→      for (const stmt of stmts) {
+   391→        try { await db.execute(stmt); applied++ } catch { errors++ }
+   392→      }
+   393→    }
+   394→  }
+   395→
+   396→  return { ok: true, updated: applied, errors, message: `Updated ${applied} of ${updates.length} changes` }
+   397→}
+   398→
+   399→// ─── Air Intra lightweight sync ────────────────────────────────────────────────
+   400→
+   401→/**
+   402→ * Strip PHP notices/warnings from Air Intra API response text.
+   403→ * Copy of the function in admin sync route — needed here for standalone cron.
+   404→ */
+   405→function stripPhpNotices(text: string): string {
+   406→  return text
+   407→    .replace(/(?:<br\s*\/?>\s*)?<b>(?:Notice|Warning|Fatal error|Parse error|Deprecated)<\/b>:\s*[\s\S]*?on line \d+\s*/gi, '')
+   408→    .replace(/(?:^|\n)\s*(?:Notice|Warning|Fatal error|Parse error|Deprecated):\s*[\s\S]*?on line \d+\s*/gi, '')
+   409→    .replace(/<br\s*\/?>\s*/gi, '')
+   410→    .replace(/<\/?b>/gi, '')
+   411→    .replace(/,\s*([}\]])/g, '$1')
+   412→    .trim()
+   413→}
+   414→
+   415→/**
+   416→ * Safely parse Air Intra JSON response handling PHP notice corruption.
+   417→ * Returns parsed array of products or null with error message.
+   418→ */
+   419→async function safeParseAirIntraProducts(res: Response): Promise<{ products: any[] | null; error: string | null }> {
+   420→  const rawText = await res.text()
+   421→  const text = stripPhpNotices(rawText)
+   422→
+   423→  // Find JSON start
+   424→  let jsonStart = -1
+   425→  for (let i = 0; i < text.length; i++) {
+   426→    if (text[i] === '{' || text[i] === '[') { jsonStart = i; break }
+   427→  }
+   428→  if (jsonStart === -1) return { products: null, error: `No JSON found in response` }
+   429→
+   430→  const jsonText = text.substring(jsonStart)
+   431→
+   432→  // Try direct parse
+   433→  try {
+   434→    const data = JSON.parse(jsonText)
+   435→    if (data && typeof data === 'object' && !Array.isArray(data) && data.error_id) {
+   436→      if (data.error_id === 403) return { products: null, error: `Rate limit (403): ${data.error_detail || ''}` }
+   437→      if (data.error_id === 401) return { products: null, error: `Token expired (401): ${data.error_detail || ''}` }
+   438→      return { products: null, error: `API error ${data.error_id}: ${data.error_name || ''}` }
+   439→    }
+   440→    const products = Array.isArray(data) ? data : (data.articulos || data.data || [])
+   441→    return { products, error: null }
+   442→  } catch {}
+   443→
+   444→  // Try aggressive cleanup
+   445→  try {
+   446→    const cleaned = jsonText
+   447→      .replace(/<[^>]*>/g, '')
+   448→      .replace(/,\s*,/g, ',')
+   449→      .replace(/}\s*{/g, '},{')
+   450→      .replace(/,\s*([}\]])/g, '$1')
+   451→    const data = JSON.parse(cleaned)
+   452→    const products = Array.isArray(data) ? data : (data.articulos || data.data || [])
+   453→    return { products, error: null }
+   454→  } catch {}
+   455→
+   456→  // Fallback: extract individual product objects using brace-depth parser
+   457→  const products: any[] = []
+   458→  let i = 0
+   459→  while (i < text.length) {
+   460→    if (text[i] !== '{') { i++; continue }
+   461→    let depth = 0, inStr = false, esc = false, objEnd = -1
+   462→    for (let j = i; j < text.length; j++) {
+   463→      const ch = text[j]
+   464→      if (esc) { esc = false; continue }
+   465→      if (ch === '\\' && inStr) { esc = true; continue }
+   466→      if (ch === '"') { inStr = !inStr; continue }
+   467→      if (inStr) continue
+   468→      if (ch === '{') depth++
+   469→      else if (ch === '}') { depth--; if (depth === 0) { objEnd = j; break } }
+   470→    }
+   471→    if (objEnd === -1) { i++; continue }
+   472→    const objText = text.substring(i, objEnd + 1)
+   473→    if (objText.includes('"codigo"') || objText.includes('"codiart"')) {
+   474→      try { products.push(JSON.parse(objText)) } catch { /* skip corrupted */ }
+   475→    }
+   476→    i = objEnd + 1
+   477→  }
+   478→  if (products.length > 0) return { products, error: null }
+   479→  return { products: null, error: `Could not parse response (${jsonText.length} chars)` }
+   480→}
+   481→
+   482→async function syncAirIntraStock(): Promise<{ ok: boolean; updated: number; errors: number; message: string }> {
+   483→  // Get supplier credentials
+   484→  const supplierResult = await db.execute({
+   485→    sql: 'SELECT * FROM suppliers WHERE apiType = ? AND isActive = 1',
+   486→    args: ['air_intra'],
+   487→  })
+   488→  const supplier = (supplierResult.rows as any[])[0]
+   489→  if (!supplier) return { ok: false, updated: 0, errors: 0, message: 'Air Intra supplier not found' }
+   490→
+   491→  const baseUrl = supplier.apiBaseUrl || 'https://api.air-intra.com/v2'
+   492→  const markup = supplier.markup || 30
+   493→
+   494→  if (!supplier.apiUsername || !supplier.apiPassword) {
+   495→    return { ok: false, updated: 0, errors: 0, message: 'Missing Air Intra credentials (username/password)' }
+   496→  }
+   497→
+   498→  // Step 1: Login to get token + exchange rate
+   499→  let loginToken = ''
+   500→  let loginExchangeRate = 0
+   501→  try {
+   502→    const authRes = await fetch(`${baseUrl}/?q=login&user=${encodeURIComponent(supplier.apiUsername)}&pass=${encodeURIComponent(supplier.apiPassword)}`)
+   503→    if (!authRes.ok) {
+   504→      return { ok: false, updated: 0, errors: 1, message: `Air Intra auth failed: HTTP ${authRes.status}` }
+   505→    }
+   506→    const rawText = await authRes.text()
+   507→    const cleaned = stripPhpNotices(rawText)
+   508→    let jsonStart = -1
+   509→    for (let i = 0; i < cleaned.length; i++) {
+   510→      if (cleaned[i] === '{' || cleaned[i] === '[') { jsonStart = i; break }
+   511→    }
+   512→    if (jsonStart === -1) {
+   513→      return { ok: false, updated: 0, errors: 1, message: 'Air Intra auth: no JSON in response' }
+   514→    }
+   515→    const authData = JSON.parse(cleaned.substring(jsonStart))
+   516→    if (!authData.token) {
+   517→      return { ok: false, updated: 0, errors: 1, message: 'Air Intra auth: no token received' }
+   518→    }
+   519→    loginToken = authData.token
+   520→    loginExchangeRate = parseFloat(authData.cotiza || '0')
+   521→    console.log(`[cron-sync] Air Intra: Login OK. Cotización: ${loginExchangeRate}`)
+   522→  } catch (err: any) {
+   523→    return { ok: false, updated: 0, errors: 1, message: `Air Intra auth error: ${err.message}` }
+   524→  }
+   525→
+   526→  // Load existing Air Intra products from DB
+   527→  const dbResult = await db.execute({
+   528→    sql: 'SELECT id, providerSku, stock, price, costPrice, stockByWarehouse FROM products WHERE providerId = ?',
+   529→    args: [supplier.id],
+   530→  })
+   531→  const dbMap = new Map<string, { id: string; stock: number; price: number; costPrice: number; stockByWarehouse: string | null }>()
+   532→  for (const row of dbResult.rows as any[]) {
+   533→    if (row.providerSku) dbMap.set(row.providerSku, row)
+   534→  }
+   535→  console.log(`[cron-sync] Air Intra: ${dbMap.size} products in DB`)
+   536→
+   537→  // Step 2: Fetch all products from Air Intra articulos endpoint (paginated, 500 per page)
+   538→  const apiProducts = new Map<string, { stock: number; price: number; costPrice: number; stockByWarehouse: string }>()
+   539→  let page = 0
+   540→  const pageSize = 500
+   541→  const MAX_PAGES = 30
+   542→
+   543→  while (page < MAX_PAGES) {
+   544→    try {
+   545→      const productsRes = await fetch(`${baseUrl}/?q=articulos&page=${page}`, {
+   546→        method: 'POST',
+   547→        headers: {
+   548→          'Authorization': `Bearer ${loginToken}`,
+   549→          'Content-Type': 'application/json',
+   550→        },
+   551→        body: JSON.stringify({}),
+   552→      })
+   553→
+   554→      if (!productsRes.ok) {
+   555→        const errText = await productsRes.text().catch(() => '')
+   556→        if (errText.includes('Too many queries') || errText.includes('error_id":403')) {
+   557→          console.log(`[cron-sync] Air Intra: Rate limited on page ${page}. Stopping.`)
+   558→          break
+   559→        }
+   560→        console.error(`[cron-sync] Air Intra API error: HTTP ${productsRes.status} on page ${page}`)
+   561→        break
+   562→      }
+   563→
+   564→      const { products, error } = await safeParseAirIntraProducts(productsRes)
+   565→
+   566→      if (error || !products || !Array.isArray(products) || products.length === 0) {
+   567→        if (page === 0 && error) {
+   568→          console.error(`[cron-sync] Air Intra: Failed to parse first page: ${error}`)
+   569→          break
+   570→        }
+   571→        // Empty page = end of data
+   572→        break
+   573→      }
+   574→
+   575→      for (const p of products) {
+   576→        const sku = p.codigo || p.codiart || ''
+   577→        if (!sku) continue
+   578→        const costPrice = parseFloat(p.precio || '0')
+   579→        if (costPrice <= 0) continue
+   580→
+   581→        // Stock total de todos los depósitos (same logic as main sync)
+   582→        const stockByWarehouse = {
+   583→          air: p.air?.disponible || 0,
+   584→          lug: p.lug?.disponible || 0,
+   585→          ros: p.ros?.disponible || 0,
+   586→          cba: p.cba?.disponible || 0,
+   587→          mza: p.mza?.disponible || 0,
+   588→        }
+   589→        const totalStock = Object.values(stockByWarehouse).reduce((a: number, b: number) => a + b, 0)
+   590→        const price = costPrice * (1 + markup / 100)
+   591→
+   592→        apiProducts.set(sku, {
+   593→          stock: totalStock,
+   594→          price,
+   595→          costPrice,
+   596→          stockByWarehouse: JSON.stringify(stockByWarehouse),
+   597→        })
+   598→      }
+   599→
+   600→      if (products.length < pageSize) break
+   601→      page++
+   602→    } catch (err: any) {
+   603→      console.error(`[cron-sync] Air Intra fetch error on page ${page}:`, err.message)
+   604→      break
+   605→    }
+   606→  }
+   607→
+   608→  console.log(`[cron-sync] Air Intra: ${apiProducts.size} products from API`)
+   609→
+   610→  // Step 3: Compare and build updates (only existing products, no new ones)
+   611→  const now = new Date().toISOString()
+   612→  const updates: { id: string; stock: number; price: number; costPrice: number; stockByWarehouse: string }[] = []
+   613→
+   614→  for (const [sku, apiData] of apiProducts) {
+   615→    const dbData = dbMap.get(sku)
+   616→    if (!dbData) continue // Skip products not in DB (need full sync)
+   617→
+   618→    if (apiData.stock !== dbData.stock || Math.abs(apiData.price - dbData.price) > 1 || Math.abs(apiData.costPrice - dbData.costPrice) > 1) {
+   619→      updates.push({
+   620→        id: dbData.id,
+   621→        stock: apiData.stock,
+   622→        price: apiData.price,
+   623→        costPrice: apiData.costPrice,
+   624→        stockByWarehouse: apiData.stockByWarehouse,
+   625→      })
+   626→    }
+   627→  }
+   628→
+   629→  // Apply updates in batches
+   630→  let applied = 0
+   631→  let errors = 0
+   632→  for (let i = 0; i < updates.length; i += 50) {
+   633→    const batch = updates.slice(i, i + 50)
+   634→    const stmts = batch.map(u => ({
+   635→      sql: 'UPDATE products SET stock = ?, price = ?, costPrice = ?, stockByWarehouse = ?, updatedAt = ? WHERE id = ?',
+   636→      args: [u.stock, u.price, u.costPrice, u.stockByWarehouse, now, u.id],
+   637→    }))
+   638→    try {
+   639→      await db.batch(stmts)
+   640→      applied += batch.length
+   641→    } catch {
+   642→      for (const stmt of stmts) {
+   643→        try { await db.execute(stmt); applied++ } catch { errors++ }
+   644→      }
+   645→    }
+   646→  }
+   647→
+   648→  // Also update isActive based on price (Air Intra rule: price > 0 = active)
+   649→  let activated = 0
+   650→  let deactivated = 0
+   651→  try {
+   652→    const activateResult = await db.execute({
+   653→      sql: `UPDATE products SET isActive = 1, updatedAt = ? WHERE providerId = ? AND isActive = 0 AND costPrice > 0`,
+   654→      args: [now, supplier.id],
+   655→    })
+   656→    activated = (activateResult.rowsAffected as number) || 0
+   657→
+   658→    const deactivateResult = await db.execute({
+   659→      sql: `UPDATE products SET isActive = 0, updatedAt = ? WHERE providerId = ? AND isActive = 1 AND costPrice <= 0`,
+   660→      args: [now, supplier.id],
+   661→    })
+   662→    deactivated = (deactivateResult.rowsAffected as number) || 0
+   663→  } catch { /* non-critical */ }
+   664→
+   665→  const extraInfo: string[] = []
+   666→  if (activated > 0) extraInfo.push(`${activated} activated`)
+   667→  if (deactivated > 0) extraInfo.push(`${deactivated} deactivated`)
+   668→
+   669→  return {
+   670→    ok: true,
+   671→    updated: applied,
+   672→    errors,
+   673→    message: `Updated ${applied} of ${updates.length} changes${extraInfo.length > 0 ? ` (${extraInfo.join(', ')})` : ''}`,
+   674→  }
+   675→}
+   676→
