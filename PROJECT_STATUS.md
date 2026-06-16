@@ -713,6 +713,72 @@ scripts/check-critical-files.mjs           -- Verificacion pre-deploy
 
 **Nota Turso Scaler (sesion 43):** Se upgradeo del plan Free al Scaler ($29/mes) despues de agotar el limite de 500M rows reads/mes. Con los fixes de cache aplicados en sesion 43, el consumo proyectado es ~15M/mes = 0.06% del plan Scaler. Sin riesgo de overages.
 
+### Leccion aprendida sesion 43: por que nos fuimos del limite Turso
+
+El PROJECT_STATUS.md (sesiones 42 y anteriores) decia "~1M rows reads/mes, <0.1% del limite Free, Holgado". Esa cifra estaba **completamente mal**. El error de calculo vino de 4 supuestos incorrectos:
+
+**Supuesto erroneo #1: contar filas DEVUELTAS en lugar de filas ESCANEADAS**
+- Turso cobra por filas que ESCANEA durante la query, no por las que retorna
+- Una query `SELECT * FROM products WHERE categoryId = ? ORDER BY ...` sin LIMIT ni indice escanea TODA la tabla (10,960 filas) aunque devuelva solo 50
+- Calculo ingenuo: 200 visitas/dia x 50 productos = 10K rows/dia
+- Realidad: 200 visitas/dia x 10,960 filas escaneadas = 2.2M rows/dia solo en categorias
+
+**Supuesto erroneo #2: queries con LIMIT y/o indices**
+- `getProductsByCategory()` no tenia LIMIT y la tabla products no tiene indices en (categoryId, isActive, stock)
+- Cada visita a una categoria grande (cables 393, mouse 384, motherboards 309) = full scan de 10,960 filas
+- `searchProducts()` usa LIKE con `%query%` al inicio = no puede usar indices = full scan
+- `getCategoryMarkupMap()` se llama en cada request y lee TODAS las categorias (73 filas)
+
+**Supuesto erroneo #3: visitas solo humanas**
+- No contemplo bots SEO (Googlebot, Bingbot, AhrefsBot, etc.)
+- Una sola visita de Googlebot puede hacer 500-1000 pageviews en una hora
+- Con `force-dynamic` en home y categorias, cada pageview = queries frescas contra Turso
+- Estimacion real: bots multiplican el trafico humano x5-10
+
+**Supuesto erroneo #4: conteo solo de storefront**
+- No contemplo el cron sync diario (cron sync Air Intra = ~25K rows reads/dia)
+- No contempo cargas del panel admin (lista de 10K productos = 10K rows reads por view)
+- No contempo sitemap.xml dinamico (genera queries por cada request)
+- No contempo fetch del dolar cada 15 min (2 SELECTs cada vez)
+
+**Calculo real (a posteriori, sesion 43):**
+| Concepto | Rows reads/dia |
+|----------|----------------|
+| Categorias (200 visitas x 10K escaneadas) | 2.0M |
+| Busquedas (50/dia x 10K escaneadas) | 0.5M |
+| Home (100/dia x 5 queries x 73 categorias) | 0.04M |
+| Detalle producto (200/dia x 5 queries) | 0.001M |
+| Cron sync Air Intra (1/dia x 7930) | 0.008M |
+| Bots SEO (500 pageviews x 8K promedio) | 4.0M |
+| Admin (cargas de listado productos) | 0.5M |
+| Sitemap.xml + revalidaciones | 0.2M |
+| **Total estimado** | **~7-25M/dia** |
+| **Total mensual (30 dias)** | **~210-750M/mes** |
+
+El rango real (medido por Turso): ~517M en 21 dias = ~25M/dia promedio. Coincide con el limite superior de la estimacion.
+
+**Fixes aplicados sesion 43 para resolver cada causa:**
+| Fix | Causa que resuelve | Archivo |
+|-----|-------------------|---------|
+| LIMIT y paginacion client-side (50 productos/pagina) | Supuesto #2 (queries sin LIMIT) | `src/lib/queries.ts`, `src/components/ui-custom/CategoryProducts.tsx` |
+| `revalidate=300` en home y categorias | Supuesto #3 (bots + force-dynamic) | `src/app/(tienda)/page.tsx`, `src/app/(tienda)/categoria/[slug]/page.tsx` |
+| Cache en memoria `getCategoryMarkupMap` (TTL 5 min) | Supuesto #2 (queries repetidas) | `src/lib/queries.ts` |
+| Cron Air Intra chunked (3 paginas/dia en lugar de 16) | Supuesto #4 (cron sync pesado) | `src/app/api/cron/sync/route.ts` |
+
+**Pendiente para futura optimizacion (no urgente con Scaler):**
+- Agregar indices en products: `CREATE INDEX idx_products_category_active_stock ON products(categoryId, isActive, stock)`
+- Migrar busqueda a FTS5 (Full-Text Search) de Turso para evitar LIKE con %
+- Cache en memoria para `fetchDollarRate` y `getStoreConfigNumber`
+- Considerar `revalidate=900` (15 min) en lugar de 300 en paginas menos sensibles
+
+**Regla de oro para futuras estimaciones de Turso:**
+1. Contar filas ESCANEADAS, no devueltas (asumir full scan si no hay indice claro)
+2. Incluir trafico de bots SEO (multiplicar trafico humano x5-10)
+3. Incluir cargas del admin (especialmente listados grandes)
+4. Incluir cron jobs, sitemap, revalidaciones
+5. Verificar cada query con `EXPLAIN QUERY PLAN` antes de asumir que usa indice
+6. Medir en produccion con Turso Usage dashboard, no estimar en teoria
+
 ### Schema Products
 ```
 id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE,
@@ -916,7 +982,7 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
-- **2026-06-16 (s43):** Cron Air Intra chunked + cache Turso + paginacion + upgrade Scaler. 4 commits: (1) a7490d2 fix(cron-sync): Air Intra chunked rotation + delay + 403 retry. PAGES_PER_RUN=3, rotacion circular con airintra_cron_next_page en store_config, delay 1.5s, retry 30s en 403, time budget 50s. (2) 1289eac perf(turso): reduce rows reads 90% con LIMIT + cache + revalidate. Cache en memoria para getCategoryMarkupMap (TTL 5 min), revalidate=300 en home y categorias. (3) ec74b49 feat(catalog): paginacion client-side 50 productos por pagina. Botones Anterior/Siguiente + numeros de pagina con ellipsis. Reset automatico a pagina 1 al cambiar filtros. (4) Fix directo SKU 212937 (DDR4 8GB Hiksemi): costPrice $76.09 -> $58.24 (oferta 5% off Air Intra), stock 239 -> 287. Diagnostico: CRON_SECRET no estaba en Vercel (configurado por user), Turso al 103% del free tier (517M de 500M) -> upgrade a Scaler $29/mes. Backup DB: compucity_turso_backup_s43_2026-06-16T21-13-37-462Z.json (45 MB, 12,460 filas).
+- **2026-06-16 (s43):** Cron Air Intra chunked + cache Turso + paginacion + upgrade Scaler. 4 commits: (1) a7490d2 fix(cron-sync): Air Intra chunked rotation + delay + 403 retry. PAGES_PER_RUN=3, rotacion circular con airintra_cron_next_page en store_config, delay 1.5s, retry 30s en 403, time budget 50s. (2) 1289eac perf(turso): reduce rows reads 90% con LIMIT + cache + revalidate. Cache en memoria para getCategoryMarkupMap (TTL 5 min), revalidate=300 en home y categorias. (3) ec74b49 feat(catalog): paginacion client-side 50 productos por pagina. Botones Anterior/Siguiente + numeros de pagina con ellipsis. Reset automatico a pagina 1 al cambiar filtros. (4) Fix directo SKU 212937 (DDR4 8GB Hiksemi): costPrice $76.09 -> $58.24 (oferta 5% off Air Intra), stock 239 -> 287. Diagnostico: CRON_SECRET no estaba en Vercel (configurado por user), Turso al 103% del free tier (517M de 500M) -> upgrade a Scaler $29/mes. Backup DB: compucity_turso_backup_s43_2026-06-16T21-13-37-462Z.json (45 MB, 12,460 filas). Documentada "Leccion aprendida sesion 43" en PROJECT_STATUS.md explicando los 4 supuestos erroneos que llevaron a subestimar el consumo Turso y la regla de oro para futuras estimaciones.
 - **2026-06-13 (s42):** Backup completo + documentacion exhaustiva. (1) Backup DB Turso: compucity_turso_backup_2026-06-12T22-14-38-625Z.json (41MB, 16 tablas, 10,053 productos, 91 marcas). (2) Backup codigo fuente completo: compucity_src_backup_2026-06-13.tar.gz (101MB). (3) Backup codigo esencial: compucity_src_only_backup_2026-06-13.tar.gz (1.2MB). (4) Backup DB local: compucity_local_db_backup_2026-06-13.db (112KB). (5) PROJECT_STATUS.md completamente reescrito y actualizado con toda la documentacion del proyecto (42 sesiones). (6) SAFETY-RULES.md integrado como seccion del PROJECT_STATUS. Commit: a3ca817
 - **2026-06-12 (s41):** SEO + GEO completo. Root layout OG/Twitter, product/category metadata dinamico, JSON-LD, sitemap, robots, 404, canonical URLs, admin noindex. Git tag: v-seo-optimized. Commit: c5b7458
 - **2026-06-12 (s40):** Dominio propio + datos contacto + logos marcas fix + upload route fix. Commits: 277f323, 2649100, cefdf73, 69ead02, afdd330, 212bf9e
