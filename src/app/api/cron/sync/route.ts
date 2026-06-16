@@ -479,7 +479,32 @@ async function safeParseAirIntraProducts(res: Response): Promise<{ products: any
   return { products: null, error: `Could not parse response (${jsonText.length} chars)` }
 }
 
+// ─── Air Intra lightweight sync (CHUNKED + RESUME, sesión 43) ──────────────
+//
+// PROBLEMA ANTERIOR: el cron hacía fetch de 16 páginas seguidas sin delays, Air
+// Intra rate-limit-eaba (HTTP 403 "Too many queries") en página 2-3, el cron
+// hacía break y nunca procesaba las páginas siguientes. Resultado: 5000-7000
+// productos de Air Intra quedaban con precios desactualizados por semanas.
+//
+// NUEVA ESTRATEGIA (sesion 43):
+//   1. Por cada ejecución del cron, procesar SOLO 3 páginas (1500 productos).
+//   2. Rotación circular: arrancar desde `airintra_cron_next_page` (store_config)
+//      y persistir `airintra_cron_next_page = última página + 1` al final.
+//      Si `airintra_cron_next_page` llegar a 16 (fin de catálogo), volver a 0.
+//   3. Delay de 1.5s entre fetches para evitar rate limit.
+//   4. En HTTP 403, 1 retry esperando 30s. Si sigue fallando, parar sin perder
+//      el progreso (la próxima ejecución arranca desde la misma página).
+//   5. Time budget de 50s para dejar margen al timeout de 60s de Vercel Hobby.
+//
+// Con 3 páginas/día y 16 páginas totales, cada producto se actualiza cada ~5 días.
+// Para sync completa inmediata, usar /admin/proveedores (batched sync con retries).
+//
+// Air Intra deposits: air (Buenos Aires), lug (Lugo), ros (Rosario), cba (Córdoba),
+// mza (Mendoza). El stock del producto = SUMA de todos los depósitos (sesión 43).
 async function syncAirIntraStock(): Promise<{ ok: boolean; updated: number; errors: number; message: string }> {
+  const t0 = Date.now()
+  const TIME_BUDGET_MS = 50_000 // 50s — deja margen al timeout de 60s de Vercel Hobby
+
   // Get supplier credentials
   const supplierResult = await db.execute({
     sql: 'SELECT * FROM suppliers WHERE apiType = ? AND isActive = 1',
@@ -493,6 +518,42 @@ async function syncAirIntraStock(): Promise<{ ok: boolean; updated: number; erro
 
   if (!supplier.apiUsername || !supplier.apiPassword) {
     return { ok: false, updated: 0, errors: 0, message: 'Missing Air Intra credentials (username/password)' }
+  }
+
+  // ─── Helper: leer/escribir airintra_cron_next_page en store_config ──────
+  const getNextPage = async (): Promise<number> => {
+    try {
+      const r = await db.execute({
+        sql: "SELECT value FROM store_config WHERE key = 'airintra_cron_next_page'",
+        args: [],
+      })
+      if (r.rows.length === 0) return 0
+      const v = (r.rows[0] as any).value
+      const n = parseInt(typeof v === 'string' ? v.replace(/["']/g, '') : String(v), 10)
+      return Number.isFinite(n) && n >= 0 ? n : 0
+    } catch { return 0 }
+  }
+  const setNextPage = async (page: number): Promise<void> => {
+    const safe = Math.max(0, Math.min(page, 100))
+    try {
+      const existing = await db.execute({
+        sql: "SELECT id FROM store_config WHERE key = 'airintra_cron_next_page'",
+        args: [],
+      })
+      if (existing.rows.length > 0) {
+        await db.execute({
+          sql: "UPDATE store_config SET value = ? WHERE key = 'airintra_cron_next_page'",
+          args: [String(safe)],
+        })
+      } else {
+        await db.execute({
+          sql: "INSERT INTO store_config (id, key, value) VALUES (?, 'airintra_cron_next_page', ?)",
+          args: [crypto.randomUUID(), String(safe)],
+        })
+      }
+    } catch (e) {
+      console.warn('[cron-sync] Air Intra: no se pudo persistir airintra_cron_next_page:', (e as Error).message)
+    }
   }
 
   // Step 1: Login to get token + exchange rate
@@ -534,78 +595,144 @@ async function syncAirIntraStock(): Promise<{ ok: boolean; updated: number; erro
   }
   console.log(`[cron-sync] Air Intra: ${dbMap.size} products in DB`)
 
-  // Step 2: Fetch all products from Air Intra articulos endpoint (paginated, 500 per page)
+  // Step 2: Fetch CHUNK of pages (rotación circular con persistencia)
+  const PAGES_PER_RUN = 3
+  const PAGE_SIZE = 500
+  const ESTIMATED_TOTAL_PAGES = 16 // 7900 productos / 500 por página, con margen
+  const startPage = await getNextPage()
+  const endPageExclusive = Math.min(startPage + PAGES_PER_RUN, ESTIMATED_TOTAL_PAGES)
+  const pagesToFetch: number[] = []
+  for (let p = startPage; p < endPageExclusive; p++) pagesToFetch.push(p)
+
+  console.log(`[cron-sync] Air Intra: procesando páginas ${startPage}..${endPageExclusive - 1} (rotación circular desde store_config)`)
+
   const apiProducts = new Map<string, { stock: number; price: number; costPrice: number; stockByWarehouse: string }>()
-  let page = 0
-  const pageSize = 500
-  const MAX_PAGES = 30
+  let pagesProcessed = 0
+  let reachedEndOfCatalog = false
+  let rateLimitedAt: number | null = null
 
-  while (page < MAX_PAGES) {
-    try {
-      const productsRes = await fetch(`${baseUrl}/?q=articulos&page=${page}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${loginToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({}),
-      })
-
-      if (!productsRes.ok) {
-        const errText = await productsRes.text().catch(() => '')
-        if (errText.includes('Too many queries') || errText.includes('error_id":403')) {
-          console.log(`[cron-sync] Air Intra: Rate limited on page ${page}. Stopping.`)
-          break
-        }
-        console.error(`[cron-sync] Air Intra API error: HTTP ${productsRes.status} on page ${page}`)
-        break
-      }
-
-      const { products, error } = await safeParseAirIntraProducts(productsRes)
-
-      if (error || !products || !Array.isArray(products) || products.length === 0) {
-        if (page === 0 && error) {
-          console.error(`[cron-sync] Air Intra: Failed to parse first page: ${error}`)
-          break
-        }
-        // Empty page = end of data
-        break
-      }
-
-      for (const p of products) {
-        const sku = p.codigo || p.codiart || ''
-        if (!sku) continue
-        const costPrice = parseFloat(p.precio || '0')
-        if (costPrice <= 0) continue
-
-        // Stock total de todos los depósitos (same logic as main sync)
-        const stockByWarehouse = {
-          air: p.air?.disponible || 0,
-          lug: p.lug?.disponible || 0,
-          ros: p.ros?.disponible || 0,
-          cba: p.cba?.disponible || 0,
-          mza: p.mza?.disponible || 0,
-        }
-        const totalStock = Object.values(stockByWarehouse).reduce((a: number, b: number) => a + b, 0)
-        const price = costPrice * (1 + markup / 100)
-
-        apiProducts.set(sku, {
-          stock: totalStock,
-          price,
-          costPrice,
-          stockByWarehouse: JSON.stringify(stockByWarehouse),
-        })
-      }
-
-      if (products.length < pageSize) break
-      page++
-    } catch (err: any) {
-      console.error(`[cron-sync] Air Intra fetch error on page ${page}:`, err.message)
+  for (const page of pagesToFetch) {
+    if (Date.now() - t0 > TIME_BUDGET_MS) {
+      console.log(`[cron-sync] Air Intra: time budget agotado (${Date.now() - t0}ms). Pausando en página ${page}.`)
       break
+    }
+
+    let pageSucceeded = false
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const productsRes = await fetch(`${baseUrl}/?q=articulos&page=${page}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${loginToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({}),
+        })
+
+        if (!productsRes.ok) {
+          const errText = await productsRes.text().catch(() => '')
+          if (errText.includes('Too many queries') || errText.includes('error_id":403')) {
+            if (attempt === 0) {
+              console.log(`[cron-sync] Air Intra: Rate limited en página ${page}. Esperando 30s antes de retry...`)
+              await new Promise(r => setTimeout(r, 30_000))
+              // Re-login por si el token expiró
+              try {
+                const reauth = await fetch(`${baseUrl}/?q=login&user=${encodeURIComponent(supplier.apiUsername)}&pass=${encodeURIComponent(supplier.apiPassword)}`)
+                if (reauth.ok) {
+                  const rText = await reauth.text()
+                  const rClean = stripPhpNotices(rText)
+                  let rStart = -1
+                  for (let i = 0; i < rClean.length; i++) {
+                    if (rClean[i] === '{' || rClean[i] === '[') { rStart = i; break }
+                  }
+                  if (rStart !== -1) {
+                    const rData = JSON.parse(rClean.substring(rStart))
+                    if (rData.token) loginToken = rData.token
+                  }
+                }
+              } catch { /* ignore re-login errors */ }
+              continue
+            }
+            rateLimitedAt = page
+            console.log(`[cron-sync] Air Intra: rate limit persiste en página ${page} tras retry. Deteniendo chunk.`)
+            break
+          }
+          console.error(`[cron-sync] Air Intra API error: HTTP ${productsRes.status} on page ${page}`)
+          break
+        }
+
+        const { products, error } = await safeParseAirIntraProducts(productsRes)
+
+        if (error || !products || !Array.isArray(products) || products.length === 0) {
+          // Empty page = end of catalog
+          console.log(`[cron-sync] Air Intra: página ${page} vacía → fin de catálogo. Reset a página 0.`)
+          reachedEndOfCatalog = true
+          pageSucceeded = true
+          break
+        }
+
+        for (const p of products) {
+          const sku = p.codigo || p.codiart || ''
+          if (!sku) continue
+          const costPrice = parseFloat(p.precio || '0')
+          if (costPrice <= 0) continue
+
+          // Stock total de todos los depósitos (sesión 43: sumar TODOS)
+          const stockByWarehouse = {
+            air: p.air?.disponible || 0,
+            lug: p.lug?.disponible || 0,
+            ros: p.ros?.disponible || 0,
+            cba: p.cba?.disponible || 0,
+            mza: p.mza?.disponible || 0,
+          }
+          const totalStock = Object.values(stockByWarehouse).reduce((a: number, b: number) => a + b, 0)
+          const price = costPrice * (1 + markup / 100)
+
+          apiProducts.set(sku, {
+            stock: totalStock,
+            price,
+            costPrice,
+            stockByWarehouse: JSON.stringify(stockByWarehouse),
+          })
+        }
+
+        pagesProcessed++
+        pageSucceeded = true
+        break
+      } catch (err: any) {
+        console.error(`[cron-sync] Air Intra fetch error on page ${page}:`, err.message)
+        if (attempt === 0) {
+          await new Promise(r => setTimeout(r, 5_000))
+          continue
+        }
+        break
+      }
+    }
+
+    if (!pageSucceeded) break
+    if (reachedEndOfCatalog) break
+
+    // Delay entre páginas (no después de la última del chunk)
+    if (pagesToFetch.indexOf(page) < pagesToFetch.length - 1) {
+      await new Promise(r => setTimeout(r, 1_500))
     }
   }
 
-  console.log(`[cron-sync] Air Intra: ${apiProducts.size} products from API`)
+  // Persistir próxima página (rotación circular)
+  let nextPage: number
+  if (reachedEndOfCatalog) {
+    nextPage = 0
+  } else if (rateLimitedAt !== null || pagesProcessed < pagesToFetch.length) {
+    // Mantener la misma startPage para reintentar desde ahí la próxima vez
+    nextPage = startPage
+  } else {
+    nextPage = startPage + pagesProcessed
+    if (nextPage >= ESTIMATED_TOTAL_PAGES) nextPage = 0
+  }
+  await setNextPage(nextPage)
+  console.log(`[cron-sync] Air Intra: próxima ejecución arrancará en página ${nextPage}`)
+
+  console.log(`[cron-sync] Air Intra: ${apiProducts.size} products fetched en ${pagesProcessed}/${pagesToFetch.length} páginas`)
 
   // Step 3: Compare and build updates (only existing products, no new ones)
   const now = new Date().toISOString()
@@ -646,6 +773,9 @@ async function syncAirIntraStock(): Promise<{ ok: boolean; updated: number; erro
   }
 
   // Also update isActive based on price (Air Intra rule: price > 0 = active)
+  // NOTA: Esto es global a TODOS los productos Air Intra, no solo a los del chunk.
+  // Es intencional: si un producto pasó de tener precio a no tenerlo (o viceversa)
+  // fuera del chunk procesado, también hay que actualizarlo. Es una query barata.
   let activated = 0
   let deactivated = 0
   try {
@@ -666,10 +796,11 @@ async function syncAirIntraStock(): Promise<{ ok: boolean; updated: number; erro
   if (activated > 0) extraInfo.push(`${activated} activated`)
   if (deactivated > 0) extraInfo.push(`${deactivated} deactivated`)
 
+  const chunkInfo = `chunk páginas ${startPage}..${startPage + pagesProcessed - 1} (${pagesProcessed} procesadas, próxima=${nextPage})`
   return {
     ok: true,
     updated: applied,
     errors,
-    message: `Updated ${applied} of ${updates.length} changes${extraInfo.length > 0 ? ` (${extraInfo.join(', ')})` : ''}`,
+    message: `Updated ${applied} of ${updates.length} changes${extraInfo.length > 0 ? ` (${extraInfo.join(', ')})` : ''}. ${chunkInfo}${rateLimitedAt !== null ? ` [RATE LIMITED en página ${rateLimitedAt}]` : ''}`,
   }
 }

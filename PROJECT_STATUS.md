@@ -56,7 +56,7 @@
 ### Proveedores en DB (5 registros)
 | ID | Nombre | Productos | Sync | Notas |
 |----|--------|-----------|------|-------|
-| air-intra | Air Intra | ~7,500 | Batched (4 pag/lote) | Stock por deposito CBA |
+| air-intra | Air Intra | ~7,930 | Batched (1 pag/lote) | Stock total (suma de todos los depositos) |
 | elit | Elit | ~844 | Full | Stock total unico |
 | invid | Invid Computers | ~1,191 | Full | Stock total unico |
 | (otros) | - | - | - | Proveedores con 0 productos |
@@ -92,17 +92,19 @@
 - **Mensaje informativo:** El resultado del sync ahora indica si se uso la extraccion de objetos como fallback
 - **Commit:** 94bdbd4
 
-### MEJORA sesion 26: Stock por deposito - Solo Cordoba cuenta
-- **Problema:** Air Intra tiene 5 depositos (Buenos Aires, Lugo, Rosario, Cordoba, Mendoza). El sync sumaba el stock de TODOS los depositos, entonces un producto con 5 en BA y 0 en Cordoba mostraba "En stock" cuando no habia disponibilidad local
-- **Solucion:** El campo `stock` ahora usa solo el stock del deposito de Cordoba (`cba`). Si no hay stock en Cordoba, el producto aparece como "Sin stock" en toda la tienda
+### MEJORA sesion 26 (REVERTIDA sesion 43): Stock por deposito - Suma de todos los depositos
+- **Sesion 26 (anterior):** El sync usaba SOLO el stock del deposito de Cordoba (`cba`). Esto ocultaba productos con stock en otros depositos.
+- **Sesion 43 (revertido):** Se volvio a la logica de SUMAR TODOS los depositos (`air + lug + ros + cba + mza`).
+- **Justificacion:** El negocio envia desde cualquier deposito, no solo Cordoba. Filtrar por CBA dejaba muchos productos como "sin stock" cuando en realidad habia disponibilidad.
 - **Depositos de Air Intra:** `air` (Buenos Aires), `lug` (Lugo), `ros` (Rosario), `cba` (Cordoba), `mza` (Mendoza)
-- **Nuevo campo DB:** `stockByWarehouse TEXT` - JSON con stock por deposito, ej: `{"air":5,"lug":0,"ros":2,"cba":0,"mza":0}`
-- **Migracion:** #22 - `ALTER TABLE products ADD COLUMN stockByWarehouse TEXT`
-- **Archivos modificados:** `src/lib/db.ts` (migracion #22), `src/app/api/admin/suppliers/sync/route.ts` (6 ubicaciones de totalStock cambiadas)
+- **Campo DB:** `stockByWarehouse TEXT` - JSON con stock por deposito, ej: `{"air":100,"lug":100,"ros":37,"cba":50,"mza":0}`
+- **Campo DB:** `stock INTEGER` - suma total de todos los depositos
+- **Archivos donde se aplica esta logica:**
+  - `src/app/api/admin/suppliers/sync/route.ts` (syncAirIntraBatch, syncAirIntraFinalize, syncAirIntra)
+  - `src/app/api/cron/sync/route.ts` (syncAirIntraStock)
 - **Elit:** Sin cambios - solo devuelve `stock_total`, no tiene desglose por deposito
 - **Invid:** Sin cambios - no tiene datos de depositos
-- **Frontend:** Sin cambios - el Filtro Global de Stock ya oculta productos con `stock <= 0`
-- **Importante:** HAY QUE RE-SINCRONIZAR Air Intra para que el stock se actualice con la nueva logica. Hasta que se haga la sync, los productos existentes mantienen el stock total anterior
+- **Frontend:** El Filtro Global de Stock oculta productos con `stock <= 0` (donde stock = suma total)
 
 ### MEJORA sesion 21: FIX CRITICO Air Intra sync - Productos faltantes
 - **Bug:** Paginacion se detenida prematuramente cuando JSON corrupto causaba que una pagina devolviera <500 productos
@@ -828,7 +830,7 @@ createdAt TEXT, updatedAt TEXT
 3. **Correo Argentino:** Credenciales todas NULL en store_config, sin API funcional
 
 ### Media Prioridad
-4. **Re-sincronizar Air Intra:** Para que el stock por deposito CBA se actualice (sesion 26)
+4. **Re-sincronizar Air Intra:** Para que el stock (suma de todos los depositos) y precios se actualicen
 5. **Imagenes para Air Intra:** ~1,563 productos sin imagen
 6. **Descripcion IA:** Usar z-ai-web-dev-sdk para generar descripciones faltantes
 7. **WhatsApp Business:** Migrar de Personal a Business App (misma app, mismo numero)
@@ -920,6 +922,7 @@ bash scripts/pre-change-safeguard.sh
 - **2026-06-07 (s29):** Filtros heredados + marcas monitores + sync diario. Commits: varios
 - **2026-06-07 (s27):** 8 mejoras + filtros desplegables + limpieza categorias. Commits: bd8b2af, e387267, 8e22577, f4e65c7, 0bda50d, 2a0fe2b
 - **2026-06-07 (s26):** Stock por deposito CBA. Commit: b4c90a8
+- **2026-06-16 (s43):** Revertir logica stock CBA - se vuelve a sumar todos los depositos. Fix SKU 212937 (DDR4 8GB Hiksemi). Diagnosticados: (1) CRON_SECRET no configurado en Vercel -> cron diario no se ejecuta. (2) syncAirIntraStock (cron) hace break en rate limit y no retoma, dejando paginas 2-15 sin actualizar. (3) PROJECT_STATUS.md desactualizado respecto a logica de stock.
 - **2026-06-06 (s24):** Air Intra Batched Sync + vercel.json fix. Commits: d3e5fe9, dfafd1e
 - **2026-06-06 (s23):** Cache dolar + server-side pagination. Commits: 0a9d109, e74ceca
 - **2026-06-06 (s22):** FIX categorias + "Ingresado manualmente". Commit: 0e2d6d9
