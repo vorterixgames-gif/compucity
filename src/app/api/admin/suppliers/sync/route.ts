@@ -2499,18 +2499,24 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
             pageSucceeded = true
           } else {
             if (!Array.isArray(parsedProducts) || parsedProducts.length === 0) {
-              // Log raw response for diagnostics (rate limit often returns 200 with empty array)
+              // Log BOTH raw and cleaned response for diagnostics
               const rawPreview = rawResponseText ? rawResponseText.substring(0, 500) : '(empty body)'
-              console.log(`[Air Intra Batch] Page ${page} returned empty array. Raw response (${rawResponseText?.length || 0} bytes): ${rawPreview}`)
+              const cleanedText = rawResponseText ? stripPhpNotices(rawResponseText) : ''
+              const cleanedPreview = cleanedText.substring(0, 500)
+              console.log(`[Air Intra Batch] Page ${page} returned 0 products.`)
+              console.log(`[Air Intra Batch]   Raw response (${rawResponseText?.length || 0} bytes): ${rawPreview}`)
+              console.log(`[Air Intra Batch]   Cleaned response (${cleanedText.length} bytes): ${cleanedPreview}`)
 
               // If page 0 returns 0 products, this is almost certainly a rate limit or auth issue
               // (Air Intra has ~10k products, so page 0 should never be empty).
-              // Treat as a soft error so the user sees a clear message instead of "0 productos".
               if (page === batch.startPage) {
                 result.ok = false
-                result.message = rawResponseText && rawResponseText.length > 0
-                  ? `Air Intra devolvió 0 productos en la página ${page} (respuesta de ${rawResponseText.length} bytes). Probablemente rate limit o token expirado. Espere 5 minutos e intente de nuevo. Preview: ${rawPreview}`
-                  : `Air Intra devolvió respuesta vacía en la página ${page}. Probablemente rate limit. Espere 5 minutos e intente de nuevo.`
+                // Check if the cleaned response is just an empty array or very small
+                if (cleanedText.trim() === '[]' || cleanedText.length < 10) {
+                  result.message = `Air Intra devolvió una respuesta vacía (notices PHP + array vacío, ${rawResponseText?.length || 0} bytes raw). Esto indica rate limit severo. Espere 10-15 minutos e intente de nuevo.`
+                } else {
+                  result.message = `Air Intra devolvió 0 productos en la página ${page}. Respuesta limpia: ${cleanedPreview}. Probablemente rate limit o token expirado. Espere 5-10 minutos e intente de nuevo.`
+                }
                 result.total = totalFetched
                 result.created = created
                 result.updated = updated

@@ -389,7 +389,7 @@ export default function AdminProveedores() {
           body: JSON.stringify({ supplierId: supplier.id }),
         })
 
-        if (!firstData.ok && !firstData.hasMore) {
+        if (!firstData.ok) {
           setSyncResult({ ok: false, message: firstData.message || 'Error en sincronización' })
           setSyncingId(null)
           setSyncProgress(null)
@@ -423,11 +423,16 @@ export default function AdminProveedores() {
             }),
           })
 
-          if (!batchData.ok && !batchData.hasMore) {
-            // Error on a batch — report what we've accumulated so far
+          if (!batchData.ok) {
+            // Error on a batch — stop immediately and report what we've accumulated so far.
+            // Previously checked `!batchData.ok && !batchData.hasMore`, but the rate limit path
+            // returns ok=false + hasMore=true, which let the loop continue through 16+ failing
+            // batches with 0 products each. Now we stop on ANY batch failure.
             setSyncResult({
-              ok: true,
-              message: `Sincronización parcial: ${totalFetched} productos procesados, ${totalCreated} nuevos, ${totalUpdated} actualizados. Error en lote ${batchNum}: ${batchData.message}`,
+              ok: totalFetched > 0,
+              message: totalFetched > 0
+                ? `Sincronización parcial: ${totalFetched} productos procesados, ${totalCreated} nuevos, ${totalUpdated} actualizados. Error en lote ${batchNum}: ${batchData.message}`
+                : `Error en lote ${batchNum}: ${batchData.message}`,
             })
             loadSuppliers(search, page)
             setSyncingId(null)
