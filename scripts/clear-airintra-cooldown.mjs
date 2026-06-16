@@ -34,12 +34,12 @@ async function main() {
   })
   console.log(`  Cooldown cleared. Rows affected: ${r1.rowsAffected}`)
 
-  // 2. Reset broken page counter
+  // 2. Reset broken page counter + last probe at
   const r2 = await db.execute({
-    sql: `DELETE FROM store_config WHERE key = ?`,
-    args: ['airintra_broken_page_count'],
+    sql: `DELETE FROM store_config WHERE key IN (?, ?)`,
+    args: ['airintra_broken_page_count', 'airintra_last_probe_at'],
   })
-  console.log(`  Broken page counter cleared. Rows affected: ${r2.rowsAffected}`)
+  console.log(`  Broken page counter + last probe at cleared. Rows affected: ${r2.rowsAffected}`)
 
   // 3. Show current last sync page (KEEP this — so the next sync resumes from where it left off)
   const r3 = await db.execute({

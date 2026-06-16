@@ -2330,8 +2330,10 @@ const AIRINTRA_COOLDOWN_KEY = 'airintra_rate_limited_until'
 const AIRINTRA_LAST_PAGE_KEY = 'airintra_last_sync_page'
 const AIRINTRA_BROKEN_PAGE_COUNT_KEY = 'airintra_broken_page_count'
 const AIRINTRA_CATALOG_END_PAGE_KEY = 'airintra_catalog_end_page'
+const AIRINTRA_LAST_PROBE_AT_KEY = 'airintra_last_probe_at'
 const AIRINTRA_COOLDOWN_MS = 10 * 60 * 1000 // 10 minutes
 const AIRINTRA_BROKEN_PAGE_THRESHOLD = 3 // consecutive broken pages → conclude end of catalog
+const AIRINTRA_PROBE_COOLDOWN_MS = 30 * 60 * 1000 // 30 min between probes for new products
 
 async function getAirIntraCooldown(): Promise<number> {
   // Returns ms remaining in cooldown, or 0 if expired/not set.
@@ -2471,6 +2473,43 @@ async function clearAirIntraCatalogEndPage(): Promise<void> {
   }
 }
 
+// ─── Last probe at ──────────────────────────────────────────────────────────
+// When END_OF_CATALOG is confirmed via a probe (pages past catalog_end_page
+// are still broken), we record the timestamp. The next sync within
+// AIRINTRA_PROBE_COOLDOWN_MS skips the probe entirely (returns ALREADY_VERIFIED)
+// to avoid redundant Air Intra API calls when the user clicks sync repeatedly.
+async function getAirIntraLastProbeAt(): Promise<number> {
+  try {
+    const r = await db.execute({ sql: `SELECT value FROM store_config WHERE key = ?`, args: [AIRINTRA_LAST_PROBE_AT_KEY] })
+    const v = (r.rows as any[])[0]?.value
+    if (v === undefined || v === null) return 0
+    const n = parseInt(v, 10)
+    return Number.isFinite(n) ? n : 0
+  } catch {
+    return 0
+  }
+}
+
+async function setAirIntraLastProbeAt(ts: number): Promise<void> {
+  try {
+    await db.execute({
+      sql: `INSERT INTO store_config (id, key, value, updatedAt) VALUES (?, ?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updatedAt = excluded.updatedAt`,
+      args: [`cfg_${AIRINTRA_LAST_PROBE_AT_KEY}`, AIRINTRA_LAST_PROBE_AT_KEY, String(ts), new Date().toISOString()],
+    })
+  } catch (e) {
+    console.error('[Air Intra] Failed to persist last probe at:', e)
+  }
+}
+
+async function clearAirIntraLastProbeAt(): Promise<void> {
+  try {
+    await db.execute({ sql: `DELETE FROM store_config WHERE key = ?`, args: [AIRINTRA_LAST_PROBE_AT_KEY] })
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
  * Batched Air Intra sync: processes a range of pages from the 'articulos' endpoint.
  * Each batch processes PAGES_PER_BATCH pages (1 page × 500 products = ~500).
@@ -2518,6 +2557,11 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
     //    - If the page returns products → catalog grew → clear catalogEndPage,
     //      continue iterating normally.
     //    - If the page is broken → END_OF_CATALOG again, immediately.
+    //
+    // PROBE COOLDOWN: in case 2, if we probed recently (within
+    // AIRINTRA_PROBE_COOLDOWN_MS), skip the probe entirely and return
+    // ALREADY_VERIFIED. This prevents redundant Air Intra API calls when
+    // the user clicks Sync repeatedly.
     if (!batch.token && batch.startPage === 0) {
       const lastPage = await getAirIntraLastSyncPage()
       if (lastPage >= 0) {
@@ -2527,6 +2571,26 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
       } else {
         const catalogEndPage = await getAirIntraCatalogEndPage()
         if (catalogEndPage >= 0) {
+          // Check probe cooldown
+          const lastProbeAt = await getAirIntraLastProbeAt()
+          if (lastProbeAt > 0) {
+            const elapsed = Date.now() - lastProbeAt
+            if (elapsed < AIRINTRA_PROBE_COOLDOWN_MS) {
+              const minsAgo = Math.floor(elapsed / 60000)
+              const minsUntilNext = Math.ceil((AIRINTRA_PROBE_COOLDOWN_MS - elapsed) / 60000)
+              console.log(`[Air Intra Batch] Probe cooldown active (last probe ${minsAgo} min ago, next in ${minsUntilNext} min). Skipping probe.`)
+              result.ok = true
+              result.message = `ALREADY_VERIFIED: Catálogo de Air Intra verificado hace ${minsAgo} minuto(s). Se volverá a verificar automáticamente en ${minsUntilNext} minuto(s). No se realizaron requests a la API.`
+              result.total = 0
+              result.created = 0
+              result.updated = 0
+              result.skipped = 0
+              result.errors = 0
+              result.hasMore = false
+              // Intentionally no token — frontend will skip finalize step
+              return result
+            }
+          }
           const resumeFrom = catalogEndPage + 1
           console.log(`[Air Intra Batch] Catalog previously ended at page ${catalogEndPage}. Probing page ${resumeFrom} to detect new products.`)
           batch = { ...batch, startPage: resumeFrom, endPage: resumeFrom + (batch.endPage - batch.startPage) }
@@ -2755,13 +2819,16 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
                   // This is END OF CATALOG, NOT a rate limit. Persist the last
                   // successful page so the next sync probes ONE page past it
                   // (catalog_end_page + 1) instead of re-walking 0..N-1.
+                  // Also record the probe timestamp so the next sync within
+                  // AIRINTRA_PROBE_COOLDOWN_MS skips the probe entirely.
                   const catalogEndPage = page - newBrokenCount
                   console.log(`[Air Intra Batch] ${newBrokenCount} consecutive broken pages reached. Treating as END OF CATALOG (not rate limit). Catalog ends at page ${catalogEndPage}.`)
                   await setAirIntraCatalogEndPage(catalogEndPage)
+                  await setAirIntraLastProbeAt(Date.now())
                   await clearAirIntraLastSyncPage()
                   await clearAirIntraBrokenPageCount()
                   result.ok = true
-                  result.message = `END_OF_CATALOG: ${newBrokenCount} páginas consecutivas (desde la ${catalogEndPage + 1} hasta la ${page}) devolvieron respuestas vacías (notices PHP sin datos de productos). El catálogo de Air Intra termina en la página ${catalogEndPage}. Se procesaron ${totalFetched} productos en este lote. La sync se marcó como completa. La próxima sincronización verificará automáticamente si hay productos nuevos.`
+                  result.message = `END_OF_CATALOG: ${newBrokenCount} páginas consecutivas (desde la ${catalogEndPage + 1} hasta la ${page}) devolvieron respuestas vacías (notices PHP sin datos de productos). El catálogo de Air Intra termina en la página ${catalogEndPage}. Se procesaron ${totalFetched} productos en este lote. La sync se marcó como completa. La próxima sincronización dentro de 30 minutos se saltará la verificación.`
                   result.total = totalFetched
                   result.created = created
                   result.updated = updated
@@ -2815,12 +2882,13 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
             // Success — reset the broken page counter
             await setAirIntraBrokenPageCount(0)
             // If this page is past the previously-recorded catalog end, the
-            // catalog grew — clear the catalog_end_page marker so the next
-            // END_OF_CATALOG detection starts fresh from the new end.
+            // catalog grew — clear catalog_end_page + last_probe_at so the
+            // next END_OF_CATALOG detection starts fresh from the new end.
             const knownCatalogEnd = await getAirIntraCatalogEndPage()
             if (knownCatalogEnd >= 0 && page > knownCatalogEnd) {
               console.log(`[Air Intra Batch] Page ${page} returned products past recorded catalog end (${knownCatalogEnd}). Catalog grew — clearing marker.`)
               await clearAirIntraCatalogEndPage()
+              await clearAirIntraLastProbeAt()
             }
             products = parsedProducts
 
@@ -3736,12 +3804,22 @@ export async function GET(request: Request) {
       return NextResponse.json({ apiType: supplier.apiType, cooldownRemaining: 0, lastSyncPage: -1 })
     }
 
-    const [cooldownMs, lastPage, brokenCount, catalogEndPage] = await Promise.all([
+    const [cooldownMs, lastPage, brokenCount, catalogEndPage, lastProbeAt] = await Promise.all([
       getAirIntraCooldown(),
       getAirIntraLastSyncPage(),
       getAirIntraBrokenPageCount(),
       getAirIntraCatalogEndPage(),
+      getAirIntraLastProbeAt(),
     ])
+
+    // Compute probe cooldown remaining (ms) for frontend display
+    let probeCooldownRemaining = 0
+    if (lastProbeAt > 0) {
+      const elapsed = Date.now() - lastProbeAt
+      if (elapsed < AIRINTRA_PROBE_COOLDOWN_MS) {
+        probeCooldownRemaining = AIRINTRA_PROBE_COOLDOWN_MS - elapsed
+      }
+    }
 
     return NextResponse.json({
       apiType: 'air_intra',
@@ -3749,6 +3827,7 @@ export async function GET(request: Request) {
       lastSyncPage: lastPage,               // last successfully processed page (-1 = none)
       brokenPageCount: brokenCount,         // consecutive broken pages (resets on success)
       catalogEndPage,                       // last known catalog end (-1 = unknown/not yet detected)
+      probeCooldownRemaining,               // ms remaining until next probe is allowed (0 = can probe now)
       lastSyncAt: supplier.lastSyncAt ?? null,
     })
   } catch (error: any) {

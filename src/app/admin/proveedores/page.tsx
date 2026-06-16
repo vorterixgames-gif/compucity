@@ -547,9 +547,11 @@ export default function AdminProveedores() {
             })
           }
         } else {
+          // No token = initial call returned early (e.g. ALREADY_VERIFIED or END_OF_CATALOG
+          // detected on the first batch). Show the server's message directly.
           setSyncResult({
             ok: true,
-            message: `Sincronización completada: ${totalFetched} productos, ${totalCreated} nuevos, ${totalUpdated} actualizados, ${totalErrors} errores`,
+            message: firstData.message || `Sincronización completada: ${totalFetched} productos, ${totalCreated} nuevos, ${totalUpdated} actualizados, ${totalErrors} errores`,
           })
         }
       } else {
@@ -847,9 +849,11 @@ export default function AdminProveedores() {
           syncResult.ok
             ? syncResult.message?.includes('BROKEN_PAGE_SKIPPED')
               ? 'bg-amber-50 text-amber-800 border border-amber-200'
-              : syncResult.message?.includes('END_OF_CATALOG')
-                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                : 'bg-green-50 text-green-700 border border-green-200'
+              : syncResult.message?.includes('ALREADY_VERIFIED')
+                ? 'bg-sky-50 text-sky-800 border border-sky-200'
+                : syncResult.message?.includes('END_OF_CATALOG')
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                  : 'bg-green-50 text-green-700 border border-green-200'
             : 'bg-red-50 text-red-700 border border-red-200'
         }`}>
           {syncResult.ok
@@ -857,7 +861,7 @@ export default function AdminProveedores() {
               ? <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
               : <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
             : <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />}
-          <span className="flex-1">{syncResult.message?.replace(/^(RATE_LIMITED_COOLDOWN|BROKEN_PAGE_SKIPPED|END_OF_CATALOG):\s*/, '')}</span>
+          <span className="flex-1">{syncResult.message?.replace(/^(RATE_LIMITED_COOLDOWN|BROKEN_PAGE_SKIPPED|END_OF_CATALOG|ALREADY_VERIFIED):\s*/, '')}</span>
           <button onClick={() => setSyncResult(null)} className="ml-auto text-current opacity-60 hover:opacity-100">✕</button>
         </div>
       )}
