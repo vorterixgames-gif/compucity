@@ -179,3 +179,28 @@ Fix:
 Stage Summary:
 - When user retries sync after Vercel deploys (~2-3 min): frontend auto-iterates page 24 (broken, count=1) → page 25 (broken, count=2) → page 26 (broken, count=3, threshold reached) → END_OF_CATALOG, ok=true, hasMore=false. Sync stops cleanly. Total time ~30s.
 - No more cooldown loop. No more wasted retries. The sync will be marked as complete with a clear message about the catalog ending at page 19 (10,000 products).
+
+---
+Task ID: air-intra-catalog-end-page-probe
+Agent: main
+Task: User asked "como seria lo mejor?" — implement the best long-term solution for repeated syncs on a complete catalog.
+
+Work Log:
+- Diagnosed a problem I had missed in the previous fix: when END_OF_CATALOG cleared lastSyncPage, the next sync started from page 0 and re-walked all 20 pages of already-synced products (~10 min) just to discover the catalog had ended again. Wasteful.
+- Designed hybrid approach: persist airintra_catalog_end_page when END_OF_CATALOG is detected. Next sync probes catalog_end_page+1 (1 request) to detect new products. If products returned → catalog grew → clear marker and continue iterating. If broken → END_OF_CATALOG immediately.
+
+Implementation:
+- Added AIRINTRA_CATALOG_END_PAGE_KEY constant and 3 helpers: getAirIntraCatalogEndPage, setAirIntraCatalogEndPage, clearAirIntraCatalogEndPage.
+- Modified syncAirIntraBatch initial-call resume logic: now checks lastSyncPage first, falls back to catalogEndPage, then defaults to page 0.
+- Modified END_OF_CATALOG branch: now persists catalog_end_page = page - newBrokenCount (the last page that returned products, e.g. 23 for broken pages 24/25/26).
+- Modified success branch: if page > knownCatalogEnd, clears catalogEndPage (catalog grew).
+- Modified syncAirIntraFinalize: intentionally PRESERVES catalogEndPage (only lastSyncPage + brokenPageCount + cooldown are cleared).
+- Updated GET endpoint to expose catalogEndPage.
+- Updated scripts/clear-airintra-cooldown.mjs to accept optional catalog end page arg.
+- Set airintra_catalog_end_page = 23 in production Turso DB.
+- Committed as 599d7c3 and pushed to origin/main.
+
+Stage Summary:
+- After Vercel deploys (~2-3 min), user clicks Sync → 3 batches (pages 24, 25, 26, all broken) → END_OF_CATALOG → finalize → done. ~30s total instead of ~10 min.
+- If Air Intra ever adds products at page 24+, that page returns products → catalogEndPage cleared → sync continues normally to discover the new pages.
+- Self-healing: no manual intervention needed when catalog grows or shrinks.
