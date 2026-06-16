@@ -55,11 +55,21 @@ export async function GET(request: Request) {
     results['Invid'] = { ok: false, updated: 0, errors: 1, message: err.message }
   }
 
+  // ─── Sync Air Intra ─────────────────────────────────────────────────────────
+  try {
+    const airIntraResult = await syncAirIntraStock()
+    results['Air Intra'] = airIntraResult
+    console.log(`[cron-sync] Air Intra: ${airIntraResult.updated} updated, ${airIntraResult.errors} errors`)
+  } catch (err: any) {
+    console.error('[cron-sync] Air Intra error:', err.message)
+    results['Air Intra'] = { ok: false, updated: 0, errors: 1, message: err.message }
+  }
+
   // ─── Update lastSyncAt for both ────────────────────────────────────────────
   const now = new Date().toISOString()
   try {
     await db.execute({
-      sql: `UPDATE suppliers SET lastSyncAt = ?, updatedAt = ? WHERE apiType IN ('elit', 'invid') AND isActive = 1`,
+      sql: `UPDATE suppliers SET lastSyncAt = ?, updatedAt = ? WHERE apiType IN ('elit', 'invid', 'air_intra') AND isActive = 1`,
       args: [now, now],
     })
   } catch { /* non-critical */ }
@@ -384,4 +394,282 @@ async function syncInvidStock(): Promise<{ ok: boolean; updated: number; errors:
   }
 
   return { ok: true, updated: applied, errors, message: `Updated ${applied} of ${updates.length} changes` }
+}
+
+// ─── Air Intra lightweight sync ────────────────────────────────────────────────
+
+/**
+ * Strip PHP notices/warnings from Air Intra API response text.
+ * Copy of the function in admin sync route — needed here for standalone cron.
+ */
+function stripPhpNotices(text: string): string {
+  return text
+    .replace(/(?:<br\s*\/?>\s*)?<b>(?:Notice|Warning|Fatal error|Parse error|Deprecated)<\/b>:\s*.*?on line \d+\s*/gis, '')
+    .replace(/(?:^|\n)\s*(?:Notice|Warning|Fatal error|Parse error|Deprecated):\s*.*?on line \d+\s*/gis, '')
+    .replace(/<br\s*\/?>\s*/gi, '')
+    .replace(/<\/?b>/gi, '')
+    .replace(/,\s*([}\]])/g, '$1')
+    .trim()
+}
+
+/**
+ * Safely parse Air Intra JSON response handling PHP notice corruption.
+ * Returns parsed array of products or null with error message.
+ */
+async function safeParseAirIntraProducts(res: Response): Promise<{ products: any[] | null; error: string | null }> {
+  const rawText = await res.text()
+  const text = stripPhpNotices(rawText)
+
+  // Find JSON start
+  let jsonStart = -1
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '{' || text[i] === '[') { jsonStart = i; break }
+  }
+  if (jsonStart === -1) return { products: null, error: `No JSON found in response` }
+
+  const jsonText = text.substring(jsonStart)
+
+  // Try direct parse
+  try {
+    const data = JSON.parse(jsonText)
+    if (data && typeof data === 'object' && !Array.isArray(data) && data.error_id) {
+      if (data.error_id === 403) return { products: null, error: `Rate limit (403): ${data.error_detail || ''}` }
+      if (data.error_id === 401) return { products: null, error: `Token expired (401): ${data.error_detail || ''}` }
+      return { products: null, error: `API error ${data.error_id}: ${data.error_name || ''}` }
+    }
+    const products = Array.isArray(data) ? data : (data.articulos || data.data || [])
+    return { products, error: null }
+  } catch {}
+
+  // Try aggressive cleanup
+  try {
+    const cleaned = jsonText
+      .replace(/<[^>]*>/g, '')
+      .replace(/,\s*,/g, ',')
+      .replace(/}\s*{/g, '},{')
+      .replace(/,\s*([}\]])/g, '$1')
+    const data = JSON.parse(cleaned)
+    const products = Array.isArray(data) ? data : (data.articulos || data.data || [])
+    return { products, error: null }
+  } catch {}
+
+  // Fallback: extract individual product objects using brace-depth parser
+  const products: any[] = []
+  let i = 0
+  while (i < text.length) {
+    if (text[i] !== '{') { i++; continue }
+    let depth = 0, inStr = false, esc = false, objEnd = -1
+    for (let j = i; j < text.length; j++) {
+      const ch = text[j]
+      if (esc) { esc = false; continue }
+      if (ch === '\\' && inStr) { esc = true; continue }
+      if (ch === '"') { inStr = !inStr; continue }
+      if (inStr) continue
+      if (ch === '{') depth++
+      else if (ch === '}') { depth--; if (depth === 0) { objEnd = j; break } }
+    }
+    if (objEnd === -1) { i++; continue }
+    const objText = text.substring(i, objEnd + 1)
+    if (objText.includes('"codigo"') || objText.includes('"codiart"')) {
+      try { products.push(JSON.parse(objText)) } catch { /* skip corrupted */ }
+    }
+    i = objEnd + 1
+  }
+  if (products.length > 0) return { products, error: null }
+  return { products: null, error: `Could not parse response (${jsonText.length} chars)` }
+}
+
+async function syncAirIntraStock(): Promise<{ ok: boolean; updated: number; errors: number; message: string }> {
+  // Get supplier credentials
+  const supplierResult = await db.execute({
+    sql: 'SELECT * FROM suppliers WHERE apiType = ? AND isActive = 1',
+    args: ['air_intra'],
+  })
+  const supplier = (supplierResult.rows as any[])[0]
+  if (!supplier) return { ok: false, updated: 0, errors: 0, message: 'Air Intra supplier not found' }
+
+  const baseUrl = supplier.apiBaseUrl || 'https://api.air-intra.com/v2'
+  const markup = supplier.markup || 30
+
+  if (!supplier.apiUsername || !supplier.apiPassword) {
+    return { ok: false, updated: 0, errors: 0, message: 'Missing Air Intra credentials (username/password)' }
+  }
+
+  // Step 1: Login to get token + exchange rate
+  let loginToken = ''
+  let loginExchangeRate = 0
+  try {
+    const authRes = await fetch(`${baseUrl}/?q=login&user=${encodeURIComponent(supplier.apiUsername)}&pass=${encodeURIComponent(supplier.apiPassword)}`)
+    if (!authRes.ok) {
+      return { ok: false, updated: 0, errors: 1, message: `Air Intra auth failed: HTTP ${authRes.status}` }
+    }
+    const rawText = await authRes.text()
+    const cleaned = stripPhpNotices(rawText)
+    let jsonStart = -1
+    for (let i = 0; i < cleaned.length; i++) {
+      if (cleaned[i] === '{' || cleaned[i] === '[') { jsonStart = i; break }
+    }
+    if (jsonStart === -1) {
+      return { ok: false, updated: 0, errors: 1, message: 'Air Intra auth: no JSON in response' }
+    }
+    const authData = JSON.parse(cleaned.substring(jsonStart))
+    if (!authData.token) {
+      return { ok: false, updated: 0, errors: 1, message: 'Air Intra auth: no token received' }
+    }
+    loginToken = authData.token
+    loginExchangeRate = parseFloat(authData.cotiza || '0')
+    console.log(`[cron-sync] Air Intra: Login OK. Cotización: ${loginExchangeRate}`)
+  } catch (err: any) {
+    return { ok: false, updated: 0, errors: 1, message: `Air Intra auth error: ${err.message}` }
+  }
+
+  // Load existing Air Intra products from DB
+  const dbResult = await db.execute({
+    sql: 'SELECT id, providerSku, stock, price, costPrice, stockByWarehouse FROM products WHERE providerId = ?',
+    args: [supplier.id],
+  })
+  const dbMap = new Map<string, { id: string; stock: number; price: number; costPrice: number; stockByWarehouse: string | null }>()
+  for (const row of dbResult.rows as any[]) {
+    if (row.providerSku) dbMap.set(row.providerSku, row)
+  }
+  console.log(`[cron-sync] Air Intra: ${dbMap.size} products in DB`)
+
+  // Step 2: Fetch all products from Air Intra articulos endpoint (paginated, 500 per page)
+  const apiProducts = new Map<string, { stock: number; price: number; costPrice: number; stockByWarehouse: string }>()
+  let page = 0
+  const pageSize = 500
+  const MAX_PAGES = 30
+
+  while (page < MAX_PAGES) {
+    try {
+      const productsRes = await fetch(`${baseUrl}/?q=articulos&page=${page}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${loginToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
+      })
+
+      if (!productsRes.ok) {
+        const errText = await productsRes.text().catch(() => '')
+        if (errText.includes('Too many queries') || errText.includes('error_id":403')) {
+          console.log(`[cron-sync] Air Intra: Rate limited on page ${page}. Stopping.`)
+          break
+        }
+        console.error(`[cron-sync] Air Intra API error: HTTP ${productsRes.status} on page ${page}`)
+        break
+      }
+
+      const { products, error } = await safeParseAirIntraProducts(productsRes)
+
+      if (error || !products || !Array.isArray(products) || products.length === 0) {
+        if (page === 0 && error) {
+          console.error(`[cron-sync] Air Intra: Failed to parse first page: ${error}`)
+          break
+        }
+        // Empty page = end of data
+        break
+      }
+
+      for (const p of products) {
+        const sku = p.codigo || p.codiart || ''
+        if (!sku) continue
+        const costPrice = parseFloat(p.precio || '0')
+        if (costPrice <= 0) continue
+
+        // Stock total de todos los depósitos (same logic as main sync)
+        const stockByWarehouse = {
+          air: p.air?.disponible || 0,
+          lug: p.lug?.disponible || 0,
+          ros: p.ros?.disponible || 0,
+          cba: p.cba?.disponible || 0,
+          mza: p.mza?.disponible || 0,
+        }
+        const totalStock = Object.values(stockByWarehouse).reduce((a: number, b: number) => a + b, 0)
+        const price = costPrice * (1 + markup / 100)
+
+        apiProducts.set(sku, {
+          stock: totalStock,
+          price,
+          costPrice,
+          stockByWarehouse: JSON.stringify(stockByWarehouse),
+        })
+      }
+
+      if (products.length < pageSize) break
+      page++
+    } catch (err: any) {
+      console.error(`[cron-sync] Air Intra fetch error on page ${page}:`, err.message)
+      break
+    }
+  }
+
+  console.log(`[cron-sync] Air Intra: ${apiProducts.size} products from API`)
+
+  // Step 3: Compare and build updates (only existing products, no new ones)
+  const now = new Date().toISOString()
+  const updates: { id: string; stock: number; price: number; costPrice: number; stockByWarehouse: string }[] = []
+
+  for (const [sku, apiData] of apiProducts) {
+    const dbData = dbMap.get(sku)
+    if (!dbData) continue // Skip products not in DB (need full sync)
+
+    if (apiData.stock !== dbData.stock || Math.abs(apiData.price - dbData.price) > 1 || Math.abs(apiData.costPrice - dbData.costPrice) > 1) {
+      updates.push({
+        id: dbData.id,
+        stock: apiData.stock,
+        price: apiData.price,
+        costPrice: apiData.costPrice,
+        stockByWarehouse: apiData.stockByWarehouse,
+      })
+    }
+  }
+
+  // Apply updates in batches
+  let applied = 0
+  let errors = 0
+  for (let i = 0; i < updates.length; i += 50) {
+    const batch = updates.slice(i, i + 50)
+    const stmts = batch.map(u => ({
+      sql: 'UPDATE products SET stock = ?, price = ?, costPrice = ?, stockByWarehouse = ?, updatedAt = ? WHERE id = ?',
+      args: [u.stock, u.price, u.costPrice, u.stockByWarehouse, now, u.id],
+    }))
+    try {
+      await db.batch(stmts)
+      applied += batch.length
+    } catch {
+      for (const stmt of stmts) {
+        try { await db.execute(stmt); applied++ } catch { errors++ }
+      }
+    }
+  }
+
+  // Also update isActive based on price (Air Intra rule: price > 0 = active)
+  let activated = 0
+  let deactivated = 0
+  try {
+    const activateResult = await db.execute({
+      sql: `UPDATE products SET isActive = 1, updatedAt = ? WHERE providerId = ? AND isActive = 0 AND costPrice > 0`,
+      args: [now, supplier.id],
+    })
+    activated = (activateResult.rowsAffected as number) || 0
+
+    const deactivateResult = await db.execute({
+      sql: `UPDATE products SET isActive = 0, updatedAt = ? WHERE providerId = ? AND isActive = 1 AND costPrice <= 0`,
+      args: [now, supplier.id],
+    })
+    deactivated = (deactivateResult.rowsAffected as number) || 0
+  } catch { /* non-critical */ }
+
+  const extraInfo: string[] = []
+  if (activated > 0) extraInfo.push(`${activated} activated`)
+  if (deactivated > 0) extraInfo.push(`${deactivated} deactivated`)
+
+  return {
+    ok: true,
+    updated: applied,
+    errors,
+    message: `Updated ${applied} of ${updates.length} changes${extraInfo.length > 0 ? ` (${extraInfo.join(', ')})` : ''}`,
+  }
 }

@@ -1664,7 +1664,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
           const costPrice = price
           const markup = supplier.markup || 30
           const sellingPrice = costPrice > 0 ? costPrice * (1 + markup / 100) : 0
-          // Stock por depósito - usar stock Córdoba (cba) como stock local
+          // Stock por depósito - stock total de todos los depósitos
           const stockByWarehouse = {
             air: product.air?.disponible || 0,
             lug: product.lug?.disponible || 0,
@@ -1672,7 +1672,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
             cba: product.cba?.disponible || 0,
             mza: product.mza?.disponible || 0,
           }
-          const totalStock = stockByWarehouse.cba  // Solo stock Córdoba
+          const totalStock = Object.values(stockByWarehouse).reduce((a: number, b: number) => a + b, 0)
           const stockByWarehouseJson = JSON.stringify(stockByWarehouse)
 
           const { categoryId } = mapProductToCategory(
@@ -1837,7 +1837,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
 
             const costPrice = price
             const sellingPrice = costPrice > 0 ? costPrice * (1 + sypMarkup / 100) : 0
-            // Stock por depósito - usar stock Córdoba (cba) como stock local
+            // Stock por depósito - stock total de todos los depósitos
             const stockByWarehouse = {
               air: product.air?.disponible || 0,
               lug: product.lug?.disponible || 0,
@@ -1845,7 +1845,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
               cba: product.cba?.disponible || 0,
               mza: product.mza?.disponible || 0,
             }
-            const totalStock = stockByWarehouse.cba  // Solo stock Córdoba
+            const totalStock = Object.values(stockByWarehouse).reduce((a: number, b: number) => a + b, 0)
             const stockByWarehouseJson = JSON.stringify(stockByWarehouse)
 
             // syp has no rubro/grupo — use keyword-only category mapping
@@ -2030,7 +2030,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
       const supplierCategory = getAirIntraSupplierCategory(product)
       const costPrice = price
       const sellingPrice = costPrice > 0 ? costPrice * (1 + recoveryMarkup / 100) : 0
-      // Stock por depósito - usar stock Córdoba (cba) como stock local
+      // Stock por depósito - stock total de todos los depósitos
       const stockByWarehouse = {
         air: product.air?.disponible || 0,
         lug: product.lug?.disponible || 0,
@@ -2038,7 +2038,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
         cba: product.cba?.disponible || 0,
         mza: product.mza?.disponible || 0,
       }
-      const totalStock = stockByWarehouse.cba  // Solo stock Córdoba
+      const totalStock = Object.values(stockByWarehouse).reduce((a: number, b: number) => a + b, 0)
       const stockByWarehouseJson = JSON.stringify(stockByWarehouse)
 
       const { categoryId } = mapProductToCategory(
@@ -2563,7 +2563,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
           const costPrice = price
           const markup = supplier.markup || 30
           const sellingPrice = costPrice > 0 ? costPrice * (1 + markup / 100) : 0
-          // Stock por depósito - usar stock Córdoba (cba) como stock local
+          // Stock por depósito - stock total de todos los depósitos
           const stockByWarehouse = {
             air: product.air?.disponible || 0,
             lug: product.lug?.disponible || 0,
@@ -2571,7 +2571,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
             cba: product.cba?.disponible || 0,
             mza: product.mza?.disponible || 0,
           }
-          const totalStock = stockByWarehouse.cba  // Solo stock Córdoba
+          const totalStock = Object.values(stockByWarehouse).reduce((a: number, b: number) => a + b, 0)
           const stockByWarehouseJson = JSON.stringify(stockByWarehouse)
 
           const { categoryId } = mapProductToCategory(
@@ -2796,7 +2796,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
 
             const costPrice = price
             const sellingPrice = costPrice > 0 ? costPrice * (1 + sypMarkup / 100) : 0
-            // Stock por depósito - usar stock Córdoba (cba) como stock local
+            // Stock por depósito - stock total de todos los depósitos
             const stockByWarehouse = {
               air: product.air?.disponible || 0,
               lug: product.lug?.disponible || 0,
@@ -2804,7 +2804,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
               cba: product.cba?.disponible || 0,
               mza: product.mza?.disponible || 0,
             }
-            const totalStock = stockByWarehouse.cba  // Solo stock Córdoba
+            const totalStock = Object.values(stockByWarehouse).reduce((a: number, b: number) => a + b, 0)
             const stockByWarehouseJson = JSON.stringify(stockByWarehouse)
 
             const { categoryId } = mapProductToCategory(
@@ -2958,7 +2958,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
       const supplierCategory = getAirIntraSupplierCategory(product)
       const costPrice = price
       const sellingPrice = costPrice > 0 ? costPrice * (1 + recoveryMarkup / 100) : 0
-      // Stock por depósito - usar stock Córdoba (cba) como stock local
+      // Stock por depósito - stock total de todos los depósitos
       const stockByWarehouse = {
         air: product.air?.disponible || 0,
         lug: product.lug?.disponible || 0,
@@ -2966,7 +2966,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
         cba: product.cba?.disponible || 0,
         mza: product.mza?.disponible || 0,
       }
-      const totalStock = stockByWarehouse.cba  // Solo stock Córdoba
+      const totalStock = Object.values(stockByWarehouse).reduce((a: number, b: number) => a + b, 0)
       const stockByWarehouseJson = JSON.stringify(stockByWarehouse)
 
       const { categoryId } = mapProductToCategory(
