@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { SlidersHorizontal, X, ChevronDown, ArrowUpDown } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { SlidersHorizontal, X, ChevronDown, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import ProductCard from './ProductCard'
 
 interface Subcategory {
@@ -24,6 +24,7 @@ interface ProductItem {
   saleEnd?: string | null
   brandId?: string | null
   brandName?: string | null
+  isFeatured?: number
 }
 
 // ============================================
@@ -845,6 +846,12 @@ export default function CategoryProducts({
   const [onlyInStock, setOnlyInStock] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [categoryFilters, setCategoryFilters] = useState<Record<string, string[]>>({})
+  // Paginación client-side (sesion 43): 50 productos por página para no recargar
+  // la UI con cientos de tarjetas de golpe. Las queries siguen trayendo todos los
+  // productos de la categoría (cacheados 5 min por revalidate=300), pero el
+  // renderizado es por página.
+  const PRODUCTS_PER_PAGE = 50
+  const [currentPage, setCurrentPage] = useState(1)
 
   const hasCategoryFilters = Object.values(categoryFilters).some(v => v.length > 0)
   const hasActiveFilters = priceMin !== '' || priceMax !== '' || onlyInStock || hasCategoryFilters
@@ -975,6 +982,20 @@ export default function CategoryProducts({
 
     return result
   }, [products, sort, priceMin, priceMax, onlyInStock, categoryFilters, filterSlug])
+
+  // Reset a página 1 cuando cambian filtros, orden o la categoría misma.
+  // Sin esto, si estás en página 5 y aplicás un filtro que deja 20 resultados,
+  // la página 5 queda vacía y el usuario ve "no hay productos".
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [sort, priceMin, priceMax, onlyInStock, categoryFilters, categorySlug])
+
+  const totalPages = Math.max(1, Math.ceil(filteredAndSorted.length / PRODUCTS_PER_PAGE))
+  const safeCurrentPage = Math.min(currentPage, totalPages)
+  const pagedProducts = filteredAndSorted.slice(
+    (safeCurrentPage - 1) * PRODUCTS_PER_PAGE,
+    safeCurrentPage * PRODUCTS_PER_PAGE
+  )
 
   return (
     <div className="flex-1">
@@ -1227,24 +1248,103 @@ export default function CategoryProducts({
 
       {/* Product Grid */}
       {filteredAndSorted.length > 0 ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {filteredAndSorted.map((product) => (
-            <ProductCard
-              key={product.id}
-              id={product.id}
-              name={product.name}
-              slug={product.slug}
-              price={product.price}
-              comparePrice={product.comparePrice}
-              image={product.images ? JSON.parse(product.images)[0] : null}
-              stock={product.stock}
-              isFeatured={product.isFeatured === 1}
-              salePrice={product.salePrice}
-              saleStart={product.saleStart}
-              saleEnd={product.saleEnd}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {pagedProducts.map((product) => (
+              <ProductCard
+                key={product.id}
+                id={product.id}
+                name={product.name}
+                slug={product.slug}
+                price={product.price}
+                comparePrice={product.comparePrice}
+                image={product.images ? JSON.parse(product.images)[0] : null}
+                stock={product.stock}
+                isFeatured={product.isFeatured === 1}
+                salePrice={product.salePrice}
+                saleStart={product.saleStart}
+                saleEnd={product.saleEnd}
+              />
+            ))}
+          </div>
+
+          {/* Paginación (sesion 43) — 50 productos por página, client-side */}
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-8 pt-6 border-t border-gray-200">
+              <p className="text-sm text-gray-500 order-2 sm:order-1">
+                Mostrando{' '}
+                <span className="font-medium text-gray-700">
+                  {(safeCurrentPage - 1) * PRODUCTS_PER_PAGE + 1}–{Math.min(safeCurrentPage * PRODUCTS_PER_PAGE, filteredAndSorted.length)}
+                </span>{' '}
+                de <span className="font-medium text-gray-700">{filteredAndSorted.length}</span> productos
+              </p>
+              <div className="flex items-center gap-1.5 order-1 sm:order-2">
+                <button
+                  onClick={() => {
+                    setCurrentPage(p => Math.max(1, p - 1))
+                    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
+                  }}
+                  disabled={safeCurrentPage === 1}
+                  className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-md border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  aria-label="Página anterior"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  <span className="hidden sm:inline">Anterior</span>
+                </button>
+
+                {/* Números de página: muestra hasta 5 alrededor de la actual */}
+                {(() => {
+                  const pages: (number | '…')[] = []
+                  const start = Math.max(1, safeCurrentPage - 2)
+                  const end = Math.min(totalPages, safeCurrentPage + 2)
+                  if (start > 1) {
+                    pages.push(1)
+                    if (start > 2) pages.push('…')
+                  }
+                  for (let i = start; i <= end; i++) pages.push(i)
+                  if (end < totalPages) {
+                    if (end < totalPages - 1) pages.push('…')
+                    pages.push(totalPages)
+                  }
+                  return pages.map((p, idx) =>
+                    p === '…' ? (
+                      <span key={`ellipsis-${idx}`} className="px-2 text-gray-400 select-none">…</span>
+                    ) : (
+                      <button
+                        key={p}
+                        onClick={() => {
+                          setCurrentPage(p)
+                          if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
+                        }}
+                        className={`min-w-[2.25rem] px-2.5 py-2 text-sm font-medium rounded-md border transition ${
+                          p === safeCurrentPage
+                            ? 'bg-compucity-green text-white border-compucity-green'
+                            : 'border-gray-200 text-gray-700 bg-white hover:bg-gray-50'
+                        }`}
+                        aria-current={p === safeCurrentPage ? 'page' : undefined}
+                      >
+                        {p}
+                      </button>
+                    )
+                  )
+                })()}
+
+                <button
+                  onClick={() => {
+                    setCurrentPage(p => Math.min(totalPages, p + 1))
+                    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
+                  }}
+                  disabled={safeCurrentPage === totalPages}
+                  className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium rounded-md border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  aria-label="Página siguiente"
+                >
+                  <span className="hidden sm:inline">Siguiente</span>
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       ) : products.length > 0 ? (
         <div className="text-center py-16 bg-gray-50 rounded-lg border border-dashed border-gray-300">
           <p className="text-gray-500 text-lg mb-2">No hay productos que coincidan con los filtros</p>

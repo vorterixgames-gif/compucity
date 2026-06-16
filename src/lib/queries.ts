@@ -295,8 +295,7 @@ export async function getProductsByCategory(slug: string): Promise<Product[]> {
     db.execute({
       sql: `SELECT p.* FROM products p
             WHERE p.categoryId IN (${placeholders}) AND p.isActive = 1 AND p.stock > 0
-            ORDER BY CASE WHEN p.images IS NOT NULL AND p.images != '[]' THEN 0 ELSE 1 END, COALESCE(p.createdAt, p.updatedAt) DESC
-            LIMIT 200`,
+            ORDER BY CASE WHEN p.images IS NOT NULL AND p.images != '[]' THEN 0 ELSE 1 END, COALESCE(p.createdAt, p.updatedAt) DESC`,
       args: allIds,
     }),
     fetchDollarRate(),
