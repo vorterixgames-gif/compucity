@@ -2330,7 +2330,7 @@ const AIRINTRA_COOLDOWN_KEY = 'airintra_rate_limited_until'
 const AIRINTRA_LAST_PAGE_KEY = 'airintra_last_sync_page'
 const AIRINTRA_BROKEN_PAGE_COUNT_KEY = 'airintra_broken_page_count'
 const AIRINTRA_COOLDOWN_MS = 10 * 60 * 1000 // 10 minutes
-const AIRINTRA_BROKEN_PAGE_THRESHOLD = 5 // consecutive broken pages before cooldown
+const AIRINTRA_BROKEN_PAGE_THRESHOLD = 3 // consecutive broken pages → conclude end of catalog
 
 async function getAirIntraCooldown(): Promise<number> {
   // Returns ms remaining in cooldown, or 0 if expired/not set.
@@ -2687,16 +2687,27 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
                 console.log(`[Air Intra Batch] Page ${page} is a BROKEN PAGE (raw=${rawLen}B, cleaned=[]). Consecutive broken count: ${newBrokenCount}/${AIRINTRA_BROKEN_PAGE_THRESHOLD}`)
 
                 if (newBrokenCount >= AIRINTRA_BROKEN_PAGE_THRESHOLD) {
-                  // 5+ consecutive broken pages — this is likely a real rate limit or
-                  // a systemic Air Intra API issue. Set cooldown and abort.
-                  await setAirIntraCooldown(AIRINTRA_COOLDOWN_MS)
-                  result.ok = false
-                  result.message = `RATE_LIMITED_COOLDOWN: ${newBrokenCount} páginas consecutivas devolvieron respuestas rotas (notices PHP + array vacío). Esto indica rate limit severo o problema en la API de Air Intra. Cooldown de 10 minutos activado. Se reanudará desde la página ${page + 1} cuando expire.`
+                  // 3+ consecutive broken pages, ALL returning the same deterministic
+                  // notice-only response (1489 bytes of PHP notices, no JSON, no `[]`).
+                  // Diagnostic on production (2026-06-16) confirmed: pages 20-200 ALL
+                  // return this exact response. Air Intra's PHP throws notices for
+                  // pages beyond the catalog end instead of returning a clean `[]`.
+                  //
+                  // This is END OF CATALOG, NOT a rate limit. We must finalize the sync
+                  // and clear state so the next sync starts fresh from page 0.
+                  console.log(`[Air Intra Batch] ${newBrokenCount} consecutive broken pages reached. Treating as END OF CATALOG (not rate limit).`)
+                  await clearAirIntraLastSyncPage()
+                  await clearAirIntraBrokenPageCount()
+                  result.ok = true
+                  result.message = `END_OF_CATALOG: ${newBrokenCount} páginas consecutivas (desde la ${page - newBrokenCount + 1} hasta la ${page}) devolvieron respuestas vacías (notices PHP sin datos de productos). Esto indica que el catálogo de Air Intra termina en la página ${page - newBrokenCount}. Se procesaron ${totalFetched} productos en este lote. La sync se marcó como completa.`
                   result.total = totalFetched
                   result.created = created
                   result.updated = updated
                   result.skipped = skipped
-                  result.errors = errors + 1
+                  result.errors = errors
+                  result.hasMore = false
+                  result.token = token
+                  result.exchangeRate = exchangeRate
                   return result
                 }
 
