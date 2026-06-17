@@ -3,6 +3,10 @@ import { db } from '@/lib/db'
 import { fetchDollarRate, getStoreConfigNumber, calculateProductPrices, CategoryMarkup } from '@/lib/dollar'
 import { deduplicateProducts } from '@/lib/queries'
 
+// Sesión 43: cache 5 min en CDN. Productos relacionados cambian solo cuando
+// cambian los productos del catálogo (cron sync diario). 5 min OK.
+export const revalidate = 300
+
 export async function GET(request: NextRequest) {
   const categoryId = request.nextUrl.searchParams.get('categoryId')
   const productId = request.nextUrl.searchParams.get('productId')
@@ -71,7 +75,11 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json({ ok: true, products })
+    return NextResponse.json({ ok: true, products }, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
+      },
+    })
   } catch (error) {
     console.error('Related products API error:', error)
     return NextResponse.json({ ok: false, error: 'Internal error' }, { status: 500 })

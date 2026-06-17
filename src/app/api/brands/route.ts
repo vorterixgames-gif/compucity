@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
+// Sesión 43: cache 1h en CDN. Las marcas cambian muy raramente (solo cuando
+// se agrega/edita una marca desde /admin). 1h de staleness OK.
+export const revalidate = 3600
+
 // Public API: returns all active brands, ordered by order then name
 export async function GET() {
   try {
@@ -29,7 +33,11 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ ok: true, brands })
+    return NextResponse.json({ ok: true, brands }, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+      },
+    })
   } catch (error) {
     console.error('Get public brands error:', error)
     // If table doesn't exist yet, return empty array
