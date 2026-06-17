@@ -718,6 +718,17 @@ export default function AdminProductos() {
               Exportar a Excel
             </Button>
           </a>
+          {/* Sesión 43 día 2 FINAL: botón para exportar SOLO productos sin categoría.
+              Útil para que el dueño los revise y categorice manualmente. */}
+          <a
+            href="/api/admin/export/products?sinCategoria=true"
+            target="_blank"
+          >
+            <Button variant="outline" className="gap-2 text-orange-600 border-orange-300 hover:bg-orange-50">
+              <Download className="w-4 h-4" />
+              Exportar sin categoría
+            </Button>
+          </a>
           <Button onClick={handleCreate} className="bg-compucity-green hover:bg-compucity-green-dark">
             <Plus className="w-4 h-4 mr-2" />
             Nuevo Producto
