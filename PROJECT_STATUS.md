@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-17 (sesion 43 dia 2 - cache headers APIs publicas + fix bug sitemap + eliminar ensureTable)
+**Ultima actualizacion:** 2026-06-17 (sesion 43 dia 2 - revalidateTag on-demand + cache headers APIs + fix bug sitemap + eliminar ensureTable)
 
 ---
 
@@ -14,8 +14,8 @@
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
-- **Commit estable:** 2ae068c (perf: cache headers APIs publicas + fix bug sitemap + eliminar ensureTable)
-- **Commit actual:** 2ae068c
+- **Commit estable:** 767a8cf (perf: revalidateTag products on-demand en admin + cron)
+- **Commit actual:** 767a8cf
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 - **Sesiones totales:** 43
@@ -909,6 +909,8 @@ createdAt TEXT, updatedAt TEXT
 | 2026-06-13 | DB local SQLite | 112 KB | compucity_local_db_backup_2026-06-13.db |
 | 2026-06-16 | DB Turso completa (JSON) | 45 MB | compucity_turso_backup_s43_2026-06-16T21-13-37-462Z.json |
 | 2026-06-17 | DB Turso completa (JSON) | 45 MB | compucity_turso_backup_s43-day2_2026-06-17T12-58-17-818Z.json |
+| 2026-06-17 | DB Turso completa (JSON) | 45 MB | compucity_turso_backup_s43-day2-precache_2026-06-17T13-13-35-657Z.json |
+| 2026-06-17 | DB Turso completa (JSON) | 45 MB | compucity_turso_backup_s43-day2-final_2026-06-17T13-25-50-858Z.json |
 
 ### Backups remotos (GoFile)
 | Fecha | Tipo | Tamano | URL |
@@ -918,7 +920,7 @@ createdAt TEXT, updatedAt TEXT
 
 ### Backup Git
 - **GitHub:** https://github.com/vorterixgames-gif/compucity (repo completo)
-- **Ultimo commit:** 2ae068c (perf: cache headers APIs publicas + fix bug sitemap + eliminar ensureTable)
+- **Ultimo commit:** 767a8cf (perf: revalidateTag products on-demand en admin + cron)
 - **Tags:** v-seo-optimized (commit c5b7458)
 
 ### Script de backup automatico
@@ -1023,6 +1025,7 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-06-17 (s43 dia 2) PARTE 2:** revalidateTag on-demand en admin + cron. Commit 767a8cf. Implementada Opción 2 de cacheo on-demand para resolver el delay de 5 min cuando admin o cron cambian productos. Cambios: (1) src/lib/queries.ts — 4 funciones envueltas con unstable_cache + tags ('products', 'categories'): getAllActiveProducts, getFeaturedProducts, getProductsByCategory, getProductBySlug. searchProducts NO se envuelve (query paramétrica, cache inútil con LIKE). TTL fallback 300s. (2) src/app/api/admin/products/route.ts — revalidateTag('products', 'default') después de POST/PUT/DELETE. (3) src/app/api/admin/suppliers/sync/route.ts — revalidateTag al final del sync manual. (4) src/app/api/cron/sync/route.ts — revalidateTag al final del cron diario. Verificado en producción: admin hace cambio → F5 → cambio aparece instantáneamente. Limitación: búsqueda sigue con delay 5 min (no se tocó). Compatibilidad: unstable_cache es API inestable pero standard en Next.js 16. revalidateTag requiere 2do arg 'profile' en Next.js 16 (usamos 'default'). Backups: 3 backups DB generados (12:58, 13:13 pre-cache, 13:25 final).
 - **2026-06-17 (s43 dia 2):** Cache headers APIs publicas + fix bug sitemap + eliminar ensureTable. Commit 2ae068c. Detectado 58M rows reads en Turso el 17/6 (proyeccion mensual 1.7B = 70% del plan Scaler). Investigacion revelo 4 causas adicionales: (1) /api/image/[id] ejecutaba CREATE TABLE IF NOT EXISTS en cada request (~30K rows/dia desperdiciado). (2) Sitemap con bug WHERE active=1 (no existe, es isActive) — productos NUNCA aparecian en sitemap, Googlebot crawleaba ciegamente. (3) APIs publicas (/api/products, /api/related-products, /api/categories, /api/brands) sin cache headers → cada request = queries frescas. (4) Sitemap sin revalidate → cada pedido = 2 SELECTs. Fixes: eliminar ensureTable, agregar revalidate=3600 en sitemap + fix bug isActive, revalidate=300 + Cache-Control en /api/products y /api/related-products, revalidate=3600 + cache headers en /api/categories y /api/brands. Proyeccion: ~5-15M rows reads/dia = 6-18% del plan Scaler. Limitaciones: admin cambios en producto tardan hasta 5 min en APIs publicas (NO en detalle que sigue dinamico). Backup DB: compucity_turso_backup_s43-day2_2026-06-17T12-58-17-818Z.json (45 MB, 12,465 filas). Cron verificado funcionando: 2331 productos Air Intra actualizados + 1089 Elit en las ultimas 24h, airintra_cron_next_page=12, dolar Bluelytics $1454 actualizado hace 1 min.
 - **2026-06-16 (s43):** Cron Air Intra chunked + cache Turso + paginacion + upgrade Scaler. 4 commits: (1) a7490d2 fix(cron-sync): Air Intra chunked rotation + delay + 403 retry. PAGES_PER_RUN=3, rotacion circular con airintra_cron_next_page en store_config, delay 1.5s, retry 30s en 403, time budget 50s. (2) 1289eac perf(turso): reduce rows reads 90% con LIMIT + cache + revalidate. Cache en memoria para getCategoryMarkupMap (TTL 5 min), revalidate=300 en home y categorias. (3) ec74b49 feat(catalog): paginacion client-side 50 productos por pagina. Botones Anterior/Siguiente + numeros de pagina con ellipsis. Reset automatico a pagina 1 al cambiar filtros. (4) Fix directo SKU 212937 (DDR4 8GB Hiksemi): costPrice $76.09 -> $58.24 (oferta 5% off Air Intra), stock 239 -> 287. Diagnostico: CRON_SECRET no estaba en Vercel (configurado por user), Turso al 103% del free tier (517M de 500M) -> upgrade a Scaler $5.99/mes (2.5B rows reads). Backup DB: compucity_turso_backup_s43_2026-06-16T21-13-37-462Z.json (45 MB, 12,460 filas). Documentada "Leccion aprendida sesion 43" en PROJECT_STATUS.md explicando los 4 supuestos erroneos que llevaron a subestimar el consumo Turso y la regla de oro para futuras estimaciones.
 - **2026-06-13 (s42):** Backup completo + documentacion exhaustiva. (1) Backup DB Turso: compucity_turso_backup_2026-06-12T22-14-38-625Z.json (41MB, 16 tablas, 10,053 productos, 91 marcas). (2) Backup codigo fuente completo: compucity_src_backup_2026-06-13.tar.gz (101MB). (3) Backup codigo esencial: compucity_src_only_backup_2026-06-13.tar.gz (1.2MB). (4) Backup DB local: compucity_local_db_backup_2026-06-13.db (112KB). (5) PROJECT_STATUS.md completamente reescrito y actualizado con toda la documentacion del proyecto (42 sesiones). (6) SAFETY-RULES.md integrado como seccion del PROJECT_STATUS. Commit: a3ca817
