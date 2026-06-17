@@ -458,4 +458,25 @@ export async function ensureMigrations() {
       console.warn('[migration] Could not add brandId column to products:', e)
     }
   }
+
+  // 26. Performance indexes on products (sesión 43 día 2)
+  // Estos índices hacen que las queries WHERE categoryId = ? AND isActive = ? AND stock > 0
+  // pasen de escanear 10K filas a ir directo a las relevantes. Mismo para slug y providerId.
+  // Creados manualmente el 17/6/2026 via script directo a Turso, este código
+  // asegura que existan en futuras DBs nuevas (ej: staging, dev local).
+  // Usa CREATE INDEX IF NOT EXISTS para ser idempotente.
+  const perfIndexes = [
+    'CREATE INDEX IF NOT EXISTS idx_products_category_active_stock ON products(categoryId, isActive, stock)',
+    'CREATE INDEX IF NOT EXISTS idx_products_slug ON products(slug)',
+    'CREATE INDEX IF NOT EXISTS idx_products_providerId ON products(providerId)',
+    'CREATE INDEX IF NOT EXISTS idx_products_isActive_stock ON products(isActive, stock)',
+    'CREATE INDEX IF NOT EXISTS idx_categories_parentId ON categories(parentId)',
+  ]
+  for (const idxSql of perfIndexes) {
+    try {
+      await db.execute({ sql: idxSql, args: [] })
+    } catch (e) {
+      console.warn('[migration] Could not create index:', e)
+    }
+  }
 }
