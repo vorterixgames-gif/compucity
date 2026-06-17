@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-17 (sesion 43 dia 2 - revalidateTag on-demand + cache headers APIs + fix bug sitemap + eliminar ensureTable)
+**Ultima actualizacion:** 2026-06-17 (sesion 43 dia 2 PARTE 3 - optimizacion queries admin products)
 
 ---
 
@@ -14,8 +14,8 @@
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
-- **Commit estable:** 767a8cf (perf: revalidateTag products on-demand en admin + cron)
-- **Commit actual:** 767a8cf
+- **Commit estable:** 65df32b (perf: optimizar queries del listado de productos admin)
+- **Commit actual:** 65df32b
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 - **Sesiones totales:** 43
@@ -911,6 +911,7 @@ createdAt TEXT, updatedAt TEXT
 | 2026-06-17 | DB Turso completa (JSON) | 45 MB | compucity_turso_backup_s43-day2_2026-06-17T12-58-17-818Z.json |
 | 2026-06-17 | DB Turso completa (JSON) | 45 MB | compucity_turso_backup_s43-day2-precache_2026-06-17T13-13-35-657Z.json |
 | 2026-06-17 | DB Turso completa (JSON) | 45 MB | compucity_turso_backup_s43-day2-final_2026-06-17T13-25-50-858Z.json |
+| 2026-06-17 | DB Turso completa (JSON) | 45 MB | compucity_turso_backup_s43-day2-admin-opt_2026-06-17T13-51-19-094Z.json |
 
 ### Backups remotos (GoFile)
 | Fecha | Tipo | Tamano | URL |
@@ -920,7 +921,7 @@ createdAt TEXT, updatedAt TEXT
 
 ### Backup Git
 - **GitHub:** https://github.com/vorterixgames-gif/compucity (repo completo)
-- **Ultimo commit:** 767a8cf (perf: revalidateTag products on-demand en admin + cron)
+- **Ultimo commit:** 65df32b (perf: optimizar queries del listado de productos admin)
 - **Tags:** v-seo-optimized (commit c5b7458)
 
 ### Script de backup automatico
@@ -1025,6 +1026,7 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-06-17 (s43 dia 2 PARTE 3):** Optimizacion queries del listado de productos del admin. Commit 65df32b. Problema: el endpoint /api/admin/products hacia queries innecesariamente pesadas en CADA request (carga de pagina, cambio de filtro, ordenamiento, paginacion): COUNT(*) con JOIN a categories + suppliers SIEMPRE (aunque no haya busqueda) = ~22K rows reads por request. 2 SELECTs a categories + 1 SELECT a suppliers en cada request. Calculo recursivo de subcategorias hacia SELECT * FROM categories cada vez. Cada vez que el admin abria el listado o cambiaba de pagina = ~22K rows reads. Fixes aplicados: (1) COUNT sin JOIN cuando no hay busqueda activa (flag needsJoinForCount). (2) Cache en memoria 5 min para 4 funciones: getCachedCategories, getCachedCategoryMarkupRows, getCachedSuppliers, getCachedCategoryFilterList. Helper __clearAdminProductsCache() exportado para invalidacion. (3) Calculo subcategorias usa getCachedCategories (cache 5 min). (4) Invalidacion de cache automatica en /api/admin/categories POST/PUT/DELETE via __clearAdminProductsCache + revalidateTag('products') + revalidateTag('categories'). (5) Invalidacion de cache en /api/admin/suppliers POST/PUT/DELETE via __clearAdminProductsCache. Impacto: ~22K rows reads/request → ~200-500 rows reads/request (97% reduccion). Proyeccion: si admin se usa 10 veces/dia = -220K rows reads/dia = -6.6M/mes. Experiencia admin sin cambios: listado carga mas rapido, filtros/ordenamiento/paginacion igual, busqueda igual, edicion categorias/suppliers aparece instantaneamente. Sin perdida de informacion ni imagenes. Backup DB: compucity_turso_backup_s43-day2-admin-opt_2026-06-17T13-51-19-094Z.json (45 MB, 12,465 filas).
 - **2026-06-17 (s43 dia 2) PARTE 2:** revalidateTag on-demand en admin + cron. Commit 767a8cf. Implementada Opción 2 de cacheo on-demand para resolver el delay de 5 min cuando admin o cron cambian productos. Cambios: (1) src/lib/queries.ts — 4 funciones envueltas con unstable_cache + tags ('products', 'categories'): getAllActiveProducts, getFeaturedProducts, getProductsByCategory, getProductBySlug. searchProducts NO se envuelve (query paramétrica, cache inútil con LIKE). TTL fallback 300s. (2) src/app/api/admin/products/route.ts — revalidateTag('products', 'default') después de POST/PUT/DELETE. (3) src/app/api/admin/suppliers/sync/route.ts — revalidateTag al final del sync manual. (4) src/app/api/cron/sync/route.ts — revalidateTag al final del cron diario. Verificado en producción: admin hace cambio → F5 → cambio aparece instantáneamente. Limitación: búsqueda sigue con delay 5 min (no se tocó). Compatibilidad: unstable_cache es API inestable pero standard en Next.js 16. revalidateTag requiere 2do arg 'profile' en Next.js 16 (usamos 'default'). Backups: 3 backups DB generados (12:58, 13:13 pre-cache, 13:25 final).
 - **2026-06-17 (s43 dia 2):** Cache headers APIs publicas + fix bug sitemap + eliminar ensureTable. Commit 2ae068c. Detectado 58M rows reads en Turso el 17/6 (proyeccion mensual 1.7B = 70% del plan Scaler). Investigacion revelo 4 causas adicionales: (1) /api/image/[id] ejecutaba CREATE TABLE IF NOT EXISTS en cada request (~30K rows/dia desperdiciado). (2) Sitemap con bug WHERE active=1 (no existe, es isActive) — productos NUNCA aparecian en sitemap, Googlebot crawleaba ciegamente. (3) APIs publicas (/api/products, /api/related-products, /api/categories, /api/brands) sin cache headers → cada request = queries frescas. (4) Sitemap sin revalidate → cada pedido = 2 SELECTs. Fixes: eliminar ensureTable, agregar revalidate=3600 en sitemap + fix bug isActive, revalidate=300 + Cache-Control en /api/products y /api/related-products, revalidate=3600 + cache headers en /api/categories y /api/brands. Proyeccion: ~5-15M rows reads/dia = 6-18% del plan Scaler. Limitaciones: admin cambios en producto tardan hasta 5 min en APIs publicas (NO en detalle que sigue dinamico). Backup DB: compucity_turso_backup_s43-day2_2026-06-17T12-58-17-818Z.json (45 MB, 12,465 filas). Cron verificado funcionando: 2331 productos Air Intra actualizados + 1089 Elit en las ultimas 24h, airintra_cron_next_page=12, dolar Bluelytics $1454 actualizado hace 1 min.
 - **2026-06-16 (s43):** Cron Air Intra chunked + cache Turso + paginacion + upgrade Scaler. 4 commits: (1) a7490d2 fix(cron-sync): Air Intra chunked rotation + delay + 403 retry. PAGES_PER_RUN=3, rotacion circular con airintra_cron_next_page en store_config, delay 1.5s, retry 30s en 403, time budget 50s. (2) 1289eac perf(turso): reduce rows reads 90% con LIMIT + cache + revalidate. Cache en memoria para getCategoryMarkupMap (TTL 5 min), revalidate=300 en home y categorias. (3) ec74b49 feat(catalog): paginacion client-side 50 productos por pagina. Botones Anterior/Siguiente + numeros de pagina con ellipsis. Reset automatico a pagina 1 al cambiar filtros. (4) Fix directo SKU 212937 (DDR4 8GB Hiksemi): costPrice $76.09 -> $58.24 (oferta 5% off Air Intra), stock 239 -> 287. Diagnostico: CRON_SECRET no estaba en Vercel (configurado por user), Turso al 103% del free tier (517M de 500M) -> upgrade a Scaler $5.99/mes (2.5B rows reads). Backup DB: compucity_turso_backup_s43_2026-06-16T21-13-37-462Z.json (45 MB, 12,460 filas). Documentada "Leccion aprendida sesion 43" en PROJECT_STATUS.md explicando los 4 supuestos erroneos que llevaron a subestimar el consumo Turso y la regla de oro para futuras estimaciones.
