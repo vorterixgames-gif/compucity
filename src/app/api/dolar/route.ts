@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { fetchDollarRate, calculatePrices } from '@/lib/dollar'
 
+// Sesión 43 día 2: cache 5 min en CDN. El dolar cambia ~1 vez por hora
+// (Bluelytics), y fetchDollarRate ya tiene su propio caché memoria de 15 min.
+// 5 min de CDN cache evita que cada visitante dispare queries a store_config.
+export const revalidate = 300
+
 export async function GET() {
   try {
     const dollar = await fetchDollarRate()
@@ -27,6 +32,10 @@ export async function GET() {
         precioLista: Math.ceil(100 * (1 + 10.5 / 100) * (1 + markup / 100) * dollar.rate),
         precioEfectivo: Math.ceil(100 * (1 + 10.5 / 100) * (1 + (markup - cashDiscount) / 100) * dollar.rate),
         nota: 'Fórmula: costUSD × (1+IVA) × (1+markup) × dollarRate',
+      },
+    }, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
       },
     })
   } catch (error) {

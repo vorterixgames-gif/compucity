@@ -424,7 +424,7 @@ export async function searchProducts(query: string, limit = 20): Promise<Product
   return enrichWithBrandInfo(deduplicateProducts(mapped4))
 }
 
-export async function getTopProductsByCategorySlug(slug: string, limit = 8): Promise<Product[]> {
+async function _getTopProductsByCategorySlugRaw(slug: string, limit: number): Promise<Product[]> {
   // Find the category and its enabled subcategories
   const catResult = await db.execute({
     sql: 'SELECT id FROM categories WHERE slug = ? AND enabled = 1',
@@ -507,6 +507,15 @@ export async function getTopProductsByCategorySlug(slug: string, limit = 8): Pro
   ) as Product[]
   return enrichWithBrandInfo(deduplicateProducts(mapped5))
 }
+
+// Sesión 43 día 2: envuelto con unstable_cache + tags 'products' + 'categories'.
+// Esta función se llama 3 veces en la home (Notebooks, Monitores, PCs).
+// Sin caché = 3 queries × 3 categorías = 9+ queries por carga de home.
+export const getTopProductsByCategorySlug = unstable_cache(
+  async (slug: string, limit: number = 8): Promise<Product[]> => _getTopProductsByCategorySlugRaw(slug, limit),
+  ['getTopProductsByCategorySlug'],
+  { tags: [...UC_TAG_PRODUCTS, ...UC_TAG_CATEGORIES], revalidate: UC_REVALIDATE_SECONDS }
+)
 
 // ============================================
 // DÓLAR

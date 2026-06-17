@@ -8,6 +8,10 @@ import {
   type CompatibilityFilters,
 } from '@/lib/compatibility'
 
+// Sesión 43 día 2: cache 5 min en CDN. Los productos del PC Builder cambian
+// solo cuando el cron actualiza el catálogo (1 vez por día). 5 min OK.
+export const revalidate = 300
+
 async function getConfig(key: string, defaultValue: number): Promise<number> {
   const result = await db.execute({
     sql: 'SELECT value FROM store_config WHERE key = ?',
@@ -225,6 +229,10 @@ export async function GET(request: NextRequest) {
         products: finalProducts,
         slot: slotConfig,
         filters,
+      }, {
+        headers: {
+          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
+        },
       })
     }
 
@@ -259,7 +267,11 @@ export async function GET(request: NextRequest) {
       })
     )
 
-    return NextResponse.json({ ok: true, slots: slotsWithCounts })
+    return NextResponse.json({ ok: true, slots: slotsWithCounts }, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
+      },
+    })
   } catch (error) {
     console.error('PC Builder API error:', error)
     return NextResponse.json({ error: 'Error del servidor' }, { status: 500 })
