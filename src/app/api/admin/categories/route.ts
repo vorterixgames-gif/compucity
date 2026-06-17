@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentAdmin } from '@/lib/admin-auth'
+// Sesión 43 día 2: invalidar caché del admin products cuando se edita categoría
+import { __clearAdminProductsCache } from '@/app/api/admin/products/route'
+import { revalidateTag } from 'next/cache'
 
 export async function GET() {
   try {
@@ -63,6 +66,11 @@ export async function POST(request: NextRequest) {
         now,
       ],
     })
+
+    // Sesión 43 día 2: invalidar cachés para que aparezca al instante
+    try { __clearAdminProductsCache() } catch (e) { /* non-critical */ }
+    try { revalidateTag('products', 'default') } catch (e) { /* non-critical */ }
+    try { revalidateTag('categories', 'default') } catch (e) { /* non-critical */ }
 
     return NextResponse.json({ ok: true, category: { id, slug: finalSlug } })
   } catch (error) {
@@ -148,6 +156,11 @@ export async function PUT(request: NextRequest) {
       args: values,
     })
 
+    // Sesión 43 día 2: invalidar cachés para que aparezca al instante
+    try { __clearAdminProductsCache() } catch (e) { /* non-critical */ }
+    try { revalidateTag('products', 'default') } catch (e) { /* non-critical */ }
+    try { revalidateTag('categories', 'default') } catch (e) { /* non-critical */ }
+
     return NextResponse.json({ ok: true })
   } catch (error) {
     console.error('Update category error:', error)
@@ -181,6 +194,11 @@ export async function DELETE(request: NextRequest) {
       sql: 'DELETE FROM categories WHERE id = ?',
       args: [id],
     })
+
+    // Sesión 43 día 2: invalidar cachés
+    try { __clearAdminProductsCache() } catch (e) { /* non-critical */ }
+    try { revalidateTag('products', 'default') } catch (e) { /* non-critical */ }
+    try { revalidateTag('categories', 'default') } catch (e) { /* non-critical */ }
 
     return NextResponse.json({ ok: true })
   } catch (error) {

@@ -112,6 +112,73 @@ async function getDollarRate(): Promise<number> {
   return 1415
 }
 
+// ============================================
+// Sesión 43 día 2 — Caché en memoria para lists estáticas del admin
+// ============================================
+// Estas 3 funciones cachean en memoria (5 min) las queries que se hacen
+// en CADA request al listado de productos del admin:
+//   - Lista de categorías (id, parentId) — para filtros y subcategorías
+//   - Lista de categorías con markup — para cálculo de precios
+//   - Lista de suppliers — para el dropdown de filtros
+//
+// Sin este caché, cada request al admin hacia 3 SELECTs a categories/suppliers
+// (73 + 5 + 73 = 151 rows reads) en CADA página del listado.
+// Con este caché, solo 1 vez cada 5 min.
+//
+// Para invalidar el caché cuando se edita una categoría o supplier,
+// llamar __clearAdminProductsCache() desde los endpoints de escritura.
+
+const ADMIN_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutos
+const adminCache = new Map<string, { data: any; expiresAt: number }>()
+
+async function getCached<T>(key: string, loader: () => Promise<T>): Promise<T> {
+  const now = Date.now()
+  const entry = adminCache.get(key)
+  if (entry && entry.expiresAt > now) {
+    return entry.data as T
+  }
+  const data = await loader()
+  adminCache.set(key, { data, expiresAt: now + ADMIN_CACHE_TTL_MS })
+  return data
+}
+
+// Lista de categorías (id, parentId) para cálculo recursivo de subcategorías
+async function getCachedCategories(): Promise<Array<{ id: string; parentId: string | null }>> {
+  return getCached('admin_categories_tree', async () => {
+    const r = await db.execute('SELECT id, parentId FROM categories')
+    return r.rows as unknown as Array<{ id: string; parentId: string | null }>
+  })
+}
+
+// Lista de categorías con campos de markup (para calculateProductPrices)
+async function getCachedCategoryMarkupRows(): Promise<any[]> {
+  return getCached('admin_categories_markup', async () => {
+    const r = await db.execute('SELECT id, parentId, markup, cashDiscount, ivaRate FROM categories')
+    return r.rows as any[]
+  })
+}
+
+// Lista de suppliers para dropdown de filtros
+async function getCachedSuppliers(): Promise<any[]> {
+  return getCached('admin_suppliers', async () => {
+    const r = await db.execute('SELECT id, name FROM suppliers ORDER BY name')
+    return r.rows as any[]
+  })
+}
+
+// Lista de categorías para dropdown de filtros (con slug)
+async function getCachedCategoryFilterList(): Promise<any[]> {
+  return getCached('admin_categories_filter', async () => {
+    const r = await db.execute('SELECT id, name, slug, parentId FROM categories ORDER BY name')
+    return r.rows as any[]
+  })
+}
+
+// Invalidar el caché del admin (llamar cuando se edita categoría/supplier)
+export function __clearAdminProductsCache(): void {
+  adminCache.clear()
+}
+
 // Valid sort columns mapping (client name → SQL expression)
 const SORT_MAP: Record<string, string> = {
   name: 'p.name',
@@ -154,12 +221,18 @@ export async function GET(request: NextRequest) {
     // Build WHERE conditions
     const conditions: string[] = []
     const args: any[] = []
+    // Sesión 43 día 2: flag para saber si necesitamos JOIN en COUNT.
+    // Solo hacemos JOIN cuando hay búsqueda por nombre de categoría/supplier.
+    // Sin búsqueda, el COUNT solo escanea products (10K rows) en vez de
+    // products + categories + suppliers (mucho más caro).
+    let needsJoinForCount = false
 
     // Search filter (name, SKU, or category name)
     if (search) {
       conditions.push(`(p.name LIKE ? OR p.sku LIKE ? OR c.name LIKE ?)`)
       const likeTerm = `%${search}%`
       args.push(likeTerm, likeTerm, likeTerm)
+      needsJoinForCount = true  // necesitamos JOIN para buscar por c.name
     }
 
     // Category filter (includes subcategories)
@@ -167,9 +240,11 @@ export async function GET(request: NextRequest) {
       if (categoryId === 'none') {
         conditions.push(`p.categoryId IS NULL`)
       } else {
-        // Get all descendant category IDs
-        const catResult = await db.execute('SELECT id, parentId FROM categories')
-        const catRows = catResult.rows as any[]
+        // Sesión 43 día 2: cachear la lista de categorías en memoria (5 min)
+        // en vez de hacer SELECT * FROM categories en cada request al admin.
+        // Las categorías cambian muy raramente (solo desde /admin/categorias).
+        // __clearQueriesCache() se llama cuando se edita una categoría.
+        const catRows = await getCachedCategories()
         const catIds = new Set<string>()
         catIds.add(categoryId)
         const addChildIds = (pid: string) => {
@@ -238,20 +313,28 @@ export async function GET(request: NextRequest) {
        c.name as categoryName, c.markup as categoryMarkup, c.cashDiscount as categoryCashDiscount,
        s.name as providerName`
 
+    // Sesión 43 día 2: COUNT sin JOIN cuando no hay búsqueda.
+    // Si no hay búsqueda activa, no necesitamos JOIN con categories/suppliers.
+    // El COUNT solo escanea products (10K rows) en vez de products+JOINs.
+    const countJoinClause = needsJoinForCount
+      ? 'LEFT JOIN categories c ON p.categoryId = c.id LEFT JOIN suppliers s ON p.providerId = s.id'
+      : ''
+    const countSql = `SELECT COUNT(*) as total FROM products p ${countJoinClause} ${whereClause}`
+
+    // Sesión 43 día 2: usar caché para categories y suppliers (cambian poco).
+    // Antes: 2 SELECTs a categories + 1 SELECT a suppliers en CADA request.
+    // Ahora: 1 vez cada 5 min desde caché en memoria.
     const [countResult, result, markup, cashDiscount, catMarkupResult, suppliersResult, categoriesResult, dollarRate] = await Promise.all([
-      db.execute({
-        sql: `SELECT COUNT(*) as total FROM products p LEFT JOIN categories c ON p.categoryId = c.id LEFT JOIN suppliers s ON p.providerId = s.id ${whereClause}`,
-        args,
-      }),
+      db.execute({ sql: countSql, args }),
       db.execute({
         sql: `SELECT ${selectColumns} FROM products p LEFT JOIN categories c ON p.categoryId = c.id LEFT JOIN suppliers s ON p.providerId = s.id ${whereClause} ${orderClause} LIMIT ? OFFSET ?`,
         args: [...args, limit, offset],
       }),
       getStoreConfigNumber('markup', 30),
       getStoreConfigNumber('cash_discount', 10),
-      db.execute('SELECT id, parentId, markup, cashDiscount, ivaRate FROM categories'),
-      db.execute('SELECT id, name FROM suppliers ORDER BY name'),
-      db.execute('SELECT id, name, slug, parentId FROM categories ORDER BY name'),
+      getCachedCategoryMarkupRows(),  // cacheado 5 min
+      getCachedSuppliers(),            // cacheado 5 min
+      getCachedCategoryFilterList(),   // cacheado 5 min
       getDollarRate(),
     ])
 
@@ -260,7 +343,7 @@ export async function GET(request: NextRequest) {
 
     // Build category markup map with parent inheritance for 3-tier priority
     const rawCatMap = new Map<string, { parentId: string | null; markup: number | null; cashDiscount: number | null; ivaRate: number | null }>()
-    for (const row of catMarkupResult.rows as any[]) {
+    for (const row of catMarkupResult as any[]) {
       rawCatMap.set(row.id, {
         parentId: row.parentId,
         markup: row.markup != null ? Number(row.markup) : null,
@@ -285,8 +368,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate prices using calculateProductPrices (3-tier: product → category → global)
-    const suppliersList = (suppliersResult.rows as any[]).map(s => ({ id: s.id, name: s.name }))
-    const categoriesList = (categoriesResult.rows as any[]).map(c => ({ id: c.id, name: c.name, slug: c.slug, parentId: c.parentId }))
+    const suppliersList = (suppliersResult as any[]).map(s => ({ id: s.id, name: s.name }))
+    const categoriesList = (categoriesResult as any[]).map(c => ({ id: c.id, name: c.name, slug: c.slug, parentId: c.parentId }))
 
     const products = (result.rows as any[]).map(p => {
       const catMarkup = p.categoryId ? catMarkupMap.get(p.categoryId) : null

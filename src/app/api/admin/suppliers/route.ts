@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentAdmin } from '@/lib/admin-auth'
+// Sesión 43 día 2: invalidar caché del admin products cuando se edita supplier
+import { __clearAdminProductsCache } from '@/app/api/admin/products/route'
 
 /** Strip sensitive API credentials from supplier objects */
 function stripSupplierCredentials(supplier: any) {
@@ -166,6 +168,9 @@ export async function POST(request: Request) {
       args: [id],
     })
 
+    // Sesión 43 día 2: invalidar caché del admin products
+    try { __clearAdminProductsCache() } catch (e) { /* non-critical */ }
+
     return NextResponse.json({ ok: true, supplier: stripSupplierCredentials((result.rows as any[])[0]) })
   } catch (error) {
     console.error('Error creating supplier:', error)
@@ -223,6 +228,9 @@ export async function PUT(request: Request) {
 
     const result = await db.execute({ sql: 'SELECT * FROM suppliers WHERE id = ?', args: [id] })
 
+    // Sesión 43 día 2: invalidar caché del admin products
+    try { __clearAdminProductsCache() } catch (e) { /* non-critical */ }
+
     return NextResponse.json({ ok: true, supplier: stripSupplierCredentials((result.rows as any[])[0]) })
   } catch (error) {
     console.error('Error updating supplier:', error)
@@ -251,6 +259,9 @@ export async function DELETE(request: Request) {
       sql: 'DELETE FROM suppliers WHERE id = ?',
       args: [id],
     })
+
+    // Sesión 43 día 2: invalidar caché del admin products
+    try { __clearAdminProductsCache() } catch (e) { /* non-critical */ }
 
     return NextResponse.json({ ok: true })
   } catch (error) {
