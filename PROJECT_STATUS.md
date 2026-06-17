@@ -945,19 +945,20 @@ createdAt TEXT, updatedAt TEXT
 3. **Correo Argentino:** Credenciales todas NULL en store_config, sin API funcional
 4. **Sync manual completa Air Intra:** Desde /admin/proveedores para arrancar rotacion con datos frescos (los ~7000 productos que llevan dias sin actualizar se van a refrescar). El cron diario mantiene todo al dia despues.
 5. **Monitorear Google Search Console:** Verificar en 1-2 semanas que Google empiece a indexar las URLs del sitemap (recien registrado en Search Console el 17/6/2026 con verificacion TXT en DonWeb DNS). Sitemap enviado manualmente.
+6. **Categorizar 3,501 productos sin categoria:** 3,433 de Air Intra + 66 de Elit + 2 otros. Verificar `supplierCategory` de cada uno y agregar mapeos en /admin/proveedores para categorizar masivamente. Mientras tanto, el dueño puede usar el botón 'Exportar sin categoria' desde /admin/productos para revisarlos manualmente en Excel.
 
 ### Media Prioridad
-6. **Imagenes para Air Intra:** ~1,563 productos sin imagen
-7. **Descripcion IA:** Usar z-ai-web-dev-sdk para generar descripciones faltantes
-8. **WhatsApp Business:** Migrar de Personal a Business App (misma app, mismo numero)
-9. **Monitorear consumo Turso Scaler:** Verificar en 24-48h que la pendiente de uso se acható por los fixes de cache aplicados
+7. **Imagenes para Air Intra:** ~1,563 productos sin imagen
+8. **Descripcion IA:** Usar z-ai-web-dev-sdk para generar descripciones faltantes
+9. **WhatsApp Business:** Migrar de Personal a Business App (misma app, mismo numero)
+10. **Monitorear consumo Turso Scaler:** Verificar en 24-48h que la pendiente de uso se acható por los fixes de cache aplicados
 
 ### Baja Prioridad
-10. **Optimizar imagenes:** Thumbnails del catalogo podrian usar tamano reducido
-11. **Limpiar claves duplicadas en store_config:** slogan/whatsapp duplicados con store_slogan/whatsapp_number
-12. **Marcas navbar:** Reactivar cuando se decida mostrar nuevamente
-13. **FTS5 en busqueda:** Migrar searchProducts a Full-Text Search de Turso para evitar LIKE con % (opcional, con Scaler ya no es urgente)
-14. **Cache auth admin/customer:** Cachear getCurrentAdmin() y customer APIs en memoria (opcional, pocos requests/dia)
+11. **Optimizar imagenes:** Thumbnails del catalogo podrian usar tamano reducido
+12. **Limpiar claves duplicadas en store_config:** slogan/whatsapp duplicados con store_slogan/whatsapp_number
+13. **Marcas navbar:** Reactivar cuando se decida mostrar nuevamente
+14. **FTS5 en busqueda:** Migrar searchProducts a Full-Text Search de Turso para evitar LIKE con % (opcional, con Scaler ya no es urgente)
+15. **Cache auth admin/customer:** Cachear getCurrentAdmin() y customer APIs en memoria (opcional, pocos requests/dia)
 
 ### Tareas Completadas (sesiones anteriores)
 - ~~Discos multiples en PC Builder~~ - RESUELTO (sesion 27)
