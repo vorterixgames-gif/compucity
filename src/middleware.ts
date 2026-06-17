@@ -84,13 +84,14 @@ const ALLOWED_BOTS = [
 // ============================================
 // CAPA 3: Rate limiting por IP (en memoria del edge)
 // ============================================
-// Si una IP hace más de 30 requests en 10 segundos → bloquear 1 hora.
-// Un humano normal hace 1-2 req/segundo. Un scraper hace 10-50.
-// El edge runtime de Vercel mantiene esta memoria por región (no es perfecta
-// pero funciona para la mayoría de scrapers).
+// Sesión 43 día 2 FINAL: valores ajustados después de que el límite original
+// (30 req/10s) le pegó al usuario real navegando. Subido a 200 req/10s
+// (muy por encima de cualquier humano) y bloqueo reducido a 5 min (en vez de 1h).
+// Sigue bloqueando scrapers agresivos que hacen 1000+ req/10s, pero no
+// interfiere con navegación humana normal.
 const RATE_LIMIT_WINDOW_MS = 10_000 // 10 segundos
-const RATE_LIMIT_MAX_REQUESTS = 30  // máx 30 req por IP en 10s
-const RATE_LIMIT_BLOCK_MS = 60 * 60 * 1000 // bloquear 1 hora
+const RATE_LIMIT_MAX_REQUESTS = 200 // máx 200 req por IP en 10s (un humano hace 5-10)
+const RATE_LIMIT_BLOCK_MS = 5 * 60 * 1000 // bloquear 5 min (no 1 hora)
 const RATE_LIMIT_PATH = '/api/_rate-limit'
 
 // Mapa de IPs con sus timestamps de requests recientes y bloqueos
