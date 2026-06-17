@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-16 (sesion 43 - Cron Air Intra chunked + cache Turso + paginacion + upgrade Scaler)
+**Ultima actualizacion:** 2026-06-17 (sesion 43 dia 2 - cache headers APIs publicas + fix bug sitemap + eliminar ensureTable)
 
 ---
 
@@ -14,8 +14,8 @@
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
-- **Commit estable:** ec74b49 (feat: paginacion client-side 50 productos por pagina)
-- **Commit actual:** ec74b49
+- **Commit estable:** 2ae068c (perf: cache headers APIs publicas + fix bug sitemap + eliminar ensureTable)
+- **Commit actual:** 2ae068c
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 - **Sesiones totales:** 43
@@ -698,20 +698,60 @@ scripts/check-critical-files.mjs           -- Verificacion pre-deploy
 - **Host:** compucity-vorterixgames-gif.aws-us-east-1.turso.io
 - **Tablas (16):** products (10,053), categories (72), brands (91), suppliers (5), orders (0), order_items (0), customers (2), product_images (1,059), dollar_rates (1), store_config (21), supplier_category_mappings (86), admins (1), banners (0), coupons (0), password_reset_tokens (2), rate_limits (1)
 
-### Limites y Uso de Plataformas (actualizado sesion 43)
+### Limites y Uso de Plataformas (actualizado sesion 43 dia 2)
 | Plataforma | Recurso | Uso actual | Limite | Plan | % Uso | Estado |
 |------------|---------|-----------|--------|------|-------|--------|
-| **Turso** | Almacenamiento | 44 MB | 10 GB | Scaler | 0.4% | Holgado |
-| **Turso** | Filas leidas/mes | ~519M (acumulado ciclo) | 2.5B/mes | Scaler | 20.8% | Holgado |
+| **Turso** | Almacenamiento | 45 MB | 10 GB | Scaler | 0.45% | Holgado |
+| **Turso** | Filas leidas/mes (acumulado ciclo) | ~517M + 58M dia 17/6 | 2.5B/mes | Scaler | ~23% | Holgado |
+| **Turso** | Filas leidas/dia (proyeccion con fixes s43) | ~5-15M/dia | 83M/dia (avg) | Scaler | 6-18% | Holgado |
 | **Turso** | Filas escritas/mes | ~143K | 25M/mes | Scaler | 0.6% | Holgado |
-| **Vercel** | Deploys/mes | ~25 | 100 | Hobby | 25% | OK |
+| **Vercel** | Deploys/mes | ~30 | 100 | Hobby | 30% | OK |
 | **Vercel** | Ancho de banda | ~500 MB | 100 GB | Hobby | <1% | Holgado |
 | **Vercel** | Serverless ejecuciones | ~5K/dia | Ilimitado | Hobby | - | OK |
+| **Vercel** | Fluid Active CPU | 2h26m de 4h | 4h/mes | Hobby | 60% | Ver nota |
 | **Vercel** | Timeout serverless | 60s max | 60s | Hobby | - | Ver nota |
 
 **Nota Vercel timeout:** El plan Hobby limita serverless a max 60s (`maxDuration`). El cron sync actual usa 80s en produccion pero Vercel respeta el `maxDuration: 300` declarado en vercel.json (excepcion poco documentada). Si Vercel empieza a cortar a 60s, dividir el cron en 2 endpoints separados (Elit+Invid por un lado, Air Intra por otro).
 
 **Nota Turso Scaler (sesion 43):** Se upgradeo del plan Free al Scaler ($5.99/mes, 2.5B rows reads) despues de agotar el limite de 500M rows reads/mes. Con los fixes de cache aplicados en sesion 43, el consumo proyectado es ~15-50M/mes = 0.6-2% del plan Scaler. Sin riesgo de overages. Mantener Scaler como red de seguridad (costo bajo vs riesgo de caida del sitio).
+
+**Nota Vercel Fluid CPU (sesion 43):** El plan Hobby incluye 4h/mes de Fluid Active CPU. El 16/6 se detecto uso 2h26m (60% del limite) con ciclo reiniciando entre el 20-23 del mes. Proyeccion: 67-75% al cierre del ciclo. Vercel NO bloquea al 100% (permite overages a $40/hora extra). Con los fixes de cache aplicados, el proximo ciclo deberia ser mas bajo.
+
+**Fixes adicionales sesion 43 dia 2 (17/6) — despues de detectar 58M rows reads en un solo dia:**
+
+Se detecto un pico de 58M rows reads en Turso el dia 17/6 (proyeccion mensual: 1.7B = 70% del plan Scaler). Investigacion revelo 4 causas adicionales no contempladas en los fixes del dia 16/6:
+
+1. `/api/image/[id]` ejecutaba `CREATE TABLE IF NOT EXISTS product_images` en CADA request — la tabla ya existe desde la migracion inicial, pero el check defensivo consumia 1 query extra por imagen servida
+2. `src/app/sitemap.ts` tenia un bug: usaba `WHERE active = 1` (la columna real es `isActive`), el catch silenciaba el error y los productos NUNCA aparecian en el sitemap — Googlebot crawleaba ciegamente todo el sitio
+3. APIs publicas (`/api/products`, `/api/related-products`, `/api/categories`, `/api/brands`) sin cache headers → cada request = queries frescas a Turso
+4. Sitemap sin `revalidate` → cada pedido = 2 SELECTs a Turso
+
+**Fixes aplicados (commit 2ae068c):**
+| Fix | Archivo | Cambio | Impacto estimado |
+|-----|---------|--------|------------------|
+| 1 | `src/app/api/image/[id]/route.ts` | Eliminado `ensureTable()` | -30K rows/dia |
+| 2 | `src/app/sitemap.ts` | Agregado `revalidate=3600` + fix bug `active` → `isActive` | Productos ahora aparecen en sitemap (mejor SEO) |
+| 3 | `src/app/api/products/route.ts` | `revalidate=300` + `Cache-Control: s-maxage=300, stale-while-revalidate=3600` | -90% queries producto |
+| 4 | `src/app/api/related-products/route.ts` | `revalidate=300` + cache headers | -90% queries relacionados |
+| 5 | `src/app/api/categories/route.ts` | `revalidate=3600` + cache headers | -99% queries categorias |
+| 6 | `src/app/api/brands/route.ts` | `revalidate=3600` + cache headers | -99% queries marcas |
+
+**Proyeccion despues de fixes dia 2:**
+- Antes: ~58M rows reads/dia (medido 17/6 antes de fixes)
+- Despues: ~5-15M rows reads/dia (estimado)
+- Mensual: ~150-450M = 6-18% del plan Scaler
+
+**Limitaciones introducidas (aceptables):**
+- Admin cambia producto → hasta 5 min en aparecer en `/api/products` y `/api/related-products` (NO afecta a `/producto/[slug]` que sigue siendo dinamico)
+- Categorias/marcas → hasta 1h en refrescar desde APIs publicas (NO afecta a la tienda que usa server components)
+- Bots crawlean el sitemap → cache 1h (mejor para SEO, menos carga Turso)
+
+**NO afectado (sigue 100% en vivo):**
+- Pagina de detalle de producto `/producto/[slug]`
+- Panel admin `/admin/*`
+- Checkout, carrito, favoritos
+- Auth de clientes
+- Busqueda (no se toco `/api/search`)
 
 ### Leccion aprendida sesion 43: por que nos fuimos del limite Turso
 
@@ -868,6 +908,7 @@ createdAt TEXT, updatedAt TEXT
 | 2026-06-13 | Codigo esencial (src+configs) | 1.2 MB | compucity_src_only_backup_2026-06-13.tar.gz |
 | 2026-06-13 | DB local SQLite | 112 KB | compucity_local_db_backup_2026-06-13.db |
 | 2026-06-16 | DB Turso completa (JSON) | 45 MB | compucity_turso_backup_s43_2026-06-16T21-13-37-462Z.json |
+| 2026-06-17 | DB Turso completa (JSON) | 45 MB | compucity_turso_backup_s43-day2_2026-06-17T12-58-17-818Z.json |
 
 ### Backups remotos (GoFile)
 | Fecha | Tipo | Tamano | URL |
@@ -877,7 +918,7 @@ createdAt TEXT, updatedAt TEXT
 
 ### Backup Git
 - **GitHub:** https://github.com/vorterixgames-gif/compucity (repo completo)
-- **Ultimo commit:** ec74b49 (feat: paginacion client-side 50 productos por pagina)
+- **Ultimo commit:** 2ae068c (perf: cache headers APIs publicas + fix bug sitemap + eliminar ensureTable)
 - **Tags:** v-seo-optimized (commit c5b7458)
 
 ### Script de backup automatico
@@ -982,6 +1023,7 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-06-17 (s43 dia 2):** Cache headers APIs publicas + fix bug sitemap + eliminar ensureTable. Commit 2ae068c. Detectado 58M rows reads en Turso el 17/6 (proyeccion mensual 1.7B = 70% del plan Scaler). Investigacion revelo 4 causas adicionales: (1) /api/image/[id] ejecutaba CREATE TABLE IF NOT EXISTS en cada request (~30K rows/dia desperdiciado). (2) Sitemap con bug WHERE active=1 (no existe, es isActive) — productos NUNCA aparecian en sitemap, Googlebot crawleaba ciegamente. (3) APIs publicas (/api/products, /api/related-products, /api/categories, /api/brands) sin cache headers → cada request = queries frescas. (4) Sitemap sin revalidate → cada pedido = 2 SELECTs. Fixes: eliminar ensureTable, agregar revalidate=3600 en sitemap + fix bug isActive, revalidate=300 + Cache-Control en /api/products y /api/related-products, revalidate=3600 + cache headers en /api/categories y /api/brands. Proyeccion: ~5-15M rows reads/dia = 6-18% del plan Scaler. Limitaciones: admin cambios en producto tardan hasta 5 min en APIs publicas (NO en detalle que sigue dinamico). Backup DB: compucity_turso_backup_s43-day2_2026-06-17T12-58-17-818Z.json (45 MB, 12,465 filas). Cron verificado funcionando: 2331 productos Air Intra actualizados + 1089 Elit en las ultimas 24h, airintra_cron_next_page=12, dolar Bluelytics $1454 actualizado hace 1 min.
 - **2026-06-16 (s43):** Cron Air Intra chunked + cache Turso + paginacion + upgrade Scaler. 4 commits: (1) a7490d2 fix(cron-sync): Air Intra chunked rotation + delay + 403 retry. PAGES_PER_RUN=3, rotacion circular con airintra_cron_next_page en store_config, delay 1.5s, retry 30s en 403, time budget 50s. (2) 1289eac perf(turso): reduce rows reads 90% con LIMIT + cache + revalidate. Cache en memoria para getCategoryMarkupMap (TTL 5 min), revalidate=300 en home y categorias. (3) ec74b49 feat(catalog): paginacion client-side 50 productos por pagina. Botones Anterior/Siguiente + numeros de pagina con ellipsis. Reset automatico a pagina 1 al cambiar filtros. (4) Fix directo SKU 212937 (DDR4 8GB Hiksemi): costPrice $76.09 -> $58.24 (oferta 5% off Air Intra), stock 239 -> 287. Diagnostico: CRON_SECRET no estaba en Vercel (configurado por user), Turso al 103% del free tier (517M de 500M) -> upgrade a Scaler $5.99/mes (2.5B rows reads). Backup DB: compucity_turso_backup_s43_2026-06-16T21-13-37-462Z.json (45 MB, 12,460 filas). Documentada "Leccion aprendida sesion 43" en PROJECT_STATUS.md explicando los 4 supuestos erroneos que llevaron a subestimar el consumo Turso y la regla de oro para futuras estimaciones.
 - **2026-06-13 (s42):** Backup completo + documentacion exhaustiva. (1) Backup DB Turso: compucity_turso_backup_2026-06-12T22-14-38-625Z.json (41MB, 16 tablas, 10,053 productos, 91 marcas). (2) Backup codigo fuente completo: compucity_src_backup_2026-06-13.tar.gz (101MB). (3) Backup codigo esencial: compucity_src_only_backup_2026-06-13.tar.gz (1.2MB). (4) Backup DB local: compucity_local_db_backup_2026-06-13.db (112KB). (5) PROJECT_STATUS.md completamente reescrito y actualizado con toda la documentacion del proyecto (42 sesiones). (6) SAFETY-RULES.md integrado como seccion del PROJECT_STATUS. Commit: a3ca817
 - **2026-06-12 (s41):** SEO + GEO completo. Root layout OG/Twitter, product/category metadata dinamico, JSON-LD, sitemap, robots, 404, canonical URLs, admin noindex. Git tag: v-seo-optimized. Commit: c5b7458
