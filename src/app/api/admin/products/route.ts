@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { fetchDollarRate, getStoreConfigNumber, calculateProductPrices, CategoryMarkup } from '@/lib/dollar'
 import { getCurrentAdmin } from '@/lib/admin-auth'
+// Sesión 43 día 2: revalidateTag para invalidar cache de products on-demand.
+// Después de cualquier escritura (POST/PUT/DELETE), llamamos revalidateTag('products', 'default')
+// para que el siguiente visitante vea el cambio INSTANTANEAMENTE en home,
+// categorías, detalle, etc. Sin esto, los cambios tardarían hasta 5 min en verse.
+import { revalidateTag } from 'next/cache'
 
 /**
  * Resolve a providerId to a valid supplier UUID.
@@ -444,6 +449,10 @@ export async function POST(request: NextRequest) {
     // Invalidate dollar cache so next GET fetches fresh rate
     cachedDollarRate = { rate: 0, fetchedAt: 0 }
 
+    // Sesión 43 día 2: invalidar cache de products para que el nuevo producto
+    // aparezca instantáneamente en home, categorías, etc.
+    try { revalidateTag('products', 'default') } catch (e) { /* revalidateTag puede fallar si se llama fuera de request scope */ }
+
     return NextResponse.json({ ok: true, product: { id, slug: finalSlug } })
   } catch (error: any) {
     console.error('Create product error:', error)
@@ -636,6 +645,10 @@ export async function PUT(request: NextRequest) {
     // Invalidate dollar cache so next GET fetches fresh rate
     cachedDollarRate = { rate: 0, fetchedAt: 0 }
 
+    // Sesión 43 día 2: invalidar cache de products para que los cambios se
+    // vean instantáneamente en home, categorías, detalle, etc.
+    try { revalidateTag('products', 'default') } catch (e) { /* revalidateTag puede fallar si se llama fuera de request scope */ }
+
     return NextResponse.json({ ok: true })
   } catch (error: any) {
     console.error('Update product error:', error)
@@ -658,6 +671,9 @@ export async function DELETE(request: NextRequest) {
       sql: 'DELETE FROM products WHERE id = ?',
       args: [id],
     })
+
+    // Sesión 43 día 2: invalidar cache de products
+    try { revalidateTag('products', 'default') } catch (e) { /* revalidateTag puede fallar si se llama fuera de request scope */ }
 
     return NextResponse.json({ ok: true })
   } catch (error) {

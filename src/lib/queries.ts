@@ -1,5 +1,11 @@
 import { db } from './db'
 import { fetchDollarRate, getStoreConfigNumber, calculateProductPrices, CategoryMarkup } from './dollar'
+// Sesión 43 día 2: unstable_cache de Next.js para cacheo on-demand.
+// Permite cachear queries con tags ('products', 'categories', etc.) y
+// invalidarlos selectivamente con revalidateTag() cuando un admin o el cron
+// cambia datos. Así evitamos el delay de 5 min del revalidate=300 — los
+// cambios del admin se reflejan INSTANTANEAMENTE para el siguiente visitante.
+import { unstable_cache } from 'next/cache'
 
 // ============================================
 // CACHÉ EN MEMORIA (sesion 43 — reduce rows reads en Turso)
@@ -32,6 +38,26 @@ async function cached<T>(key: string, ttlMs: number, loader: () => Promise<T>): 
 export function __clearQueriesCache(): void {
   memoryCache.clear()
 }
+
+// ============================================
+// unstable_cache — cacheo on-demand con tags (sesión 43 día 2)
+// ============================================
+// Estas funciones envuelven las queries a products con unstable_cache.
+// El cache persiste en el filesystem de Vercel (no en memoria de la
+// instancia serverless), así que sobrevive a cold starts.
+//
+// Tags usados:
+//   'products'  → invalidado cuando un admin o el cron cambia productos
+//   'categories' → invalidado cuando un admin cambia categorías
+//
+// Para invalidar desde cualquier endpoint de escritura:
+//   import { revalidateTag } from 'next/cache'
+//   await revalidateTag('products')
+//
+// TTL base: 5 min (300s). Si nadie invalida manualmente, se regenera solo.
+const UC_TAG_PRODUCTS = ['products'] as const
+const UC_TAG_CATEGORIES = ['categories'] as const
+const UC_REVALIDATE_SECONDS = 300 // 5 min fallback
 
 // ============================================
 // CATEGORÍAS
@@ -233,7 +259,10 @@ async function enrichWithBrandInfo<T extends { brandId?: string | null }>(produc
   }))
 }
 
-export async function getAllActiveProducts(limit = 50): Promise<Product[]> {
+// Sesión 43 día 2: getAllActiveProducts envuelto con unstable_cache tag 'products'.
+// Cachea 5 min por defecto, pero revalidateTag('products') lo invalida al instante.
+// Wrapper interno _getAllActiveProductsRaw conserva la lógica original.
+async function _getAllActiveProductsRaw(limit: number): Promise<Product[]> {
   const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
     db.execute({
       sql: "SELECT * FROM products WHERE isActive = 1 AND stock > 0 ORDER BY CASE WHEN images IS NOT NULL AND images != '[]' THEN 0 ELSE 1 END, COALESCE(createdAt, updatedAt) DESC LIMIT ?",
@@ -251,7 +280,13 @@ export async function getAllActiveProducts(limit = 50): Promise<Product[]> {
   return enrichWithBrandInfo(deduplicateProducts(mapped))
 }
 
-export async function getFeaturedProducts(): Promise<Product[]> {
+export const getAllActiveProducts = unstable_cache(
+  async (limit: number = 50): Promise<Product[]> => _getAllActiveProductsRaw(limit),
+  ['getAllActiveProducts'],
+  { tags: [...UC_TAG_PRODUCTS], revalidate: UC_REVALIDATE_SECONDS }
+)
+
+async function _getFeaturedProductsRaw(): Promise<Product[]> {
   const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
     db.execute("SELECT * FROM products WHERE isFeatured = 1 AND isActive = 1 AND stock > 0 ORDER BY CASE WHEN images IS NOT NULL AND images != '[]' THEN 0 ELSE 1 END, COALESCE(createdAt, updatedAt) DESC LIMIT 8"),
     fetchDollarRate(),
@@ -266,7 +301,13 @@ export async function getFeaturedProducts(): Promise<Product[]> {
   return enrichWithBrandInfo(deduplicateProducts(mapped2))
 }
 
-export async function getProductsByCategory(slug: string): Promise<Product[]> {
+export const getFeaturedProducts = unstable_cache(
+  async (): Promise<Product[]> => _getFeaturedProductsRaw(),
+  ['getFeaturedProducts'],
+  { tags: [...UC_TAG_PRODUCTS], revalidate: UC_REVALIDATE_SECONDS }
+)
+
+async function _getProductsByCategoryRaw(slug: string): Promise<Product[]> {
   // First, find the category (only enabled)
   const catResult = await db.execute({
     sql: 'SELECT id FROM categories WHERE slug = ? AND enabled = 1',
@@ -310,7 +351,13 @@ export async function getProductsByCategory(slug: string): Promise<Product[]> {
   return enrichWithBrandInfo(deduplicateProducts(mapped3))
 }
 
-export async function getProductBySlug(slug: string): Promise<Product | null> {
+export const getProductsByCategory = unstable_cache(
+  async (slug: string): Promise<Product[]> => _getProductsByCategoryRaw(slug),
+  ['getProductsByCategory'],
+  { tags: [...UC_TAG_PRODUCTS, ...UC_TAG_CATEGORIES], revalidate: UC_REVALIDATE_SECONDS }
+)
+
+async function _getProductBySlugRaw(slug: string): Promise<Product | null> {
   const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
     db.execute({
       sql: `SELECT p.*, c.name as categoryName, c.slug as categorySlug, c.markup as categoryMarkup, c.cashDiscount as categoryCashDiscount
@@ -344,6 +391,16 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
   } as Product
 }
 
+export const getProductBySlug = unstable_cache(
+  async (slug: string): Promise<Product | null> => _getProductBySlugRaw(slug),
+  ['getProductBySlug'],
+  { tags: [...UC_TAG_PRODUCTS], revalidate: UC_REVALIDATE_SECONDS }
+)
+
+// searchProducts NO se envuelve con unstable_cache porque es una query
+// paramétrica (cada término de búsqueda genera un cache key distinto) y
+// el LIKE con % hace que el cache sea inútil (casi nunca se repite).
+// Se mantiene el revalidate del endpoint /api/search.
 export async function searchProducts(query: string, limit = 20): Promise<Product[]> {
   const searchTerm = `%${query}%`
   const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([

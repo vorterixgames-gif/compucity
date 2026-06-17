@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { formatProductName, generateSlug } from '@/lib/format-product'
 import { getCurrentAdmin } from '@/lib/admin-auth'
+// Sesión 43 día 2: revalidateTag para invalidar cache de products on-demand
+// después de la sync manual de proveedores (admin). Los cambios de precios/stock
+// se reflejan instantáneamente en el storefront.
+import { revalidateTag } from 'next/cache'
 
 // Allow up to 300s on Vercel Pro (Hobby plan caps at 60s — harmless if set higher)
 // This matches the cron sync route's timeout.
@@ -3892,6 +3896,10 @@ export async function POST(request: Request) {
         console.warn('[sync] Post-sync validation failed (non-critical):', validationErr)
       }
     }
+
+    // Sesión 43 día 2: invalidar cache de products para que los cambios
+    // del sync manual (admin) se reflejen instantáneamente en el storefront.
+    try { revalidateTag('products', 'default') } catch (e) { /* non-critical */ }
 
     return NextResponse.json({ ...syncResult })
   } catch (error) {

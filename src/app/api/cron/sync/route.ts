@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+// Sesión 43 día 2: revalidateTag para invalidar cache de products on-demand.
+// Después de que el cron actualiza productos (precios/stock), llamamos
+// revalidateTag('products', 'default') para que los visitantes vean los datos frescos
+// instantáneamente. Sin esto, los cambios del cron tardarían hasta 5 min.
+import { revalidateTag } from 'next/cache'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // 5 minutes max for Vercel
@@ -153,6 +158,10 @@ export async function GET(request: Request) {
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
   console.log(`[cron-sync] Daily stock/price sync completed in ${elapsed}s`)
+
+  // Sesión 43 día 2: invalidar cache de products para que los cambios de
+  // precios/stock del cron se reflejen instantáneamente en el storefront.
+  try { revalidateTag('products', 'default') } catch (e) { /* revalidateTag puede fallar si se llama fuera de request scope */ }
 
   return NextResponse.json({
     ok: true,
