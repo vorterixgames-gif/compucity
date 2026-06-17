@@ -206,6 +206,20 @@ function isMicrosoftIp(ip: string): boolean {
 // ============================================
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+  const host = request.headers.get('host') || ''
+
+  // ─── Fix SEO (sesión 43 día 2 FINAL): redirigir dominio interno de Vercel ───
+  // Vercel expone el sitio en 2 URLs:
+  //   1. www.compucityonline.com.ar (dominio principal — el que queremos indexar)
+  //   2. my-project-*.vercel.app (URL interna — NO queremos que Google la indexe)
+  // Si alguien entra por la URL interna, lo redirigimos al dominio principal
+  // para evitar contenido duplicado y consolidar el SEO.
+  if (host.includes('.vercel.app')) {
+    const newUrl = new URL(request.url)
+    newUrl.host = 'www.compucityonline.com.ar'
+    newUrl.protocol = 'https:'
+    return NextResponse.redirect(newUrl, 301) // 301 = permanente, Google consolida
+  }
 
   // ─── Excepción 1: rutas internas del sistema ───
   // No aplicamos anti-scraping a estas rutas

@@ -6,7 +6,10 @@ import HeroSection from '@/components/ui-custom/HeroSection'
 import PromoBanners from '@/components/ui-custom/PromoBanners'
 import FeaturedProductsCarousel from '@/components/ui-custom/FeaturedProductsCarousel'
 import { getFeaturedProducts, getAllActiveProducts, getTopProductsByCategorySlug } from '@/lib/queries'
-import { ensureMigrations } from '@/lib/db'
+// Sesión 43 día 2 FINAL: eliminado import de ensureMigrations.
+// Las migraciones NO deberían correr en cada request a la home — eso hacía
+// 26+ queries innecesarias a Turso por cada visita.
+// Las migraciones se ejecutan manualmente desde /api/admin/migrate cuando hace falta.
 import Link from 'next/link'
 import { Truck, Shield, MessageCircle, Headphones, ArrowRight } from 'lucide-react'
 
@@ -36,8 +39,10 @@ function safeParseFirstImage(images: string | null): string | null {
 }
 
 export default async function HomePage() {
-  // Run auto-migrations (adds shippingDetails column if missing)
-  await ensureMigrations()
+  // Sesión 43 día 2 FINAL: eliminado `await ensureMigrations()`.
+  // Antes: cada carga de la home ejecutaba 26+ checks de migraciones a Turso.
+  // Eso generaba ~1-3M rows reads/día desperdiciados.
+  // Las migraciones se corren manualmente desde /api/admin/migrate cuando hace falta.
 
   let featured: any[] = []
   let allProducts: any[] = []
