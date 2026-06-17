@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-06-17 (sesion 43 dia 2 PARTE 3 - optimizacion queries admin products)
+**Ultima actualizacion:** 2026-06-17 (sesion 43 dia 2 FINAL - indices + middleware anti-scraping + Google Search Console)
 
 ---
 
@@ -14,8 +14,8 @@
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
-- **Commit estable:** 65df32b (perf: optimizar queries del listado de productos admin)
-- **Commit actual:** 65df32b
+- **Commit estable:** 98b9175 (feat: middleware con 3 capas de protección anti-scraping)
+- **Commit actual:** 98b9175
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 - **Sesiones totales:** 43
@@ -912,6 +912,7 @@ createdAt TEXT, updatedAt TEXT
 | 2026-06-17 | DB Turso completa (JSON) | 45 MB | compucity_turso_backup_s43-day2-precache_2026-06-17T13-13-35-657Z.json |
 | 2026-06-17 | DB Turso completa (JSON) | 45 MB | compucity_turso_backup_s43-day2-final_2026-06-17T13-25-50-858Z.json |
 | 2026-06-17 | DB Turso completa (JSON) | 45 MB | compucity_turso_backup_s43-day2-admin-opt_2026-06-17T13-51-19-094Z.json |
+| 2026-06-17 | DB Turso completa (JSON) | 45 MB | compucity_turso_backup_s43-day2-final_2026-06-17T16-33-58-040Z.json |
 
 ### Backups remotos (GoFile)
 | Fecha | Tipo | Tamano | URL |
@@ -921,7 +922,7 @@ createdAt TEXT, updatedAt TEXT
 
 ### Backup Git
 - **GitHub:** https://github.com/vorterixgames-gif/compucity (repo completo)
-- **Ultimo commit:** 65df32b (perf: optimizar queries del listado de productos admin)
+- **Ultimo commit:** 98b9175 (feat: middleware con 3 capas de protección anti-scraping)
 - **Tags:** v-seo-optimized (commit c5b7458)
 
 ### Script de backup automatico
@@ -943,18 +944,20 @@ createdAt TEXT, updatedAt TEXT
 2. **Andreani shipping:** Credenciales incompletas (falta codigoCliente + contratoDomicilio)
 3. **Correo Argentino:** Credenciales todas NULL en store_config, sin API funcional
 4. **Sync manual completa Air Intra:** Desde /admin/proveedores para arrancar rotacion con datos frescos (los ~7000 productos que llevan dias sin actualizar se van a refrescar). El cron diario mantiene todo al dia despues.
+5. **Monitorear Google Search Console:** Verificar en 1-2 semanas que Google empiece a indexar las URLs del sitemap (recien registrado en Search Console el 17/6/2026 con verificacion TXT en DonWeb DNS). Sitemap enviado manualmente.
 
 ### Media Prioridad
-5. **Imagenes para Air Intra:** ~1,563 productos sin imagen
-6. **Descripcion IA:** Usar z-ai-web-dev-sdk para generar descripciones faltantes
-7. **WhatsApp Business:** Migrar de Personal a Business App (misma app, mismo numero)
-8. **Monitorear consumo Turso Scaler:** Verificar en 24-48h que la pendiente de uso se acható por los fixes de cache aplicados
+6. **Imagenes para Air Intra:** ~1,563 productos sin imagen
+7. **Descripcion IA:** Usar z-ai-web-dev-sdk para generar descripciones faltantes
+8. **WhatsApp Business:** Migrar de Personal a Business App (misma app, mismo numero)
+9. **Monitorear consumo Turso Scaler:** Verificar en 24-48h que la pendiente de uso se acható por los fixes de cache aplicados
 
 ### Baja Prioridad
-9. **Optimizar imagenes:** Thumbnails del catalogo podrian usar tamano reducido
-10. **Limpiar claves duplicadas en store_config:** slogan/whatsapp duplicados con store_slogan/whatsapp_number
-11. **Marcas navbar:** Reactivar cuando se decida mostrar nuevamente
-12. **Indices Turso:** Agregar indices en products (categoryId, isActive, stock) para reducir full scans (opcional, con Scaler ya no es urgente)
+10. **Optimizar imagenes:** Thumbnails del catalogo podrian usar tamano reducido
+11. **Limpiar claves duplicadas en store_config:** slogan/whatsapp duplicados con store_slogan/whatsapp_number
+12. **Marcas navbar:** Reactivar cuando se decida mostrar nuevamente
+13. **FTS5 en busqueda:** Migrar searchProducts a Full-Text Search de Turso para evitar LIKE con % (opcional, con Scaler ya no es urgente)
+14. **Cache auth admin/customer:** Cachear getCurrentAdmin() y customer APIs en memoria (opcional, pocos requests/dia)
 
 ### Tareas Completadas (sesiones anteriores)
 - ~~Discos multiples en PC Builder~~ - RESUELTO (sesion 27)
@@ -1026,6 +1029,7 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-06-17 (s43 dia 2 FINAL):** Indices en products + middleware anti-scraping + Google Search Console. Commits 49477a1 y 98b9175. Cambios: (1) Creados 5 indices en Turso via script directo: idx_products_category_active_stock (categoryId+isActive+stock), idx_products_slug (slug), idx_products_providerId (providerId), idx_products_isActive_stock (isActive+stock), idx_categories_parentId (parentId). Verificados con EXPLAIN QUERY PLAN que se estan usando correctamente en todas las queries. Migracion #26 agregada a db.ts para futuras DBs. Impacto: queries por categoria pasan de escanear 10,960 filas a solo las relevantes (ej: motherboards 309 filas). Proyeccion: -40-60% en rows reads de queries por categoria. (2) Middleware con 3 capas de proteccion anti-scraping en src/middleware.ts: Capa 1 lista negra bots scrapers conocidos (AhrefsBot, SemrushBot, MJ12bot, DotBot, Baiduspider, YandexBot, PetalBot, Bytespider, Amazonbot) + bots ENTRENAMIENTO IA (CCBot, ChatGPT-User, Google-Extended, Anthropic-AI, AppleBot-Extended, Meta-ExternalAgent, AI2Bot, Cohere-AI, Diffbot, ImagesiftBot). Capa 2 lista blanca bots legitimos: Googlebot, Bingbot, DuckDuckBot, AppleBot, FacebookBot, TwitterBot, LinkedInBot, TelegramBot, WhatsApp, SlackBot, DiscordBot + bots RECOMENDACION IA (GPTBot, ClaudeBot, PerplexityBot, OAI-SearchBot). Capa 3 verificacion IP Googlebot (rangos 66.249.x.x, 64.233.x.x, etc.) y Bingbot (40.77.x.x, 157.55.x.x, etc.) + rate limiting 30 req/10s por IP con bloqueo 1h. Distincion clave: bots ENTRENAMIENTO bloqueados, bots RECOMENDACION permitidos (ChatGPT/Claude/Perplexity pueden recomendar el sitio). Excepciones: /admin/*, /api/admin/*, /api/cron/*, archivos estaticos. Matcher ahora cubre TODAS las rutas menos estaticos y cron. (3) Google Search Console: sitio registrado con verificacion TXT en DonWeb DNS (google-site-verification=XG8WX3Udd0G3KsU8wMC2Dig5wuL74hQkWVrVYnMW2UA). Sitemap.xml enviado manualmente. Indexacion esperada en 1-2 semanas. Diagnostico: detectado en logs de Vercel 28 requests GET a /producto/[slug] en 4 segundos con User-Agent de Chrome (probable bot disfrazado crawleando PCs armadas). Eso explicaba el consumo alto de Turso (~10M en medio dia). Backup DB: compucity_turso_backup_s43-day2-final_2026-06-17T16-33-58-040Z.json (45 MB, 12,465 filas).
 - **2026-06-17 (s43 dia 2 PARTE 3):** Optimizacion queries del listado de productos del admin. Commit 65df32b. Problema: el endpoint /api/admin/products hacia queries innecesariamente pesadas en CADA request (carga de pagina, cambio de filtro, ordenamiento, paginacion): COUNT(*) con JOIN a categories + suppliers SIEMPRE (aunque no haya busqueda) = ~22K rows reads por request. 2 SELECTs a categories + 1 SELECT a suppliers en cada request. Calculo recursivo de subcategorias hacia SELECT * FROM categories cada vez. Cada vez que el admin abria el listado o cambiaba de pagina = ~22K rows reads. Fixes aplicados: (1) COUNT sin JOIN cuando no hay busqueda activa (flag needsJoinForCount). (2) Cache en memoria 5 min para 4 funciones: getCachedCategories, getCachedCategoryMarkupRows, getCachedSuppliers, getCachedCategoryFilterList. Helper __clearAdminProductsCache() exportado para invalidacion. (3) Calculo subcategorias usa getCachedCategories (cache 5 min). (4) Invalidacion de cache automatica en /api/admin/categories POST/PUT/DELETE via __clearAdminProductsCache + revalidateTag('products') + revalidateTag('categories'). (5) Invalidacion de cache en /api/admin/suppliers POST/PUT/DELETE via __clearAdminProductsCache. Impacto: ~22K rows reads/request → ~200-500 rows reads/request (97% reduccion). Proyeccion: si admin se usa 10 veces/dia = -220K rows reads/dia = -6.6M/mes. Experiencia admin sin cambios: listado carga mas rapido, filtros/ordenamiento/paginacion igual, busqueda igual, edicion categorias/suppliers aparece instantaneamente. Sin perdida de informacion ni imagenes. Backup DB: compucity_turso_backup_s43-day2-admin-opt_2026-06-17T13-51-19-094Z.json (45 MB, 12,465 filas).
 - **2026-06-17 (s43 dia 2) PARTE 2:** revalidateTag on-demand en admin + cron. Commit 767a8cf. Implementada Opción 2 de cacheo on-demand para resolver el delay de 5 min cuando admin o cron cambian productos. Cambios: (1) src/lib/queries.ts — 4 funciones envueltas con unstable_cache + tags ('products', 'categories'): getAllActiveProducts, getFeaturedProducts, getProductsByCategory, getProductBySlug. searchProducts NO se envuelve (query paramétrica, cache inútil con LIKE). TTL fallback 300s. (2) src/app/api/admin/products/route.ts — revalidateTag('products', 'default') después de POST/PUT/DELETE. (3) src/app/api/admin/suppliers/sync/route.ts — revalidateTag al final del sync manual. (4) src/app/api/cron/sync/route.ts — revalidateTag al final del cron diario. Verificado en producción: admin hace cambio → F5 → cambio aparece instantáneamente. Limitación: búsqueda sigue con delay 5 min (no se tocó). Compatibilidad: unstable_cache es API inestable pero standard en Next.js 16. revalidateTag requiere 2do arg 'profile' en Next.js 16 (usamos 'default'). Backups: 3 backups DB generados (12:58, 13:13 pre-cache, 13:25 final).
 - **2026-06-17 (s43 dia 2):** Cache headers APIs publicas + fix bug sitemap + eliminar ensureTable. Commit 2ae068c. Detectado 58M rows reads en Turso el 17/6 (proyeccion mensual 1.7B = 70% del plan Scaler). Investigacion revelo 4 causas adicionales: (1) /api/image/[id] ejecutaba CREATE TABLE IF NOT EXISTS en cada request (~30K rows/dia desperdiciado). (2) Sitemap con bug WHERE active=1 (no existe, es isActive) — productos NUNCA aparecian en sitemap, Googlebot crawleaba ciegamente. (3) APIs publicas (/api/products, /api/related-products, /api/categories, /api/brands) sin cache headers → cada request = queries frescas. (4) Sitemap sin revalidate → cada pedido = 2 SELECTs. Fixes: eliminar ensureTable, agregar revalidate=3600 en sitemap + fix bug isActive, revalidate=300 + Cache-Control en /api/products y /api/related-products, revalidate=3600 + cache headers en /api/categories y /api/brands. Proyeccion: ~5-15M rows reads/dia = 6-18% del plan Scaler. Limitaciones: admin cambios en producto tardan hasta 5 min en APIs publicas (NO en detalle que sigue dinamico). Backup DB: compucity_turso_backup_s43-day2_2026-06-17T12-58-17-818Z.json (45 MB, 12,465 filas). Cron verificado funcionando: 2331 productos Air Intra actualizados + 1089 Elit en las ultimas 24h, airintra_cron_next_page=12, dolar Bluelytics $1454 actualizado hace 1 min.
