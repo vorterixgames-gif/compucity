@@ -16,6 +16,7 @@ import {
   Menu,
   Monitor,
   Tag,
+  Calculator,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
@@ -29,6 +30,7 @@ const navItems = [
   { href: '/admin/pedidos', label: 'Pedidos', icon: ShoppingCart },
   { href: '/admin/clientes', label: 'Clientes', icon: Users },
   { href: '/admin/proveedores', label: 'Proveedores', icon: Truck },
+  { href: '/admin/calculadora-cuotas', label: 'Calculadora de Cuotas', icon: Calculator },
   { href: '/admin/configuracion', label: 'Configuración', icon: Settings },
 ]
 
