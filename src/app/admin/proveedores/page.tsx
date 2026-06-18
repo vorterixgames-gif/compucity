@@ -412,9 +412,9 @@ export default function AdminProveedores() {
     try {
       if (supplier.apiType === 'air_intra') {
         // Batched sync for Air Intra to avoid Vercel Hobby 60s timeout
-        // Each batch processes PAGES_PER_BATCH (1) page of ~500 products
+        // Each batch processes PAGES_PER_BATCH (4) pages of ~500 products each
         // (reduced from 2 pages because 2 still timed out on Vercel)
-        const PAGES_PER_BATCH = 1
+        const PAGES_PER_BATCH = 4
         let token: string | undefined
         let exchangeRate: number | undefined
         let nextPage: number | undefined
