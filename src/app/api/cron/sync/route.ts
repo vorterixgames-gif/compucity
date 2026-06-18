@@ -605,7 +605,7 @@ async function syncAirIntraStock(): Promise<{ ok: boolean; updated: number; erro
   console.log(`[cron-sync] Air Intra: ${dbMap.size} products in DB`)
 
   // Step 2: Fetch CHUNK of pages (rotación circular con persistencia)
-  const PAGES_PER_RUN = 3
+  const PAGES_PER_RUN = 6
   const PAGE_SIZE = 500
   const ESTIMATED_TOTAL_PAGES = 16 // 7900 productos / 500 por página, con margen
   const startPage = await getNextPage()
