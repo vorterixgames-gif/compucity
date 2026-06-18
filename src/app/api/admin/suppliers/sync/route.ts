@@ -38,7 +38,7 @@ interface AirIntraBatchParams {
 // Number of pages per batch (1 × 500 = 500 products, keeps each batch well under 60s)
 // Previously 2 (1000 products) but still timed out on Vercel Hobby 60s limit.
 // 1 page per batch keeps total request time at ~10-15s including DB writes.
-const PAGES_PER_BATCH = 1
+const PAGES_PER_BATCH = 4
 
 // Subcategory keyword rules: when a product maps to a parent category that has subcategories,
 // these rules determine which subcategory to assign based on product name/supplier category.
