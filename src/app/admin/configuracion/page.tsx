@@ -635,6 +635,31 @@ export default function AdminConfiguracion() {
           )}
         </CardContent>
       </Card>
+
+      {/* Calculadora de cuotas - configuración de planes */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Planes de Cuotas</CardTitle>
+          <CardDescription>
+            Configurá los planes de cuotas que usa la calculadora en /admin/calculadora-cuotas.
+            El recargo es el porcentaje que se suma al precio de efectivo.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Para gestionar los planes de cuota, usá la{' '}
+            <a href="/admin/calculadora-cuotas" className="text-compucity-green underline">
+              Calculadora de Cuotas
+            </a>
+            . Ahí podés agregar, editar y eliminar planes, y calcular precios en cuotas.
+          </p>
+          <div className="bg-compucity-green-50 border border-compucity-green-200 rounded-lg p-3 text-xs text-gray-700">
+            <strong>Fórmula:</strong> Total = precio × (1 + recargo/100) → Cuota = Total / cuotas
+            <br />
+            <strong>Ejemplo:</strong> $100.000 en 6 cuotas con 15% recargo → Total $115.000 → Cuota $19.166
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }
