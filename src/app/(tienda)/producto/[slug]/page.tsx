@@ -77,6 +77,8 @@ export default async function ProductPage({ params }: Props) {
     new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n)
 
   // Build structured data for this product
+  // Sesión 43 día 3 (18/6): agregado brandName para que Google valide el producto.
+  // Antes se usaba categoryName como brand, lo cual era incorrecto.
   const productJsonLd = getProductSchema({
     name: product.name,
     description: product.description,
@@ -87,6 +89,7 @@ export default async function ProductPage({ params }: Props) {
     slug: product.slug,
     stock: product.stock,
     categoryName: product.category?.name || null,
+    brandName: (product as any).brandName || null,
   })
 
   // Build breadcrumb structured data
