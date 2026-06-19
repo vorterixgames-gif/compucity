@@ -1,0 +1,419 @@
+#!/usr/bin/env node
+/**
+ * Sync Air Intra → Turso (corre en GitHub Actions, no en Vercel).
+ *
+ * Ventajas sobre el cron de Vercel:
+ * - Sin límite de 60s (puede tardar lo que necesite)
+ * - Sin consumir Vercel Fluid CPU
+ * - Procesa TODAS las páginas (16) en cada ejecución
+ * - Respeta rate limit de Air Intra con delays entre páginas
+ *
+ * Variables de entorno (configuradas en GitHub Secrets):
+ * - TURSO_URL: libsql://compucity-vorterixgames-gif.aws-us-east-1.turso.io
+ * - TURSO_TOKEN: eyJ...
+ * - AIR_INTRA_USER: c4078
+ * - AIR_INTRA_PASS: ********
+ *
+ * Uso local: node scripts/sync-air-intra-external.mjs
+ * Uso GitHub Actions: automático via .github/workflows/sync-air-intra.yml
+ */
+
+const TURSO_URL = process.env.TURSO_URL || 'libsql://compucity-vorterixgames-gif.aws-us-east-1.turso.io'
+const TURSO_TOKEN = process.env.TURSO_TOKEN || ''
+const AIR_INTRA_USER = process.env.AIR_INTRA_USER || 'c4078'
+const AIR_INTRA_PASS = process.env.AIR_INTRA_PASS || ''
+const AIR_INTRA_BASE = 'https://api.air-intra.com/v2'
+
+// ============================================
+// Helpers de Turso (HTTP API directa, sin libsql client)
+// ============================================
+const TURSO_HTTP = TURSO_URL.replace('libsql://', 'https://') + '/v2/pipeline'
+
+async function tursoExecute(sql) {
+  const body = JSON.stringify({
+    requests: [
+      { type: 'execute', stmt: { sql } },
+      { type: 'close' },
+    ],
+  })
+  const res = await fetch(TURSO_HTTP, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${TURSO_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body,
+  })
+  if (!res.ok) {
+    throw new Error(`Turso HTTP ${res.status}: ${await res.text()}`)
+  }
+  const data = await res.json()
+  const result = data.results?.[0]?.response?.result
+  if (!result) return { rows: [], cols: [] }
+  const cols = (result.cols || []).map(c => c.name)
+  const rows = (result.rows || []).map(row =>
+    row.reduce((obj, cell, i) => {
+      obj[cols[i] || `col_${i}`] = cell.type === 'null' ? null : cell.value
+      return obj
+    }, {})
+  )
+  return { rows, cols }
+}
+
+async function tursoBatch(statements) {
+  // Turso pipeline soporta múltiples statements en 1 request
+  const body = JSON.stringify({
+    requests: [
+      ...statements.map(sql => ({ type: 'execute', stmt: { sql } })),
+      { type: 'close' },
+    ],
+  })
+  const res = await fetch(TURSO_HTTP, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${TURSO_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+    body,
+  })
+  if (!res.ok) {
+    throw new Error(`Turso batch HTTP ${res.status}: ${await res.text()}`)
+  }
+  const data = await res.json()
+  return data.results || []
+}
+
+// ============================================
+// Helpers de Air Intra
+// ============================================
+function stripPhpNotices(text) {
+  return text
+    .replace(/<\/?b>/gi, '')
+    .replace(/<br\s*\/?>\s*/gi, '')
+    .replace(/(?:Notice|Warning|Fatal error|Parse error|Deprecated):\s*[\s\S]*?on line\s+\d+\s*/gi, '')
+    .replace(/,\s*([}\]])/g, '$1')
+    .replace(/}\s*{/g, '},{')
+    .replace(/,\s*,/g, ',')
+    .trim()
+}
+
+function safeParseAirIntra(rawText) {
+  const cleaned = stripPhpNotices(rawText)
+  let jsonStart = -1
+  for (let i = 0; i < cleaned.length; i++) {
+    if (cleaned[i] === '{' || cleaned[i] === '[') { jsonStart = i; break }
+  }
+  if (jsonStart === -1) return { data: null, error: 'No JSON found' }
+  try {
+    return { data: JSON.parse(cleaned.substring(jsonStart)), error: null }
+  } catch {
+    // Aggressive cleanup
+    let aggressive = cleaned.substring(jsonStart)
+      .replace(/<[^>]*>/g, '')
+      .replace(/,\s*,/g, ',')
+      .replace(/}\s*{/g, '},{')
+      .replace(/,\s*([}\]])/g, '$1')
+    try {
+      return { data: JSON.parse(aggressive), error: null }
+    } catch (e2) {
+      return { data: null, error: e2.message }
+    }
+  }
+}
+
+function extractProductsFromCorruptedJson(text) {
+  const products = []
+  let i = 0
+  while (i < text.length) {
+    if (text[i] !== '{') { i++; continue }
+    let depth = 0, inStr = false, esc = false, objEnd = -1
+    for (let j = i; j < text.length; j++) {
+      const ch = text[j]
+      if (esc) { esc = false; continue }
+      if (ch === '\\' && inStr) { esc = true; continue }
+      if (ch === '"') { inStr = !inStr; continue }
+      if (inStr) continue
+      if (ch === '{') depth++
+      else if (ch === '}') { depth--; if (depth === 0) { objEnd = j; break } }
+    }
+    if (objEnd === -1) { i++; continue }
+    const objText = text.substring(i, objEnd + 1)
+    if (objText.includes('"codigo"') || objText.includes('"codiart"')) {
+      try { products.push(JSON.parse(objText)) } catch {}
+    }
+    i = objEnd + 1
+  }
+  return products
+}
+
+// ============================================
+// Función principal
+// ============================================
+async function main() {
+  const startTime = Date.now()
+  console.log('═'.repeat(70))
+  console.log(' 🔄 Sync Air Intra → Turso (GitHub Actions)')
+  console.log('═'.repeat(70))
+  console.log(`Inicio: ${new Date().toISOString()}`)
+  console.log()
+
+  if (!TURSO_TOKEN) {
+    console.error('✗ TURSO_TOKEN no configurado')
+    process.exit(1)
+  }
+
+  // ─── 1. Login Air Intra ───
+  console.log('▸ Login Air Intra...')
+  const loginRes = await fetch(`${AIR_INTRA_BASE}/?q=login&user=${encodeURIComponent(AIR_INTRA_USER)}&pass=${encodeURIComponent(AIR_INTRA_PASS)}`)
+  if (!loginRes.ok) {
+    console.error(`✗ Login HTTP ${loginRes.status}`)
+    process.exit(1)
+  }
+  const loginRaw = await loginRes.text()
+  const loginCleaned = stripPhpNotices(loginRaw)
+  let jsonStart = -1
+  for (let i = 0; i < loginCleaned.length; i++) {
+    if (loginCleaned[i] === '{' || loginCleaned[i] === '[') { jsonStart = i; break }
+  }
+  const loginData = JSON.parse(loginCleaned.substring(jsonStart))
+  const token = loginData.token
+  const exchangeRate = parseFloat(loginData.cotiza || '0')
+  console.log(`  ✓ Login OK. Cotización: $${exchangeRate}`)
+
+  // ─── 2. Cargar productos existentes de Turso ───
+  console.log('▸ Cargando productos existentes de Turso...')
+  const existingResult = await tursoExecute(
+    "SELECT id, providerSku, costPrice, stock, price FROM products WHERE providerId = 'air-intra-1780331633566'"
+  )
+  const existingBySku = new Map()
+  for (const row of existingResult.rows) {
+    if (row.providerSku) existingBySku.set(row.providerSku, row)
+  }
+  console.log(`  ✓ ${existingBySku.size} productos existentes en DB`)
+
+  // ─── 3. Recorrer TODAS las páginas de Air Intra ───
+  console.log('▸ Sincronizando productos...')
+  const SUPPLIER_ID = 'air-intra-1780331633566'
+  const SUPPLIER_MARKUP = 30
+  let totalFetched = 0
+  let created = 0
+  let updated = 0
+  let skipped = 0
+  let errors = 0
+  let allApiSkus = new Set()
+
+  for (let page = 0; page < 20; page++) {
+    console.log(`  ▸ Página ${page}...`)
+    let products = null
+    let retryCount = 0
+    const MAX_RETRIES = 3
+
+    while (!products && retryCount <= MAX_RETRIES) {
+      try {
+        const res = await fetch(`${AIR_INTRA_BASE}/?q=articulos&page=${page}`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: '{}',
+        })
+
+        if (!res.ok) {
+          const errText = await res.text().catch(() => '')
+          if (errText.includes('Too many queries') || errText.includes('error_id":403')) {
+            const wait = 90 + retryCount * 60
+            console.log(`    ⏳ Rate limited. Esperando ${wait}s (intento ${retryCount + 1}/${MAX_RETRIES})...`)
+            await new Promise(r => setTimeout(r, wait * 1000))
+            // Re-login
+            const reauthRes = await fetch(`${AIR_INTRA_BASE}/?q=login&user=${encodeURIComponent(AIR_INTRA_USER)}&pass=${encodeURIComponent(AIR_INTRA_PASS)}`)
+            if (reauthRes.ok) {
+              const rText = await reauthRes.text()
+              const rClean = stripPhpNotices(rText)
+              let rStart = -1
+              for (let i = 0; i < rClean.length; i++) {
+                if (rClean[i] === '{' || rClean[i] === '[') { rStart = i; break }
+              }
+              if (rStart >= 0) {
+                const rData = JSON.parse(rClean.substring(rStart))
+                if (rData.token) token = rData.token
+              }
+            }
+            retryCount++
+            continue
+          }
+          console.error(`    ✗ HTTP ${res.status}`)
+          break
+        }
+
+        const rawText = await res.text()
+        const cleaned = stripPhpNotices(rawText)
+        const parsed = safeParseAirIntra(rawText)
+
+        if (parsed.data && Array.isArray(parsed.data) && parsed.data.length > 0) {
+          products = parsed.data
+          // Verificación doble con extractor
+          if (rawText) {
+            const extracted = extractProductsFromCorruptedJson(cleaned)
+            if (extracted.length > products.length) {
+              const parsedSkus = new Set(products.map(p => p.codigo || p.codiart || '').filter(Boolean))
+              for (const ext of extracted) {
+                const sku = ext.codigo || ext.codiart || ''
+                if (sku && !parsedSkus.has(sku)) products.push(ext)
+              }
+            }
+          }
+        } else if (parsed.data && Array.isArray(parsed.data) && parsed.data.length === 0) {
+          console.log(`    ✓ Página ${page} vacía — fin del catálogo`)
+          products = []
+          break
+        } else {
+          // Fallback: extractor
+          if (rawText) {
+            const extracted = extractProductsFromCorruptedJson(cleaned)
+            if (extracted.length > 0) {
+              products = extracted
+            } else {
+              console.log(`    ✓ Página ${page} vacía o corrupta — fin del catálogo`)
+              products = []
+              break
+            }
+          } else {
+            products = []
+            break
+          }
+        }
+      } catch (err) {
+        console.error(`    ✗ Error: ${err.message}`)
+        if (retryCount < MAX_RETRIES) {
+          await new Promise(r => setTimeout(r, 5000))
+          retryCount++
+          continue
+        }
+        products = []
+        break
+      }
+    }
+
+    if (!products || products.length === 0) break
+
+    console.log(`    ✓ ${products.length} productos en página ${page}`)
+
+    // Procesar productos
+    const batchStmts = []
+    const now = new Date().toISOString()
+
+    for (const p of products) {
+      const providerSku = p.codigo || p.codiart || ''
+      if (!providerSku) { skipped++; continue }
+      if (allApiSkus.has(providerSku)) { skipped++; continue }
+      allApiSkus.add(providerSku)
+
+      const costPrice = parseFloat(p.precio || '0')
+      if (costPrice <= 0) { skipped++; continue }
+
+      const productName = p.descrip || p.descripcion || p.titulo || ''
+      if (!productName) { skipped++; continue }
+
+      totalFetched++
+
+      // Stock total (suma de todos los depósitos)
+      const stockByWarehouse = {
+        air: p.air?.disponible || 0,
+        lug: p.lug?.disponible || 0,
+        ros: p.ros?.disponible || 0,
+        cba: p.cba?.disponible || 0,
+        mza: p.mza?.disponible || 0,
+      }
+      const totalStock = Object.values(stockByWarehouse).reduce((a, b) => a + b, 0)
+      const sellingPrice = costPrice * (1 + SUPPLIER_MARKUP / 100)
+      const supplierCategory = p.rubro || p.grupo || ''
+      const stockByWarehouseJson = JSON.stringify(stockByWarehouse)
+
+      // Specs
+      const specs = {}
+      if (p.garantia) specs['Garantía'] = p.garantia
+      if (p.moneda) specs['Moneda'] = p.moneda
+      if (p.marca) specs['Marca'] = p.marca
+      if (p.rubro) specs['Rubro'] = p.rubro
+      if (p.grupo) specs['Grupo'] = p.grupo
+
+      const existing = existingBySku.get(providerSku)
+      if (existing) {
+        // UPDATE
+        const needsUpdate =
+          Math.abs(costPrice - parseFloat(existing.costPrice || 0)) > 0.01 ||
+          totalStock !== parseInt(existing.stock || 0)
+        if (needsUpdate) {
+          batchStmts.push(
+            `UPDATE products SET costPrice = ${costPrice}, price = ${sellingPrice}, stock = ${totalStock}, stockByWarehouse = '${stockByWarehouseJson}', supplierCategory = '${supplierCategory}', isActive = 1, updatedAt = '${now}' WHERE id = '${existing.id}'`
+          )
+          updated++
+        }
+      } else {
+        // INSERT (simplified — sin category mapping, se hace después desde el admin)
+        const newId = crypto.randomUUID()
+        const escapedName = productName.replace(/'/g, "''")
+        const slug = providerSku.toLowerCase().replace(/[^a-z0-9]/g, '-')
+        const specsJson = JSON.stringify(specs).replace(/'/g, "''")
+
+        batchStmts.push(
+          `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, supplierCategory) VALUES ('${newId}', '${escapedName}', '${slug}', '', ${sellingPrice}, ${costPrice}, '${providerSku}', ${totalStock}, '${stockByWarehouseJson}', 1, 0, '[]', '${specsJson}', '${SUPPLIER_ID}', '${providerSku}', '${supplierCategory}')`
+        )
+        created++
+      }
+    }
+
+    // Ejecutar batch (en grupos de 50)
+    for (let i = 0; i < batchStmts.length; i += 50) {
+      const chunk = batchStmts.slice(i, i + 50)
+      try {
+        await turboBatch(chunk)
+      } catch (e) {
+        console.error(`    ✗ Batch error: ${e.message}`)
+        errors += chunk.length
+      }
+    }
+
+    console.log(`    ✓ Página ${page} procesada — acumulado: ${totalFetched} (${created} nuevos, ${updated} actualizados)`)
+
+    // Delay entre páginas (2s para no rate-limit)
+    if (products.length > 0) {
+      await new Promise(r => setTimeout(r, 2000))
+    }
+  }
+
+  // ─── 4. Actualizar lastSyncAt ───
+  const now = new Date().toISOString()
+  try {
+    await tursoExecute(`UPDATE suppliers SET lastSyncAt = '${now}', updatedAt = '${now}' WHERE id = '${SUPPLIER_ID}'`)
+  } catch {}
+
+  // ─── 5. Resumen ───
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
+  console.log()
+  console.log('═'.repeat(70))
+  console.log(' ✅ SYNC COMPLETADA')
+  console.log('═'.repeat(70))
+  console.log(`  Tiempo: ${elapsed}s`)
+  console.log(`  Productos fetched: ${totalFetched}`)
+  console.log(`  Nuevos: ${created}`)
+  console.log(`  Actualizados: ${updated}`)
+  console.log(`  Saltados: ${skipped}`)
+  console.log(`  Errores: ${errors}`)
+  console.log(`  Cotización Air Intra: $${exchangeRate}`)
+  console.log('═'.repeat(70))
+
+  // Llamar a revalidateTag via Vercel API (opcional)
+  if (process.env.VERCEL_REVALIDATE_URL) {
+    try {
+      await fetch(process.env.VERCEL_REVALIDATE_URL, { method: 'POST' })
+      console.log('  ✓ Cache invalidado en Vercel')
+    } catch {}
+  }
+}
+
+main().catch(err => {
+  console.error('✗ Error fatal:', err)
+  process.exit(1)
+})
