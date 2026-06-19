@@ -34,7 +34,7 @@ export async function POST() {
 
     return NextResponse.json({
       ok: true,
-      message: 'Sync de Air Intra disparada en GitHub Actions. Va a tardar ~5 minutos. Podés ver el progreso en https://github.com/vorterixgames-gif/compucity/actions',
+      message: 'Sync de Air Intra disparada en GitHub Actions. Va a tardar ~5 minutos.',
     })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
