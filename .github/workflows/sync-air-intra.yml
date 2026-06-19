@@ -1,0 +1,36 @@
+name: Sync Air Intra
+
+# Cron que se ejecuta cada 12 horas (00:00 y 12:00 UTC = 21:00 y 09:00 Argentina)
+# También se puede disparar manualmente desde GitHub Actions tab
+on:
+  schedule:
+    - cron: '0 0,12 * * *'  # cada 12 horas
+  workflow_dispatch: {}  # disparo manual
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30  # safety timeout (la sync completa tarda ~5-10 min)
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run Air Intra sync
+        env:
+          TURSO_URL: ${{ secrets.TURSO_URL }}
+          TURSO_TOKEN: ${{ secrets.TURSO_TOKEN }}
+          AIR_INTRA_USER: ${{ secrets.AIR_INTRA_USER }}
+          AIR_INTRA_PASS: ${{ secrets.AIR_INTRA_PASS }}
+        run: node scripts/sync-air-intra-external.mjs
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ La sync de Air Intra falló. Revisar los logs arriba."
+          echo "Puede ser por rate limiting de Air Intra (esperar 5 min y reintentar)."
