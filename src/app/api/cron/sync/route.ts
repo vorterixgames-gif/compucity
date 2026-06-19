@@ -60,15 +60,13 @@ export async function GET(request: Request) {
     results['Invid'] = { ok: false, updated: 0, errors: 1, message: err.message }
   }
 
-  // ─── Sync Air Intra ─────────────────────────────────────────────────────────
-  try {
-    const airIntraResult = await syncAirIntraStock()
-    results['Air Intra'] = airIntraResult
-    console.log(`[cron-sync] Air Intra: ${airIntraResult.updated} updated, ${airIntraResult.errors} errors`)
-  } catch (err: any) {
-    console.error('[cron-sync] Air Intra error:', err.message)
-    results['Air Intra'] = { ok: false, updated: 0, errors: 1, message: err.message }
-  }
+  // ─── Air Intra: desactivado en Vercel (sesión 43 día 4) ──────────────────
+  // Air Intra ahora se sincroniza via GitHub Actions cada 12h.
+  // Script: scripts/sync-air-intra-external.mjs
+  // Workflow: .github/workflows/sync-air-intra.yml
+  // GitHub Actions procesa TODAS las páginas (16) y filtra por rubros permitidos.
+  // Esto libera Vercel Fluid CPU y evita duplicar trabajo.
+  results['Air Intra'] = { ok: true, updated: 0, errors: 0, message: 'Sincronizado via GitHub Actions (cada 12h)' }
 
   // ─── Update lastSyncAt for both ────────────────────────────────────────────
   const now = new Date().toISOString()
