@@ -411,149 +411,29 @@ export default function AdminProveedores() {
 
     try {
       if (supplier.apiType === 'air_intra') {
-        // Batched sync for Air Intra to avoid Vercel Hobby 60s timeout
-        // Each batch processes PAGES_PER_BATCH (4) pages of ~500 products each
-        // (reduced from 2 pages because 2 still timed out on Vercel)
-        const PAGES_PER_BATCH = 4
-        let token: string | undefined
-        let exchangeRate: number | undefined
-        let nextPage: number | undefined
-        let batchNum = 1
-        let totalCreated = 0
-        let totalUpdated = 0
-        let totalFetched = 0
-        let totalErrors = 0
-        // Track end-of-catalog context so the final summary reflects WHY
-        // the sync terminated (vs. just showing "0 productos").
-        let endOfCatalogNote = ''
-
-        // First call: login + first batch
-        const firstData = await safeFetchJson('/api/admin/suppliers/sync', {
+        // Sesión 43 día 4: Air Intra ahora se sincroniza via GitHub Actions.
+        // El botón del admin dispara el workflow via API de GitHub.
+        // No consume Vercel CPU (la sync corre en GitHub).
+        // Filtro de rubros incluido en el script de GitHub Actions.
+        const ghData = await safeFetchJson('/api/admin/suppliers/trigger-github-sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ supplierId: supplier.id }),
         })
 
-        if (!firstData.ok) {
-          armCooldownIfPresent(firstData.message)
-          setSyncResult({ ok: false, message: firstData.message || 'Error en sincronización' })
+        if (!ghData.ok) {
+          setSyncResult({ ok: false, message: ghData.error || 'Error al disparar GitHub Actions' })
           setSyncingId(null)
           setSyncProgress(null)
           return
         }
 
-        totalCreated += firstData.created || 0
-        totalUpdated += firstData.updated || 0
-        totalFetched += firstData.total || 0
-        totalErrors += firstData.errors || 0
-        token = firstData.token
-        exchangeRate = firstData.exchangeRate
-        nextPage = firstData.nextPage
-        if (typeof firstData.message === 'string' && firstData.message.includes('END_OF_CATALOG')) {
-          endOfCatalogNote = firstData.message.replace(/^END_OF_CATALOG:\s*/, '')
-        }
-
-        // Continue with subsequent batches if there are more pages
-        while (firstData.hasMore && nextPage !== undefined && token) {
-          batchNum++
-          setSyncProgress({ current: batchNum, total: -1 }) // -1 = unknown total batches
-
-          const batchData = await safeFetchJson('/api/admin/suppliers/sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              supplierId: supplier.id,
-              batch: {
-                startPage: nextPage,
-                endPage: nextPage + PAGES_PER_BATCH - 1,
-                token,
-                exchangeRate,
-              },
-            }),
-          })
-
-          if (!batchData.ok) {
-            // Error on a batch — stop immediately and report what we've accumulated so far.
-            // Previously checked `!batchData.ok && !batchData.hasMore`, but the rate limit path
-            // returns ok=false + hasMore=true, which let the loop continue through 16+ failing
-            // batches with 0 products each. Now we stop on ANY batch failure.
-            armCooldownIfPresent(batchData.message)
-            setSyncResult({
-              ok: totalFetched > 0,
-              message: totalFetched > 0
-                ? `Sincronización parcial: ${totalFetched} productos procesados, ${totalCreated} nuevos, ${totalUpdated} actualizados. Error en lote ${batchNum}: ${batchData.message}`
-                : `Error en lote ${batchNum}: ${batchData.message}`,
-            })
-            loadSuppliers(search, page)
-            setSyncingId(null)
-            setSyncProgress(null)
-            return
-          }
-
-          totalCreated += batchData.created || 0
-          totalUpdated += batchData.updated || 0
-          totalFetched += batchData.total || 0
-          totalErrors += batchData.errors || 0
-          token = batchData.token || token
-          exchangeRate = batchData.exchangeRate || exchangeRate
-          nextPage = batchData.nextPage
-          if (typeof batchData.message === 'string' && batchData.message.includes('END_OF_CATALOG')) {
-            endOfCatalogNote = batchData.message.replace(/^END_OF_CATALOG:\s*/, '')
-          }
-
-          // Update firstData.hasMore for the loop condition
-          firstData.hasMore = batchData.hasMore
-        }
-
-        setSyncProgress({ current: batchNum, total: batchNum }) // Indicate finalization phase
-
-        // Finalize step: syp sync, recategorization, recovery
-        if (token) {
-          const finalizeData = await safeFetchJson('/api/admin/suppliers/sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              supplierId: supplier.id,
-              batch: {
-                startPage: 0,
-                endPage: 0,
-                token,
-                exchangeRate,
-                finalize: true,
-              },
-            }),
-          })
-          totalCreated += finalizeData.created || 0
-          totalUpdated += finalizeData.updated || 0
-          totalFetched += finalizeData.total || 0
-          totalErrors += finalizeData.errors || 0
-
-          const finalizeNote = finalizeData.ok
-            ? (finalizeData.message || 'Post-procesamiento completado')
-            : `Advertencia en post-procesamiento: ${finalizeData.message}`
-
-          // If the batch phase hit END_OF_CATALOG, lead with that context —
-          // otherwise the user sees "0 productos" and thinks the sync failed,
-          // when in reality the catalog is already fully synced.
-          if (endOfCatalogNote) {
-            setSyncResult({
-              ok: true,
-              message: `END_OF_CATALOG: ${endOfCatalogNote} Post-procesamiento: ${totalCreated} nuevos, ${totalUpdated} actualizados, ${totalErrors} errores.`,
-            })
-          } else {
-            setSyncResult({
-              ok: true,
-              message: `Sincronización completada: ${totalFetched} productos, ${totalCreated} nuevos, ${totalUpdated} actualizados, ${totalErrors} errores. ${finalizeNote}`,
-            })
-          }
-        } else {
-          // No token = initial call returned early (e.g. ALREADY_VERIFIED or END_OF_CATALOG
-          // detected on the first batch). Show the server's message directly.
-          setSyncResult({
-            ok: true,
-            message: firstData.message || `Sincronización completada: ${totalFetched} productos, ${totalCreated} nuevos, ${totalUpdated} actualizados, ${totalErrors} errores`,
-          })
-        }
+        setSyncResult({
+          ok: true,
+          message: ghData.message || 'Sync disparada en GitHub Actions. Va a tardar ~5 minutos.',
+        })
+        setSyncingId(null)
+        setSyncProgress(null)
+        return
       } else {
         // Non-Air Intra suppliers: single request sync (Invid, Elit)
         const data = await safeFetchJson('/api/admin/suppliers/sync', {
