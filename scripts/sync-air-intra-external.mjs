@@ -368,7 +368,7 @@ async function main() {
     for (let i = 0; i < batchStmts.length; i += 50) {
       const chunk = batchStmts.slice(i, i + 50)
       try {
-        await turboBatch(chunk)
+        await tursoBatch(chunk)
       } catch (e) {
         console.error(`    ✗ Batch error: ${e.message}`)
         errors += chunk.length
