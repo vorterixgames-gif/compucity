@@ -25,6 +25,106 @@ const AIR_INTRA_PASS = process.env.AIR_INTRA_PASS || ''
 const AIR_INTRA_BASE = 'https://api.air-intra.com/v2'
 
 // ============================================
+// Filtro de rubros permitidos (sesión 43 día 4)
+// ============================================
+// Solo se sincronizan productos cuyo rubro está en esta lista.
+// Los productos con rubro NO listado se saltan (no se guardan ni actualizan).
+// Lista extraída del portal de Air Intra el 19/6/2026.
+// Para modificar: editar esta lista y pushear a GitHub.
+const ALLOWED_RUBROS = new Set([
+  '000-0299',  // MONOPATINES Y SCOOTERS
+  '001-0002',  // CPU COOLER
+  '001-0003',  // PASTA TERMICA
+  '001-0010',  // ACCESORIOS
+  '001-0014',  // PC
+  '001-0015',  // SILLAS GAMERS
+  '001-0016',  // DISCOS RIGIDOS USB
+  '001-0018',  // TV SMART
+  '001-0023',  // DISCO RIGIDO SSD EXTERNO
+  '001-0030',  // ACCESORIOS CABLES
+  '001-0055',  // CONECTIVIDAD
+  '001-0102',  // PLACAS DE RED
+  '001-0132',  // VENTILADOR
+  '001-0134',  // DISCOS RIGIDOS IDE/SATA
+  '001-0137',  // DISCOS RIGIDOS SSD
+  '001-0160',  // ESTABILIZADORES
+  '001-0168',  // VIDEO PROYECTORES
+  '001-0190',  // GABINETES
+  '001-0212',  // Domotica - SMART HOUSE
+  '001-0231',  // IMP. CHORRO DE TINTA CANON
+  '001-0252',  // CARTUCHOS CANON
+  '001-0255',  // CARTUCHOS EPSON
+  '001-0258',  // TONERS
+  '001-0279',  // ROTULADORAS
+  '001-0280',  // MEMORIAS
+  '001-0281',  // MEMORIAS USB
+  '001-0282',  // MEMORIAS FLASH
+  '001-0290',  // MUEBLES DE OFICINA
+  '001-0291',  // SILLAS DE OFICINA
+  '001-0300',  // SERVIDORES
+  '001-0304',  // SEGURIDAD CAMARAS Y ACCESORIOS
+  '001-0305',  // WEBCAMS
+  '001-0306',  // VIDEO PORTEROS
+  '001-0320',  // MONITORES
+  '001-0330',  // MICROPROCESADORES
+  '001-0332',  // FAN COOLER
+  '001-0341',  // JOYSTICK
+  '001-0351',  // AURICULARES Y MICROFONOS
+  '001-0352',  // PLACAS VARIAS
+  '001-0355',  // PARLANTES
+  '001-0360',  // NOTEBOOKS
+  '001-0363',  // NOTEBOOKS ACCESORIOS
+  '001-0368',  // TABLETS
+  '001-0390',  // PLOTTERS
+  '001-0430',  // CONECTIVIDAD HUBS Y SWITCHS
+  '001-0432',  // CONECTIVIDAD PLACAS DE RED
+  '001-0490',  // SCANNERS
+  '001-0500',  // SERVIDORES ACCESORIOS
+  '001-0521',  // SERVIDORES STORAGE
+  '001-0530',  // TECLADOS
+  '001-0540',  // UPS
+  '001-0555',  // BOLSOS FUNDAS Y MALETINES
+  '001-0560',  // PLACAS VIDEO EDICION
+  '001-0566',  // TV
+  '001-0580',  // ELECTRODOMESTICOS
+  '001-0600',  // IMP MF INKJET
+  '001-0601',  // IMP INKJET
+  '001-0602',  // IMP MF LASER COLOR
+  '001-0603',  // IMP MF LASER NEGRO
+  '001-0604',  // IMP LASER COLOR
+  '001-0605',  // IMP LASER NEGRO
+  '001-0606',  // IMP MF C/SIST. CONT.
+  '001-0607',  // IMP C/SIST. CONT.
+  '001-0608',  // CARTUCHO
+  '001-0609',  // BOTELLA
+  '001-0612',  // CONECTIVIDAD WI-FI ANTENAS
+  '001-1001',  // IMP. ACCESORIOS
+  '001-1055',  // CONECTIVIDAD CABLES CONECTORES
+  '001-1212',  // ASPIRADORA
+  '001-1261',  // ALL IN ONE
+  '001-1616',  // MINI PC
+  '001-3560',  // UPS ACCESORIOS
+  '001-900',   // IMPRESORA TERMICA
+  '002-0015',  // PC
+  '002-0137',  // DISCOS RIGIDOS SSD
+  '002-0190',  // GABINETES
+  '002-0280',  // MEMORIAS
+  '002-0299',  // MONOPATINES Y SCOOTERS
+  '002-0304',  // SEGURIDAD CAMARAS Y ACCESORIOS
+  '002-0320',  // MONITORES
+  '002-0361',  // NOTEBOOKS
+  '002-0553',  // PLACAS VGA
+  '002-0566',  // TV
+  '002-0997',  // COMPUTADORAS PC PROMOS
+  '002-1262',  // ALL IN ONE
+  '002-1263',  // 2EN1 CX
+  '002-1616',  // MINI PC
+  '003-1000',  // MAQUINAS, HERRAM. Y REPUESTOS
+  '569',       // STREAMING
+  '907-1555',  // SMARTWATCH
+])
+
+// ============================================
 // Helpers de Turso (HTTP API directa, sin libsql client)
 // ============================================
 const TURSO_HTTP = TURSO_URL.replace('libsql://', 'https://') + '/v2/pipeline'
@@ -199,6 +299,7 @@ async function main() {
   let created = 0
   let updated = 0
   let skipped = 0
+  let filteredByRubro = 0
   let errors = 0
   let allApiSkus = new Set()
 
@@ -312,6 +413,14 @@ async function main() {
       const costPrice = parseFloat(p.precio || '0')
       if (costPrice <= 0) { skipped++; continue }
 
+      // Filtro de rubros (sesión 43 día 4): solo sincronizar productos
+      // cuyo rubro está en la lista de permitidos.
+      const rubro = String(p.rubro || p.grupo || '').trim()
+      if (!ALLOWED_RUBROS.has(rubro)) {
+        filteredByRubro++
+        continue
+      }
+
       const productName = p.descrip || p.descripcion || p.titulo || ''
       if (!productName) { skipped++; continue }
 
@@ -400,6 +509,7 @@ async function main() {
   console.log(`  Nuevos: ${created}`)
   console.log(`  Actualizados: ${updated}`)
   console.log(`  Saltados: ${skipped}`)
+  console.log(`  Filtrados por rubro: ${filteredByRubro}`)
   console.log(`  Errores: ${errors}`)
   console.log(`  Cotización Air Intra: $${exchangeRate}`)
   console.log('═'.repeat(70))
