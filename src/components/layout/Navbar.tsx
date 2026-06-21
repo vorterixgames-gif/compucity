@@ -127,8 +127,13 @@ export default function Navbar() {
   }, [])
 
   // Check if customer is logged in
+  // Sesión 44: solo fetch si hay cookie customer_token (evita 401 innecesario)
   useEffect(() => {
     const checkAuth = async () => {
+      // Si no hay cookie de customer, no hacer fetch
+      if (typeof document !== 'undefined' && !document.cookie.includes('customer_token')) {
+        return
+      }
       try {
         const res = await fetch('/api/customer/me')
         if (res.ok) {

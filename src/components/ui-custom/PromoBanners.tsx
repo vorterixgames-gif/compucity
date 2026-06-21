@@ -41,6 +41,15 @@ export default function PromoBanners({ position }: Props) {
     let cancelled = false
     async function fetchBanners() {
       try {
+        const cached = sessionStorage.getItem('cc_banners')
+        if (cached) {
+          const d = JSON.parse(cached)
+          if (d.banners) {
+            setBanners(d.banners)
+            setLoading(false)
+            return
+          }
+        }
         const res = await fetch('/api/banners')
         const data = await res.json()
         if (!cancelled && data.ok && Array.isArray(data.banners)) {

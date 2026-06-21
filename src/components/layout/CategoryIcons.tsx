@@ -31,11 +31,20 @@ export default function CategoryIcons() {
   useEffect(() => {
     const loadCategories = async () => {
       try {
+        const cached = sessionStorage.getItem('cc_cats')
+        if (cached) {
+          const d = JSON.parse(cached)
+          if (d.categories && d.categories.length > 0) {
+            setCategories(d.categories.filter((c: Category) => !c.parentId))
+            return
+          }
+        }
         const res = await fetch('/api/categories')
         const data = await res.json()
         if (data.ok && data.categories && (data.categories as Category[]).length > 0) {
           const parents = (data.categories as Category[]).filter((c: Category) => !c.parentId)
           setCategories(parents)
+          try { sessionStorage.setItem('cc_cats', JSON.stringify(data)) } catch {}
         } else {
           try {
             await fetch('/api/admin/init-categories', { method: 'POST' })

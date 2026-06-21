@@ -353,6 +353,6 @@ export const config = {
     // - /_next/image (optimizador de imágenes)
     // - /favicon.ico, /robots.txt, /sitemap.xml (sirven estáticos)
     // - /api/cron (cron con secret propio)
-    '/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|api/cron).*)',
+    '/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|api/cron|api/image).*)',
   ],
 }
