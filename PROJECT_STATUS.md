@@ -18,7 +18,7 @@
 - **Commit actual:** 5f9e1e8
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 43
+- **Sesiones totales:** 44
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -914,6 +914,7 @@ createdAt TEXT, updatedAt TEXT
 | 2026-06-17 | DB Turso completa (JSON) | 45 MB | compucity_turso_backup_s43-day2-admin-opt_2026-06-17T13-51-19-094Z.json |
 | 2026-06-17 | DB Turso completa (JSON) | 45 MB | compucity_turso_backup_s43-day2-final_2026-06-17T16-33-58-040Z.json |
 | 2026-06-18 | DB Turso (tablas chicas + count grandes) | 50 KB | compucity_turso_backup_s43-day3_2026-06-18T13-52-05.json |
+| 2026-06-21 | DB Turso (tablas chicas + count productos) | 121 KB | compucity_backup_s44_2026-06-21T18-35-39.json |
 
 ### Backups remotos (GoFile)
 | Fecha | Tipo | Tamano | URL |
