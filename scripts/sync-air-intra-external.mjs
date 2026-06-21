@@ -125,6 +125,149 @@ const ALLOWED_RUBROS = new Set([
 ])
 
 // ============================================
+// Mapeo rubro Air Intra → categoría Compucity (sesión 44)
+// ============================================
+// Asigna automáticamente la categoría de Compucity basándose en el rubro de Air Intra.
+// Si el rubro no está en este mapeo, el producto se guarda sin categoryId (NULL).
+const RUBRO_TO_CATEGORY = {
+  '001-0002': '57b1e5cc-59e6-49f0-a9d1-b3f388c19b79',
+
+  '001-0003': 'b8cc805f-10f4-4bb1-b4d2-dacc0ad395c4',
+
+  '001-0010': 'cat5',
+
+  '001-0014': '9e696a46-81f8-4753-a51f-6dd9d933fbea',
+
+  '001-0015': 'bdf7ba10-c068-4b61-845c-5d38e2b87a61',
+
+  '001-0016': '404bbe6d-bc9a-471c-b264-fcf18d693295',
+
+  '001-0023': '404bbe6d-bc9a-471c-b264-fcf18d693295',
+
+  '001-0030': '3f166420-a367-43a9-96d6-55760385bbb5',
+
+  '001-0055': '0b090bb2-5761-4bfb-8337-f6e217c8e7a5',
+
+  '001-0134': '63761dd5-d992-4bab-b9a6-fb95c3ff2cef',
+
+  '001-0137': '18b32130-e146-4843-95c5-860142417306',
+
+  '001-0160': 'b854e149-1790-4cad-abc6-0a4fb187740b',
+
+  '001-0168': 'd7e69825-b005-4405-83e3-fb4d221fba87',
+
+  '001-0190': 'b24872b5-c02e-4969-892b-aa03f1acdae8',
+
+  '001-0212': 'cat5',
+
+  '001-0252': '66f20839-0487-433a-930f-9705ca43365d',
+
+  '001-0255': '66f20839-0487-433a-930f-9705ca43365d',
+
+  '001-0258': '66f20839-0487-433a-930f-9705ca43365d',
+
+  '001-0280': '8fec8068-83c9-43a9-a972-9eeafe9e0bda',
+
+  '001-0281': 'f78dc8a5-69e0-4097-b4f9-c928fd90069f',
+
+  '001-0282': '797adcdf-c7ae-4aa0-9b14-18b3a5b8ea45',
+
+  '001-0290': '9a877f10-5486-4918-97e1-654f457c7420',
+
+  '001-0300': '9e696a46-81f8-4753-a51f-6dd9d933fbea',
+
+  '001-0305': '8e03c174-cb16-4b19-b920-73fc96236fbd',
+
+  '001-0320': 'cat4',
+
+  '001-0330': 'b4211f62-d18d-430e-a918-8dadafde4723',
+
+  '001-0331': '50aed4ad-61dd-4d9b-8337-3e69f5163847',
+
+  '001-0332': '57b1e5cc-59e6-49f0-a9d1-b3f388c19b79',
+
+  '001-0340': 'ac551783-8734-4858-a316-d0a54701e437',
+
+  '001-0341': '964647bd-67e5-4483-91ea-fb74f8f49ca4',
+
+  '001-0351': 'f1f9d31f-9482-4429-a7d2-4208668e3ba3',
+
+  '001-0352': '9e696a46-81f8-4753-a51f-6dd9d933fbea',
+
+  '001-0355': 'a4ca4e17-7730-4feb-a6c6-a7a8b96075ac',
+
+  '001-0360': 'cat1',
+
+  '001-0368': '4ab6e5e7-f724-4ead-96d2-a169fe41d372',
+
+  '001-0430': '2624baab-e1ba-4f28-aa2f-2d4d1b726b84',
+
+  '001-0432': 'be240fd6-301f-405a-a42d-e6937fa9bcf9',
+
+  '001-0490': '18191d04-ecf3-412c-b627-7674c148013c',
+
+  '001-0500': '9e696a46-81f8-4753-a51f-6dd9d933fbea',
+
+  '001-0521': '9e696a46-81f8-4753-a51f-6dd9d933fbea',
+
+  '001-0530': 'dede1e27-d8b0-44b1-9ac0-8112ad91a57d',
+
+  '001-0540': 'b854e149-1790-4cad-abc6-0a4fb187740b',
+
+  '001-0555': '4e82d540-2eb2-4d4b-b349-44fe6af49e00',
+
+  '001-0556': 'bce97e5d-3ccf-4e49-9c23-1af8ece63612',
+
+  '001-0560': '9e696a46-81f8-4753-a51f-6dd9d933fbea',
+
+  '001-0600': '18191d04-ecf3-412c-b627-7674c148013c',
+
+  '001-0601': '18191d04-ecf3-412c-b627-7674c148013c',
+
+  '001-0602': '18191d04-ecf3-412c-b627-7674c148013c',
+
+  '001-0603': '18191d04-ecf3-412c-b627-7674c148013c',
+
+  '001-0604': '18191d04-ecf3-412c-b627-7674c148013c',
+
+  '001-0605': '18191d04-ecf3-412c-b627-7674c148013c',
+
+  '001-0606': '18191d04-ecf3-412c-b627-7674c148013c',
+
+  '001-0607': '18191d04-ecf3-412c-b627-7674c148013c',
+
+  '001-0608': '66f20839-0487-433a-930f-9705ca43365d',
+
+  '001-0609': '66f20839-0487-433a-930f-9705ca43365d',
+
+  '001-0612': '172af915-f189-476c-a735-e9a7b05bd16c',
+
+  '001-1055': '3f166420-a367-43a9-96d6-55760385bbb5',
+
+  '001-1616': '00176d39-d1cb-4f68-a01e-617fb37679cb',
+
+  '001-3560': 'b854e149-1790-4cad-abc6-0a4fb187740b',
+
+  '002-0015': '9e696a46-81f8-4753-a51f-6dd9d933fbea',
+
+  '002-0137': '18b32130-e146-4843-95c5-860142417306',
+
+  '002-0190': 'b24872b5-c02e-4969-892b-aa03f1acdae8',
+
+  '002-0280': '8fec8068-83c9-43a9-a972-9eeafe9e0bda',
+
+  '002-0320': 'cat4',
+
+  '002-0361': 'cat1',
+
+  '002-0553': 'cfbf9b6c-5d7b-4d42-aaa3-066a52848fbd',
+
+  '002-0997': '9e696a46-81f8-4753-a51f-6dd9d933fbea',
+
+  '002-1616': '00176d39-d1cb-4f68-a01e-617fb37679cb',
+}
+
+// ============================================
 // Helpers de Turso (HTTP API directa, sin libsql client)
 // ============================================
 const TURSO_HTTP = TURSO_URL.replace('libsql://', 'https://') + '/v2/pipeline'
@@ -455,7 +598,7 @@ async function main() {
           totalStock !== parseInt(existing.stock || 0)
         if (needsUpdate) {
           batchStmts.push(
-            `UPDATE products SET costPrice = ${costPrice}, price = ${sellingPrice}, stock = ${totalStock}, stockByWarehouse = '${stockByWarehouseJson}', supplierCategory = '${supplierCategory}', isActive = 1, updatedAt = '${now}' WHERE id = '${existing.id}'`
+            `UPDATE products SET costPrice = ${costPrice}, price = ${sellingPrice}, stock = ${totalStock}, stockByWarehouse = '${stockByWarehouseJson}', supplierCategory = '${supplierCategory}', ${RUBRO_TO_CATEGORY[rubro] ? `categoryId = '${RUBRO_TO_CATEGORY[rubro]}', ` : ''}isActive = 1, updatedAt = '${now}' WHERE id = '${existing.id}'`
           )
           updated++
         }

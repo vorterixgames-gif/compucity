@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { put } from '@vercel/blob'
 
 // Servir imagen desde product_images por ID.
-// Sesión 43: eliminado el `ensureTable()` que ejecutaba CREATE TABLE IF NOT EXISTS
-// en CADA request. La tabla ya existe desde hace meses (migración inicial), y
-// verificarla en cada request consumía rows reads innecesarios en Turso.
-// Si por algún motivo la tabla no existe, el SELECT falla y se devuelve 500
-// (mejor que gastar 1 query extra en cada request para verificar algo que ya
-// sabemos que existe).
+// Sesión 44: migración gradual a Vercel Blob.
+// - Si la imagen ya está en Blob (store_config tiene la URL), redirige 302 al CDN.
+// - Si no está en Blob, la sirve desde Turso Y la sube a Blob en background.
+// - Esto elimina las llamadas serverless para imágenes ya migradas.
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -15,6 +14,21 @@ export async function GET(
   try {
     const { id } = await params
 
+    // 1. Verificar si ya tenemos una URL de Blob para esta imagen
+    // Usamos store_config con key 'blob_image_<id>' para cachear las URLs
+    const blobUrlResult = await db.execute({
+      sql: "SELECT value FROM store_config WHERE key = ?",
+      args: [`blob_image_${id}`],
+    })
+    const blobUrlRows = blobUrlResult.rows as any[]
+    if (blobUrlRows[0]?.value) {
+      // Ya está en Blob — redirigir al CDN (0 serverless en futuras requests)
+      const redirectResponse = NextResponse.redirect(blobUrlRows[0].value, 302)
+      redirectResponse.headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+      return redirectResponse
+    }
+
+    // 2. No está en Blob — servir desde Turso
     const result = await db.execute({
       sql: 'SELECT data, size FROM product_images WHERE id = ?',
       args: [id],
@@ -25,14 +39,29 @@ export async function GET(
       return new NextResponse('Imagen no encontrada', { status: 404 })
     }
 
-    // Convert base64 back to buffer
     const buffer = Buffer.from(rows[0].data, 'base64')
 
-    // Return with strong cache headers (images don't change).
-    // Cache-Control: public, max-age=31536000, immutable → navegador cachea 1 año.
-    // CDN-Cache-Control → Vercel CDN cachea 1 año.
-    // Esto reduce drásticamente los rows reads en Turso: una vez que el navegador
-    // o el CDN tienen la imagen, ya no pegan a /api/image/[id] para esa URL.
+    // 3. Subir a Blob en background (no bloquear la respuesta)
+    // Solo si tenemos el token de Blob configurado
+    if (process.env.BLOB_READ_WRITE_TOKEN) {
+      try {
+        const blob = await put(`products/${id}.webp`, buffer, {
+          access: 'public',
+          contentType: 'image/webp',
+          addRandomSuffix: false,
+        })
+        // Guardar la URL en store_config para futuras requests
+        const now = new Date().toISOString()
+        await db.execute({
+          sql: "INSERT OR REPLACE INTO store_config (id, key, value, updatedAt) VALUES (?, ?, ?, ?)",
+          args: [crypto.randomUUID(), `blob_image_${id}`, blob.url, now],
+        })
+      } catch (e) {
+        // Si falla la subida a Blob, no importa — seguimos sirviendo desde Turso
+        console.error('[image] Error uploading to Blob:', e)
+      }
+    }
+
     return new NextResponse(buffer, {
       status: 200,
       headers: {

@@ -96,9 +96,9 @@ export default function Footer() {
           <div>
             <h3 className="text-white font-bold text-sm mb-5">Información</h3>
             <ul className="space-y-2">
-              <li><Link href="/arma-tu-pc" className="text-sm text-gray-400 hover:text-compucity-green transition">Arma tu PC</Link></li>
-              <li><Link href="/contacto" className="text-sm text-gray-400 hover:text-compucity-green transition">Contacto</Link></li>
-              <li><Link href="/mis-pedidos" className="text-sm text-gray-400 hover:text-compucity-green transition">Mis Pedidos</Link></li>
+              <li><Link href="/arma-tu-pc" prefetch={false} className="text-sm text-gray-400 hover:text-compucity-green transition">Arma tu PC</Link></li>
+              <li><Link href="/contacto" prefetch={false} className="text-sm text-gray-400 hover:text-compucity-green transition">Contacto</Link></li>
+              <li><Link href="/mis-pedidos" prefetch={false} className="text-sm text-gray-400 hover:text-compucity-green transition">Mis Pedidos</Link></li>
             </ul>
           </div>
 

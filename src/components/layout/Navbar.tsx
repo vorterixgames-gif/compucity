@@ -340,7 +340,7 @@ export default function Navbar() {
           </button>
 
           {/* LOGO - SVG de alta calidad */}
-          <Link href="/" className="group shrink-0">
+          <Link href="/" prefetch={false} className="group shrink-0">
             <CompucityLogo variant="full" size="xl" className="group-hover:scale-110 transition-transform duration-300" />
           </Link>
 
@@ -501,7 +501,7 @@ export default function Navbar() {
               )}
             </div>
 
-            <Link href="/carrito" className="relative flex items-center gap-1.5 text-sm text-gray-600 hover:text-compucity-green transition px-3 py-2 rounded-lg hover:bg-compucity-green-50">
+            <Link href="/carrito" prefetch={false} className="relative flex items-center gap-1.5 text-sm text-gray-600 hover:text-compucity-green transition px-3 py-2 rounded-lg hover:bg-compucity-green-50">
               <ShoppingCart className="h-5 w-5" />
               <span className="hidden lg:inline font-medium">Carrito</span>
               {totalItems > 0 && (
