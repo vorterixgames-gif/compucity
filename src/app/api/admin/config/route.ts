@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentAdmin } from '@/lib/admin-auth'
+import { __clearConfigCache, __clearDollarCache } from '@/lib/dollar'
 
 export async function GET() {
   try {
@@ -52,6 +53,11 @@ export async function PUT(request: NextRequest) {
         })
       }
     }
+
+    // Sesión 44: invalidar cachés en memoria después de actualizar store_config
+    // Sin esto, los cambios de markup/descuento/dollar_source tardarían hasta 5 min en verse.
+    __clearConfigCache()
+    __clearDollarCache()
 
     return NextResponse.json({ ok: true })
   } catch (error) {

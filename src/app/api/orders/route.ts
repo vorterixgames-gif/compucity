@@ -98,13 +98,25 @@ export async function POST(request: NextRequest) {
     const orderNumber = `CP-${Date.now().toString(36).toUpperCase()}`
     const now = new Date().toISOString()
 
-    // ── Validar stock de cada producto (server-side) ──
-    for (const item of items) {
-      const productResult = await db.execute({
-        sql: 'SELECT id, name, stock, isActive FROM products WHERE id = ?',
-        args: [item.productId],
+    // ── Validar stock de cada producto (sesión 44: 1 query para todos) ──
+    // Antes: 1 query por item en loop secuencial (N queries)
+    // Ahora: 1 sola query con IN (...) y validación en memoria
+    const productIds = items.map((i: any) => i.productId).filter(Boolean)
+    let productsMap = new Map<string, any>()
+
+    if (productIds.length > 0) {
+      const placeholders = productIds.map(() => '?').join(',')
+      const productsResult = await db.execute({
+        sql: `SELECT id, name, stock, isActive FROM products WHERE id IN (${placeholders})`,
+        args: productIds,
       })
-      const product = productResult.rows[0] as any
+      for (const row of productsResult.rows as any[]) {
+        productsMap.set(row.id, row)
+      }
+    }
+
+    for (const item of items) {
+      const product = productsMap.get(item.productId)
 
       if (!product) {
         return NextResponse.json(
@@ -164,20 +176,32 @@ export async function POST(request: NextRequest) {
       ],
     })
 
-    // ── Crear los items del pedido y descontar stock ──
-    for (const item of items) {
+    // ── Crear los items del pedido y descontar stock (sesión 44: en batch) ──
+    // Antes: 2 queries por item en loop secuencial (2N queries)
+    // Ahora: 1 db.batch() con todos los INSERT + UPDATE (1 request HTTP, 2N statements)
+    const batchStmts = items.flatMap((item: any) => {
       const itemId = crypto.randomUUID()
-      await db.execute({
-        sql: `INSERT INTO order_items (id, orderId, productId, name, price, quantity)
-              VALUES (?, ?, ?, ?, ?, ?)`,
-        args: [itemId, id, item.productId, item.name, item.price, item.quantity],
-      })
+      return [
+        {
+          sql: `INSERT INTO order_items (id, orderId, productId, name, price, quantity)
+                VALUES (?, ?, ?, ?, ?, ?)`,
+          args: [itemId, id, item.productId, item.name, item.price, item.quantity],
+        },
+        {
+          sql: `UPDATE products SET stock = stock - ?, updatedAt = ? WHERE id = ? AND stock > 0`,
+          args: [item.quantity, now, item.productId],
+        },
+      ]
+    })
 
-      // Descontar stock del producto
-      await db.execute({
-        sql: `UPDATE products SET stock = stock - ?, updatedAt = ? WHERE id = ? AND stock > 0`,
-        args: [item.quantity, now, item.productId],
-      })
+    try {
+      await db.batch(batchStmts)
+    } catch (batchErr) {
+      // Fallback: si el batch falla, intentar uno por uno para diagnosticar
+      console.error('[orders] Batch failed, falling back to sequential:', batchErr)
+      for (const stmt of batchStmts) {
+        try { await db.execute(stmt) } catch (e) { console.error('[orders] Stmt failed:', e) }
+      }
     }
 
     // ── Incrementar uso del cupón ──

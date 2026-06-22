@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentAdmin } from '@/lib/admin-auth'
+import { __clearDollarCache } from '@/lib/dollar'
 
 export async function GET() {
   try {
@@ -36,6 +37,9 @@ export async function PUT(request: NextRequest) {
       sql: 'INSERT INTO dollar_rates (id, rate, source, updatedAt) VALUES (?, ?, ?, ?)',
       args: [id, Number(rate), source || 'blue', now],
     })
+
+    // Sesión 44: invalidar caché en memoria del dolar para que el nuevo valor se use de inmediato
+    __clearDollarCache()
 
     return NextResponse.json({ ok: true, rate: { id, rate: Number(rate) } })
   } catch (error) {

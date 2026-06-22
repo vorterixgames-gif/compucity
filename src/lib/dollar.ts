@@ -150,30 +150,56 @@ export function __clearDollarCache(): void {
   dollarCache = null
 }
 
+// ─── Caché en memoria para store_config (sesión 44) ─────────────────────────
+// getStoreConfigNumber se llama MUCHAS veces por request (2 llamadas por cada
+// query de products: markup + cash_discount). Sin caché, cada carga de home
+// hace 8-10 queries a store_config que siempre retornan lo mismo.
+// Con este caché de 5 min, las queries se reducen a 0 después del primer hit.
+const CONFIG_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutos
+const configCache = new Map<string, { value: number; expiresAt: number }>()
+
+/** Invalida el caché de store_config (ej: al cambiar markup/descuento desde el admin) */
+export function __clearConfigCache(): void {
+  configCache.clear()
+}
+
 export async function getStoreConfigNumber(key: string, defaultValue: number): Promise<number> {
+  // 1. Revisar caché en memoria
+  const cached = configCache.get(key)
+  const now = Date.now()
+  if (cached && cached.expiresAt > now) {
+    return cached.value
+  }
+
+  // 2. Query a Turso
   const result = await db.execute({
     sql: 'SELECT value FROM store_config WHERE key = ?',
     args: [key],
   })
   const rows = result.rows as any[]
+  let value = defaultValue
   if (rows.length > 0) {
     try {
       const raw = rows[0].value
       try {
         const parsed = JSON.parse(raw)
         if (typeof parsed === 'object' && parsed !== null && 'value' in parsed) {
-          return Number(parsed.value) || defaultValue
+          value = Number(parsed.value) || defaultValue
+        } else if (typeof parsed === 'number') {
+          value = parsed || defaultValue
         }
-        if (typeof parsed === 'number') return parsed || defaultValue
       } catch {
         // Not valid JSON, treat as plain string number
+        value = Number(raw) || defaultValue
       }
-      return Number(raw) || defaultValue
     } catch {
-      return defaultValue
+      value = defaultValue
     }
   }
-  return defaultValue
+
+  // 3. Guardar en caché
+  configCache.set(key, { value, expiresAt: now + CONFIG_CACHE_TTL_MS })
+  return value
 }
 
 // Calculate prices based on dollar rate
