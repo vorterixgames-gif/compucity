@@ -237,35 +237,57 @@ export async function GET(request: NextRequest) {
     }
 
     // If no slot specified, return the list of available slots with counts
-    const slotsWithCounts = await Promise.all(
-      COMPONENT_SLOTS.map(async (s) => {
-        try {
-          const catResult = await db.execute({
-            sql: 'SELECT id FROM categories WHERE slug = ?',
-            args: [s.categorySlug],
-          })
-          const catRows = catResult.rows as any[]
-          if (catRows.length === 0) return { ...s, count: 0 }
+    // Sesión 44: optimización — antes hacía 3 queries × 13 slots = 39 queries
+    // (Promise.all con 13 calls, cada una con 3 queries anidadas).
+    // Ahora traemos todas las categorías (1 query) + counts agrupados por
+    // categoryId (1 query) y calculamos en memoria. 39 queries → 2 queries.
+    const [allCatsResult, countsResult] = await Promise.all([
+      db.execute('SELECT id, slug, parentId FROM categories WHERE enabled = 1'),
+      db.execute(
+        `SELECT categoryId, COUNT(*) as total FROM products
+         WHERE isActive = 1 AND stock > 0 AND categoryId IS NOT NULL
+         GROUP BY categoryId`
+      ),
+    ])
 
-          const catId = catRows[0].id
-          // Include subcategories in count (for parent categories like "perifericos")
-          const subCatResult = await db.execute({
-            sql: 'SELECT id FROM categories WHERE parentId = ?',
-            args: [catId],
-          })
-          const categoryIds = [catId, ...(subCatResult.rows as any[]).map(r => r.id)]
-          const placeholders = categoryIds.map(() => '?').join(',')
+    const allCats = allCatsResult.rows as any[]
+    const catBySlug = new Map<string, any>(allCats.map(c => [c.slug, c]))
+    const childrenByParent = new Map<string, any[]>()
+    for (const c of allCats) {
+      if (c.parentId) {
+        if (!childrenByParent.has(c.parentId)) childrenByParent.set(c.parentId, [])
+        childrenByParent.get(c.parentId)!.push(c)
+      }
+    }
+    const countByCatId = new Map<string, number>()
+    for (const row of countsResult.rows as any[]) {
+      countByCatId.set(row.categoryId, Number(row.total) || 0)
+    }
 
-          const countResult = await db.execute({
-            sql: `SELECT COUNT(*) as total FROM products WHERE categoryId IN (${placeholders}) AND isActive = 1 AND stock > 0 AND categoryId IS NOT NULL`,
-            args: categoryIds,
-          })
-          return { ...s, count: (countResult.rows[0] as any).total }
-        } catch {
-          return { ...s, count: 0 }
+    const slotsWithCounts = COMPONENT_SLOTS.map(s => {
+      const cat = catBySlug.get(s.categorySlug)
+      if (!cat) return { ...s, count: 0 }
+
+      // Incluir categoría principal + subcategorías
+      const allIds = [cat.id, ...(childrenByParent.get(cat.id) || []).map(c => c.id)]
+
+      // Incluir categorías adicionales (ej: gabinetes-con-fuente)
+      if (s.additionalCategorySlugs) {
+        for (const addSlug of s.additionalCategorySlugs) {
+          const addCat = catBySlug.get(addSlug)
+          if (addCat) {
+            allIds.push(addCat.id)
+            for (const sub of (childrenByParent.get(addCat.id) || [])) {
+              allIds.push(sub.id)
+            }
+          }
         }
-      })
-    )
+      }
+
+      // Sumar counts en memoria
+      const count = allIds.reduce((sum, id) => sum + (countByCatId.get(id) || 0), 0)
+      return { ...s, count }
+    })
 
     return NextResponse.json({ ok: true, slots: slotsWithCounts }, {
       headers: {

@@ -9,6 +9,13 @@ import RelatedProducts from '@/components/ui-custom/RelatedProducts'
 import { getActiveSale } from '@/lib/pricing'
 import JsonLd, { getProductSchema, getBreadcrumbSchema } from '@/components/seo/JsonLd'
 
+// Sesión 44: revalidate 5 min para reducir queries a Turso.
+// Antes esta página era dinámica por defecto (cada visita = queries frescas).
+// Como getProductBySlug ya tiene unstable_cache con tag 'products' y TTL 5 min,
+// agregar revalidate=300 acá evita que se regenere el HTML en cada visita.
+// Los cambios de admin invalidan el cache con revalidateTag('products') → instantáneo.
+export const revalidate = 300
+
 interface Props {
   params: Promise<{ slug: string }>
 }

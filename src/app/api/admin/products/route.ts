@@ -393,6 +393,12 @@ export async function GET(request: NextRequest) {
       dollarRate,
       markup,
       cashDiscount,
+    }, {
+      headers: {
+        // Sesión 44: admin no debe cachear en CDN (datos privados, cambian seguido).
+        // Browser cache: no-store para que F5 siempre traiga datos frescos después de edits.
+        'Cache-Control': 'private, no-store',
+      },
     })
   } catch (error) {
     console.error('Get products error:', error)

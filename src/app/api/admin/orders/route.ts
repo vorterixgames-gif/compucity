@@ -7,21 +7,25 @@ export async function GET() {
     const admin = await getCurrentAdmin()
     if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    const result = await db.execute(
-      'SELECT * FROM orders ORDER BY createdAt DESC'
-    )
+    // Sesión 44: N+1 fix — antes hacía 1 query por order para obtener sus items
+    // (1 + N queries). Ahora traemos todo en 2 queries paralelas y armamos el
+    // map en memoria. Para 50 pedidos: 51 queries → 2 queries (96% reducción).
+    const [ordersResult, itemsResult] = await Promise.all([
+      db.execute('SELECT * FROM orders ORDER BY createdAt DESC'),
+      db.execute('SELECT * FROM order_items ORDER BY createdAt DESC'),
+    ])
 
-    const orders = result.rows as any[]
+    // Agrupar items por orderId en memoria
+    const itemsByOrderId = new Map<string, any[]>()
+    for (const item of itemsResult.rows as any[]) {
+      if (!itemsByOrderId.has(item.orderId)) itemsByOrderId.set(item.orderId, [])
+      itemsByOrderId.get(item.orderId)!.push(item)
+    }
 
-    const ordersWithItems = await Promise.all(
-      orders.map(async (order) => {
-        const items = await db.execute({
-          sql: 'SELECT * FROM order_items WHERE orderId = ?',
-          args: [order.id],
-        })
-        return { ...order, items: items.rows }
-      })
-    )
+    const ordersWithItems = (ordersResult.rows as any[]).map(order => ({
+      ...order,
+      items: itemsByOrderId.get(order.id) || [],
+    }))
 
     return NextResponse.json({ ok: true, orders: ordersWithItems })
   } catch (error) {
