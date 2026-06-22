@@ -84,14 +84,16 @@ const ALLOWED_BOTS = [
 // ============================================
 // CAPA 3: Rate limiting por IP (en memoria del edge)
 // ============================================
-// Sesión 43 día 2 FINAL: valores ajustados después de que el límite original
-// (30 req/10s) le pegó al usuario real navegando. Subido a 200 req/10s
-// (muy por encima de cualquier humano) y bloqueo reducido a 5 min (en vez de 1h).
-// Sigue bloqueando scrapers agresivos que hacen 1000+ req/10s, pero no
-// interfiere con navegación humana normal.
+// Sesión 43 día 2: 30 req/10s (muy bajo, rompió usuarios reales) → 200 req/10s.
+// Sesión 44 round 4: 200 req/10s era muy permisivo. Detectamos bots disfrazados
+// de Chrome haciendo 11 page loads/segundo (= 110 req/10s) sin ser bloqueados.
+// Bajado a 50 req/10s que sigue siendo alto para un humano (5-10 req/10s máximo
+// con prefetch) pero corta bots disfrazados que crawlean agresivamente.
+// Si un usuario real abre 50 páginas en 10 segundos (imposible), sería bloqueado
+// 2 min (no 5 min como antes, para recuperar rápido).
 const RATE_LIMIT_WINDOW_MS = 10_000 // 10 segundos
-const RATE_LIMIT_MAX_REQUESTS = 200 // máx 200 req por IP en 10s (un humano hace 5-10)
-const RATE_LIMIT_BLOCK_MS = 5 * 60 * 1000 // bloquear 5 min (no 1 hora)
+const RATE_LIMIT_MAX_REQUESTS = 50 // máx 50 req por IP en 10s (un humano hace 5-10)
+const RATE_LIMIT_BLOCK_MS = 2 * 60 * 1000 // bloquear 2 min (no 5 min)
 const RATE_LIMIT_PATH = '/api/_rate-limit'
 
 // Mapa de IPs con sus timestamps de requests recientes y bloqueos
