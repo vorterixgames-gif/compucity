@@ -43,8 +43,8 @@ export async function GET(
 
     // 3. Subir a Blob en background (no bloquear la respuesta)
     // Solo si tenemos el token de Blob configurado
-    if (process.env.BLOB_READ_WRITE_TOKEN) {
-      try {
+    // Sesión 44 fix: Vercel Hobby se autentica automáticamente, no necesita BLOB_READ_WRITE_TOKEN
+    try {
         const blob = await put(`products/${id}.webp`, buffer, {
           access: 'public',
           contentType: 'image/webp',
@@ -56,10 +56,9 @@ export async function GET(
           sql: "INSERT OR REPLACE INTO store_config (id, key, value, updatedAt) VALUES (?, ?, ?, ?)",
           args: [crypto.randomUUID(), `blob_image_${id}`, blob.url, now],
         })
-      } catch (e) {
-        // Si falla la subida a Blob, no importa — seguimos sirviendo desde Turso
-        console.error('[image] Error uploading to Blob:', e)
-      }
+    } catch (e) {
+      // Si falla la subida a Blob, no importa — seguimos sirviendo desde Turso
+      console.error('[image] Error uploading to Blob:', e)
     }
 
     return new NextResponse(buffer, {
