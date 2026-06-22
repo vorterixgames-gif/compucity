@@ -41,10 +41,18 @@ export async function GET(
       headers: {
         'Content-Type': 'image/webp',
         'Content-Length': String(buffer.length),
-        // Cache inmutable por 1 año — el browser y el CDN de Vercel cachean
-        // la imagen. Futuras requests no tocan esta serverless function.
-        'Cache-Control': 'public, max-age=31536000, immutable',
+        // Sesión 44 round 4: cache CDN agresivo con s-maxage explícito.
+        // Antes: solo max-age (browser cache) + CDN-Cache-Control.
+        // Vercel CDN no siempre respeta CDN-Cache-Control — necesita s-maxage
+        // en Cache-Control para cachear en el edge. Sin esto, cada visitante
+        // nuevo generaba 1 serverless call por imagen (sin cache compartido).
+        // Ahora: la 1ª carga desde cada edge location es MISS, todas las
+        // siguientes son HIT desde el CDN → 0 serverless calls.
+        // max-age: browser cache 1 año (inmutable)
+        // s-maxage: CDN cache 1 año (compartido entre todos los usuarios del edge)
+        'Cache-Control': 'public, max-age=31536000, s-maxage=31536000, immutable',
         'CDN-Cache-Control': 'public, max-age=31536000',
+        'Vercel-CDN-Cache-Control': 'public, max-age=31536000',
         // ETag basado en el id para validación condicional
         'ETag': `"${id}"`,
       },
