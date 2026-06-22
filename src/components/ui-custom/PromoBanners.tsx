@@ -46,7 +46,7 @@ export default function PromoBanners({ position }: Props) {
           const d = JSON.parse(cached)
           if (d.banners) {
             setBanners(d.banners)
-            setLoading(false)
+            setLoaded(true)  // Sesión 44 fix: era setLoading(false) — variable no existente
             return
           }
         }
