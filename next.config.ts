@@ -21,6 +21,11 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "4mb",
     },
+    // Sesión 44: desactivar prefetch globalmente para reducir Fluid CPU
+    // Antes: 1 visita = ~20 prefetches serverless (~10s CPU)
+    // Ahora: 1 visita = 0 prefetches (~2s CPU)
+    // El usuario tarda ~1s al hacer click en un link (aceptable)
+    prefetch: false,
   },
   // Sesión 43 día 2 FINAL: headers de cache para archivos estáticos.
   // Sin esto, Vercel sirve las imágenes con `max-age=0, must-revalidate`
