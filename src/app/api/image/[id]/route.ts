@@ -69,7 +69,6 @@ export async function GET(
         'Content-Length': String(buffer.length),
         'Cache-Control': 'public, max-age=31536000, immutable',
         'CDN-Cache-Control': 'public, max-age=31536000',
-        'X-Blob-Error': errMsg ? errMsg.substring(0, 200) : 'unknown',
       },
     })
   } catch (error) {
