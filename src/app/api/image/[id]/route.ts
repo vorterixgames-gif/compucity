@@ -57,8 +57,9 @@ export async function GET(
           args: [crypto.randomUUID(), `blob_image_${id}`, blob.url, now],
         })
     } catch (e) {
-      // Si falla la subida a Blob, no importa — seguimos sirviendo desde Turso
+      // Sesión 44: loguear el error en un header para debug
       console.error('[image] Error uploading to Blob:', e)
+      const errMsg = e instanceof Error ? e.message : String(e)
     }
 
     return new NextResponse(buffer, {
@@ -68,6 +69,7 @@ export async function GET(
         'Content-Length': String(buffer.length),
         'Cache-Control': 'public, max-age=31536000, immutable',
         'CDN-Cache-Control': 'public, max-age=31536000',
+        'X-Blob-Error': errMsg ? errMsg.substring(0, 200) : 'unknown',
       },
     })
   } catch (error) {
