@@ -77,82 +77,22 @@ export async function GET(request: Request) {
     })
   } catch { /* non-critical */ }
 
-  // ─── Re-detect brands after sync ────────────────────────────────────────
-  try {
-    const { BRAND_PATTERNS } = await import('@/lib/brand-patterns')
-    const productResult = await db.execute({ sql: 'SELECT id, name, specs FROM products WHERE isActive = 1', args: [] })
-    const allProducts = productResult.rows as { id: string; name: string; specs: string }[]
-
-    const brandProductCounts = new Map<string, number>()
-    const brandProductIds = new Map<string, string[]>()
-
-    // Step 1: Detect brands from regex patterns (known brands)
-    for (const product of allProducts) {
-      for (const bp of BRAND_PATTERNS) {
-        if (bp.pattern.test(product.name)) {
-          const key = bp.slug
-          brandProductCounts.set(key, (brandProductCounts.get(key) || 0) + 1)
-          if (!brandProductIds.has(key)) brandProductIds.set(key, [])
-          brandProductIds.get(key)!.push(product.id)
-          break
-        }
-      }
-    }
-
-    // Step 2: Detect brands from supplier "marca" field in specs (catches new/unknown brands)
-    for (const product of allProducts) {
-      // Skip products already matched by regex patterns
-      const alreadyMatched = [...brandProductIds.values()].some(ids => ids.includes(product.id))
-      if (alreadyMatched) continue
-
-      try {
-        const specs = typeof product.specs === 'string' ? JSON.parse(product.specs) : product.specs
-        const marca = specs?.['Marca']
-        if (!marca || typeof marca !== 'string' || marca.trim().length < 2) continue
-
-        const brandName = marca.trim()
-        const slug = brandName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-        if (!slug) continue
-
-        brandProductCounts.set(slug, (brandProductCounts.get(slug) || 0) + 1)
-        if (!brandProductIds.has(slug)) brandProductIds.set(slug, [])
-        brandProductIds.get(slug)!.push(product.id)
-      } catch { /* invalid specs JSON, skip */ }
-    }
-
-    let brandsCreated = 0
-    // Create/update brands from both pattern-matched and marca-detected
-    for (const [slug, count] of brandProductCounts) {
-      const existing = await db.execute({ sql: 'SELECT id FROM brands WHERE slug = ?', args: [slug] })
-      if (existing.rows.length > 0) {
-        await db.execute({ sql: 'UPDATE brands SET productCount = ?, updatedAt = ? WHERE slug = ?', args: [count, now, slug] })
-      } else if (count > 0) {
-        // Find brand name: from patterns first, then generate from slug
-        const pattern = BRAND_PATTERNS.find(bp => bp.slug === slug)
-        const brandName = pattern?.name || slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
-        const id = crypto.randomUUID()
-        await db.execute({
-          sql: `INSERT INTO brands (id, name, slug, logoUrl, logoWidth, logoHeight, isActive, "order", productCount, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?)`,
-          args: [id, brandName, slug, `https://cdn.simpleicons.org/${slug}/9ca3af`, 80, 24, count, now, now],
-        })
-        brandsCreated++
-      }
-    }
-
-    // Assign brandId to products that don't have one
-    for (const [slug, pids] of brandProductIds) {
-      const brandRow = await db.execute({ sql: 'SELECT id FROM brands WHERE slug = ?', args: [slug] })
-      if (brandRow.rows.length === 0) continue
-      const brandId = (brandRow.rows[0] as any).id
-      for (const pid of pids) {
-        try { await db.execute({ sql: 'UPDATE products SET brandId = ? WHERE id = ? AND brandId IS NULL', args: [brandId, pid] }) } catch { /* skip */ }
-      }
-    }
-
-    console.log(`[cron-sync] Brands updated: ${brandsCreated} new brands detected (total brands: ${brandProductCounts.size})`)
-  } catch (err: any) {
-    console.error('[cron-sync] Brand update error (non-critical):', err.message)
-  }
+  // ─── Brands: NO se re-detectan acá (sesión 44) ────────────────────────────
+  // Antes este bloque hacía re-detección de brands con ~14.000 queries a Turso
+  // por ejecución, consumiendo 1.5-2.5h/mes de Fluid Active CPU (37-62% del
+  // límite Hobby de 4h). Como las brands casi no cambian (solo cuando entran
+  // productos nuevos, lo cual NO pasa en este cron diario — solo en syncs
+  // manuales o en el sync de Air Intra que corre en GitHub Actions), el bloque
+  // era 100% desperdicio en la mayoría de las ejecuciones.
+  //
+  // Ahora la re-detección de brands corre en GitHub Actions:
+  //   - Workflow: .github/workflows/sync-brands.yml
+  //   - Script:   scripts/sync-brands-external.mjs
+  //   - Schedule: 1 vez por día (12:30 UTC = 09:30 AR)
+  //   - Costo: $0 (GitHub Actions free tier, ~15-30 min/mes de 2000 disponibles)
+  //
+  // Para disparar manualmente: GitHub repo → Actions tab → "Sync Brands" → Run workflow
+  // O desde el admin: botón "Inicializar marcas" en /admin/proveedores (manual, con auth)
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
   console.log(`[cron-sync] Daily stock/price sync completed in ${elapsed}s`)

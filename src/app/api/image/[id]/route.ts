@@ -2,10 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
 // Servir imagen desde product_images por ID.
-// Sesión 44: migración gradual a Vercel Blob.
-// - Si la imagen ya está en Blob (store_config tiene la URL), redirige 302 al CDN.
-// - Si no está en Blob, la sirve desde Turso Y la sube a Blob en background.
-// - Esto elimina las llamadas serverless para imágenes ya migradas.
+//
+// Sesión 44: simplificado — sacamos el bloque de Vercel Blob que estaba roto
+// (usaba `put()` sin importar `@vercel/blob`, así que tiraba ReferenceError
+// silencioso en CADA request, consumiendo CPU sin beneficio).
+//
+// Ahora servimos directo desde Turso con cache inmutable (1 año).
+// Después del primer hit, el browser + CDN de Vercel cachean la imagen
+// y no vuelve a tocar esta serverless function → 0 CPU en futuras requests.
+//
+// Si en el futuro se quiere migrar a Vercel Blob o S3, hacerlo en un script
+// de migración separado (no en cada request de imagen).
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -13,21 +20,7 @@ export async function GET(
   try {
     const { id } = await params
 
-    // 1. Verificar si ya tenemos una URL de Blob para esta imagen
-    // Usamos store_config con key 'blob_image_<id>' para cachear las URLs
-    const blobUrlResult = await db.execute({
-      sql: "SELECT value FROM store_config WHERE key = ?",
-      args: [`blob_image_${id}`],
-    })
-    const blobUrlRows = blobUrlResult.rows as any[]
-    if (blobUrlRows[0]?.value) {
-      // Ya está en Blob — redirigir al CDN (0 serverless en futuras requests)
-      const redirectResponse = NextResponse.redirect(blobUrlRows[0].value, 302)
-      redirectResponse.headers.set('Cache-Control', 'public, max-age=31536000, immutable')
-      return redirectResponse
-    }
-
-    // 2. No está en Blob — servir desde Turso
+    // Buscar la imagen en Turso (1 query)
     const result = await db.execute({
       sql: 'SELECT data, size FROM product_images WHERE id = ?',
       args: [id],
@@ -35,43 +28,32 @@ export async function GET(
 
     const rows = result.rows as any[]
     if (!rows[0]) {
-      return new NextResponse('Imagen no encontrada', { status: 404 })
+      return new NextResponse('Imagen no encontrada', {
+        status: 404,
+        headers: { 'Cache-Control': 'no-store' },
+      })
     }
 
     const buffer = Buffer.from(rows[0].data, 'base64')
-
-    // 3. Subir a Blob en background (no bloquear la respuesta)
-    // Solo si tenemos el token de Blob configurado
-    // Sesión 44 fix: Vercel Hobby se autentica automáticamente, no necesita BLOB_READ_WRITE_TOKEN
-    try {
-        const blob = await put(`products/${id}.webp`, buffer, {
-          access: 'public',
-          contentType: 'image/webp',
-          addRandomSuffix: false,
-        })
-        // Guardar la URL en store_config para futuras requests
-        const now = new Date().toISOString()
-        await db.execute({
-          sql: "INSERT OR REPLACE INTO store_config (id, key, value, updatedAt) VALUES (?, ?, ?, ?)",
-          args: [crypto.randomUUID(), `blob_image_${id}`, blob.url, now],
-        })
-    } catch (e) {
-      // Sesión 44: loguear el error en un header para debug
-      console.error('[image] Error uploading to Blob:', e)
-      const errMsg = e instanceof Error ? e.message : String(e)
-    }
 
     return new NextResponse(buffer, {
       status: 200,
       headers: {
         'Content-Type': 'image/webp',
         'Content-Length': String(buffer.length),
+        // Cache inmutable por 1 año — el browser y el CDN de Vercel cachean
+        // la imagen. Futuras requests no tocan esta serverless function.
         'Cache-Control': 'public, max-age=31536000, immutable',
         'CDN-Cache-Control': 'public, max-age=31536000',
+        // ETag basado en el id para validación condicional
+        'ETag': `"${id}"`,
       },
     })
   } catch (error) {
     console.error('Image serve error:', error)
-    return new NextResponse('Error del servidor', { status: 500 })
+    return new NextResponse('Error del servidor', {
+      status: 500,
+      headers: { 'Cache-Control': 'no-store' },
+    })
   }
 }

@@ -1,0 +1,42 @@
+name: Sync Brands
+
+# Re-detección y actualización de marcas (brands) en la DB Turso.
+# Corre 1 vez por día (12:30 UTC = 09:30 Argentina, después del cron de
+# Air Intra que corre a las 12:00 UTC / 09:00 AR).
+#
+# ¿Por qué GitHub Actions y no Vercel?
+# Sesión 44: antes esto corría en el cron diario de Vercel (/api/cron/sync)
+# y consumía 1.5-2.5h/mes de Fluid Active CPU (37-62% del límite Hobby de 4h).
+# GitHub Actions da 2000 min/mes gratis y esta sync tarda ~30-60s = 15-30 min/mes.
+# Ahorro estimado: ~2h/mes de Vercel Fluid CPU.
+
+on:
+  schedule:
+    - cron: '30 12 * * *'  # 12:30 UTC = 09:30 Argentina, después del cron de Air Intra
+  workflow_dispatch: {}  # disparo manual desde GitHub Actions tab
+
+jobs:
+  sync-brands:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10  # safety timeout (la sync completa tarda ~1-2 min)
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run Brands sync
+        env:
+          TURSO_URL: ${{ secrets.TURSO_URL }}
+          TURSO_TOKEN: ${{ secrets.TURSO_TOKEN }}
+        run: node scripts/sync-brands-external.mjs
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ La sync de brands falló. Revisar los logs arriba."
+          echo "Puede ser por timeout de Turso o por un cambio en el schema."

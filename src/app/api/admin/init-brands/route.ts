@@ -1,9 +1,18 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getCurrentAdmin } from '@/lib/admin-auth'
 import { BRAND_PATTERNS } from '@/lib/brand-patterns'
 
-export async function POST() {
+// Sesión 44: agregado auth — antes este endpoint era público y cualquiera podía
+// disparar 7K+ queries a Turso (DoS potencial). Ahora requiere admin autenticado.
+// Para re-detección automática de brands sin auth, usar GitHub Actions:
+//   .github/workflows/sync-brands.yml (corre 1 vez por día)
+
+export async function POST(request: NextRequest) {
   try {
+    // Verificar auth de admin
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     const now = new Date().toISOString()
 
     // Fetch all products including specs (for supplier marca field)

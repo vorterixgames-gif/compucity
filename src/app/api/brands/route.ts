@@ -2,8 +2,12 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
 // Sesión 43: cache 1h en CDN. Las marcas cambian muy raramente (solo cuando
-// se agrega/edita una marca desde /admin). 1h de staleness OK.
-export const revalidate = 3600
+// se agrega/edita una marca desde /admin o cuando corre el sync de brands
+// en GitHub Actions). 1h de staleness OK.
+//
+// Sesión 44: cache subido a 24h porque ahora brands se actualizan via
+// GitHub Actions 1 vez por día, no en cada cron de Vercel.
+export const revalidate = 86400 // 24h
 
 // Public API: returns all active brands, ordered by order then name
 export async function GET() {
@@ -15,27 +19,17 @@ export async function GET() {
        ORDER BY "order" ASC, name ASC`
     )
 
-    let brands = result.rows as any[]
+    const brands = result.rows as any[]
 
-    // If no brands exist yet, trigger init-brands and re-fetch
-    if (brands.length === 0) {
-      try {
-        await fetch(new URL('/api/admin/init-brands', 'http://localhost:3000'), { method: 'POST' })
-        const result2 = await db.execute(
-          `SELECT id, name, slug, logoUrl, logoWidth, logoHeight, isActive, "order", productCount, createdAt, updatedAt
-           FROM brands
-           WHERE isActive = 1
-           ORDER BY "order" ASC, name ASC`
-        )
-        brands = result2.rows as any[]
-      } catch (initErr) {
-        console.warn('[brands] Init-brands failed, returning empty:', initErr)
-      }
-    }
+    // Sesión 44: eliminado el bloque que hacía fetch('http://localhost:3000/api/admin/init-brands')
+    // cuando la tabla brands estaba vacía. Ese fetch fallaba en Vercel (localhost no existe
+    // en serverless) y peor: /api/admin/init-brands no tenía auth, así que cualquiera podía
+    // disparar 7K+ queries. Si brands está vacío, simplemente retornamos [] — el admin
+    // puede inicializar manualmente desde /admin/proveedores.
 
     return NextResponse.json({ ok: true, brands }, {
       headers: {
-        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+        'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800',
       },
     })
   } catch (error) {
