@@ -179,22 +179,12 @@ export default function Navbar() {
             children: allCats.filter(c => c.parentId === parent.id).map(c => ({ id: c.id, name: c.name, slug: c.slug })),
           }))
           setCategories(tree)
-        } else {
-          try {
-            await fetch('/api/admin/init-categories', { method: 'POST' })
-            const res2 = await fetch('/api/categories')
-            const data2 = await res2.json()
-            if (data2.ok && data2.categories) {
-              const allCats = data2.categories as Category[]
-              const parents = allCats.filter(c => !c.parentId)
-              const tree = parents.map(parent => ({
-                ...parent,
-                children: allCats.filter(c => c.parentId === parent.id).map(c => ({ id: c.id, name: c.name, slug: c.slug })),
-              }))
-              setCategories(tree)
-            }
-          } catch {}
         }
+        // Sesión 44 fix: sacado el fetch a /api/admin/init-categories desde el cliente.
+        // Ese endpoint requiere auth (cookie admin_token) que ningún visitante tiene,
+        // así que siempre tiraba 401 silencioso + un segundo fetch a /api/categories.
+        // Si las categorías están vacías, el admin puede inicializarlas manualmente
+        // desde /admin/categorias. No afecta al storefront.
       } catch (error) {
         console.error('Error loading categories:', error)
       }

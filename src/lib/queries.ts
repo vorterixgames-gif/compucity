@@ -204,7 +204,9 @@ export interface Product {
 // CACHEADO en memoria 5 min (sesion 43) — esta query se llama en TODAS las
 // páginas de producto/categoría/home. Sin caché, cada visita lee las 73
 // filas de categories. Con caché, solo 1 vez cada 5 min por cold start.
-async function getCategoryMarkupMap(): Promise<Map<string, CategoryMarkup>> {
+// Sesión 44: exportada para que /api/related-products y /api/products puedan
+// reutilizarla (con cache 5 min) en vez de hacer SELECT FROM categories cada vez.
+export async function getCategoryMarkupMap(): Promise<Map<string, CategoryMarkup>> {
   return cached('category_markup_map', CACHE_TTL_MS, async () => {
     const catResult = await db.execute('SELECT id, parentId, markup, cashDiscount, ivaRate FROM categories')
     const rawMap = new Map<string, { parentId: string | null; markup: number | null; cashDiscount: number | null; ivaRate: number | null }>()

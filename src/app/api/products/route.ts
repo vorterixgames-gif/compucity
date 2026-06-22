@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { fetchDollarRate, getStoreConfigNumber, calculateProductPrices, CategoryMarkup } from '@/lib/dollar'
+import { fetchDollarRate, getStoreConfigNumber, calculateProductPrices } from '@/lib/dollar'
+import { getCategoryMarkupMap } from '@/lib/queries'
 
 // Sesión 43: cache 5 min en CDN + navegador para reducir queries Turso.
 // Esta API devuelve datos de un producto (precio, stock, etc) que cambian
@@ -17,7 +18,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const [result, dollar, markup, cashDiscount, catMarkupResult] = await Promise.all([
+    // Sesión 44: getCategoryMarkupMap cachea 5 min las 73 filas de categories,
+    // evitando 1 SELECT extra en cada request a este endpoint.
+    const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
       db.execute({
         sql: 'SELECT * FROM products WHERE id = ? AND isActive = 1',
         args: [id],
@@ -25,17 +28,8 @@ export async function GET(request: NextRequest) {
       fetchDollarRate(),
       getStoreConfigNumber('markup', 30),
       getStoreConfigNumber('cash_discount', 10),
-      db.execute('SELECT id, markup, cashDiscount, ivaRate FROM categories'),
+      getCategoryMarkupMap(),
     ])
-
-    const catMarkupMap = new Map<string, CategoryMarkup>()
-    for (const row of catMarkupResult.rows as any[]) {
-      catMarkupMap.set(row.id, {
-        markup: row.markup != null ? Number(row.markup) : null,
-        cashDiscount: row.cashDiscount != null ? Number(row.cashDiscount) : null,
-        ivaRate: row.ivaRate != null ? Number(row.ivaRate) : null,
-      })
-    }
 
     const rows = result.rows as any[]
     if (!rows[0]) {

@@ -45,17 +45,9 @@ export default function CategoryIcons() {
           const parents = (data.categories as Category[]).filter((c: Category) => !c.parentId)
           setCategories(parents)
           try { sessionStorage.setItem('cc_cats', JSON.stringify(data)) } catch {}
-        } else {
-          try {
-            await fetch('/api/admin/init-categories', { method: 'POST' })
-            const res2 = await fetch('/api/categories')
-            const data2 = await res2.json()
-            if (data2.ok && data2.categories) {
-              const parents = (data2.categories as Category[]).filter((c: Category) => !c.parentId)
-              setCategories(parents)
-            }
-          } catch {}
         }
+        // Sesión 44 fix: sacado el fetch a /api/admin/init-categories desde el cliente.
+        // Siempre tiraba 401 silencioso porque el endpoint requiere auth de admin.
       } catch (error) {
         console.error('Error loading categories:', error)
       }

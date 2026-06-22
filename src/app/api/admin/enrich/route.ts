@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getCurrentAdmin } from '@/lib/admin-auth'
 
 // ============================================
 // CATEGORY KEYWORD MAP — Order matters, first match wins
@@ -333,6 +334,11 @@ async function fetchAirIntraProductImages(token: string, providerSkus: string[])
 // ============================================
 export async function POST(request: NextRequest) {
   try {
+    // Sesión 44 fix: agregado auth — antes este endpoint era público y cualquiera podía
+    // disparar ~14.000 queries a Turso (DoS potencial, mismo bug que init-brands).
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     const body = await request.json().catch(() => ({}))
     const action = body.action || 'all' // 'categories' | 'images' | 'dates' | 'all'
 
