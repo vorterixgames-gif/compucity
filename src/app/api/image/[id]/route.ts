@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { put } from '@vercel/blob'
 
 // Servir imagen desde product_images por ID.
 // Sesión 44: migración gradual a Vercel Blob.
