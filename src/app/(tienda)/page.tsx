@@ -15,9 +15,12 @@ import { Truck, Shield, MessageCircle, Headphones, ArrowRight } from 'lucide-rea
 
 // Sesion 43: era `force-dynamic` (cada visita = queries frescas a Turso).
 // Cambiado a revalidate=300 (5 min) para reducir rows reads en Turso.
+// Sesión 44 round 6: subido a revalidate=3600 (1h) para reducir Fluid CPU.
 // El contenido de la home cambia raramente (productos destacados, banners,
-// categorías top) — 5 min de stale es aceptable y reduce 100x las queries.
-export const revalidate = 300
+// categorías top) — 1h de stale es aceptable y reduce 12x las regeneraciones
+// vs 5 min. El admin puede forzar refresh con revalidateTag('products') cuando
+// hace cambios (eso invalida el cache on-demand, sin esperar a los 5 min).
+export const revalidate = 3600
 
 export const metadata: Metadata = {
   title: 'Compucity - Tu Mundo Digital | Tienda de Informática en La Falda, Córdoba',
