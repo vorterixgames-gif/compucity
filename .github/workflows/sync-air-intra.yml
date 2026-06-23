@@ -2,10 +2,19 @@ name: Sync Air Intra
 
 # Cron que se ejecuta cada 12 horas (00:00 y 12:00 UTC = 21:00 y 09:00 Argentina)
 # También se puede disparar manualmente desde GitHub Actions tab
+#
+# Sesión 44 round 7 (fix): actualizar actions a v5 + Node 22 LTS + permisos
+# explícitos. Mismos fixes que sync-brands.yml para evitar el error
+# "git failed with exit code 128" y el warning de Node 20 deprecado.
+
 on:
   schedule:
     - cron: '0 0,12 * * *'  # cada 12 horas
   workflow_dispatch: {}  # disparo manual
+
+# Permisos explícitos del GITHUB_TOKEN default.
+permissions:
+  contents: read
 
 jobs:
   sync:
@@ -14,12 +23,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'  # LTS actual (Node 20 está deprecado en GitHub Actions)
 
       - name: Run Air Intra sync
         env:

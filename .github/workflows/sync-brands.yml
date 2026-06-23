@@ -9,11 +9,21 @@ name: Sync Brands
 # y consumía 1.5-2.5h/mes de Fluid Active CPU (37-62% del límite Hobby de 4h).
 # GitHub Actions da 2000 min/mes gratis y esta sync tarda ~30-60s = 15-30 min/mes.
 # Ahorro estimado: ~2h/mes de Vercel Fluid CPU.
+#
+# Sesión 44 round 7 (fix): actualizar actions a v5 + Node 22 LTS + permisos
+# explícitos. Antes usaba actions/checkout@v4 + Node 20 que están deprecados
+# y causaban error "git failed with exit code 128" por permisos del token.
 
 on:
   schedule:
     - cron: '30 12 * * *'  # 12:30 UTC = 09:30 Argentina, después del cron de Air Intra
   workflow_dispatch: {}  # disparo manual desde GitHub Actions tab
+
+# Permisos explícitos del GITHUB_TOKEN default.
+# Sin esto, el checkout puede fallar con exit code 128 si el repo tiene
+# settings restrictivos (Settings → Actions → General → Workflow permissions).
+permissions:
+  contents: read
 
 jobs:
   sync-brands:
@@ -22,12 +32,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'  # LTS actual (Node 20 está deprecado en GitHub Actions)
 
       - name: Run Brands sync
         env:
