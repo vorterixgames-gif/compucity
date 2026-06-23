@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { grokChat } from '@/lib/grok'
 import { db } from '@/lib/db'
 
+// Sesión 44 round 8: migrado a Edge runtime para no consumir Fluid Active CPU.
+export const runtime = 'edge'
+export const maxDuration = 25
+
 // ============================================
 // Feature Flag Check
 // ============================================
