@@ -27,6 +27,45 @@ const nextConfig: NextConfig = {
     // El usuario tarda ~1s al hacer click en un link (aceptable)
     prefetch: false,
   },
+  // Sesión 44 round 5: redirects que se ejecutan ANTES que cualquier cosa
+  // (incluso antes que el middleware). Esto bloquea bots conocidos sin
+  // consumir Edge CPU del middleware.
+  //
+  // Nota: Next.js `has` conditions solo soportan matching exacto de header
+  // value, no substring. Por eso solo bloqueamos los UAs más dañinos que
+  // vemos en logs (Meta-ExternalAgent hace ~50 req/3min).
+  async redirects() {
+    return [
+      // Redirect vercel.app → dominio propio (antes en middleware)
+      {
+        source: '/:path*',
+        has: [
+          {
+            type: 'host',
+            value: 'compucity-vorterixgames-gif.vercel.app',
+          },
+        ],
+        destination: 'https://www.compucityonline.com.ar/:path*',
+        permanent: true,
+      },
+      // Bloquear Meta-ExternalAgent (bot de entrenamiento IA de Facebook/Meta)
+      // Hace ~50 requests cada 3 minutos a /producto/* → mucho Fluid CPU
+      // Next.js no soporta substring match, así que usamos el valor exacto
+      // que vemos en logs: "meta-externalagent/1.1"
+      {
+        source: '/:path*',
+        has: [
+          {
+            type: 'header',
+            key: 'user-agent',
+            value: 'meta-externalagent/1.1',
+          },
+        ],
+        destination: 'https://www.compucityonline.com.ar/blocked',
+        permanent: false,
+      },
+    ]
+  },
   // Sesión 43 día 2 FINAL: headers de cache para archivos estáticos.
   // Sin esto, Vercel sirve las imágenes con `max-age=0, must-revalidate`
   // lo que hace que cada visita vuelva a descargar las imágenes del hero
