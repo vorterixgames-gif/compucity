@@ -156,10 +156,53 @@ const BRAND_PATTERNS = [
 // ============================================
 const TURSO_HTTP = TURSO_URL.replace('libsql://', 'https://') + '/v2/pipeline'
 
+/**
+ * Convierte un valor JS al formato tagged que espera la API HTTP de Turso.
+ *
+ * La API v2/pipeline NO acepta valores crudos (strings, integers, nulls).
+ * Necesita objetos con {type, value}:
+ *   - string  → {"type": "text", "value": "abc"}
+ *   - number  → {"type": "integer", "value": "123"} o {"type": "float", "value": "1.5"}
+ *   - null    → {"type": "null"}
+ *   - boolean → {"type": "integer", "value": "0" o "1"}
+ *   - Buffer  → {"type": "blob", "value": "<base64>"}
+ *
+ * Sin esta conversión, Turso devuelve HTTP 400:
+ *   "JSON parse error: invalid type: integer `182`, expected internally tagged enum Value"
+ *
+ * Sesión 44 round 7 fix.
+ */
+function toTursoValue(v) {
+  if (v === null || v === undefined) {
+    return { type: 'null' }
+  }
+  if (typeof v === 'string') {
+    return { type: 'text', value: v }
+  }
+  if (typeof v === 'boolean') {
+    return { type: 'integer', value: v ? '1' : '0' }
+  }
+  if (typeof v === 'number') {
+    if (Number.isInteger(v)) {
+      return { type: 'integer', value: String(v) }
+    }
+    return { type: 'float', value: String(v) }
+  }
+  if (Buffer.isBuffer(v)) {
+    return { type: 'blob', value: v.toString('base64') }
+  }
+  // Fallback: convertir a string
+  return { type: 'text', value: String(v) }
+}
+
+function toTursoArgs(args = []) {
+  return args.map(toTursoValue)
+}
+
 async function tursoExecute(sql, args = []) {
   const body = JSON.stringify({
     requests: [
-      { type: 'execute', stmt: { sql, args } },
+      { type: 'execute', stmt: { sql, args: toTursoArgs(args) } },
       { type: 'close' },
     ],
   })
@@ -191,7 +234,10 @@ async function tursoBatch(statements) {
   // Turso pipeline soporta múltiples statements en 1 request
   const body = JSON.stringify({
     requests: [
-      ...statements.map(s => ({ type: 'execute', stmt: { sql: s.sql, args: s.args || [] } })),
+      ...statements.map(s => ({
+        type: 'execute',
+        stmt: { sql: s.sql, args: toTursoArgs(s.args || []) },
+      })),
       { type: 'close' },
     ],
   })
