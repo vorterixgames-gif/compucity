@@ -18,7 +18,11 @@ interface Props {
 // Las categorías grandes (cables 393, mouse 384, motherboards 309) sin caché
 // causaban el 80% del consumo de Turso. 5 min de stale es aceptable porque
 // los precios/stock se actualizan via cron solo 1 vez por día.
-export const revalidate = 300
+// Sesión 44 round 6: subido a revalidate=3600 (1h) para reducir Fluid CPU.
+// El admin puede forzar refresh con revalidateTag('products') cuando hace
+// cambios (invalida cache on-demand). Bots que crawlean categorías múltiples
+// veces por hora ya no regeneran la página cada vez.
+export const revalidate = 3600
 
 // Dynamic metadata for category pages
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
