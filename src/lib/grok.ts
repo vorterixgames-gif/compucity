@@ -1,8 +1,13 @@
 // ============================================
 // AI Chat Client — uses z-ai-web-dev-sdk (primary) or Groq (fallback)
 // ============================================
-
-import ZAI from 'z-ai-web-dev-sdk'
+//
+// Sesión 44 round 8: hecho compatible con Edge runtime.
+// z-ai-web-dev-sdk importa fs/promises, path, os al inicio del archivo,
+// lo que rompe el bundling de Edge runtime. Solución: import dinámico dentro
+// de la función getZai(), así solo se carga cuando se necesita (y solo si
+// las vars ZAI_* están configuradas). En producción los chatbots usan fallback
+// a Groq porque ZAI no está configurada, así que nunca se carga el SDK.
 
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1'
 const GROQ_MODEL = 'llama-3.3-70b-versatile'
@@ -24,24 +29,31 @@ interface ChatResult {
   raw: any
 }
 
-// Singleton ZAI instance — created directly from env vars (no config file needed)
-let zaiInstance: ZAI | null = null
+// Cache de la instancia ZAI (singleton). Tipo loose para evitar importar el tipo.
+let zaiInstance: any = null
 
-function getZai(): ZAI {
-  if (!zaiInstance) {
-    const baseUrl = process.env.ZAI_BASE_URL
-    const apiKey = process.env.ZAI_API_KEY
-    if (!baseUrl || !apiKey) {
-      throw new Error('ZAI_BASE_URL and ZAI_API_KEY environment variables are required')
-    }
-    zaiInstance = new ZAI({
-      baseUrl,
-      apiKey,
-      chatId: process.env.ZAI_CHAT_ID || '',
-      userId: process.env.ZAI_USER_ID || '',
-      token: process.env.ZAI_TOKEN || '',
-    })
+async function getZai(): Promise<any> {
+  if (zaiInstance) return zaiInstance
+
+  const baseUrl = process.env.ZAI_BASE_URL
+  const apiKey = process.env.ZAI_API_KEY
+  if (!baseUrl || !apiKey) {
+    throw new Error('ZAI_BASE_URL and ZAI_API_KEY environment variables are required')
   }
+
+  // Import dinámico — solo carga el SDK si realmente lo vamos a usar.
+  // Esto evita que el bundler de Edge runtime intente resolver fs/path/os
+  // al inicio del módulo.
+  const ZAIModule = await import('z-ai-web-dev-sdk')
+  const ZAI = ZAIModule.default
+
+  zaiInstance = new ZAI({
+    baseUrl,
+    apiKey,
+    chatId: process.env.ZAI_CHAT_ID || '',
+    userId: process.env.ZAI_USER_ID || '',
+    token: process.env.ZAI_TOKEN || '',
+  })
   return zaiInstance
 }
 
@@ -89,9 +101,9 @@ async function groqFallback(options: ChatOptions): Promise<ChatResult> {
 export async function grokChat(options: ChatOptions): Promise<ChatResult> {
   const { temperature = 0.3, maxTokens = 800 } = options
 
-  // Try z-ai-web-dev-sdk first
+  // Try z-ai-web-dev-sdk first (solo si está configurado, si no, salta a Groq)
   try {
-    const zai = getZai()
+    const zai = await getZai()
     const completion = await zai.chat.completions.create({
       messages: options.messages,
       temperature,

@@ -3,6 +3,10 @@ import { grokChat } from '@/lib/grok'
 import { db } from '@/lib/db'
 import { fetchDollarRate, calculateProductPrices } from '@/lib/dollar'
 
+// Sesión 44 round 8: migrado a Edge runtime para no consumir Fluid Active CPU.
+export const runtime = 'edge'
+export const maxDuration = 25
+
 // ============================================
 // Types
 // ============================================

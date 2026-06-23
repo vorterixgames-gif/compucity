@@ -4,6 +4,14 @@ import { db } from '@/lib/db'
 import { fetchDollarRate, calculateProductPrices } from '@/lib/dollar'
 import { extractCompatibility } from '@/lib/compatibility'
 
+// Sesión 44 round 8: migrado a Edge runtime para no consumir Fluid Active CPU.
+// Los endpoints de IA (chatbots) son los más costosos (5-15s por request).
+// En Edge runtime, no consumen Fluid Active CPU (cuota separada: 1M Edge invocations/mes gratis).
+// Verificado que funciona en /api/test-edge con Groq.
+export const runtime = 'edge'
+// Edge Functions tienen 25s de timeout (suficiente para IA)
+export const maxDuration = 25
+
 // ============================================
 // Types
 // ============================================
