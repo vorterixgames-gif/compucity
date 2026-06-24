@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { logger } from '@/lib/logger'
 import { db } from '@/lib/db'
 // Sesión 43 día 2: revalidateTag para invalidar cache de products on-demand.
 // Después de que el cron actualiza productos (precios/stock), llamamos
@@ -21,7 +22,7 @@ export const maxDuration = 300 // 5 minutes max for Vercel
  */
 export async function GET(request: Request) {
   const startTime = Date.now()
-  console.log('[cron-sync] Starting daily stock/price sync...')
+  logger.debug('[cron-sync] Starting daily stock/price sync...')
 
   // Verify cron secret
   const { searchParams } = new URL(request.url)
@@ -44,7 +45,7 @@ export async function GET(request: Request) {
   try {
     const elitResult = await syncElitStock()
     results['Elit'] = elitResult
-    console.log(`[cron-sync] Elit: ${elitResult.updated} updated, ${elitResult.errors} errors`)
+    logger.debug(`[cron-sync] Elit: ${elitResult.updated} updated, ${elitResult.errors} errors`)
   } catch (err: any) {
     console.error('[cron-sync] Elit error:', err.message)
     results['Elit'] = { ok: false, updated: 0, errors: 1, message: err.message }
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
   try {
     const invidResult = await syncInvidStock()
     results['Invid'] = invidResult
-    console.log(`[cron-sync] Invid: ${invidResult.updated} updated, ${invidResult.errors} errors`)
+    logger.debug(`[cron-sync] Invid: ${invidResult.updated} updated, ${invidResult.errors} errors`)
   } catch (err: any) {
     console.error('[cron-sync] Invid error:', err.message)
     results['Invid'] = { ok: false, updated: 0, errors: 1, message: err.message }
@@ -95,7 +96,7 @@ export async function GET(request: Request) {
   // O desde el admin: botón "Inicializar marcas" en /admin/proveedores (manual, con auth)
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
-  console.log(`[cron-sync] Daily stock/price sync completed in ${elapsed}s`)
+  logger.debug(`[cron-sync] Daily stock/price sync completed in ${elapsed}s`)
 
   // Sesión 43 día 2: invalidar cache de products para que los cambios de
   // precios/stock del cron se reflejen instantáneamente en el storefront.
@@ -136,7 +137,7 @@ async function syncElitStock(): Promise<{ ok: boolean; updated: number; errors: 
   for (const row of dbResult.rows as any[]) {
     if (row.providerSku) dbMap.set(row.providerSku, row)
   }
-  console.log(`[cron-sync] Elit: ${dbMap.size} products in DB`)
+  logger.debug(`[cron-sync] Elit: ${dbMap.size} products in DB`)
 
   // Fetch all products from Elit API (paginated)
   const apiProducts: Map<string, { stock: number; price: number; costPrice: number }> = new Map()
@@ -179,7 +180,7 @@ async function syncElitStock(): Promise<{ ok: boolean; updated: number; errors: 
     }
   }
 
-  console.log(`[cron-sync] Elit: ${apiProducts.size} products from API`)
+  logger.debug(`[cron-sync] Elit: ${apiProducts.size} products from API`)
 
   // Compare and build updates
   const now = new Date().toISOString()
@@ -265,7 +266,7 @@ async function syncInvidStock(): Promise<{ ok: boolean; updated: number; errors:
   for (const row of dbResult.rows as any[]) {
     if (row.providerSku) dbMap.set(row.providerSku, row)
   }
-  console.log(`[cron-sync] Invid: ${dbMap.size} products in DB`)
+  logger.debug(`[cron-sync] Invid: ${dbMap.size} products in DB`)
 
   // Step 2: Fetch all products from Invid API (paginated)
   const apiProducts = new Map<string, { stock: number; price: number; costPrice: number }>()
@@ -306,7 +307,7 @@ async function syncInvidStock(): Promise<{ ok: boolean; updated: number; errors:
     }
   }
 
-  console.log(`[cron-sync] Invid: ${apiProducts.size} products from API`)
+  logger.debug(`[cron-sync] Invid: ${apiProducts.size} products from API`)
 
   // Compare and build updates
   const now = new Date().toISOString()
@@ -526,7 +527,7 @@ async function syncAirIntraStock(): Promise<{ ok: boolean; updated: number; erro
     }
     loginToken = authData.token
     loginExchangeRate = parseFloat(authData.cotiza || '0')
-    console.log(`[cron-sync] Air Intra: Login OK. Cotización: ${loginExchangeRate}`)
+    logger.debug(`[cron-sync] Air Intra: Login OK. Cotización: ${loginExchangeRate}`)
   } catch (err: any) {
     return { ok: false, updated: 0, errors: 1, message: `Air Intra auth error: ${err.message}` }
   }
@@ -540,7 +541,7 @@ async function syncAirIntraStock(): Promise<{ ok: boolean; updated: number; erro
   for (const row of dbResult.rows as any[]) {
     if (row.providerSku) dbMap.set(row.providerSku, row)
   }
-  console.log(`[cron-sync] Air Intra: ${dbMap.size} products in DB`)
+  logger.debug(`[cron-sync] Air Intra: ${dbMap.size} products in DB`)
 
   // Step 2: Fetch CHUNK of pages (rotación circular con persistencia)
   const PAGES_PER_RUN = 6
@@ -551,7 +552,7 @@ async function syncAirIntraStock(): Promise<{ ok: boolean; updated: number; erro
   const pagesToFetch: number[] = []
   for (let p = startPage; p < endPageExclusive; p++) pagesToFetch.push(p)
 
-  console.log(`[cron-sync] Air Intra: procesando páginas ${startPage}..${endPageExclusive - 1} (rotación circular desde store_config)`)
+  logger.debug(`[cron-sync] Air Intra: procesando páginas ${startPage}..${endPageExclusive - 1} (rotación circular desde store_config)`)
 
   const apiProducts = new Map<string, { stock: number; price: number; costPrice: number; stockByWarehouse: string }>()
   let pagesProcessed = 0
@@ -560,7 +561,7 @@ async function syncAirIntraStock(): Promise<{ ok: boolean; updated: number; erro
 
   for (const page of pagesToFetch) {
     if (Date.now() - t0 > TIME_BUDGET_MS) {
-      console.log(`[cron-sync] Air Intra: time budget agotado (${Date.now() - t0}ms). Pausando en página ${page}.`)
+      logger.debug(`[cron-sync] Air Intra: time budget agotado (${Date.now() - t0}ms). Pausando en página ${page}.`)
       break
     }
 
@@ -580,7 +581,7 @@ async function syncAirIntraStock(): Promise<{ ok: boolean; updated: number; erro
           const errText = await productsRes.text().catch(() => '')
           if (errText.includes('Too many queries') || errText.includes('error_id":403')) {
             if (attempt === 0) {
-              console.log(`[cron-sync] Air Intra: Rate limited en página ${page}. Esperando 30s antes de retry...`)
+              logger.debug(`[cron-sync] Air Intra: Rate limited en página ${page}. Esperando 30s antes de retry...`)
               await new Promise(r => setTimeout(r, 30_000))
               // Re-login por si el token expiró
               try {
@@ -601,7 +602,7 @@ async function syncAirIntraStock(): Promise<{ ok: boolean; updated: number; erro
               continue
             }
             rateLimitedAt = page
-            console.log(`[cron-sync] Air Intra: rate limit persiste en página ${page} tras retry. Deteniendo chunk.`)
+            logger.debug(`[cron-sync] Air Intra: rate limit persiste en página ${page} tras retry. Deteniendo chunk.`)
             break
           }
           console.error(`[cron-sync] Air Intra API error: HTTP ${productsRes.status} on page ${page}`)
@@ -612,7 +613,7 @@ async function syncAirIntraStock(): Promise<{ ok: boolean; updated: number; erro
 
         if (error || !products || !Array.isArray(products) || products.length === 0) {
           // Empty page = end of catalog
-          console.log(`[cron-sync] Air Intra: página ${page} vacía → fin de catálogo. Reset a página 0.`)
+          logger.debug(`[cron-sync] Air Intra: página ${page} vacía → fin de catálogo. Reset a página 0.`)
           reachedEndOfCatalog = true
           pageSucceeded = true
           break
@@ -677,9 +678,9 @@ async function syncAirIntraStock(): Promise<{ ok: boolean; updated: number; erro
     if (nextPage >= ESTIMATED_TOTAL_PAGES) nextPage = 0
   }
   await setNextPage(nextPage)
-  console.log(`[cron-sync] Air Intra: próxima ejecución arrancará en página ${nextPage}`)
+  logger.debug(`[cron-sync] Air Intra: próxima ejecución arrancará en página ${nextPage}`)
 
-  console.log(`[cron-sync] Air Intra: ${apiProducts.size} products fetched en ${pagesProcessed}/${pagesToFetch.length} páginas`)
+  logger.debug(`[cron-sync] Air Intra: ${apiProducts.size} products fetched en ${pagesProcessed}/${pagesToFetch.length} páginas`)
 
   // Step 3: Compare and build updates (only existing products, no new ones)
   const now = new Date().toISOString()

@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { grokChat } from '@/lib/grok'
 import { db } from '@/lib/db'
+import { getCurrentAdmin } from '@/lib/admin-auth'
 
 // Sesión 44 round 8: migrado a Edge runtime para no consumir Fluid Active CPU.
+// Sesión 45 QA Fase 1: movido a /api/admin/ + auth explícito (defense in depth).
+// Antes era público bajo /api/ → cualquiera podía escribir a la DB y disparar costos de IA.
 export const runtime = 'edge'
 export const maxDuration = 25
 
@@ -122,6 +125,12 @@ async function generateDescriptionForProduct(productId: string): Promise<{ ok: b
 
 export async function POST(request: NextRequest) {
   try {
+    // Sesión 45 QA Fase 1: auth explícito (defense in depth).
+    // El middleware ya protege /api/admin/*, pero como este endpoint corre en Edge
+    // runtime y escribe a la DB, verificamos auth acá también.
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
     // 1. Check feature flag
     const aiEnabled = await isAiEnabled()
     if (!aiEnabled) {

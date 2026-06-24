@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { logger } from '@/lib/logger'
 import { grokChat } from '@/lib/grok'
 import { db } from '@/lib/db'
 import { fetchDollarRate, calculateProductPrices } from '@/lib/dollar'
@@ -252,7 +253,7 @@ async function fetchAllProductsWithArsPrices(): Promise<Map<string, ProductWithA
 
     try {
       const dollar = await fetchDollarRate()
-      console.log(`[pc-assistant] Dollar rate: ${dollar.rate}`)
+      logger.debug(`[pc-assistant] Dollar rate: ${dollar.rate}`)
 
       const markupResult = await db.execute({ sql: "SELECT value FROM store_config WHERE key = 'markup'", args: [] })
       const markupRows = markupResult.rows as any[]
@@ -289,7 +290,7 @@ async function fetchAllProductsWithArsPrices(): Promise<Map<string, ProductWithA
         const prices = products.map(p => p.arsComparePrice).filter(p => p > 0)
         const minP = prices.length > 0 ? Math.min(...prices) : 0
         const maxP = prices.length > 0 ? Math.max(...prices) : 0
-        console.log(`[pc-assistant] ${slot}: ${products.length} products, ARS range: $${Math.round(minP).toLocaleString()} - $${Math.round(maxP).toLocaleString()}`)
+        logger.debug(`[pc-assistant] ${slot}: ${products.length} products, ARS range: $${Math.round(minP).toLocaleString()} - $${Math.round(maxP).toLocaleString()}`)
       }
     }
 
@@ -581,7 +582,7 @@ function buildConfiguration(
   // Log the full build
   const totalPrice = components.reduce((sum, c) => sum + c.productComparePrice * c.quantity, 0)
   debugLog.push(`Total: $${Math.round(totalPrice).toLocaleString()} ARS (${components.length} components)`)
-  console.log(`[pc-assistant] Build result:\n${debugLog.join('\n')}`)
+  logger.debug(`[pc-assistant] Build result:\n${debugLog.join('\n')}`)
 
   return components
 }
@@ -831,7 +832,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Ready to build! Fetch all products upfront
-    console.log(`[pc-assistant] Building configs for useCase=${useCase}, budget=${budget}`)
+    logger.debug(`[pc-assistant] Building configs for useCase=${useCase}, budget=${budget}`)
 
     const allProducts = await fetchAllProductsWithArsPrices()
     const profile = BUDGET_PROFILES[useCase] || BUDGET_PROFILES.general

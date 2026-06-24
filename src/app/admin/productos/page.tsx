@@ -675,7 +675,7 @@ export default function AdminProductos() {
               setBatchAiLoading(true)
               setBatchAiResult(null)
               try {
-                const res = await fetch('/api/generate-description', {
+                const res = await fetch('/api/admin/generate-description', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ batch: true }),
@@ -1068,7 +1068,7 @@ export default function AdminProductos() {
                       onClick={async () => {
                         setGeneratingAiId(product.id)
                         try {
-                          const res = await fetch('/api/generate-description', {
+                          const res = await fetch('/api/admin/generate-description', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ productId: product.id }),
@@ -1324,7 +1324,7 @@ export default function AdminProductos() {
                               onClick={async () => {
                                 setGeneratingAiId(product.id)
                                 try {
-                                  const res = await fetch('/api/generate-description', {
+                                  const res = await fetch('/api/admin/generate-description', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({ productId: product.id }),
@@ -1463,7 +1463,7 @@ export default function AdminProductos() {
                     onClick={async () => {
                       setGeneratingDescription(true)
                       try {
-                        const res = await fetch('/api/generate-description', {
+                        const res = await fetch('/api/admin/generate-description', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ productId: editingId }),

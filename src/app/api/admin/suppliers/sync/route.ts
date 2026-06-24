@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { logger } from '@/lib/logger'
 import { db } from '@/lib/db'
 import { formatProductName, generateSlug } from '@/lib/format-product'
 import { getCurrentAdmin } from '@/lib/admin-auth'
@@ -1293,7 +1294,7 @@ async function safeParseAirIntraResponse(res: Response): Promise<{ data: any; er
     }
     return { data, error: null }
   } catch (firstError: any) {
-    console.log(`[Air Intra] First JSON parse failed (${jsonText.length} chars): ${firstError.message}`)
+    logger.debug(`[Air Intra] First JSON parse failed (${jsonText.length} chars): ${firstError.message}`)
   }
 
   // Step 4: If direct parse failed, try more aggressive cleanup
@@ -1318,10 +1319,10 @@ async function safeParseAirIntraResponse(res: Response): Promise<{ data: any; er
       }
       return { data: null, error: `Error API Air Intra (${data.error_id}): ${data.error_name || ''}` }
     }
-    console.log('[Air Intra] Aggressive cleanup parse succeeded')
+    logger.debug('[Air Intra] Aggressive cleanup parse succeeded')
     return { data, error: null }
   } catch (secondError: any) {
-    console.log(`[Air Intra] Aggressive cleanup parse also failed: ${secondError.message}`)
+    logger.debug(`[Air Intra] Aggressive cleanup parse also failed: ${secondError.message}`)
 
     // Try to find the error position for debugging
     const posMatch = secondError.message.match(/position\s+(\d+)/i)
@@ -1436,7 +1437,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
 
     // Pre-load existing products for this supplier (in-memory lookup for speed)
     // This avoids a SELECT query per product during the upsert phase
-    console.log('[Air Intra] Pre-loading existing products from DB...')
+    logger.debug('[Air Intra] Pre-loading existing products from DB...')
     const existingProductsResult = await db.execute({
       sql: 'SELECT id, providerSku, slug FROM products WHERE providerId = ?',
       args: [supplier.id],
@@ -1447,10 +1448,10 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
       if (row.providerSku) existingBySku[row.providerSku] = { id: row.id, slug: row.slug }
       if (row.slug) allExistingSlugs.add(row.slug)
     }
-    console.log(`[Air Intra] Loaded ${Object.keys(existingBySku).length} existing products`)
+    logger.debug(`[Air Intra] Loaded ${Object.keys(existingBySku).length} existing products`)
 
     // Step 1: Login to get a fresh token
-    console.log('[Air Intra] Logging in...')
+    logger.debug('[Air Intra] Logging in...')
     const authRes = await fetch(`${baseUrl}/?q=login&user=${encodeURIComponent(supplier.apiUsername)}&pass=${encodeURIComponent(supplier.apiPassword)}`)
 
     if (!authRes.ok) {
@@ -1466,13 +1467,13 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
 
     const token = authData.token
     const exchangeRate = parseFloat(authData.cotiza || '0')
-    console.log(`[Air Intra] Login OK. Cotización: ${exchangeRate}`)
+    logger.debug(`[Air Intra] Login OK. Cotización: ${exchangeRate}`)
 
     // Step 2: Use articulos endpoint for richer data (includes rubro, grupo, garantia)
     // The articulos endpoint has category and warranty data that syp lacks.
     // We use a robust multi-layer parser to handle PHP notices in the response.
     const endpoint = 'articulos'
-    console.log(`[Air Intra] Using endpoint: ${endpoint}`)
+    logger.debug(`[Air Intra] Using endpoint: ${endpoint}`)
 
     // Step 3: Fetch products page by page
     // Per Air Intra docs: pages can be fetched sequentially without delay.
@@ -1492,7 +1493,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
     const allFetchedSkus = new Set<string>()
 
     while (page < MAX_PAGES) {
-      console.log(`[Air Intra] Fetching page ${page}...`)
+      logger.debug(`[Air Intra] Fetching page ${page}...`)
       let products: any[] | null = null
       let pageSucceeded = false
       let retryCount = 0
@@ -1515,7 +1516,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
 
             // Check for rate limit error in the response body
             if (errText.includes('Too many queries') || errText.includes('error_id":403')) {
-              console.log(`[Air Intra] Rate limited on page ${page}. Stopping sync.`)
+              logger.debug(`[Air Intra] Rate limited on page ${page}. Stopping sync.`)
               result.message = `Rate limit de Air Intra alcanzado en página ${page}. Se sincronizaron ${totalFetched} productos. Intente de nuevo en 5 minutos.`
               result.ok = totalFetched > 0
               result.total = totalFetched
@@ -1532,7 +1533,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
             }
 
             if (retryCount < MAX_RETRIES) {
-              console.log(`[Air Intra] HTTP ${productsRes.status} on page ${page}, retrying (${retryCount + 1}/${MAX_RETRIES})...`)
+              logger.debug(`[Air Intra] HTTP ${productsRes.status} on page ${page}, retrying (${retryCount + 1}/${MAX_RETRIES})...`)
               retryCount++
               await new Promise(r => setTimeout(r, 2000)) // Wait 2s before retry
               continue
@@ -1558,14 +1559,14 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
           })()
 
           if (parseError) {
-            console.log(`[Air Intra] Standard parse failed on page ${page}: ${parseError}. Trying object extraction...`)
+            logger.debug(`[Air Intra] Standard parse failed on page ${page}: ${parseError}. Trying object extraction...`)
 
             // Fallback: extract individual product objects from the corrupted response
             if (rawResponseText) {
               const cleanedText = stripPhpNotices(rawResponseText)
               products = extractProductsFromCorruptedJson(cleanedText)
               usedExtractionFallback = true
-              console.log(`[Air Intra] Extracted ${products.length} products from corrupted page ${page}`)
+              logger.debug(`[Air Intra] Extracted ${products.length} products from corrupted page ${page}`)
             }
 
             if (!products || products.length === 0) {
@@ -1581,7 +1582,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
                 return result
               }
               // On later pages, treat empty result as end of data
-              console.log(`[Air Intra] Page ${page} returned 0 products (possibly end of data). Stopping.`)
+              logger.debug(`[Air Intra] Page ${page} returned 0 products (possibly end of data). Stopping.`)
               pageSucceeded = true  // Mark as succeeded so we exit retry loop
               consecutiveEmptyPages++
               break
@@ -1590,7 +1591,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
           } else {
             if (!Array.isArray(parsedProducts) || parsedProducts.length === 0) {
               // Truly empty page — end of data
-              console.log(`[Air Intra] Page ${page} returned empty array. End of data.`)
+              logger.debug(`[Air Intra] Page ${page} returned empty array. End of data.`)
               pageSucceeded = true
               consecutiveEmptyPages++
               break
@@ -1624,17 +1625,17 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
 
                 if (recoveredCount > 0) {
                   totalRecoveredByExtractor += recoveredCount
-                  console.log(`[Air Intra] ⚡ Recovery on page ${page}: standard parse had ${products.length - recoveredCount}, extractor found ${recoveredCount} additional. Total: ${products.length}`)
+                  logger.debug(`[Air Intra] ⚡ Recovery on page ${page}: standard parse had ${products.length - recoveredCount}, extractor found ${recoveredCount} additional. Total: ${products.length}`)
                 }
               } else {
-                console.log(`[Air Intra] Page ${page} verification: standard ${products.length} vs extractor ${extractedProducts.length}`)
+                logger.debug(`[Air Intra] Page ${page} verification: standard ${products.length} vs extractor ${extractedProducts.length}`)
               }
             }
             pageSucceeded = true
           }
         } catch (fetchErr: any) {
           if (retryCount < MAX_RETRIES) {
-            console.log(`[Air Intra] Fetch error on page ${page}: ${fetchErr.message}. Retrying (${retryCount + 1}/${MAX_RETRIES})...`)
+            logger.debug(`[Air Intra] Fetch error on page ${page}: ${fetchErr.message}. Retrying (${retryCount + 1}/${MAX_RETRIES})...`)
             retryCount++
             await new Promise(r => setTimeout(r, 2000))
             continue
@@ -1654,7 +1655,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
           break
         }
         // One empty page might be corruption — try one more page
-        console.log(`[Air Intra] Page ${page} had 0 products. Trying next page to confirm end of data...`)
+        logger.debug(`[Air Intra] Page ${page} had 0 products. Trying next page to confirm end of data...`)
         page++
         continue
       }
@@ -1776,7 +1777,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
         await Promise.all(batch)
       }
 
-      console.log(`[Air Intra] Page ${page} processed: ${products.length} items (total: ${totalFetched})`)
+      logger.debug(`[Air Intra] Page ${page} processed: ${products.length} items (total: ${totalFetched})`)
       page++
 
       // ==========================================
@@ -1788,7 +1789,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
       // The MAX_PAGES safety limit prevents infinite loops.
       // ==========================================
       if (products.length === 0) {
-        console.log(`[Air Intra] Page ${page - 1} had 0 products — end of data.`)
+        logger.debug(`[Air Intra] Page ${page - 1} had 0 products — end of data.`)
         break
       }
       // NO delay between pages - Air Intra docs confirm pagination is immediate
@@ -1802,7 +1803,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
     // in the 'syp' endpoint. We paginate through 'syp' and add any products
     // that are not already in the DB from the 'articulos' pass.
     // ==========================================
-    console.log('[Air Intra] Starting supplementary syp endpoint sync...')
+    logger.debug('[Air Intra] Starting supplementary syp endpoint sync...')
     const sypMarkup = supplier.markup || 30
     let sypCreated = 0
     let sypUpdated = 0
@@ -1811,7 +1812,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
     const sypEndpoint = 'syp'
 
     while (sypPage < SYP_MAX_PAGES) {
-      console.log(`[Air Intra] Fetching syp page ${sypPage}...`)
+      logger.debug(`[Air Intra] Fetching syp page ${sypPage}...`)
       try {
         const sypRes = await fetch(`${baseUrl}/?q=${sypEndpoint}&page=${sypPage}`, {
           method: 'POST',
@@ -1826,17 +1827,17 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
           const errText = await sypRes.text().catch(() => '')
           // Rate limit: stop the syp sync gracefully
           if (errText.includes('Too many queries') || errText.includes('error_id":403')) {
-            console.log('[Air Intra] Rate limited during syp sync. Stopping supplementary pass.')
+            logger.debug('[Air Intra] Rate limited during syp sync. Stopping supplementary pass.')
             break
           }
-          console.log(`[Air Intra] syp HTTP ${sypRes.status}. Stopping supplementary pass.`)
+          logger.debug(`[Air Intra] syp HTTP ${sypRes.status}. Stopping supplementary pass.`)
           break
         }
 
         const { data: sypData, error: sypError } = await safeParseAirIntraResponse(sypRes)
 
         if (sypError || !Array.isArray(sypData) || sypData.length === 0) {
-          console.log(`[Air Intra] syp page ${sypPage} returned 0 products or error. End of syp data.`)
+          logger.debug(`[Air Intra] syp page ${sypPage} returned 0 products or error. End of syp data.`)
           break
         }
 
@@ -1921,7 +1922,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
                   sypCreated++
                   created++
                   existingBySku[providerSku] = { id: newId, slug }
-                  console.log(`[Air Intra] syp: added "${formattedName}" (SKU: ${providerSku})`)
+                  logger.debug(`[Air Intra] syp: added "${formattedName}" (SKU: ${providerSku})`)
                 }).catch((err) => { console.error('Error inserting syp product:', err); errors++ })
               )
             }
@@ -1940,11 +1941,11 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
           await Promise.all(batch.map(fn => fn()))
         }
 
-        console.log(`[Air Intra] syp page ${sypPage}: ${sypData.length} items processed`)
+        logger.debug(`[Air Intra] syp page ${sypPage}: ${sypData.length} items processed`)
 
         // If less than 500, this was the last page
         if (sypData.length < 500) {
-          console.log('[Air Intra] syp: last page reached.')
+          logger.debug('[Air Intra] syp: last page reached.')
           break
         }
 
@@ -1956,9 +1957,9 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
     }
 
     if (sypCreated > 0 || sypUpdated > 0) {
-      console.log(`[Air Intra] syp supplementary sync: ${sypCreated} new + ${sypUpdated} updated`)
+      logger.debug(`[Air Intra] syp supplementary sync: ${sypCreated} new + ${sypUpdated} updated`)
     } else {
-      console.log('[Air Intra] syp supplementary sync: no new products found')
+      logger.debug('[Air Intra] syp supplementary sync: no new products found')
     }
 
     // ==========================================
@@ -1975,7 +1976,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
       })
       const nullCatProducts = nullCatResult.rows as any[]
       if (nullCatProducts.length > 0) {
-        console.log(`[Air Intra] Attempting to recategorize ${nullCatProducts.length} products with NULL category...`)
+        logger.debug(`[Air Intra] Attempting to recategorize ${nullCatProducts.length} products with NULL category...`)
         let recategorized = 0
         for (const product of nullCatProducts) {
           const { categoryId: newCatId } = mapProductToCategory(
@@ -1989,7 +1990,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
             recategorized++
           }
         }
-        console.log(`[Air Intra] Recategorized ${recategorized} of ${nullCatProducts.length} NULL-category products`)
+        logger.debug(`[Air Intra] Recategorized ${recategorized} of ${nullCatProducts.length} NULL-category products`)
       }
     } catch (recatErr) {
       console.error('[Air Intra] Recategorization error:', recatErr)
@@ -2013,14 +2014,14 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
         args: [supplier.id],
       })
       const dbTotal = (dbCount.rows as any[])[0]?.cnt || 0
-      console.log(`[Air Intra] Post-sync verification: synced ${totalFetched} from API, ${dbTotal} in DB`)
+      logger.debug(`[Air Intra] Post-sync verification: synced ${totalFetched} from API, ${dbTotal} in DB`)
 
       if (totalFetched > 0 && dbTotal > 0 && totalFetched < dbTotal * 0.85) {
         // We synced way fewer products than what the DB has — this is normal
         // because the DB accumulates products over time and some may have been
         // deleted from the supplier. But if it's a FRESH sync and the API
         // returned fewer than expected, it could indicate data loss.
-        console.log(`[Air Intra] ⚠️ Warning: synced ${totalFetched} products but DB has ${dbTotal}. Some products may have been lost during sync due to corrupted JSON.`)
+        logger.debug(`[Air Intra] ⚠️ Warning: synced ${totalFetched} products but DB has ${dbTotal}. Some products may have been lost during sync due to corrupted JSON.`)
       }
     } catch (verifyErr) {
       // Don't fail the sync if verification fails
@@ -2111,7 +2112,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
           args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, stockByWarehouseJson, isActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, supplierCategory],
         })
         existingBySku[providerSku] = { id: newId, slug }
-        console.log(`[Air Intra] Recovery: added "${formattedName}" (SKU: ${providerSku})`)
+        logger.debug(`[Air Intra] Recovery: added "${formattedName}" (SKU: ${providerSku})`)
         return { action: 'created' }
       }
     }
@@ -2123,7 +2124,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
       const searchUrl = `${baseUrl}/?q=${endpoint}&page=0`
       
       try {
-        console.log(`[Air Intra] Recovery search: ${description}`)
+        logger.debug(`[Air Intra] Recovery search: ${description}`)
         let recoveryRes = await fetch(searchUrl, {
           method: 'POST',
           headers: {
@@ -2137,11 +2138,11 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
         if (recoveryRes.status === 403) {
           const errText = await recoveryRes.text().catch(() => '')
           if (errText.includes('Too many queries')) {
-            console.log(`[Air Intra] Recovery "${description}" rate-limited. Waiting 5 minutes before retry...`)
+            logger.debug(`[Air Intra] Recovery "${description}" rate-limited. Waiting 5 minutes before retry...`)
             await new Promise(r => setTimeout(r, 5 * 60 * 1000))
             
             // Re-login after waiting (token may have expired)
-            console.log('[Air Intra] Re-logging in after rate limit wait...')
+            logger.debug('[Air Intra] Re-logging in after rate limit wait...')
             const reAuthRes = await fetch(`${baseUrl}/?q=login&user=${encodeURIComponent(supplier.apiUsername)}&pass=${encodeURIComponent(supplier.apiPassword)}`)
             if (reAuthRes.ok) {
               const { data: reAuthData, error: reAuthError } = await safeParseAirIntraResponse(reAuthRes)
@@ -2156,31 +2157,31 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
                   body: JSON.stringify(searchParams),
                 })
               } else {
-                console.log(`[Air Intra] Re-login failed: ${reAuthError}. Skipping recovery "${description}".`)
+                logger.debug(`[Air Intra] Re-login failed: ${reAuthError}. Skipping recovery "${description}".`)
                 return null
               }
             } else {
-              console.log(`[Air Intra] Re-login HTTP ${reAuthRes.status}. Skipping recovery "${description}".`)
+              logger.debug(`[Air Intra] Re-login HTTP ${reAuthRes.status}. Skipping recovery "${description}".`)
               return null
             }
           }
         }
 
         if (!recoveryRes.ok) {
-          console.log(`[Air Intra] Recovery "${description}" HTTP ${recoveryRes.status}. Skipping.`)
+          logger.debug(`[Air Intra] Recovery "${description}" HTTP ${recoveryRes.status}. Skipping.`)
           return null
         }
 
         const { data: recoveryData, error: recoveryError } = await safeParseAirIntraResponse(recoveryRes)
         if (recoveryError) {
-          console.log(`[Air Intra] Recovery "${description}" parse error: ${recoveryError}`)
+          logger.debug(`[Air Intra] Recovery "${description}" parse error: ${recoveryError}`)
           return null
         }
         if (!Array.isArray(recoveryData) || recoveryData.length === 0) {
-          console.log(`[Air Intra] Recovery "${description}": 0 results`)
+          logger.debug(`[Air Intra] Recovery "${description}": 0 results`)
           return null
         }
-        console.log(`[Air Intra] Recovery "${description}": found ${recoveryData.length} products`)
+        logger.debug(`[Air Intra] Recovery "${description}": found ${recoveryData.length} products`)
         return recoveryData
       } catch (recoveryErr) {
         console.error(`[Air Intra] Recovery search error for "${description}":`, recoveryErr)
@@ -2244,7 +2245,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
             const skuStr = String(sku)
             if (!dbSkuSet.has(skuStr) && allFetchedSkus.has(skuStr)) {
               // We fetched this SKU from API but it's not in DB - this is a processing error
-              console.log(`[Air Intra] Detected fetched-but-not-in-DB SKU: ${skuStr}`)
+              logger.debug(`[Air Intra] Detected fetched-but-not-in-DB SKU: ${skuStr}`)
               MISSING_SKUS.push(skuStr)
             }
           }
@@ -2266,7 +2267,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
     }
     
     if (MISSING_SKUS.length > 0) {
-      console.log(`[Air Intra] Found ${MISSING_SKUS.length} potentially missing SKUs to recover: ${MISSING_SKUS.slice(0, 20).join(', ')}${MISSING_SKUS.length > 20 ? '...' : ''}`)
+      logger.debug(`[Air Intra] Found ${MISSING_SKUS.length} potentially missing SKUs to recover: ${MISSING_SKUS.slice(0, 20).join(', ')}${MISSING_SKUS.length > 20 ? '...' : ''}`)
       // Search for each missing SKU using codiart parameter (max 20 to avoid excessive API calls)
       const skusToSearch = MISSING_SKUS.slice(0, 20)
       for (const sku of skusToSearch) {
@@ -2288,7 +2289,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
     }
 
     if (recoveryCreated > 0 || recoveryUpdated > 0) {
-      console.log(`[Air Intra] Recovery total: ${recoveryCreated} new + ${recoveryUpdated} updated via targeted search`)
+      logger.debug(`[Air Intra] Recovery total: ${recoveryCreated} new + ${recoveryUpdated} updated via targeted search`)
     }
 
     result.ok = true
@@ -2359,7 +2360,7 @@ async function setAirIntraCooldown(msFromNow: number = AIRINTRA_COOLDOWN_MS): Pr
             ON CONFLICT(key) DO UPDATE SET value = excluded.value, updatedAt = excluded.updatedAt`,
       args: [`cfg_${AIRINTRA_COOLDOWN_KEY}`, AIRINTRA_COOLDOWN_KEY, until, new Date().toISOString()],
     })
-    console.log(`[Air Intra] Cooldown set until ${until}`)
+    logger.debug(`[Air Intra] Cooldown set until ${until}`)
   } catch (e) {
     console.error('[Air Intra] Failed to set cooldown:', e)
   }
@@ -2493,7 +2494,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
   const baseUrl = supplier.apiBaseUrl || 'https://api.air-intra.com/v2'
   const result: SyncResult = { ok: false, total: 0, created: 0, updated: 0, skipped: 0, errors: 0, message: '' }
   const t0 = Date.now()
-  const logTime = (label: string) => console.log(`[Air Intra Batch ⏱] ${label}: ${Date.now() - t0}ms`)
+  const logTime = (label: string) => logger.debug(`[Air Intra Batch ⏱] ${label}: ${Date.now() - t0}ms`)
 
   try {
     // ─── Cooldown check ────────────────────────────────────────────────────
@@ -2505,7 +2506,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
       const waitSeconds = Math.ceil(cooldownMs / 1000)
       const waitMinutes = Math.ceil(waitSeconds / 60)
       result.message = `RATE_LIMITED_COOLDOWN: Air Intra está enfriando tras un rate limit severo. Espere ~${waitMinutes} minuto(s) (${waitSeconds}s) e intente de nuevo.`
-      console.log(`[Air Intra Batch] Refused: cooldown active for ${waitSeconds}s more.`)
+      logger.debug(`[Air Intra Batch] Refused: cooldown active for ${waitSeconds}s more.`)
       return result
     }
 
@@ -2523,7 +2524,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
       const lastPage = await getAirIntraLastSyncPage()
       if (lastPage >= 0) {
         const resumeFrom = lastPage + 1
-        console.log(`[Air Intra Batch] Resuming from page ${resumeFrom} (last successful page was ${lastPage}).`)
+        logger.debug(`[Air Intra Batch] Resuming from page ${resumeFrom} (last successful page was ${lastPage}).`)
         batch = { ...batch, startPage: resumeFrom, endPage: resumeFrom + (batch.endPage - batch.startPage) }
       }
     }
@@ -2550,7 +2551,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
     logTime('category lookups built')
 
     // Pre-load existing products for this supplier (fresh for each batch)
-    console.log(`[Air Intra Batch] Pre-loading existing products from DB...`)
+    logger.debug(`[Air Intra Batch] Pre-loading existing products from DB...`)
     const existingProductsResult = await db.execute({
       sql: 'SELECT id, providerSku, slug FROM products WHERE providerId = ?',
       args: [supplier.id],
@@ -2565,7 +2566,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
       }
       if (row.slug) allExistingSlugs.add(row.slug)
     }
-    console.log(`[Air Intra Batch] Loaded ${Object.keys(existingBySku).length} existing products`)
+    logger.debug(`[Air Intra Batch] Loaded ${Object.keys(existingBySku).length} existing products`)
     logTime('existing products loaded')
 
     // Login if no token provided
@@ -2573,7 +2574,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
     let exchangeRate = batch.exchangeRate || 0
 
     if (!token) {
-      console.log('[Air Intra Batch] Logging in...')
+      logger.debug('[Air Intra Batch] Logging in...')
       const authRes = await fetch(`${baseUrl}/?q=login&user=${encodeURIComponent(supplier.apiUsername)}&pass=${encodeURIComponent(supplier.apiPassword)}`)
 
       if (!authRes.ok) {
@@ -2589,7 +2590,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
 
       token = authData.token
       exchangeRate = parseFloat(authData.cotiza || '0')
-      console.log(`[Air Intra Batch] Login OK. Cotización: ${exchangeRate}`)
+      logger.debug(`[Air Intra Batch] Login OK. Cotización: ${exchangeRate}`)
       logTime('login')
     }
 
@@ -2608,7 +2609,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
     let lastProcessedPage = batch.startPage - 1
 
     for (let page = batch.startPage; page <= batch.endPage; page++) {
-      console.log(`[Air Intra Batch] Fetching page ${page}...`)
+      logger.debug(`[Air Intra Batch] Fetching page ${page}...`)
       const pageT0 = Date.now()
       let products: any[] | null = null
       let pageSucceeded = false
@@ -2632,7 +2633,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
 
             // Check for rate limit error
             if (errText.includes('Too many queries') || errText.includes('error_id":403')) {
-              console.log(`[Air Intra Batch] Rate limited on page ${page}. Stopping batch.`)
+              logger.debug(`[Air Intra Batch] Rate limited on page ${page}. Stopping batch.`)
               // Set a short cooldown (5 min) — the API explicitly told us to back off.
               await setAirIntraCooldown(5 * 60 * 1000)
               result.message = `RATE_LIMITED_COOLDOWN: Rate limit de Air Intra alcanzado en página ${page}. Se procesaron ${totalFetched} productos en este lote. Cooldown de 5 minutos activado.`
@@ -2650,7 +2651,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
             }
 
             if (retryCount < MAX_RETRIES) {
-              console.log(`[Air Intra Batch] HTTP ${productsRes.status} on page ${page}, retrying (${retryCount + 1}/${MAX_RETRIES})...`)
+              logger.debug(`[Air Intra Batch] HTTP ${productsRes.status} on page ${page}, retrying (${retryCount + 1}/${MAX_RETRIES})...`)
               retryCount++
               await new Promise(r => setTimeout(r, 2000))
               continue
@@ -2680,13 +2681,13 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
           })()
 
           if (parseError) {
-            console.log(`[Air Intra Batch] Standard parse failed on page ${page}: ${parseError}. Trying object extraction...`)
+            logger.debug(`[Air Intra Batch] Standard parse failed on page ${page}: ${parseError}. Trying object extraction...`)
 
             if (rawResponseText) {
               const cleanedText = stripPhpNotices(rawResponseText)
               products = extractProductsFromCorruptedJson(cleanedText)
               usedExtractionFallback = true
-              console.log(`[Air Intra Batch] Extracted ${products.length} products from corrupted page ${page}`)
+              logger.debug(`[Air Intra Batch] Extracted ${products.length} products from corrupted page ${page}`)
             }
 
             if (!products || products.length === 0) {
@@ -2699,7 +2700,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
                 result.skipped = skipped
                 return result
               }
-              console.log(`[Air Intra Batch] Page ${page} returned 0 products. Treating as end of data.`)
+              logger.debug(`[Air Intra Batch] Page ${page} returned 0 products. Treating as end of data.`)
               pageSucceeded = true
               reachedEnd = true
               break
@@ -2712,9 +2713,9 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
               const cleanedText = rawResponseText ? stripPhpNotices(rawResponseText) : ''
               const cleanedPreview = cleanedText.substring(0, 500)
               const rawLen = rawResponseText?.length || 0
-              console.log(`[Air Intra Batch] Page ${page} returned 0 products.`)
-              console.log(`[Air Intra Batch]   Raw response (${rawLen} bytes): ${rawPreview}`)
-              console.log(`[Air Intra Batch]   Cleaned response (${cleanedText.length} bytes): ${cleanedPreview}`)
+              logger.debug(`[Air Intra Batch] Page ${page} returned 0 products.`)
+              logger.debug(`[Air Intra Batch]   Raw response (${rawLen} bytes): ${rawPreview}`)
+              logger.debug(`[Air Intra Batch]   Cleaned response (${cleanedText.length} bytes): ${cleanedPreview}`)
 
               // ─── Distinguish broken page from end-of-data ───────────────────────
               // A LEGITIMATE end-of-data response is small: just `[]` (2 bytes) or
@@ -2737,7 +2738,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
                 const brokenCount = await getAirIntraBrokenPageCount()
                 const newBrokenCount = brokenCount + 1
                 await setAirIntraBrokenPageCount(newBrokenCount)
-                console.log(`[Air Intra Batch] Page ${page} is a BROKEN PAGE (raw=${rawLen}B, cleaned=[]). Consecutive broken count: ${newBrokenCount}/${AIRINTRA_BROKEN_PAGE_THRESHOLD}`)
+                logger.debug(`[Air Intra Batch] Page ${page} is a BROKEN PAGE (raw=${rawLen}B, cleaned=[]). Consecutive broken count: ${newBrokenCount}/${AIRINTRA_BROKEN_PAGE_THRESHOLD}`)
 
                 if (newBrokenCount >= AIRINTRA_BROKEN_PAGE_THRESHOLD) {
                   // 3+ consecutive broken pages, ALL returning the same deterministic
@@ -2750,7 +2751,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
                   // as a diagnostic marker (not used for skipping pages — see resume
                   // logic above for why). Clear lastSyncPage + brokenPageCount.
                   const catalogEndPage = page - newBrokenCount
-                  console.log(`[Air Intra Batch] ${newBrokenCount} consecutive broken pages reached. Treating as END OF CATALOG (not rate limit). Catalog ends at page ${catalogEndPage}.`)
+                  logger.debug(`[Air Intra Batch] ${newBrokenCount} consecutive broken pages reached. Treating as END OF CATALOG (not rate limit). Catalog ends at page ${catalogEndPage}.`)
                   await setAirIntraCatalogEndPage(catalogEndPage)
                   await clearAirIntraLastSyncPage()
                   await clearAirIntraBrokenPageCount()
@@ -2788,7 +2789,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
               if (page === batch.startPage) {
                 // If the very first page of a batch returns a legitimate empty response,
                 // we've reached the end of the product catalog.
-                console.log(`[Air Intra Batch] Page ${page} returned legitimate empty array (raw=${rawLen}B). End of data.`)
+                logger.debug(`[Air Intra Batch] Page ${page} returned legitimate empty array (raw=${rawLen}B). End of data.`)
                 result.ok = true
                 result.total = totalFetched
                 result.created = created
@@ -2801,7 +2802,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
                 result.message = `Fin del catálogo alcanzado en página ${page} (${totalFetched} productos procesados en este lote).`
                 return result
               }
-              console.log(`[Air Intra Batch] Page ${page} returned empty array. End of data.`)
+              logger.debug(`[Air Intra Batch] Page ${page} returned empty array. End of data.`)
               pageSucceeded = true
               reachedEnd = true
               break
@@ -2813,7 +2814,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
             // detection starts fresh from the new end.
             const knownCatalogEnd = await getAirIntraCatalogEndPage()
             if (knownCatalogEnd >= 0 && page > knownCatalogEnd) {
-              console.log(`[Air Intra Batch] Page ${page} returned products past recorded catalog end (${knownCatalogEnd}). Catalog grew — clearing marker.`)
+              logger.debug(`[Air Intra Batch] Page ${page} returned products past recorded catalog end (${knownCatalogEnd}). Catalog grew — clearing marker.`)
               await clearAirIntraCatalogEndPage()
             }
             products = parsedProducts
@@ -2839,7 +2840,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
 
                 if (recoveredCount > 0) {
                   totalRecoveredByExtractor += recoveredCount
-                  console.log(`[Air Intra Batch] ⚡ Recovery on page ${page}: ${recoveredCount} additional products recovered. Total: ${products.length}`)
+                  logger.debug(`[Air Intra Batch] ⚡ Recovery on page ${page}: ${recoveredCount} additional products recovered. Total: ${products.length}`)
                 }
               }
             }
@@ -2847,7 +2848,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
           }
         } catch (fetchErr: any) {
           if (retryCount < MAX_RETRIES) {
-            console.log(`[Air Intra Batch] Fetch error on page ${page}: ${fetchErr.message}. Retrying (${retryCount + 1}/${MAX_RETRIES})...`)
+            logger.debug(`[Air Intra Batch] Fetch error on page ${page}: ${fetchErr.message}. Retrying (${retryCount + 1}/${MAX_RETRIES})...`)
             retryCount++
             await new Promise(r => setTimeout(r, 2000))
             continue
@@ -2981,10 +2982,10 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
         const batchChunk = dbOperations.slice(i, i + BATCH_CONCURRENCY)
         await Promise.all(batchChunk.map(fn => fn()))
       }
-      console.log(`[Air Intra Batch ⏱] Page ${page}: fetch=${Date.now() - pageT0}ms (API), DB writes=${Date.now() - dbT0}ms (${dbOperations.length} ops)`)
+      logger.debug(`[Air Intra Batch ⏱] Page ${page}: fetch=${Date.now() - pageT0}ms (API), DB writes=${Date.now() - dbT0}ms (${dbOperations.length} ops)`)
       logTime(`after page ${page} DB writes`)
 
-      console.log(`[Air Intra Batch] Page ${page} processed: ${products.length} items (batch total: ${totalFetched})`)
+      logger.debug(`[Air Intra Batch] Page ${page} processed: ${products.length} items (batch total: ${totalFetched})`)
 
       // Persist progress so a future retry can resume from page+1 instead of
       // re-fetching pages 0..N-1 that are already up-to-date in the DB.
@@ -3051,7 +3052,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
     const supplierMappings = await buildSupplierMappingLookup(supplier.id)
 
     // Pre-load existing products for syp/recovery dedup
-    console.log('[Air Intra Finalize] Pre-loading existing products from DB...')
+    logger.debug('[Air Intra Finalize] Pre-loading existing products from DB...')
     const existingProductsResult = await db.execute({
       sql: 'SELECT id, providerSku, slug FROM products WHERE providerId = ?',
       args: [supplier.id],
@@ -3066,7 +3067,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
       }
       if (row.slug) allExistingSlugs.add(row.slug)
     }
-    console.log(`[Air Intra Finalize] Loaded ${Object.keys(existingBySku).length} existing products`)
+    logger.debug(`[Air Intra Finalize] Loaded ${Object.keys(existingBySku).length} existing products`)
 
     let totalFetched = 0
     let created = 0
@@ -3077,7 +3078,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
     // ==========================================
     // SUPPLEMENTARY SYNC: syp endpoint
     // ==========================================
-    console.log('[Air Intra Finalize] Starting supplementary syp endpoint sync...')
+    logger.debug('[Air Intra Finalize] Starting supplementary syp endpoint sync...')
     const sypMarkup = supplier.markup || 30
     let sypCreated = 0
     let sypUpdated = 0
@@ -3088,7 +3089,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
     const sypEndpoint = 'syp'
 
     while (sypPage < SYP_MAX_PAGES) {
-      console.log(`[Air Intra Finalize] Fetching syp page ${sypPage}...`)
+      logger.debug(`[Air Intra Finalize] Fetching syp page ${sypPage}...`)
       try {
         const sypRes = await fetch(`${baseUrl}/?q=${sypEndpoint}&page=${sypPage}`, {
           method: 'POST',
@@ -3102,17 +3103,17 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
         if (!sypRes.ok) {
           const errText = await sypRes.text().catch(() => '')
           if (errText.includes('Too many queries') || errText.includes('error_id":403')) {
-            console.log('[Air Intra Finalize] Rate limited during syp sync. Stopping supplementary pass.')
+            logger.debug('[Air Intra Finalize] Rate limited during syp sync. Stopping supplementary pass.')
             break
           }
-          console.log(`[Air Intra Finalize] syp HTTP ${sypRes.status}. Stopping supplementary pass.`)
+          logger.debug(`[Air Intra Finalize] syp HTTP ${sypRes.status}. Stopping supplementary pass.`)
           break
         }
 
         const { data: sypData, error: sypError } = await safeParseAirIntraResponse(sypRes)
 
         if (sypError || !Array.isArray(sypData) || sypData.length === 0) {
-          console.log(`[Air Intra Finalize] syp page ${sypPage} returned 0 products or error. End of syp data.`)
+          logger.debug(`[Air Intra Finalize] syp page ${sypPage} returned 0 products or error. End of syp data.`)
           break
         }
 
@@ -3212,10 +3213,10 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
           await Promise.all(batchChunk.map(fn => fn()))
         }
 
-        console.log(`[Air Intra Finalize] syp page ${sypPage}: ${sypData.length} items processed`)
+        logger.debug(`[Air Intra Finalize] syp page ${sypPage}: ${sypData.length} items processed`)
 
         if (sypData.length < 500) {
-          console.log('[Air Intra Finalize] syp: last page reached.')
+          logger.debug('[Air Intra Finalize] syp: last page reached.')
           break
         }
 
@@ -3227,9 +3228,9 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
     }
 
     if (sypCreated > 0 || sypUpdated > 0) {
-      console.log(`[Air Intra Finalize] syp supplementary sync: ${sypCreated} new + ${sypUpdated} updated`)
+      logger.debug(`[Air Intra Finalize] syp supplementary sync: ${sypCreated} new + ${sypUpdated} updated`)
     } else {
-      console.log('[Air Intra Finalize] syp supplementary sync: no new products found')
+      logger.debug('[Air Intra Finalize] syp supplementary sync: no new products found')
     }
 
     // ==========================================
@@ -3242,7 +3243,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
       })
       const nullCatProducts = nullCatResult.rows as any[]
       if (nullCatProducts.length > 0) {
-        console.log(`[Air Intra Finalize] Attempting to recategorize ${nullCatProducts.length} products with NULL category...`)
+        logger.debug(`[Air Intra Finalize] Attempting to recategorize ${nullCatProducts.length} products with NULL category...`)
         let recategorized = 0
         for (const product of nullCatProducts) {
           const { categoryId: newCatId } = mapProductToCategory(
@@ -3256,7 +3257,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
             recategorized++
           }
         }
-        console.log(`[Air Intra Finalize] Recategorized ${recategorized} of ${nullCatProducts.length} NULL-category products`)
+        logger.debug(`[Air Intra Finalize] Recategorized ${recategorized} of ${nullCatProducts.length} NULL-category products`)
       }
     } catch (recatErr) {
       console.error('[Air Intra Finalize] Recategorization error:', recatErr)
@@ -3271,7 +3272,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
         args: [supplier.id],
       })
       const dbTotal = (dbCount.rows as any[])[0]?.cnt || 0
-      console.log(`[Air Intra Finalize] Post-sync verification: ${dbTotal} products in DB for this supplier`)
+      logger.debug(`[Air Intra Finalize] Post-sync verification: ${dbTotal} products in DB for this supplier`)
     } catch (verifyErr) {
       console.error('[Air Intra Finalize] Post-sync verification error:', verifyErr)
     }
@@ -3365,7 +3366,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
       const searchUrl = `${baseUrl}/?q=${endpoint}&page=0`
 
       try {
-        console.log(`[Air Intra Finalize] Recovery search: ${description}`)
+        logger.debug(`[Air Intra Finalize] Recovery search: ${description}`)
         const recoveryRes = await fetch(searchUrl, {
           method: 'POST',
           headers: {
@@ -3379,26 +3380,26 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
         if (recoveryRes.status === 403) {
           const errText = await recoveryRes.text().catch(() => '')
           if (errText.includes('Too many queries')) {
-            console.log(`[Air Intra Finalize] Recovery "${description}" rate-limited. Skipping (no wait to fit in 60s).`)
+            logger.debug(`[Air Intra Finalize] Recovery "${description}" rate-limited. Skipping (no wait to fit in 60s).`)
             return null
           }
         }
 
         if (!recoveryRes.ok) {
-          console.log(`[Air Intra Finalize] Recovery "${description}" HTTP ${recoveryRes.status}. Skipping.`)
+          logger.debug(`[Air Intra Finalize] Recovery "${description}" HTTP ${recoveryRes.status}. Skipping.`)
           return null
         }
 
         const { data: recoveryData, error: recoveryError } = await safeParseAirIntraResponse(recoveryRes)
         if (recoveryError) {
-          console.log(`[Air Intra Finalize] Recovery "${description}" parse error: ${recoveryError}`)
+          logger.debug(`[Air Intra Finalize] Recovery "${description}" parse error: ${recoveryError}`)
           return null
         }
         if (!Array.isArray(recoveryData) || recoveryData.length === 0) {
-          console.log(`[Air Intra Finalize] Recovery "${description}": 0 results`)
+          logger.debug(`[Air Intra Finalize] Recovery "${description}": 0 results`)
           return null
         }
-        console.log(`[Air Intra Finalize] Recovery "${description}": found ${recoveryData.length} products`)
+        logger.debug(`[Air Intra Finalize] Recovery "${description}": found ${recoveryData.length} products`)
         return recoveryData
       } catch (recoveryErr) {
         console.error(`[Air Intra Finalize] Recovery search error for "${description}":`, recoveryErr)
@@ -3468,7 +3469,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
     }
 
     if (MISSING_SKUS.length > 0) {
-      console.log(`[Air Intra Finalize] Found ${MISSING_SKUS.length} potentially missing SKUs to recover: ${MISSING_SKUS.slice(0, 20).join(', ')}${MISSING_SKUS.length > 20 ? '...' : ''}`)
+      logger.debug(`[Air Intra Finalize] Found ${MISSING_SKUS.length} potentially missing SKUs to recover: ${MISSING_SKUS.slice(0, 20).join(', ')}${MISSING_SKUS.length > 20 ? '...' : ''}`)
       // Reduced from 20 to 5 to fit within Vercel Hobby 60s timeout.
       // Each SKU search costs ~500ms wait + ~500ms fetch + DB writes = ~1-2s.
       const skusToSearch = MISSING_SKUS.slice(0, 5)
@@ -3491,7 +3492,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
     }
 
     if (recoveryCreated > 0 || recoveryUpdated > 0) {
-      console.log(`[Air Intra Finalize] Recovery total: ${recoveryCreated} new + ${recoveryUpdated} updated via targeted search`)
+      logger.debug(`[Air Intra Finalize] Recovery total: ${recoveryCreated} new + ${recoveryUpdated} updated via targeted search`)
     }
 
     // Update lastSyncAt
@@ -3512,7 +3513,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
       clearAirIntraLastSyncPage(),
       clearAirIntraBrokenPageCount(),
     ])
-    console.log('[Air Intra Finalize] Cleared cooldown + last sync page + broken page counter (cycle complete; catalog_end_page preserved if set).')
+    logger.debug('[Air Intra Finalize] Cleared cooldown + last sync page + broken page counter (cycle complete; catalog_end_page preserved if set).')
 
     result.ok = true
     result.total = totalFetched
@@ -3813,7 +3814,7 @@ export async function POST(request: Request) {
     // it will run after the finalize step when all pages are done.
     if (syncResult.ok && !syncResult.hasMore) {
       try {
-        console.log('[sync] Running post-sync category validation...')
+        logger.debug('[sync] Running post-sync category validation...')
         const catResult = await db.execute('SELECT id, slug FROM categories')
         const slugToId: Record<string, string> = {}
         for (const row of catResult.rows as any[]) {
@@ -3889,7 +3890,7 @@ export async function POST(request: Request) {
           autoFixed += results.reduce((a, b) => a + b, 0)
         }
         if (autoFixed > 0) {
-          console.log(`[sync] Post-sync validation: auto-fixed ${autoFixed} miscategorized products`)
+          logger.debug(`[sync] Post-sync validation: auto-fixed ${autoFixed} miscategorized products`)
           syncResult.message += ` | ${autoFixed} categorías corregidas automáticamente`
         }
       } catch (validationErr) {
