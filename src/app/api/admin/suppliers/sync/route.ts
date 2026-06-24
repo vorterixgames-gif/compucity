@@ -1157,8 +1157,8 @@ export async function syncInvid(supplier: any): Promise<SyncResult> {
             else if (product.STOCK_STATUS === 'BAJO STOCK') stock = 3
 
             await db.execute({
-              sql: `INSERT INTO products (id, name, slug, description, price, comparePrice, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              sql: `INSERT INTO products (id, name, slug, description, price, comparePrice, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory, ivaRate)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
               args: [
                 newId,
                 formattedName,
@@ -1753,8 +1753,8 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
 
             dbOperations.push(
               db.execute({
-                sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
-                      VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
+                sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory, ivaRate)
+                      VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, NULL)`,
                 args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, stockByWarehouseJson, airIntraIsActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, supplierCategory],
               }).then(() => {
                 created++
@@ -1915,8 +1915,8 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
 
               sypDbOps.push(() =>
                 db.execute({
-                  sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
-                        VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
+                  sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory, ivaRate)
+                        VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, NULL)`,
                   args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, stockByWarehouseJson, isActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, ''],
                 }).then(() => {
                   sypCreated++
@@ -2107,8 +2107,8 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
         if (product.estado?.name) specs['Estado'] = product.estado.name
 
         await db.execute({
-          sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
-                VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
+          sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory, ivaRate)
+                VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, NULL)`,
           args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, stockByWarehouseJson, isActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, supplierCategory],
         })
         existingBySku[providerSku] = { id: newId, slug }
@@ -2958,8 +2958,8 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
 
             dbOperations.push(() =>
               db.execute({
-                sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
-                      VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
+                sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory, ivaRate)
+                      VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, NULL)`,
                 args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, stockByWarehouseJson, airIntraIsActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, supplierCategory],
               }).then(() => {
                 created++
@@ -3188,8 +3188,8 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
 
               sypDbOps.push(() =>
                 db.execute({
-                  sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
-                        VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
+                  sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory, ivaRate)
+                        VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, NULL)`,
                   args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, stockByWarehouseJson, isActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, ''],
                 }).then(() => {
                   sypCreated++
@@ -3352,8 +3352,8 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
         if (product.estado?.name) specs['Estado'] = product.estado.name
 
         await db.execute({
-          sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
-                VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?)`,
+          sql: `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory, ivaRate)
+                VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, NULL)`,
           args: [newId, formattedName, slug, sellingPrice, costPrice, providerSku, totalStock, stockByWarehouseJson, isActive, 0, JSON.stringify(specs), supplier.id, providerSku, categoryId, supplierCategory],
         })
         existingBySku[providerSku] = { id: newId, slug }
@@ -3651,8 +3651,8 @@ export async function syncElit(supplier: any): Promise<SyncResult> {
             if (product.gamer) specs['Gamer'] = 'Sí'
 
             await db.execute({
-              sql: `INSERT INTO products (id, name, slug, description, price, comparePrice, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              sql: `INSERT INTO products (id, name, slug, description, price, comparePrice, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory, ivaRate)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
               args: [
                 newId,
                 formattedName,

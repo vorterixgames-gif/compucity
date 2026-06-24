@@ -611,7 +611,7 @@ async function main() {
         const specsJson = JSON.stringify(specs).replace(/'/g, "''")
 
         batchStmts.push(
-          `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, supplierCategory) VALUES ('${newId}', '${escapedName}', '${slug}', '', ${sellingPrice}, ${costPrice}, '${providerSku}', ${totalStock}, '${stockByWarehouseJson}', 1, 0, '[]', '${specsJson}', '${SUPPLIER_ID}', '${providerSku}', '${supplierCategory}')`
+          `INSERT INTO products (id, name, slug, description, price, costPrice, sku, stock, stockByWarehouse, isActive, isFeatured, images, specs, providerId, providerSku, supplierCategory, ivaRate) VALUES ('${newId}', '${escapedName}', '${slug}', '', ${sellingPrice}, ${costPrice}, '${providerSku}', ${totalStock}, '${stockByWarehouseJson}', 1, 0, '[]', '${specsJson}', '${SUPPLIER_ID}', '${providerSku}', '${supplierCategory}', NULL)`
         )
         created++
       }
