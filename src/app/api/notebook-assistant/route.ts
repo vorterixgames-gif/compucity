@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { logger } from '@/lib/logger'
 import { grokChat } from '@/lib/grok'
 import { db } from '@/lib/db'
 import { fetchDollarRate, calculateProductPrices } from '@/lib/dollar'
@@ -239,7 +240,7 @@ async function fetchNotebooksWithArsPrices(): Promise<NotebookProduct[]> {
 
     try {
       const dollar = await fetchDollarRate()
-      console.log(`[notebook-assistant] Dollar rate: ${dollar.rate}`)
+      logger.debug(`[notebook-assistant] Dollar rate: ${dollar.rate}`)
 
       const markupResult = await db.execute({ sql: "SELECT value FROM store_config WHERE key = 'markup'", args: [] })
       const markupRows = markupResult.rows as any[]
@@ -267,12 +268,12 @@ async function fetchNotebooksWithArsPrices(): Promise<NotebookProduct[]> {
       }
     }
 
-    console.log(`[notebook-assistant] Found ${products.length} notebooks`)
+    logger.debug(`[notebook-assistant] Found ${products.length} notebooks`)
 
     // Log price ranges
     const prices = products.map(p => p.arsComparePrice).filter(p => p > 0)
     if (prices.length > 0) {
-      console.log(`[notebook-assistant] Price range: $${Math.round(Math.min(...prices)).toLocaleString()} - $${Math.round(Math.max(...prices)).toLocaleString()} ARS`)
+      logger.debug(`[notebook-assistant] Price range: $${Math.round(Math.min(...prices)).toLocaleString()} - $${Math.round(Math.max(...prices)).toLocaleString()} ARS`)
     }
 
     return products
@@ -760,7 +761,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Ready to recommend! Fetch notebooks
-    console.log(`[notebook-assistant] Recommending notebooks for useCase=${useCase}, budget=${budget}`)
+    logger.debug(`[notebook-assistant] Recommending notebooks for useCase=${useCase}, budget=${budget}`)
 
     const notebooks = await fetchNotebooksWithArsPrices()
 

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentCustomer } from '@/lib/customer-auth'
+import { fetchDollarRate, getStoreConfigNumber, calculateProductPrices, CategoryMarkup } from '@/lib/dollar'
+import { getCategoryMarkupMap } from '@/lib/queries'
+import { getActiveSale } from '@/lib/pricing'
 
 /**
  * GET /api/orders?orderNumber=CP-XXXX — Buscar un pedido por número
@@ -60,6 +63,12 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/orders — Crear un nuevo pedido
  * Guarda el pedido + items en la DB, valida stock, descuenta inventario
+ *
+ * Sesión 45 QA Fase 1:
+ * - Validación server-side de precios (no confiar en el cliente)
+ * - customerId desde cookie (no desde body)
+ * - Wrap en transacción con verificación de rowsAffected
+ * - Recalcular total server-side
  */
 export async function POST(request: NextRequest) {
   try {
@@ -69,7 +78,7 @@ export async function POST(request: NextRequest) {
       customerDni,
       customerEmail,
       customerPhone,
-      customerId,
+      // customerId ahora se obtiene de la cookie, no del body
       shippingAddress,
       shippingCity,
       shippingProvince,
@@ -82,7 +91,7 @@ export async function POST(request: NextRequest) {
       couponDiscount,
       notes,
       items,
-      total,
+      total, // Se ignora, se recalcula server-side
     } = body
 
     // Validar campos obligatorios
@@ -93,27 +102,48 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // ── Sesión 45 QA Fase 1: obtener customerId desde la cookie ──
+    const customer = await getCurrentCustomer()
+    const customerId = customer?.id || null
+
     // Generar ID y número de pedido
     const id = crypto.randomUUID()
     const orderNumber = `CP-${Date.now().toString(36).toUpperCase()}`
     const now = new Date().toISOString()
 
-    // ── Validar stock de cada producto (sesión 44: 1 query para todos) ──
-    // Antes: 1 query por item en loop secuencial (N queries)
-    // Ahora: 1 sola query con IN (...) y validación en memoria
+    // ── Validar stock + recalcular precios server-side ──
+    // Sesión 45 QA Fase 1: traer TODOS los campos necesarios para recalcular precios
     const productIds = items.map((i: any) => i.productId).filter(Boolean)
     let productsMap = new Map<string, any>()
 
-    if (productIds.length > 0) {
-      const placeholders = productIds.map(() => '?').join(',')
-      const productsResult = await db.execute({
-        sql: `SELECT id, name, stock, isActive FROM products WHERE id IN (${placeholders})`,
-        args: productIds,
-      })
-      for (const row of productsResult.rows as any[]) {
-        productsMap.set(row.id, row)
-      }
+    if (productIds.length === 0) {
+      return NextResponse.json(
+        { error: 'No hay productos válidos en el carrito' },
+        { status: 400 }
+      )
     }
+
+    const placeholders = productIds.map(() => '?').join(',')
+    const productsResult = await db.execute({
+      sql: `SELECT id, name, stock, isActive, costPrice, markup, cashDiscount, ivaRate, salePrice, saleStart, saleEnd, categoryId
+            FROM products WHERE id IN (${placeholders})`,
+      args: productIds,
+    })
+    for (const row of productsResult.rows as any[]) {
+      productsMap.set(row.id, row)
+    }
+
+    // Cargar datos para recálculo de precios
+    const [dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
+      fetchDollarRate(),
+      getStoreConfigNumber('markup', 30),
+      getStoreConfigNumber('cash_discount', 10),
+      getCategoryMarkupMap(),
+    ])
+
+    // Validar cada item + calcular precio real server-side
+    const validatedItems: any[] = []
+    let calculatedSubtotal = 0
 
     for (const item of items) {
       const product = productsMap.get(item.productId)
@@ -138,10 +168,93 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         )
       }
+
+      // ── Recalcular precio server-side ──
+      const catMarkup: CategoryMarkup | null = product.categoryId
+        ? (catMarkupMap.get(product.categoryId) ?? null)
+        : null
+      const calculated = calculateProductPrices(product, dollar.rate, markup, cashDiscount, catMarkup)
+
+      // Verificar que el cálculo fue exitoso
+      if ((calculated as any)._calculated === false) {
+        return NextResponse.json(
+          { error: `No se pudo calcular el precio de "${product.name}". Intentá más tarde.` },
+          { status: 500 }
+        )
+      }
+
+      // Determinar precio a cobrar: si hay oferta activa, usarla; sino, precio de lista
+      const activeSale = getActiveSale(calculated as any)
+      const realPrice = activeSale !== null && activeSale < calculated.price
+        ? activeSale
+        : calculated.price
+
+      validatedItems.push({
+        productId: item.productId,
+        name: product.name, // usar nombre de la DB, no del cliente
+        price: realPrice,
+        quantity: item.quantity,
+      })
+
+      calculatedSubtotal += realPrice * item.quantity
     }
 
+    // ── Validar cupón server-side (si se envió) ──
+    let validatedCouponCode: string | null = null
+    let validatedCouponDiscount = 0
+
+    if (couponCode) {
+      try {
+        const couponResult = await db.execute({
+          sql: 'SELECT * FROM coupons WHERE UPPER(code) = ? AND isActive = 1',
+          args: [couponCode.toUpperCase().trim()],
+        })
+        const coupon = (couponResult.rows as any[])[0]
+        if (coupon) {
+          // Verificar vigencia
+          const now2 = new Date()
+          if (coupon.validFrom) {
+            const start = new Date(coupon.validFrom)
+            start.setHours(0, 0, 0, 0)
+            if (now2 < start) {
+              return NextResponse.json({ error: 'Este cupón aún no está vigente' }, { status: 400 })
+            }
+          }
+          if (coupon.validUntil) {
+            const end = new Date(coupon.validUntil)
+            end.setHours(23, 59, 59, 999)
+            if (now2 > end) {
+              return NextResponse.json({ error: 'Este cupón ya expiró' }, { status: 400 })
+            }
+          }
+          if (coupon.maxUses && coupon.maxUses > 0 && coupon.usedCount >= coupon.maxUses) {
+            return NextResponse.json({ error: 'Este cupón ya alcanzó el máximo de usos' }, { status: 400 })
+          }
+          if (coupon.minPurchase && coupon.minPurchase > 0 && calculatedSubtotal < coupon.minPurchase) {
+            return NextResponse.json({
+              error: `Compra mínima de $${Number(coupon.minPurchase).toLocaleString('es-AR')} para usar este cupón`,
+            }, { status: 400 })
+          }
+
+          // Calcular descuento
+          if (coupon.discountType === 'percentage') {
+            validatedCouponDiscount = Math.round(calculatedSubtotal * (coupon.discountValue / 100))
+          } else {
+            validatedCouponDiscount = Math.min(Number(coupon.discountValue), calculatedSubtotal)
+          }
+          validatedCouponCode = coupon.code // usar code normalizado de la DB
+        }
+      } catch (e) {
+        console.warn('[orders] Could not validate coupon:', e)
+      }
+    }
+
+    // ── Calcular total final server-side ──
+    const safeShippingCost = Math.max(0, Number(shippingCost) || 0)
+    const safeCouponDiscount = Math.max(0, validatedCouponDiscount)
+    const calculatedTotal = Math.max(0, calculatedSubtotal - safeCouponDiscount + safeShippingCost)
+
     // ── Crear el pedido ──
-    // Store shippingDetails in its own column, keep notes clean
     await db.execute({
       sql: `INSERT INTO orders (
         id, orderNumber, customerName, customerDni, customerEmail, customerPhone,
@@ -157,29 +270,28 @@ export async function POST(request: NextRequest) {
         customerDni || null,
         customerEmail || null,
         customerPhone,
-        customerId || null,
+        customerId,
         shippingAddress || null,
         shippingCity || null,
         shippingProvince || null,
         shippingZip || null,
         shippingMethod || 'retiro',
-        shippingCost || 0,
+        safeShippingCost,
         shippingDetails || null,
         'pendiente',
         'whatsapp',
-        couponCode || null,
-        couponDiscount || 0,
-        total,
+        validatedCouponCode,
+        safeCouponDiscount,
+        calculatedTotal,
         notes || null,
         now,
         now,
       ],
     })
 
-    // ── Crear los items del pedido y descontar stock (sesión 44: en batch) ──
-    // Antes: 2 queries por item en loop secuencial (2N queries)
-    // Ahora: 1 db.batch() con todos los INSERT + UPDATE (1 request HTTP, 2N statements)
-    const batchStmts = items.flatMap((item: any) => {
+    // ── Crear los items + descontar stock + incrementar cupón en 1 solo batch ──
+    // Sesión 45 QA Fase 1: batch único con verificación de rowsAffected
+    const batchStmts = validatedItems.flatMap((item) => {
       const itemId = crypto.randomUUID()
       return [
         {
@@ -188,38 +300,62 @@ export async function POST(request: NextRequest) {
           args: [itemId, id, item.productId, item.name, item.price, item.quantity],
         },
         {
-          sql: `UPDATE products SET stock = stock - ?, updatedAt = ? WHERE id = ? AND stock > 0`,
-          args: [item.quantity, now, item.productId],
+          sql: `UPDATE products SET stock = stock - ?, updatedAt = ? WHERE id = ? AND stock >= ?`,
+          args: [item.quantity, now, item.productId, item.quantity],
         },
       ]
     })
 
-    try {
-      await db.batch(batchStmts)
-    } catch (batchErr) {
-      // Fallback: si el batch falla, intentar uno por uno para diagnosticar
-      console.error('[orders] Batch failed, falling back to sequential:', batchErr)
-      for (const stmt of batchStmts) {
-        try { await db.execute(stmt) } catch (e) { console.error('[orders] Stmt failed:', e) }
-      }
+    // Si hay cupón, agregar el UPDATE al batch (atómico)
+    if (validatedCouponCode) {
+      batchStmts.push({
+        sql: `UPDATE coupons SET usedCount = usedCount + 1, updatedAt = ? WHERE UPPER(code) = ? AND isActive = 1`,
+        args: [now, validatedCouponCode.toUpperCase()],
+      })
     }
 
-    // ── Incrementar uso del cupón ──
-    if (couponCode) {
-      try {
-        await db.execute({
-          sql: `UPDATE coupons SET usedCount = usedCount + 1, updatedAt = ? WHERE UPPER(code) = ? AND isActive = 1`,
-          args: [now, couponCode.toUpperCase().trim()],
-        })
-      } catch (e) {
-        console.warn('[orders] Could not increment coupon usedCount:', e)
+    try {
+      const batchResults = await db.batch(batchStmts)
+
+      // ── Verificar que todos los UPDATEs de stock afectaron 1 fila ──
+      // Si alguno afectó 0, significa que el stock cambió entre la validación y el update
+      // (race condition) → hay que abortar
+      for (let i = 0; i < validatedItems.length; i++) {
+        const updateIndex = i * 2 + 1 // cada item tiene INSERT (0) + UPDATE (1)
+        const result = batchResults[updateIndex]
+        const rowsAffected = (result as any)?.response?.result?.affected_row_count ?? 0
+        if (rowsAffected === 0) {
+          // Stock insuficiente en race condition → abortar y limpiar
+          console.error(`[orders] Race condition detectada: stock cambió para ${validatedItems[i].productId}. Abortando.`)
+          // Cleanup: borrar el pedido y los items ya insertados
+          await db.batch([
+            { sql: 'DELETE FROM order_items WHERE orderId = ?', args: [id] },
+            { sql: 'DELETE FROM orders WHERE id = ?', args: [id] },
+          ])
+          return NextResponse.json(
+            { error: `Stock insuficiente para "${validatedItems[i].name}". Intentá nuevamente.` },
+            { status: 409 }
+          )
+        }
       }
+    } catch (batchErr) {
+      // Fallback: si el batch falla totalmente, intentar uno por uno para diagnosticar
+      console.error('[orders] Batch failed, falling back to sequential:', batchErr)
+      // Limpiar el pedido creado
+      try {
+        await db.execute({ sql: 'DELETE FROM orders WHERE id = ?', args: [id] })
+      } catch {}
+      return NextResponse.json(
+        { error: 'Error al procesar el pedido. Intentá nuevamente.' },
+        { status: 500 }
+      )
     }
 
     return NextResponse.json({
       ok: true,
       orderId: id,
       orderNumber,
+      total: calculatedTotal,
     })
   } catch (error) {
     console.error('Create order error:', error)

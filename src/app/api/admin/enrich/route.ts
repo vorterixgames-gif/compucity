@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { logger } from '@/lib/logger'
 import { db } from '@/lib/db'
 import { getCurrentAdmin } from '@/lib/admin-auth'
 
@@ -204,9 +205,18 @@ function mapNameToCategory(name: string, lookup: CategoryLookup): string | null 
 // ============================================
 // Air Intra API helpers
 // ============================================
+// Sesión 45 QA Fase 1: credenciales movidas a env vars (antes hardcodeadas en source).
+// IMPORTANTE: rotar las credenciales actuales porque ya están en git history.
+// Variables necesarias en Vercel: AIR_INTRA_USER, AIR_INTRA_PASS
 async function airIntraLogin(): Promise<string | null> {
   try {
-    const res = await fetch('https://api.air-intra.com/v2/?q=login&user=c4078&pass=buA4XNOAAB', {
+    const user = process.env.AIR_INTRA_USER
+    const pass = process.env.AIR_INTRA_PASS
+    if (!user || !pass) {
+      console.error('[enrich] AIR_INTRA_USER o AIR_INTRA_PASS no configurados')
+      return null
+    }
+    const res = await fetch(`https://api.air-intra.com/v2/?q=login&user=${encodeURIComponent(user)}&pass=${encodeURIComponent(pass)}`, {
       method: 'GET',
       headers: { 'Accept': 'application/json' },
     })
@@ -348,7 +358,7 @@ export async function POST(request: NextRequest) {
     // 1. ENRICH CATEGORIES
     // ==========================================
     if (action === 'categories' || action === 'all') {
-      console.log('[enrich] Starting category enrichment...')
+      logger.debug('[enrich] Starting category enrichment...')
 
       const lookup = await buildCategoryLookup()
       const uncategorized = await db.execute(
@@ -387,14 +397,14 @@ export async function POST(request: NextRequest) {
         assigned,
         notMatched,
       }
-      console.log(`[enrich] Categories: ${assigned} assigned, ${notMatched} not matched`)
+      logger.debug(`[enrich] Categories: ${assigned} assigned, ${notMatched} not matched`)
     }
 
     // ==========================================
     // 2. ENRICH IMAGES (from Air Intra API)
     // ==========================================
     if (action === 'images' || action === 'all') {
-      console.log('[enrich] Starting image enrichment...')
+      logger.debug('[enrich] Starting image enrichment...')
 
       // Find products without images from Air Intra
       const noImages = await db.execute(
@@ -420,7 +430,7 @@ export async function POST(request: NextRequest) {
         let enriched = 0
 
         if (token) {
-          console.log(`[enrich] Got Air Intra token, fetching images for ${providerSkus.length} products...`)
+          logger.debug(`[enrich] Got Air Intra token, fetching images for ${providerSkus.length} products...`)
 
           // We need to paginate through all articulos pages to find our products
           // This is expensive but necessary since we can't query by specific SKUs
@@ -437,7 +447,7 @@ export async function POST(request: NextRequest) {
             }
           }
         } else {
-          console.log('[enrich] Could not login to Air Intra, skipping image enrichment')
+          logger.debug('[enrich] Could not login to Air Intra, skipping image enrichment')
         }
 
         results.images = {
@@ -446,14 +456,14 @@ export async function POST(request: NextRequest) {
           notFound: rows.length - enriched,
         }
       }
-      console.log(`[enrich] Images: enriched ${results.images.enriched || 0}`)
+      logger.debug(`[enrich] Images: enriched ${results.images.enriched || 0}`)
     }
 
     // ==========================================
     // 3. FIX CREATED AT DATES
     // ==========================================
     if (action === 'dates' || action === 'all') {
-      console.log('[enrich] Fixing createdAt dates...')
+      logger.debug('[enrich] Fixing createdAt dates...')
 
       const result = await db.execute(
         `UPDATE products SET createdAt = COALESCE(createdAt, updatedAt, datetime('now')) WHERE createdAt IS NULL`
@@ -462,7 +472,7 @@ export async function POST(request: NextRequest) {
       results.dates = {
         fixed: result.rowsAffected,
       }
-      console.log(`[enrich] Fixed ${result.rowsAffected} products with null createdAt`)
+      logger.debug(`[enrich] Fixed ${result.rowsAffected} products with null createdAt`)
     }
 
     return NextResponse.json({ success: true, results })
