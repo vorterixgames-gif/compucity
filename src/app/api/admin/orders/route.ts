@@ -10,9 +10,14 @@ export async function GET() {
     // Sesión 44: N+1 fix — antes hacía 1 query por order para obtener sus items
     // (1 + N queries). Ahora traemos todo en 2 queries paralelas y armamos el
     // map en memoria. Para 50 pedidos: 51 queries → 2 queries (96% reducción).
+    //
+    // Sesión 45 hotfix: la tabla order_items NO tiene columna createdAt.
+    // El ORDER BY createdAt DESC rompía con SQL_INPUT_ERROR, hacía que el
+    // Promise.all rechazara, el endpoint retornaba 500, y /admin/pedidos
+    // mostraba "No hay pedidos aún" aunque existieran. Cambiado a ORDER BY orderId.
     const [ordersResult, itemsResult] = await Promise.all([
       db.execute('SELECT * FROM orders ORDER BY createdAt DESC'),
-      db.execute('SELECT * FROM order_items ORDER BY createdAt DESC'),
+      db.execute('SELECT * FROM order_items ORDER BY orderId'),
     ])
 
     // Agrupar items por orderId en memoria
