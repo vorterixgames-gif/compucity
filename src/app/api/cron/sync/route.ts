@@ -218,6 +218,16 @@ async function syncElitStock(): Promise<{ ok: boolean; updated: number; errors: 
 }
 
 // ─── Invid lightweight sync ───────────────────────────────────────────────────
+//
+// Sesión 45 fix crítico: el cron usaba campos equivocados para Invid.
+// La API de Invid devuelve campos UPPERCASE: ID, TITLE, PRICE, FINAL_PRICE, STOCK_STATUS
+// Pero el cron buscaba: codigo_alfa, precio, stock_total (que NO existen en Invid).
+// Resultado: el cron NUNCA actualizaba productos de Invid (0 de 100 matcheaban).
+// Los productos solo se actualizaban con sync manual desde /admin/proveedores.
+//
+// Fix: usar los campos correctos (UPPERCASE) + mapear STOCK_STATUS texto → número.
+// Mapeo de stock consistente con sync manual:
+//   "STOCK OK" → 10, "BAJO STOCK" → 3, "SIN STOCK" → 0, default → 0
 
 async function syncInvidStock(): Promise<{ ok: boolean; updated: number; errors: number; message: string }> {
   // Get supplier credentials
@@ -268,6 +278,17 @@ async function syncInvidStock(): Promise<{ ok: boolean; updated: number; errors:
   }
   logger.debug(`[cron-sync] Invid: ${dbMap.size} products in DB`)
 
+  // Helper: mapear STOCK_STATUS (texto) a número
+  // Consistente con sync manual en suppliers/sync/route.ts líneas 1113-1117 y 1155-1157
+  function parseInvidStock(stockStatus: string | undefined): number {
+    if (!stockStatus) return 0
+    const status = stockStatus.toUpperCase().trim()
+    if (status === 'STOCK OK' || status === 'EN STOCK') return 10
+    if (status === 'BAJO STOCK') return 3
+    if (status === 'SIN STOCK' || status === 'OUT OF STOCK') return 0
+    return 0
+  }
+
   // Step 2: Fetch all products from Invid API (paginated)
   const apiProducts = new Map<string, { stock: number; price: number; costPrice: number }>()
   let offset = 0
@@ -290,11 +311,21 @@ async function syncInvidStock(): Promise<{ ok: boolean; updated: number; errors:
       if (!Array.isArray(products) || products.length === 0) break
 
       for (const p of products) {
-        const sku = p.codigo_alfa || p.sku || ''
+        // FIX SESIÓN 45: Invid usa campos UPPERCASE (ID, PRICE, STOCK_STATUS)
+        // Antes: p.codigo_alfa || p.sku → siempre vacío → 0 matches
+        // Ahora: p.ID (campo correcto)
+        const sku = p.ID || p.codigo_alfa || p.sku || ''
         if (!sku) continue
-        const stock = parseInt(p.stock_total || p.stock || '0')
-        const costPrice = parseFloat(p.precio || p.pvp || p.price || '0')
+
+        // FIX: Invid usa PRICE (USD), no precio
+        const costPrice = parseFloat(p.PRICE || p.precio || p.pvp || p.price || '0')
         if (costPrice <= 0) continue
+
+        // FIX: Invid usa STOCK_STATUS (texto), no stock_total (número)
+        const stock = parseInvidStock(p.STOCK_STATUS)
+
+        // Precio de venta = costPrice * (1 + markup/100)
+        // Consistente con sync manual línea 1106
         const price = costPrice * (1 + markup / 100)
         apiProducts.set(sku, { stock, price, costPrice })
       }
@@ -317,10 +348,13 @@ async function syncInvidStock(): Promise<{ ok: boolean; updated: number; errors:
     const dbData = dbMap.get(sku)
     if (!dbData) continue
 
+    // Solo actualizar si cambió stock o precio (diferencia > 1 ARS)
     if (apiData.stock !== dbData.stock || Math.abs(apiData.price - dbData.price) > 1) {
       updates.push({ id: dbData.id, stock: apiData.stock, price: apiData.price, costPrice: apiData.costPrice })
     }
   }
+
+  logger.debug(`[cron-sync] Invid: ${updates.length} products to update`)
 
   // Apply updates
   let applied = 0
