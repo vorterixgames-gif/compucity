@@ -320,10 +320,14 @@ export async function POST(request: NextRequest) {
       // ── Verificar que todos los UPDATEs de stock afectaron 1 fila ──
       // Si alguno afectó 0, significa que el stock cambió entre la validación y el update
       // (race condition) → hay que abortar
+      //
+      // IMPORTANTE: @libsql/client's batch() retorna Array<ResultSet> donde cada
+      // ResultSet tiene .rowsAffected directamente. NO usar .response.result.affected_row_count
+      // (esa estructura es de la API HTTP de Turso, no del cliente libsql).
       for (let i = 0; i < validatedItems.length; i++) {
         const updateIndex = i * 2 + 1 // cada item tiene INSERT (0) + UPDATE (1)
         const result = batchResults[updateIndex]
-        const rowsAffected = (result as any)?.response?.result?.affected_row_count ?? 0
+        const rowsAffected = (result as any)?.rowsAffected ?? 0
         if (rowsAffected === 0) {
           // Stock insuficiente en race condition → abortar y limpiar
           console.error(`[orders] Race condition detectada: stock cambió para ${validatedItems[i].productId}. Abortando.`)
