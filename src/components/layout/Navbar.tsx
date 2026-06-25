@@ -82,11 +82,12 @@ function MobileCategoryItem({ cat, onClose }: { cat: Category; onClose: () => vo
   )
 }
 
-export default function Navbar({ categories: propCategories }: NavbarProps) {
+export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false)
   const [brandsDropdownOpen, setBrandsDropdownOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [categories, setCategories] = useState<Category[]>([])
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null)
   const [scrolled, setScrolled] = useState(false)
   const totalItems = useCart((s) => s.totalItems())
@@ -107,19 +108,6 @@ export default function Navbar({ categories: propCategories }: NavbarProps) {
   const [searchLoading, setSearchLoading] = useState(false)
   const searchContainerRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // Procesar categorías del prop (construir árbol igual que antes)
-  const [categories, setCategories] = useState<Category[]>([])
-  useEffect(() => {
-    if (propCategories && propCategories.length > 0) {
-      const parents = propCategories.filter(c => !c.parentId)
-      const tree = parents.map(parent => ({
-        ...parent,
-        children: propCategories.filter(c => c.parentId === parent.id).map(c => ({ id: c.id, name: c.name, slug: c.slug })),
-      }))
-      setCategories(tree)
-    }
-  }, [propCategories])
 
   useEffect(() => {
     if (lastAdded && lastAdded !== prevLastAdded.current) {
@@ -181,10 +169,41 @@ export default function Navbar({ categories: propCategories }: NavbarProps) {
     setUserDropdownOpen(false)
   }
 
-  // Sesión 46: eliminado el useEffect que hacía fetch a /api/categories
-  // Las categorías ahora vienen del layout (server component) como prop.
-
-  // Sesión 46: brands eliminadas del navbar (estaban ocultas, sección "Marcas" oculta a pedido del dueño)
+  // Sesión 46: fetch de categorías con sessionStorage cache (evita re-fetch en cada navegación)
+  useEffect(() => {
+    const loadCategories = async () => {
+      // Intentar cache de sessionStorage primero
+      try {
+        const cached = sessionStorage.getItem('cc_cats_navbar')
+        if (cached) {
+          const d = JSON.parse(cached)
+          if (d.categories && d.categories.length > 0 && (Date.now() - d.cachedAt < 3600000)) {
+            setCategories(d.categories)
+            return
+          }
+        }
+      } catch {}
+      // Fetch fresco
+      try {
+        const res = await fetch('/api/categories')
+        const data = await res.json()
+        if (data.ok && data.categories && (data.categories as Category[]).length > 0) {
+          const allCats = data.categories as Category[]
+          const parents = allCats.filter(c => !c.parentId)
+          const tree = parents.map(parent => ({
+            ...parent,
+            children: allCats.filter(c => c.parentId === parent.id).map(c => ({ id: c.id, name: c.name, slug: c.slug })),
+          }))
+          setCategories(tree)
+          // Guardar en sessionStorage con TTL 1h
+          try { sessionStorage.setItem('cc_cats_navbar', JSON.stringify({ categories: tree, cachedAt: Date.now() })) } catch {}
+        }
+      } catch (error) {
+        console.error('Error loading categories:', error)
+      }
+    }
+    loadCategories()
+  }, [])
   // Eliminado el useEffect que hacía fetch a /api/brands
 
   // Search autocomplete - debounced fetch

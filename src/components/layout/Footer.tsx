@@ -16,20 +16,37 @@ interface FooterProps {
   categories: Category[]
 }
 
-export default function Footer({ categories: propCategories }: FooterProps) {
+export default function Footer() {
   const [categories, setCategories] = useState<Category[]>([])
 
+  // Sesión 46: fetch con sessionStorage cache (comparte cache con Navbar)
   useEffect(() => {
-    if (propCategories && propCategories.length > 0) {
-      const parents = propCategories
-        .filter((c: Category) => !c.parentId)
-        .slice(0, 6)
-      setCategories(parents)
+    const loadCategories = async () => {
+      try {
+        const cached = sessionStorage.getItem('cc_cats_navbar')
+        if (cached) {
+          const d = JSON.parse(cached)
+          if (d.categories && d.categories.length > 0 && (Date.now() - d.cachedAt < 3600000)) {
+            setCategories(d.categories.slice(0, 6))
+            return
+          }
+        }
+      } catch {}
+      try {
+        const res = await fetch('/api/categories')
+        const data = await res.json()
+        if (data.ok && data.categories && (data.categories as Category[]).length > 0) {
+          const parents = (data.categories as Category[])
+            .filter((c: Category) => !c.parentId)
+            .slice(0, 6)
+          setCategories(parents)
+        }
+      } catch (error) {
+        console.error('Error loading categories:', error)
+      }
     }
-  }, [propCategories])
-
-  // Sesión 46: eliminado el useEffect que hacía fetch a /api/categories
-  // Las categorías ahora vienen del layout (server component) como prop.
+    loadCategories()
+  }, [])
 
   return (
     <footer className="bg-gray-900 text-gray-300">
