@@ -59,6 +59,7 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
   return (
     <Link
       href={`/producto/${slug}`}
+      prefetch={false}
       className="group flex flex-col bg-white rounded-xl border border-gray-100 hover:border-compucity-green-400/50 card-hover overflow-hidden shadow-sm hover:shadow-md"
     >
       {/* Image */}
