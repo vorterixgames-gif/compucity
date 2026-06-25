@@ -33,8 +33,6 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
   const isOnSale = activeSale !== null && activeSale < price
   const hasCashDiscount = comparePrice && comparePrice < price && !isOnSale
 
-    new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n)
-
   // Determine cart price: sale price > cash price > list price
   const cartPrice = isOnSale ? activeSale : (comparePrice && comparePrice < price ? comparePrice : price)
 
