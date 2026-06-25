@@ -4,21 +4,32 @@ import WhatsAppButton from "@/components/layout/WhatsAppButton"
 import ScrollToTop from "@/components/layout/ScrollToTop"
 import JsonLd, { getLocalBusinessSchema, getWebSiteSchema } from "@/components/seo/JsonLd"
 import { getEnabledCategories } from "@/lib/queries"
+import { unstable_cache } from 'next/cache'
 
-// Sesión 46: convertido a async server component.
-// Antes: Navbar, Footer y CategoryIcons hacían 3 fetches independientes a /api/categories.
-// Ahora: 1 sola query cacheada (unstable_cache tag 'categories') desde el layout.
-// Los 3 componentes reciben categorías como prop → 0 fetches client-side.
+// Sesión 46: layout sigue siendo NO async para no romper páginas con revalidate.
+// Las categorías se obtienen con unstable_cache (tag 'categories', TTL 5 min).
+// Si la query falla, retorna [] y el sitio sigue funcionando (Navbar/Footer muestran defaults).
+const getCachedEnabledCategories = unstable_cache(
+  async () => {
+    try {
+      return await getEnabledCategories()
+    } catch {
+      return []
+    }
+  },
+  ['enabled_categories'],
+  { tags: ['categories'], revalidate: 300 }
+)
+
 export default async function TiendaLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const categories = await getEnabledCategories()
+  const categories = await getCachedEnabledCategories()
 
   return (
     <>
-      {/* Structured Data: LocalBusiness + WebSite (GEO SEO) */}
       <JsonLd data={getLocalBusinessSchema()} />
       <JsonLd data={getWebSiteSchema()} />
 
