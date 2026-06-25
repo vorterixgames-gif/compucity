@@ -824,8 +824,6 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'name-az', label: 'Nombre A-Z' },
 ]
 
-  new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n)
-
 const parsePriceInput = (val: string): number | null => {
   const cleaned = val.replace(/[^0-9]/g, '')
   return cleaned ? parseInt(cleaned, 10) : null
