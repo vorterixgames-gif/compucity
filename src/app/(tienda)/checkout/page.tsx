@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { formatARS } from '@/lib/format'
 import { useCart } from '@/store/cart'
 import { Truck, MapPin, MessageCircle, User, Phone, Mail, FileText, Package, Loader2, ChevronRight, ArrowLeft, LogIn, X, Eye, EyeOff, UserPlus, CheckCircle, Tag } from 'lucide-react'
 import Link from 'next/link'
@@ -76,8 +77,6 @@ export default function CheckoutPage() {
   const [loadingShipping, setLoadingShipping] = useState(false)
   const [shippingError, setShippingError] = useState('')
 
-  const formatPrice = (n: number) =>
-    new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n)
 
   const shippingCost = selectedQuote?.price || 0
   const subtotal = totalPrice()
@@ -153,21 +152,21 @@ export default function CheckoutPage() {
       message += `   Ciudad: ${customerData.city}\n`
       if (customerData.province) message += `   Provincia: ${customerData.province}\n`
       message += `   CP: ${customerData.postalCode}\n`
-      message += `   Costo envío: ${formatPrice(shippingCost)}\n`
+      message += `   Costo envío: ${formatARS(shippingCost)}\n`
       message += `   Plazo: ${selectedQuote?.estimatedDays || 'a confirmar'}\n`
     }
     message += `\n🛍️ *Productos:*\n`
     items.forEach((item, i) => {
-      message += `   ${i + 1}. ${item.name} x${item.quantity} - ${formatPrice(item.price * item.quantity)}\n`
+      message += `   ${i + 1}. ${item.name} x${item.quantity} - ${formatARS(item.price * item.quantity)}\n`
     })
-    message += `\n💰 *Subtotal: ${formatPrice(subtotal)}*\n`
+    message += `\n💰 *Subtotal: ${formatARS(subtotal)}*\n`
     if (appliedCoupon && couponDiscount > 0) {
-      message += `🏷️ *Cupón ${appliedCoupon.code}: -${formatPrice(couponDiscount)}*\n`
+      message += `🏷️ *Cupón ${appliedCoupon.code}: -${formatARS(couponDiscount)}*\n`
     }
     if (shippingCost > 0) {
-      message += `📦 *Envío: ${formatPrice(shippingCost)}*\n`
+      message += `📦 *Envío: ${formatARS(shippingCost)}*\n`
     }
-    message += `💵 *Total: ${formatPrice(grandTotal)}*\n`
+    message += `💵 *Total: ${formatARS(grandTotal)}*\n`
     if (customerData.notes) {
       message += `\n📝 *Notas:* ${customerData.notes}\n`
     }
@@ -674,7 +673,7 @@ export default function CheckoutPage() {
                               <p className="text-xs text-gray-500">{quote.estimatedDays} · {quote.description}</p>
                             </div>
                             <span className="font-semibold text-sm whitespace-nowrap">
-                              {quote.price === 0 ? 'Gratis' : formatPrice(quote.price)}
+                              {quote.price === 0 ? 'Gratis' : formatARS(quote.price)}
                             </span>
                           </label>
                         ))}
@@ -795,14 +794,14 @@ export default function CheckoutPage() {
             {items.map((item) => (
               <div key={item.id} className="flex justify-between text-sm">
                 <span className="text-gray-600 line-clamp-1">{item.name} x{item.quantity}</span>
-                <span className="font-medium whitespace-nowrap ml-2">{formatPrice(item.price * item.quantity)}</span>
+                <span className="font-medium whitespace-nowrap ml-2">{formatARS(item.price * item.quantity)}</span>
               </div>
             ))}
           </div>
           <div className="border-t mt-3 pt-3 space-y-1">
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Subtotal</span>
-              <span>{formatPrice(subtotal)}</span>
+              <span>{formatARS(subtotal)}</span>
             </div>
             {appliedCoupon && couponDiscount > 0 && (
               <div className="flex justify-between text-sm">
@@ -810,7 +809,7 @@ export default function CheckoutPage() {
                   <Tag className="w-3 h-3" />
                   Cupón {appliedCoupon.code}
                 </span>
-                <span className="text-green-600">-{formatPrice(couponDiscount)}</span>
+                <span className="text-green-600">-{formatARS(couponDiscount)}</span>
               </div>
             )}
             <div className="flex justify-between text-sm">
@@ -818,14 +817,14 @@ export default function CheckoutPage() {
               {shippingMethod === 'retiro' ? (
                 <span className="text-green-600 font-medium">Gratis (retiro)</span>
               ) : selectedQuote ? (
-                <span>{selectedQuote.price === 0 ? 'Gratis' : formatPrice(selectedQuote.price)}</span>
+                <span>{selectedQuote.price === 0 ? 'Gratis' : formatARS(selectedQuote.price)}</span>
               ) : (
                 <span className="text-gray-400">A calcular</span>
               )}
             </div>
             <div className="flex justify-between font-bold text-lg pt-2 border-t">
               <span>Total</span>
-              <span>{formatPrice(grandTotal)}</span>
+              <span>{formatARS(grandTotal)}</span>
             </div>
           </div>
           {shippingMethod === 'envio' && selectedQuote && (

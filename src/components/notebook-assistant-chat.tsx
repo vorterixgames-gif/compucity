@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
+import { formatARS } from '@/lib/format'
 import {
   MessageCircle,
   X,
@@ -49,10 +50,6 @@ interface RecommendedNotebook {
 // ============================================
 // Helpers
 // ============================================
-
-function formatPrice(n: number): string {
-  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n)
-}
 
 function safeParseFirstImage(images: string | null): string | null {
   if (!images) return null
@@ -353,10 +350,10 @@ export default function NotebookAssistantChat() {
                       <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between">
                         <div>
                           <div className="text-sm font-bold text-compucity-green-700">
-                            {formatPrice(nb.comparePrice)}
+                            {formatARS(nb.comparePrice)}
                           </div>
                           <div className="text-[10px] text-gray-400">
-                            Lista: {formatPrice(nb.price)}
+                            Lista: {formatARS(nb.price)}
                           </div>
                         </div>
                         <button

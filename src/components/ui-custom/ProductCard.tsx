@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { formatARS } from '@/lib/format'
 import { ShoppingCart, Heart } from 'lucide-react'
 import { useCart } from '@/store/cart'
 import { useWishlist } from '@/store/wishlist'
@@ -32,7 +33,6 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
   const isOnSale = activeSale !== null && activeSale < price
   const hasCashDiscount = comparePrice && comparePrice < price && !isOnSale
 
-  const formatPrice = (n: number) =>
     new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n)
 
   // Determine cart price: sale price > cash price > list price
@@ -149,21 +149,21 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
           {isOnSale ? (
             <>
               <div className="flex items-center gap-2">
-                <p className="text-lg font-extrabold text-green-600">{formatPrice(activeSale!)}</p>
+                <p className="text-lg font-extrabold text-green-600">{formatARS(activeSale!)}</p>
                 <span className="bg-green-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">OFERTA</span>
               </div>
-              <p className="text-xs text-gray-400 line-through">Lista: {formatPrice(price)}</p>
+              <p className="text-xs text-gray-400 line-through">Lista: {formatARS(price)}</p>
             </>
           ) : hasCashDiscount ? (
             <div className="flex items-center gap-2">
-              <p className="text-lg font-extrabold text-compucity-green-700">{formatPrice(comparePrice!)}</p>
+              <p className="text-lg font-extrabold text-compucity-green-700">{formatARS(comparePrice!)}</p>
               <span className="bg-compucity-green-800 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">EFECTIVO</span>
             </div>
           ) : (
-            <p className="text-lg font-extrabold text-compucity-green-800">{formatPrice(price)}</p>
+            <p className="text-lg font-extrabold text-compucity-green-800">{formatARS(price)}</p>
           )}
           {!isOnSale && hasCashDiscount && (
-            <p className="text-xs text-gray-400">Lista: {formatPrice(price)}</p>
+            <p className="text-xs text-gray-400">Lista: {formatARS(price)}</p>
           )}
         </div>
         <button

@@ -11,6 +11,10 @@ interface Category {
   parentId: string | null
 }
 
+interface CategoryIconsProps {
+  categories?: Category[]
+}
+
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
   'notebooks': Laptop,
   'pc-armadas': Computer,
@@ -25,35 +29,28 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
 
 const DEFAULT_ICON = Cable
 
-export default function CategoryIcons() {
+export default function CategoryIcons({ categories: propCategories }: CategoryIconsProps = {}) {
   const [categories, setCategories] = useState<Category[]>([])
 
   useEffect(() => {
-    const loadCategories = async () => {
-      try {
-        const cached = sessionStorage.getItem('cc_cats')
-        if (cached) {
-          const d = JSON.parse(cached)
-          if (d.categories && d.categories.length > 0) {
-            setCategories(d.categories.filter((c: Category) => !c.parentId))
-            return
-          }
-        }
-        const res = await fetch('/api/categories')
-        const data = await res.json()
-        if (data.ok && data.categories && (data.categories as Category[]).length > 0) {
-          const parents = (data.categories as Category[]).filter((c: Category) => !c.parentId)
-          setCategories(parents)
-          try { sessionStorage.setItem('cc_cats', JSON.stringify(data)) } catch {}
-        }
-        // Sesión 44 fix: sacado el fetch a /api/admin/init-categories desde el cliente.
-        // Siempre tiraba 401 silencioso porque el endpoint requiere auth de admin.
-      } catch (error) {
-        console.error('Error loading categories:', error)
+    if (propCategories && propCategories.length > 0) {
+      // Sesión 46: si llegan como prop, usarlas directamente
+      setCategories(propCategories.filter((c: Category) => !c.parentId))
+      return
+    }
+    // Fallback: si no llegan como prop (ej: componente usado fuera del layout)
+    // intentar sessionStorage cache
+    const cached = sessionStorage.getItem('cc_cats')
+    if (cached) {
+      const d = JSON.parse(cached)
+      if (d.categories && d.categories.length > 0) {
+        setCategories(d.categories.filter((c: Category) => !c.parentId))
       }
     }
-    loadCategories()
-  }, [])
+  }, [propCategories])
+
+  // Sesión 46: eliminado el useEffect que hacía fetch a /api/categories
+  // Las categorías ahora vienen del layout (server component) como prop.
 
   const displayCategories = categories.length > 0 ? categories : [
     { name: 'Notebooks', slug: 'notebooks', icon: Laptop },

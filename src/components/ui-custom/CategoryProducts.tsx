@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
+import { formatARS } from '@/lib/format'
 import { SlidersHorizontal, X, ChevronDown, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import ProductCard from './ProductCard'
 
@@ -823,7 +824,6 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'name-az', label: 'Nombre A-Z' },
 ]
 
-const formatPrice = (n: number) =>
   new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n)
 
 const parsePriceInput = (val: string): number | null => {

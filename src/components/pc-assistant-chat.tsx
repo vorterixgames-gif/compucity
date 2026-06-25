@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
+import { formatARS } from '@/lib/format'
 import {
   MessageCircle,
   X,
@@ -70,10 +71,6 @@ interface PCAssistantChatProps {
 // ============================================
 // Helpers
 // ============================================
-
-function formatPrice(n: number): string {
-  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n)
-}
 
 function safeParseFirstImage(images: string | null): string | null {
   if (!images) return null
@@ -300,10 +297,10 @@ export default function PCAssistantChat({ onLoadBuild }: PCAssistantChatProps) {
                         <h4 className="font-semibold text-sm text-gray-800">{build.name}</h4>
                         <div className="text-right">
                           <div className="text-sm font-bold text-green-700">
-                            {formatPrice(build.totalPrice)}
+                            {formatARS(build.totalPrice)}
                           </div>
                           <div className="text-[10px] text-gray-400">
-                            Lista: {formatPrice(build.totalListPrice)}
+                            Lista: {formatARS(build.totalListPrice)}
                           </div>
                         </div>
                       </div>
@@ -316,7 +313,7 @@ export default function PCAssistantChat({ onLoadBuild }: PCAssistantChatProps) {
                           <span className="text-compucity-green-600 font-medium w-24 shrink-0">{comp.label}</span>
                           <span className="text-gray-700 truncate flex-1">{comp.productName}</span>
                           <span className="text-gray-400 shrink-0">
-                            {formatPrice(comp.productComparePrice)}
+                            {formatARS(comp.productComparePrice)}
                           </span>
                         </div>
                       ))}
