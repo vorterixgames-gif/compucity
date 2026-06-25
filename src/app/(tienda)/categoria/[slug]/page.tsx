@@ -3,7 +3,6 @@ import Breadcrumbs from '@/components/ui-custom/Breadcrumbs'
 import NotebookChatBanner from '@/components/ui-custom/NotebookChatBanner'
 import NotebookAssistantChat from '@/components/notebook-assistant-chat'
 import { getEnabledCategories, getProductsByCategory, getAllActiveProducts, searchProducts, getCategoryBySlug } from '@/lib/queries'
-import { db } from '@/lib/db'
 import { notFound } from 'next/navigation'
 import { Metadata } from 'next'
 import JsonLd, { getBreadcrumbSchema } from '@/components/seo/JsonLd'
@@ -96,38 +95,43 @@ export default async function CategoryPage({ params, searchParams }: Props) {
       ? 'Todos los productos'
       : currentCategory?.name ?? slug
 
-  // Get subcategories for the current category (only enabled)
+  // Sesión 46: calcular subcategorías, padre y siblings en memoria
+  // usando las categorías ya cargadas (getEnabledCategories cacheada con unstable_cache).
+  // Antes: 3 queries directas a db.execute → 3 roundtrips a Turso por cada regeneración.
+  // Ahora: 0 queries adicionales — todo en memoria O(n) donde n=73 categorías.
   let subcategories: { id: string; name: string; slug: string }[] = []
   let parentCategory: { id: string; name: string; slug: string } | null = null
 
   if (currentCategory) {
-    // Check if this is a parent category → get its enabled children
-    const subResult = await db.execute({
-      sql: 'SELECT id, name, slug FROM categories WHERE parentId = ? AND enabled = 1 ORDER BY name',
-      args: [currentCategory.id],
-    })
-    subcategories = (subResult.rows as any[]).map(r => ({ id: String(r.id), name: String(r.name), slug: String(r.slug) }))
+    const allCats = categories as any[]
+    // Subcategorías del current
+    subcategories = allCats
+      .filter(c => c.parentId === currentCategory.id)
+      .map(r => ({ id: String(r.id), name: String(r.name), slug: String(r.slug) }))
 
-    // Check if this is a subcategory → get parent and siblings
+    // Si es subcategoría (tiene parentId y no tiene hijos), buscar padre y siblings
     if (currentCategory.parentId && subcategories.length === 0) {
-      const parentResult = await db.execute({
-        sql: 'SELECT id, name, slug FROM categories WHERE id = ? AND enabled = 1',
-        args: [currentCategory.parentId],
-      })
-      parentCategory = (parentResult.rows as any[]).map(r => ({ id: String(r.id), name: String(r.name), slug: String(r.slug) }))[0] || null
+      const parent = allCats.find(c => c.id === currentCategory.parentId)
+      parentCategory = parent
+        ? { id: String(parent.id), name: String(parent.name), slug: String(parent.slug) }
+        : null
 
-      // Get siblings (other enabled subcategories of the same parent)
       if (parentCategory) {
-        const siblingsResult = await db.execute({
-          sql: 'SELECT id, name, slug FROM categories WHERE parentId = ? AND enabled = 1 ORDER BY name',
-          args: [parentCategory.id],
-        })
-        subcategories = (siblingsResult.rows as any[]).map(r => ({ id: String(r.id), name: String(r.name), slug: String(r.slug) }))
+        subcategories = allCats
+          .filter(c => c.parentId === parentCategory!.id)
+          .map(r => ({ id: String(r.id), name: String(r.name), slug: String(r.slug) }))
       }
     } else if (subcategories.length > 0) {
-      parentCategory = currentCategory
+      // Es categoría padre con hijos
+      parentCategory = { id: String(currentCategory.id), name: String(currentCategory.name), slug: String(currentCategory.slug) }
     }
   }
+
+  // Eliminado el bloque que hacía 3 queries directas a db.execute:
+  // - SELECT FROM categories WHERE parentId = ?
+  // - SELECT FROM categories WHERE id = ? (parent)
+  // - SELECT FROM categories WHERE parentId = ? (siblings)
+  // Todo eso se calcula arriba en memoria con las categorías ya cargadas.
 
   // Build parent categories list for sidebar (only enabled root categories)
   const parentCategories = categories.filter(c => !c.parentId)

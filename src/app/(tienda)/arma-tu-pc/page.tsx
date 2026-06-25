@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import { formatARS } from '@/lib/format'
 import Link from 'next/link'
 import jsPDF from 'jspdf'
 import {
@@ -288,10 +289,6 @@ const SLOTS: { slot: string; label: string; categorySlug: string; icon: React.El
 // Helpers
 // ============================================
 
-function formatPrice(n: number): string {
-  return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n)
-}
-
 function safeParseFirstImage(images: string | null): string | null {
   if (!images) return null
   try { return JSON.parse(images)[0] } catch { return null }
@@ -576,13 +573,13 @@ export default function ArmaTuPCPage() {
       const unitPrice = c.product.comparePrice || c.product.price
       const totalPrice = unitPrice * c.quantity
       if (c.quantity > 1) {
-        msg += `*${slotLabel}:* ${c.quantity}x ${c.product.name} - ${formatPrice(unitPrice)} c/u = ${formatPrice(totalPrice)}\n`
+        msg += `*${slotLabel}:* ${c.quantity}x ${c.product.name} - ${formatARS(unitPrice)} c/u = ${formatARS(totalPrice)}\n`
       } else {
-        msg += `*${slotLabel}:* ${c.product.name} - ${formatPrice(unitPrice)}\n`
+        msg += `*${slotLabel}:* ${c.product.name} - ${formatARS(unitPrice)}\n`
       }
     })
-    msg += `\n💰 *Total en efectivo:* ${formatPrice(totalPrice)}\n`
-    msg += `📋 *Total de lista:* ${formatPrice(totalListPrice)}\n\n`
+    msg += `\n💰 *Total en efectivo:* ${formatARS(totalPrice)}\n`
+    msg += `📋 *Total de lista:* ${formatARS(totalListPrice)}\n\n`
     msg += `Consulto por la disponibilidad y tiempo de armado. Gracias!`
     return `https://wa.me/5493548402056?text=${encodeURIComponent(msg)}`
   }
@@ -670,8 +667,8 @@ export default function ArmaTuPCPage() {
       doc.setFont('helvetica', 'bold')
       doc.setTextColor(30, 30, 30)
       const priceText = c.quantity > 1
-        ? `${c.quantity}x ${formatPrice(unitPrice)} c/u = ${formatPrice(lineTotal)}`
-        : formatPrice(unitPrice)
+        ? `${c.quantity}x ${formatARS(unitPrice)} c/u = ${formatARS(lineTotal)}`
+        : formatARS(unitPrice)
       doc.text(priceText, pageWidth - margin, y + 5, { align: 'right' })
 
       y += 14
@@ -696,7 +693,7 @@ export default function ArmaTuPCPage() {
     doc.setTextColor(100, 100, 100)
     doc.text('Precio de lista:', margin, y)
     doc.setFont('helvetica', 'bold')
-    doc.text(formatPrice(totalListPrice), pageWidth - margin, y, { align: 'right' })
+    doc.text(formatARS(totalListPrice), pageWidth - margin, y, { align: 'right' })
     y += 8
 
     // Total en efectivo (highlighted)
@@ -706,7 +703,7 @@ export default function ArmaTuPCPage() {
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(58, 139, 104)
     doc.text('Precio en efectivo:', margin, y)
-    doc.text(formatPrice(totalPrice), pageWidth - margin, y, { align: 'right' })
+    doc.text(formatARS(totalPrice), pageWidth - margin, y, { align: 'right' })
     y += 18
 
     // 96hs note
@@ -892,10 +889,10 @@ export default function ArmaTuPCPage() {
                       <p className="text-sm font-medium text-green-900 truncate">{sel.product.name}</p>
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-xs text-green-700">
-                          Efectivo: {formatPrice((sel.product.comparePrice || sel.product.price) * sel.quantity)}
+                          Efectivo: {formatARS((sel.product.comparePrice || sel.product.price) * sel.quantity)}
                           {sel.quantity > 1 && (
                             <span className="text-green-500 ml-1">
-                              ({sel.quantity}x {formatPrice(sel.product.comparePrice || sel.product.price)} c/u)
+                              ({sel.quantity}x {formatARS(sel.product.comparePrice || sel.product.price)} c/u)
                             </span>
                           )}
                         </p>
@@ -935,10 +932,10 @@ export default function ArmaTuPCPage() {
                         <p className="text-sm font-medium text-green-900 truncate">{sel.product.name}</p>
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-xs text-green-700">
-                            Efectivo: {formatPrice((sel.product.comparePrice || sel.product.price) * sel.quantity)}
+                            Efectivo: {formatARS((sel.product.comparePrice || sel.product.price) * sel.quantity)}
                             {sel.quantity > 1 && (
                               <span className="text-green-500 ml-1">
-                                ({sel.quantity}x {formatPrice(sel.product.comparePrice || sel.product.price)} c/u)
+                                ({sel.quantity}x {formatARS(sel.product.comparePrice || sel.product.price)} c/u)
                               </span>
                             )}
                           </p>
@@ -1135,14 +1132,14 @@ export default function ArmaTuPCPage() {
                             </div>
                           )}
                           <div className="flex items-center gap-3">
-                            <span className="text-xs text-gray-400">Lista: {formatPrice(product.price)}</span>
+                            <span className="text-xs text-gray-400">Lista: {formatARS(product.price)}</span>
                             {product.comparePrice && product.comparePrice < product.price && (
                               <span className="text-sm font-bold text-green-600">
-                                Efectivo: {formatPrice(product.comparePrice)}
+                                Efectivo: {formatARS(product.comparePrice)}
                               </span>
                             )}
                             {!product.comparePrice && (
-                              <span className="text-sm font-bold text-gray-900">{formatPrice(product.price)}</span>
+                              <span className="text-sm font-bold text-gray-900">{formatARS(product.price)}</span>
                             )}
 
                           </div>
@@ -1239,10 +1236,10 @@ export default function ArmaTuPCPage() {
                                     </div>
                                   )}
                                   <div className="flex items-center gap-3">
-                                    <span className="text-xs text-gray-400">Lista: {formatPrice(product.price)}</span>
+                                    <span className="text-xs text-gray-400">Lista: {formatARS(product.price)}</span>
                                     {product.comparePrice && product.comparePrice < product.price && (
                                       <span className="text-sm font-bold text-gray-500">
-                                        Efectivo: {formatPrice(product.comparePrice)}
+                                        Efectivo: {formatARS(product.comparePrice)}
                                       </span>
                                     )}
                                   </div>
@@ -1403,7 +1400,7 @@ export default function ArmaTuPCPage() {
                           <p className="text-xs text-green-900 truncate">{selected.product.name}</p>
                         </div>
                         <span className="text-xs font-medium text-green-700 whitespace-nowrap">
-                          {formatPrice(lineTotal)}
+                          {formatARS(lineTotal)}
                         </span>
                       </div>
                     )
@@ -1445,13 +1442,13 @@ export default function ArmaTuPCPage() {
                 {totalListPrice > 0 && (
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-500">Precio de lista</span>
-                    <span className="text-gray-900">{formatPrice(totalListPrice)}</span>
+                    <span className="text-gray-900">{formatARS(totalListPrice)}</span>
                   </div>
                 )}
                 {totalPrice > 0 && totalPrice < totalListPrice && (
                   <div className="flex items-center justify-between">
                     <span className="text-green-700 font-medium">Precio en efectivo</span>
-                    <span className="text-green-700 font-bold text-lg">{formatPrice(totalPrice)}</span>
+                    <span className="text-green-700 font-bold text-lg">{formatARS(totalPrice)}</span>
                   </div>
                 )}
                 {totalPrice === 0 && (

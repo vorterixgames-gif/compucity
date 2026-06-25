@@ -28,23 +28,31 @@ export default function RelatedProducts({ categoryId, productId }: RelatedProduc
   const [products, setProducts] = useState<RelatedProduct[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Sesión 46: agregado AbortController para evitar setear state en componente desmontado
   useEffect(() => {
+    const controller = new AbortController()
+    setLoading(true)
     const params = new URLSearchParams({ productId })
     if (categoryId) params.set('categoryId', categoryId)
 
-    fetch(`/api/related-products?${params.toString()}`)
+    fetch(`/api/related-products?${params.toString()}`, { signal: controller.signal })
       .then((res) => res.json())
       .then((data) => {
-        if (data.ok && data.products) {
-          setProducts(data.products)
+        if (!controller.signal.aborted) {
+          if (data.ok && data.products) {
+            setProducts(data.products)
+          }
         }
       })
       .catch((err) => {
-        console.error('Failed to fetch related products:', err)
+        if (err.name !== 'AbortError') {
+          console.error('Failed to fetch related products:', err)
+        }
       })
       .finally(() => {
-        setLoading(false)
+        if (!controller.signal.aborted) setLoading(false)
       })
+    return () => controller.abort()
   }, [categoryId, productId])
 
   // Don't render anything if no related products found and not loading

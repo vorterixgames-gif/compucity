@@ -1,4 +1,5 @@
 import { getProductBySlug } from '@/lib/queries'
+import { formatARS } from '@/lib/format'
 import { notFound } from 'next/navigation'
 import { Metadata } from 'next'
 import ProductDetailClient from './ProductDetailClient'
@@ -80,8 +81,6 @@ export default async function ProductPage({ params }: Props) {
   const images: string[] = product.images ? JSON.parse(product.images) : []
   const specs: Record<string, string> = product.specs ? JSON.parse(product.specs) : {}
 
-  const formatPrice = (n: number) =>
-    new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n)
 
   // Build structured data for this product
   // Sesión 43 día 3 (18/6): agregado brandName para que Google valide el producto.
@@ -154,13 +153,13 @@ export default async function ProductPage({ params }: Props) {
                 return (
                   <>
                     <div className="flex items-center gap-2">
-                      <p className="text-3xl font-bold text-green-600">{formatPrice(activeSale!)}</p>
+                      <p className="text-3xl font-bold text-green-600">{formatARS(activeSale!)}</p>
                       <span className="bg-green-600 text-white text-xs font-bold px-2 py-0.5 rounded">OFERTA -{discountPercent}%</span>
                     </div>
-                    <p className="text-sm text-gray-400 mt-1 line-through">Precio de lista: {formatPrice(product.price)}</p>
+                    <p className="text-sm text-gray-400 mt-1 line-through">Precio de lista: {formatARS(product.price)}</p>
                     {saleCashPrice !== null && (
                       <div className="mt-1 flex items-center gap-2">
-                        <p className="text-lg font-bold text-compucity-green-700">{formatPrice(saleCashPrice)}</p>
+                        <p className="text-lg font-bold text-compucity-green-700">{formatARS(saleCashPrice)}</p>
                         <span className="bg-compucity-green-800 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">EFECTIVO</span>
                       </div>
                     )}
@@ -172,15 +171,15 @@ export default async function ProductPage({ params }: Props) {
                 return (
                   <>
                     <div className="flex items-center gap-2">
-                      <p className="text-3xl font-bold text-green-600">{formatPrice(product.comparePrice!)}</p>
+                      <p className="text-3xl font-bold text-green-600">{formatARS(product.comparePrice!)}</p>
                       <span className="bg-compucity-green-800 text-white text-xs font-bold px-2 py-0.5 rounded">EFECTIVO</span>
                     </div>
-                    <p className="text-sm text-gray-400 mt-1">Precio de lista: {formatPrice(product.price)}</p>
+                    <p className="text-sm text-gray-400 mt-1">Precio de lista: {formatARS(product.price)}</p>
                   </>
                 )
               }
 
-              return <p className="text-3xl font-bold text-gray-900">{formatPrice(product.price)}</p>
+              return <p className="text-3xl font-bold text-gray-900">{formatARS(product.price)}</p>
             })()}
             <p className="text-sm text-gray-500 mt-1">Hacé tu pedido por WhatsApp</p>
           </div>

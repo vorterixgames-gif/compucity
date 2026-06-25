@@ -37,6 +37,9 @@ export default function PromoBanners({ position }: Props) {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   /* ── Fetch banners on mount ── */
+  // Sesión 46: corregido bug donde sessionStorage leía pero nunca escribía.
+  // Ahora: 1 solo fetch, guarda TODOS los banners en sessionStorage,
+  // y cada instancia filtra por posición en memoria.
   useEffect(() => {
     let cancelled = false
     async function fetchBanners() {
@@ -44,15 +47,27 @@ export default function PromoBanners({ position }: Props) {
         const cached = sessionStorage.getItem('cc_banners')
         if (cached) {
           const d = JSON.parse(cached)
-          if (d.banners) {
-            setBanners(d.banners)
-            setLoaded(true)  // Sesión 44 fix: era setLoading(false) — variable no existente
+          // Cache TTL: 1 hora (igual que revalidate de la API)
+          if (d.cachedAt && (Date.now() - d.cachedAt < 3600000) && d.banners) {
+            const filtered = (d.banners as Banner[]).filter(
+              (b) => b.position === position && b.isActive === 1
+            )
+            setBanners(filtered)
+            setLoaded(true)
             return
           }
         }
         const res = await fetch('/api/banners')
         const data = await res.json()
         if (!cancelled && data.ok && Array.isArray(data.banners)) {
+          // Guardar TODOS los banners en sessionStorage (compartido entre instancias)
+          try {
+            sessionStorage.setItem('cc_banners', JSON.stringify({
+              banners: data.banners,
+              cachedAt: Date.now(),
+            }))
+          } catch {}
+          // Filtrar por posición para esta instancia
           const filtered = (data.banners as Banner[]).filter(
             (b) => b.position === position && b.isActive === 1
           )

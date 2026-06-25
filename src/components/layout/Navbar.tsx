@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Search, ShoppingCart, User, Menu, X, ChevronDown, Phone, LogOut, Package, Settings, Tag } from 'lucide-react'
 import { useCart } from '@/store/cart'
+import { useCustomer } from '@/store/customer'
+import { formatARS } from '@/lib/format'
 import CompucityLogo from '@/components/ui-custom/CompucityLogo'
 
 interface Subcategory {
@@ -29,19 +31,14 @@ interface SearchResult {
   images: string[]
 }
 
-interface CustomerInfo {
-  id: string
-  name: string
-  email: string
+interface NavbarProps {
+  categories: Category[]
 }
 
 const NAV_LINKS = [
   { name: 'Arma tu PC', href: '/arma-tu-pc' },
   { name: 'Contacto', href: '/contacto' },
 ]
-
-const formatPrice = (n: number) =>
-  new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(n)
 
 function MobileCategoryItem({ cat, onClose }: { cat: Category; onClose: () => void }) {
   const [expanded, setExpanded] = useState(false)
@@ -85,13 +82,11 @@ function MobileCategoryItem({ cat, onClose }: { cat: Category; onClose: () => vo
   )
 }
 
-export default function Navbar() {
+export default function Navbar({ categories: propCategories }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false)
   const [brandsDropdownOpen, setBrandsDropdownOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [categories, setCategories] = useState<Category[]>([])
-  const [brands, setBrands] = useState<{ id: string; name: string; slug: string; productCount: number }[]>([])
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null)
   const [scrolled, setScrolled] = useState(false)
   const totalItems = useCart((s) => s.totalItems())
@@ -99,8 +94,10 @@ export default function Navbar() {
   const [bouncing, setBouncing] = useState(false)
   const prevLastAdded = useRef<string | null>(null)
 
+  // User state — Sesión 46: usa Zustand store compartido (evita re-fetch en cada navegación)
+  const { customer, loaded: customerLoaded, setCustomer } = useCustomer()
+
   // User dropdown state
-  const [customer, setCustomer] = useState<CustomerInfo | null>(null)
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
   const userDropdownRef = useRef<HTMLDivElement>(null)
 
@@ -110,6 +107,19 @@ export default function Navbar() {
   const [searchLoading, setSearchLoading] = useState(false)
   const searchContainerRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Procesar categorías del prop (construir árbol igual que antes)
+  const [categories, setCategories] = useState<Category[]>([])
+  useEffect(() => {
+    if (propCategories && propCategories.length > 0) {
+      const parents = propCategories.filter(c => !c.parentId)
+      const tree = parents.map(parent => ({
+        ...parent,
+        children: propCategories.filter(c => c.parentId === parent.id).map(c => ({ id: c.id, name: c.name, slug: c.slug })),
+      }))
+      setCategories(tree)
+    }
+  }, [propCategories])
 
   useEffect(() => {
     if (lastAdded && lastAdded !== prevLastAdded.current) {
@@ -126,12 +136,15 @@ export default function Navbar() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  // Check if customer is logged in
-  // Sesión 44: solo fetch si hay cookie customer_token (evita 401 innecesario)
+  // Sesión 46: categorías vienen del layout como prop — eliminado fetch a /api/categories
+  // Sesión 46: brands eliminadas del navbar (estaban ocultas, sección "Marcas" oculta a pedido del dueño)
+
+  // Check if customer is logged in — Sesión 46: usa Zustand store, solo fetchea 1 vez
   useEffect(() => {
+    if (customerLoaded) return
     const checkAuth = async () => {
-      // Si no hay cookie de customer, no hacer fetch
       if (typeof document !== 'undefined' && !document.cookie.includes('customer_token')) {
+        setCustomer(null)
         return
       }
       try {
@@ -139,13 +152,15 @@ export default function Navbar() {
         if (res.ok) {
           const data = await res.json()
           setCustomer(data.customer)
+        } else {
+          setCustomer(null)
         }
       } catch {
-        // Not logged in
+        setCustomer(null)
       }
     }
     checkAuth()
-  }, [])
+  }, [customerLoaded, setCustomer])
 
   // Close user dropdown on click outside
   useEffect(() => {
@@ -166,52 +181,11 @@ export default function Navbar() {
     setUserDropdownOpen(false)
   }
 
-  useEffect(() => {
-    const loadCategories = async () => {
-      try {
-        const res = await fetch('/api/categories')
-        const data = await res.json()
-        if (data.ok && data.categories && (data.categories as Category[]).length > 0) {
-          const allCats = data.categories as Category[]
-          const parents = allCats.filter(c => !c.parentId)
-          const tree = parents.map(parent => ({
-            ...parent,
-            children: allCats.filter(c => c.parentId === parent.id).map(c => ({ id: c.id, name: c.name, slug: c.slug })),
-          }))
-          setCategories(tree)
-        }
-        // Sesión 44 fix: sacado el fetch a /api/admin/init-categories desde el cliente.
-        // Ese endpoint requiere auth (cookie admin_token) que ningún visitante tiene,
-        // así que siempre tiraba 401 silencioso + un segundo fetch a /api/categories.
-        // Si las categorías están vacías, el admin puede inicializarlas manualmente
-        // desde /admin/categorias. No afecta al storefront.
-      } catch (error) {
-        console.error('Error loading categories:', error)
-      }
-    }
-    loadCategories()
-  }, [])
+  // Sesión 46: eliminado el useEffect que hacía fetch a /api/categories
+  // Las categorías ahora vienen del layout (server component) como prop.
 
-  // Load brands
-  useEffect(() => {
-    const loadBrands = async () => {
-      try {
-        const res = await fetch('/api/brands')
-        const data = await res.json()
-        if (data.ok && data.brands) {
-          // Show top brands by product count
-          const topBrands = (data.brands as { id: string; name: string; slug: string; productCount: number }[])
-            .filter(b => b.productCount > 0)
-            .sort((a, b) => b.productCount - a.productCount)
-            .slice(0, 20)
-          setBrands(topBrands)
-        }
-      } catch (error) {
-        console.error('Error loading brands:', error)
-      }
-    }
-    loadBrands()
-  }, [])
+  // Sesión 46: brands eliminadas del navbar (estaban ocultas, sección "Marcas" oculta a pedido del dueño)
+  // Eliminado el useEffect que hacía fetch a /api/brands
 
   // Search autocomplete - debounced fetch
   const performSearch = useCallback(async (query: string) => {
@@ -265,11 +239,17 @@ export default function Navbar() {
   }
 
   // Listen for storage events (cross-tab logout)
+  // Sesión 46 fix: solo reaccionar a cambios en customer_token, no a todo localStorage
   useEffect(() => {
-    const handleStorage = () => {
-      // Re-check auth when another tab logs out
+    const handleStorage = (e: StorageEvent) => {
+      // Solo reaccionar a cambios en customer_token (o borrado total de localStorage)
+      if (e.key !== 'customer_token' && e.key !== null) return
       const checkAuth = async () => {
         try {
+          if (typeof document !== 'undefined' && !document.cookie.includes('customer_token')) {
+            setCustomer(null)
+            return
+          }
           const res = await fetch('/api/customer/me')
           if (res.ok) {
             const data = await res.json()
@@ -285,7 +265,7 @@ export default function Navbar() {
     }
     window.addEventListener('storage', handleStorage)
     return () => window.removeEventListener('storage', handleStorage)
-  }, [])
+  }, [setCustomer])
 
   const hoveredCat = hoveredCategory ? categories.find(c => c.id === hoveredCategory) : categories[0]
   const hoveredCatSubs = hoveredCat?.children?.filter(Boolean) ?? []
@@ -391,7 +371,7 @@ export default function Navbar() {
                           />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm text-gray-800 truncate">{product.name}</p>
-                            <p className="text-sm font-bold text-compucity-green">{formatPrice(effectivePrice)}</p>
+                            <p className="text-sm font-bold text-compucity-green">{formatARS(effectivePrice)}</p>
                           </div>
                         </a>
                       )
@@ -607,7 +587,7 @@ export default function Navbar() {
                       <img src={imageUrl} alt={product.name} className="h-8 w-8 object-contain bg-gray-50 rounded shrink-0" onError={(e) => { ;(e.target as HTMLImageElement).src = '/placeholder-product.png' }} />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-gray-800 truncate">{product.name}</p>
-                        <p className="text-xs font-bold text-compucity-green">{formatPrice(effectivePrice)}</p>
+                        <p className="text-xs font-bold text-compucity-green">{formatARS(effectivePrice)}</p>
                       </div>
                     </a>
                   )

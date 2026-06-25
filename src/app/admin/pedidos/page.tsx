@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { formatARS } from '@/lib/format'
 import {
   Loader2,
   ShoppingCart,
@@ -90,13 +91,6 @@ const statusOptions = [
   { value: 'delivered', label: 'Entregado' },
   { value: 'cancelled', label: 'Cancelado' },
 ]
-
-function formatPrice(price: number): string {
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-  }).format(price)
-}
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('es-AR', {
@@ -275,7 +269,7 @@ export default function AdminPedidos() {
                       {status.label}
                     </Badge>
                     <span className="text-sm font-semibold text-gray-900">
-                      {formatPrice(order.total)}
+                      {formatARS(order.total)}
                     </span>
                     <span className="text-xs text-gray-400 hidden sm:block">
                       {formatDate(order.createdAt)}
@@ -309,7 +303,7 @@ export default function AdminPedidos() {
                           {order.shippingProvince && <p><span className="text-gray-500">Provincia:</span> {order.shippingProvince}</p>}
                           {order.shippingZip && <p><span className="text-gray-500">CP:</span> {order.shippingZip}</p>}
                           {order.shippingMethod && <p><span className="text-gray-500">Método:</span> {order.shippingMethod}</p>}
-                          {order.shippingCost > 0 && <p><span className="text-gray-500">Costo envío:</span> {formatPrice(order.shippingCost)}</p>}
+                          {order.shippingCost > 0 && <p><span className="text-gray-500">Costo envío:</span> {formatARS(order.shippingCost)}</p>}
                           {order.trackingNumber && (
                             <p>
                               <span className="text-gray-500">Tracking:</span>{' '}
@@ -354,9 +348,9 @@ export default function AdminPedidos() {
                                 <TableRow key={item.id}>
                                   <TableCell className="text-sm">{item.name}</TableCell>
                                   <TableCell className="text-center">{item.quantity}</TableCell>
-                                  <TableCell className="text-right text-sm">{formatPrice(item.price)}</TableCell>
+                                  <TableCell className="text-right text-sm">{formatARS(item.price)}</TableCell>
                                   <TableCell className="text-right font-medium text-sm">
-                                    {formatPrice(item.price * item.quantity)}
+                                    {formatARS(item.price * item.quantity)}
                                   </TableCell>
                                 </TableRow>
                               ))}
@@ -364,7 +358,7 @@ export default function AdminPedidos() {
                           </Table>
                           <div className="border-t p-3 flex justify-between items-center bg-gray-50">
                             <span className="font-semibold text-sm">Total</span>
-                            <span className="font-bold text-lg">{formatPrice(order.total)}</span>
+                            <span className="font-bold text-lg">{formatARS(order.total)}</span>
                           </div>
                         </div>
 
@@ -428,7 +422,7 @@ export default function AdminPedidos() {
                 Pedido #{orderToDelete?.orderNumber} - {orderToDelete?.customerName}
               </p>
               <p className="text-sm text-red-600 mt-1">
-                Total: {orderToDelete ? formatPrice(orderToDelete.total) : ''}
+                Total: {orderToDelete ? formatARS(orderToDelete.total) : ''}
               </p>
               <p className="text-xs text-red-500 mt-1">
                 Se eliminarán {orderToDelete?.items.length} producto(s) del pedido

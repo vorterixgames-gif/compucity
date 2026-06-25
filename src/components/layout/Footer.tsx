@@ -12,28 +12,24 @@ interface Category {
   parentId: string | null
 }
 
-export default function Footer() {
+interface FooterProps {
+  categories: Category[]
+}
+
+export default function Footer({ categories: propCategories }: FooterProps) {
   const [categories, setCategories] = useState<Category[]>([])
 
   useEffect(() => {
-    async function loadCategories() {
-      try {
-        const res = await fetch('/api/categories')
-        const data = await res.json()
-        if (data.ok && data.categories && (data.categories as Category[]).length > 0) {
-          const parents = (data.categories as Category[])
-            .filter((c: Category) => !c.parentId)
-            .slice(0, 6)
-          setCategories(parents)
-        }
-        // Sesión 44 fix: sacado el fetch a /api/admin/init-categories desde el cliente.
-        // Siempre tiraba 401 silencioso porque el endpoint requiere auth de admin.
-      } catch (error) {
-        console.error('Error loading categories:', error)
-      }
+    if (propCategories && propCategories.length > 0) {
+      const parents = propCategories
+        .filter((c: Category) => !c.parentId)
+        .slice(0, 6)
+      setCategories(parents)
     }
-    loadCategories()
-  }, [])
+  }, [propCategories])
+
+  // Sesión 46: eliminado el useEffect que hacía fetch a /api/categories
+  // Las categorías ahora vienen del layout (server component) como prop.
 
   return (
     <footer className="bg-gray-900 text-gray-300">
