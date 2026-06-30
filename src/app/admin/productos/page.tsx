@@ -126,6 +126,7 @@ interface ProductForm {
   markup: string       // individual product markup (empty = use global)
   cashDiscount: string  // individual product cash discount (empty = use global)
   ivaRate: string       // IVA percentage (empty = use category/default)
+  internalTaxRate: string // internal tax percentage (empty = none, e.g. 10.5)
   salePrice: string     // promotional price (empty = no sale)
   saleStart: string     // sale start date (ISO)
   saleEnd: string       // sale end date (ISO)
