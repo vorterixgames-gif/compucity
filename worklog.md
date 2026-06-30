@@ -370,3 +370,53 @@ Costo real de los 5 deploys de s47:
 ESTE ARCHIVO (worklog.md) ES LA MEMORIA DEL PROYECTO.
 Cualquier agente que arranque una sesión nueva DEBE leer este archivo
 completo antes de empezar a trabajar, especialmente esta sección.
+
+---
+Task ID: sesion-47-migracion-sync-gh-actions
+Agent: main
+Task: Migrar sync de Elit+Invid a GitHub Actions (cron de Vercel fallaba)
+
+Work Log:
+- Dueño reportó: "Elit muestra sin stock algunos productos y en realidad
+  no hay stock de Córdoba pero sí de Buenos Aires"
+- SKU de ejemplo: MSIMONM274CFX24
+- Investigación API Elit:
+  * La API devuelve 3 campos: stock_total, stock_deposito_cliente,
+    stock_deposito_cd
+  * Para MSIMONM274CFX24: stock_total=38, stock_deposito_cliente=0,
+    stock_deposito_cd=38 → hay stock real, solo que en el CD
+  * La API NO oculta información de stock por depósito
+- Diagnóstico: el cron de Vercel no se estaba ejecutando. Confirmado:
+  * Tabla rate_limits vacía
+  * 21 productos Elit con stock=0 desde hace días aunque API reportaba stock
+  * lastSyncAt de Elit era de hace 8h, pero muchos productos no se habían
+    actualizado desde el 16/6 (14 días atrás)
+- Sync manual one-shot: 309 productos actualizados (21 pasaron de 0 → con stock)
+- Migración a GitHub Actions:
+  * scripts/sync-elit-external.mjs (nuevo) - sync Elit con retry HTTP
+  * scripts/sync-invid-external.mjs (nuevo) - sync Invid con retry auth
+  * .github/workflows/sync-elit-invid.yml (nuevo) - cron cada 6h
+  * 4 secrets nuevos en GitHub: ELIT_USER_ID, ELIT_TOKEN, INVID_USER, INVID_PASS
+  * src/app/api/cron/sync/route.ts: limpiado (solo revalidateTag fallback)
+  * vercel.json: removido cron job
+- Validación local OK:
+  * Elit: 1600 productos, 2 updates, 14.6s
+  * Invid: 5760 productos, 17 updates, 42.3s
+- Build local: ✓ Compiled successfully in 10.2s
+- Commit 6f2006e + push a origin/main
+- Workflow disparado manualmente: run 28455692930
+  * Status: completed
+  * Conclusion: success
+  * Elit: 1600 productos, 6 updates, 5.6s
+  * Invid: 5761 productos, 0 updates (sin cambios), 15.2s, Auth OK intento 1/3
+
+Stage Summary:
+- 3 workflows activos en GitHub Actions:
+  * sync-air-intra.yml (cada 12h)
+  * sync-elit-invid.yml (cada 6h) ← NUEVO
+  * sync-brands.yml (1 vez/día)
+- Cron de Vercel eliminado de vercel.json
+- Endpoint /api/cron/sync queda como fallback manual (solo revalidateTag)
+- Costo: $0 (GitHub Actions free tier, ~15 min/run × 4 runs/día = 1h/día)
+- Beneficio: confiabilidad — GitHub Actions notifica por mail si falla,
+  a diferencia de Vercel que fallaba silenciosamente
