@@ -126,6 +126,7 @@ interface ProductForm {
   markup: string       // individual product markup (empty = use global)
   cashDiscount: string  // individual product cash discount (empty = use global)
   ivaRate: string       // IVA percentage (empty = use category/default)
+  internalTaxRate: string // internal tax percentage (empty = none, e.g. 10.5)
   salePrice: string     // promotional price (empty = no sale)
   saleStart: string     // sale start date (ISO)
   saleEnd: string       // sale end date (ISO)
@@ -196,6 +197,7 @@ const emptyForm: ProductForm = {
   markup: '',
   cashDiscount: '',
   ivaRate: '',
+  internalTaxRate: '',
   salePrice: '',
   saleStart: '',
   saleEnd: '',
@@ -514,6 +516,7 @@ export default function AdminProductos() {
       markup: product.markup != null ? String(product.markup) : '',
       cashDiscount: product.cashDiscount != null ? String(product.cashDiscount) : '',
       ivaRate: product.ivaRate != null ? String(product.ivaRate) : '',
+      internalTaxRate: (product as any).internalTaxRate != null ? String((product as any).internalTaxRate) : '',
       salePrice: product.salePrice != null ? String(product.salePrice) : '',
       saleStart: product.saleStart ? product.saleStart.slice(0, 10) : '',
       saleEnd: product.saleEnd ? product.saleEnd.slice(0, 10) : '',
@@ -617,6 +620,7 @@ export default function AdminProductos() {
         markup: form.markup !== '' ? Number(form.markup) : null,
         cashDiscount: form.cashDiscount !== '' ? Number(form.cashDiscount) : null,
         ivaRate: form.ivaRate !== '' ? Number(form.ivaRate) : null,
+        internalTaxRate: form.internalTaxRate !== '' ? Number(form.internalTaxRate) : null,
         salePrice: form.salePrice ? Number(form.salePrice) : null,
         saleStart: form.saleStart || null,
         saleEnd: form.saleEnd || null,
@@ -1650,6 +1654,32 @@ export default function AdminProductos() {
                         ? 'Usando IVA default 10,5%. La categoría no tiene IVA configurado.'
                         : `Este producto tiene IVA ${form.ivaRate}% individual.`
                     })()}
+                  </p>
+                </div>
+
+                {/* Impuesto Interno (sesión 47) */}
+                <div className="space-y-2">
+                  <Label htmlFor="internalTaxRate" className="flex items-center gap-1">
+                    <Calculator className="w-4 h-4 text-orange-600" />
+                    Impuesto Interno (%)
+                  </Label>
+                  <Select
+                    value={form.internalTaxRate || '_none'}
+                    onValueChange={(value) => updateForm('internalTaxRate', value === '_none' ? '' : value)}
+                  >
+                    <SelectTrigger className="bg-white">
+                      <SelectValue placeholder="Sin impuesto interno" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_none">Sin impuesto interno</SelectItem>
+                      <SelectItem value="10.5">10,5% (algunos monitores)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-400">
+                    {form.internalTaxRate === ''
+                      ? 'Sin impuesto interno adicional.'
+                      : `Aplicando ${form.internalTaxRate}% de impuesto interno (aditivo al IVA).`
+                    }
                   </p>
                 </div>
               </div>

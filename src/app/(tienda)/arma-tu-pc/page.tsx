@@ -37,6 +37,7 @@ import {
 
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useCart } from '@/store/cart'
 import { Input } from '@/components/ui/input'
 import {
   extractCompatibility,
@@ -317,6 +318,23 @@ export default function ArmaTuPCPage() {
   const [activeFilters, setActiveFilters] = useState<CompatibilityFilters>({})
   const [showMobileSummary, setShowMobileSummary] = useState(false)
   const [manualFilters, setManualFilters] = useState<Record<string, string[]>>({})
+  const [addedToCart, setAddedToCart] = useState(false)
+  const addItem = useCart((s) => s.addItem)
+
+  const handleAddToCart = () => {
+    selectedComponents.forEach(c => {
+      addItem({
+        id: c.product.id,
+        name: c.product.name,
+        price: c.product.comparePrice || c.product.price,
+        image: c.product.images ? JSON.parse(c.product.images)[0] : '/placeholder-product.png',
+        slug: c.product.slug,
+      })
+    })
+    setAddedToCart(true)
+    setTimeout(() => setAddedToCart(false), 5000)
+  }
+
 
   const currentSlot = SLOTS[currentStep]
   const selectedForCurrentSlot = selectedComponents.filter(c => c.slot === currentSlot.slot)
@@ -436,8 +454,9 @@ export default function ArmaTuPCPage() {
       }
     })
 
-    // Auto-advance to next slot for non-disk slots
-    if (slot !== 'ssd' && slot !== 'hdd') {
+    // Auto-advance to next slot for non-disk AND non-RAM slots
+    // Sesión 47: RAM tampoco avanza automáticamente, el usuario debe presionar "Siguiente"
+    if (slot !== 'ssd' && slot !== 'hdd' && slot !== 'ram') {
       setTimeout(() => {
         if (currentStep < SLOTS.length - 1) {
           setCurrentStep(currentStep + 1)
@@ -1290,6 +1309,18 @@ export default function ArmaTuPCPage() {
                   <Button
                     onClick={() => {
                       if (completedRequired) {
+                        handleAddToCart()
+                      }
+                    }}
+                    className="bg-compucity-green hover:bg-compucity-green-dark gap-2"
+                    disabled={!completedRequired}
+                  >
+                    <ShoppingCart className="w-4 h-4" />
+                    Sumar al carrito
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (completedRequired) {
                         handleWhatsApp()
                       }
                     }}
@@ -1297,7 +1328,7 @@ export default function ArmaTuPCPage() {
                     disabled={!completedRequired}
                   >
                     <WhatsAppIcon className="w-4 h-4" />
-                    Consultar por WhatsApp
+                    WhatsApp
                   </Button>
                   <Button
                     onClick={() => {
@@ -1467,6 +1498,20 @@ export default function ArmaTuPCPage() {
                   </div>
                 )}
                 <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => {
+                      if (completedCount > 0) handleAddToCart()
+                    }}
+                    className={`flex items-center justify-center gap-2 py-2.5 rounded-lg font-semibold text-sm transition ${
+                      completedCount > 0
+                        ? 'bg-compucity-green hover:bg-compucity-green-dark text-white cursor-pointer'
+                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    }`}
+                    disabled={completedCount === 0}
+                  >
+                    <ShoppingCart className="w-4 h-4" />
+                    Sumar al carrito
+                  </button>
                   <a
                     href={completedCount > 0 ? buildWhatsAppUrl() : undefined}
                     target="_blank"
@@ -1499,6 +1544,15 @@ export default function ArmaTuPCPage() {
                     <Download className="w-4 h-4" />
                     Descargar PDF
                   </button>
+                  {/* Notificación agregado al carrito */}
+                  {addedToCart && (
+                    <div className="bg-compucity-green-50 border border-compucity-green-200 rounded-lg p-3 flex items-center justify-between gap-3">
+                      <p className="text-sm text-compucity-green-dark font-medium">✓ Componentes agregados al carrito</p>
+                      <Link href="/carrito" prefetch={false} className="text-xs text-white bg-compucity-green hover:bg-compucity-green-dark px-3 py-1.5 rounded-lg font-medium transition">
+                        Ir al carrito
+                      </Link>
+                    </div>
+                  )}
                 </div>
 
                 {completedCount > 0 && (
