@@ -326,8 +326,12 @@ export function calculateProductPrices(
       return { ...product, _calculated: false, _priceError: 'Dollar rate invalid' }
     }
 
-    const listPrice = Math.ceil(Number(product.costPrice) * (1 + ivaRate / 100) * (1 + markup / 100) * dollarRate)
-    const cashPrice = Math.ceil(Number(product.costPrice) * (1 + ivaRate / 100) * (1 + (markup - cashDiscount) / 100) * dollarRate)
+    // Sesión 47: Impuesto interno (ej: 10.5% en algunos monitores)
+    // NULL = sin impuesto interno (la fórmula queda igual que antes)
+    const internalTaxRate = product.internalTaxRate != null ? Number(product.internalTaxRate) : 0
+
+    const listPrice = Math.ceil(Number(product.costPrice) * (1 + ivaRate / 100 + internalTaxRate / 100) * (1 + markup / 100) * dollarRate)
+    const cashPrice = Math.ceil(Number(product.costPrice) * (1 + ivaRate / 100 + internalTaxRate / 100) * (1 + (markup - cashDiscount) / 100) * dollarRate)
 
     // SAFEGUARD: Prices must be positive
     if (listPrice <= 0 || cashPrice <= 0) {
@@ -347,6 +351,7 @@ export function calculateProductPrices(
       _effectiveMarkup: markup,
       _effectiveCashDiscount: cashDiscount,
       _effectiveIvaRate: ivaRate,
+      _effectiveInternalTaxRate: internalTaxRate,
       _markupSource: markupSource,
       _cashDiscountSource: cashDiscountSource,
       _ivaRateSource: ivaRateSource,

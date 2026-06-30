@@ -127,7 +127,23 @@ export default function Footer() {
 
         {/* Bottom bar */}
         <div className="border-t border-gray-800 mt-10 pt-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-gray-500">© {new Date().getFullYear()} Compucity. Todos los derechos reservados.</p>
+          <div className="flex items-center gap-4">
+            <p className="text-xs text-gray-500">© {new Date().getFullYear()} Compucity. Todos los derechos reservados.</p>
+            {/* QR AFIP */}
+            <a
+              href="https://qr.afip.gob.ar/?qr=MpgSrqMfiMNgSgpjEYDCdA,,"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="opacity-80 hover:opacity-100 transition"
+            >
+              <img
+                src="https://www.afip.gob.ar/images/f960/DATAWEB.jpg"
+                alt="QR AFIP"
+                className="h-12 w-auto rounded"
+                style={{ border: 0 }}
+              />
+            </a>
+          </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-compucity-green font-medium">Tu Mundo Digital</span>
             <button

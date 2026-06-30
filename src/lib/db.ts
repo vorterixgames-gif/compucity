@@ -479,4 +479,18 @@ export async function ensureMigrations() {
       console.warn('[migration] Could not create index:', e)
     }
   }
+
+  // 27. Add internalTaxRate column to products (sesión 47)
+  // Impuesto interno (ej: 10.5% en algunos monitores). NULL = sin impuesto interno.
+  // Fórmula: costPrice × (1 + ivaRate/100 + internalTaxRate/100) × (1 + markup/100) × dollarRate
+  try {
+    await db.execute({ sql: 'SELECT internalTaxRate FROM products LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({ sql: 'ALTER TABLE products ADD COLUMN internalTaxRate REAL' })
+      console.log('[migration] Added internalTaxRate column to products')
+    } catch (e) {
+      console.warn('[migration] Could not add internalTaxRate column:', e)
+    }
+  }
 }

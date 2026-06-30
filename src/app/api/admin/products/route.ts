@@ -307,7 +307,7 @@ export async function GET(request: NextRequest) {
 
     // Run count query + data query + config in parallel
     const selectColumns = `p.id, p.name, p.slug, p.description, p.price, p.comparePrice, p.costPrice,
-       p.markup, p.cashDiscount, p.ivaRate, p.sku, p.stock, p.stockByWarehouse, p.isActive, p.isFeatured,
+       p.markup, p.cashDiscount, p.ivaRate, p.internalTaxRate, p.sku, p.stock, p.stockByWarehouse, p.isActive, p.isFeatured,
        p.images, p.specs, p.providerId, p.providerSku, p.categoryId, p.supplierCategory,
        p.salePrice, p.saleStart, p.saleEnd, p.createdAt, p.updatedAt,
        c.name as categoryName, c.markup as categoryMarkup, c.cashDiscount as categoryCashDiscount,
@@ -415,7 +415,7 @@ export async function POST(request: NextRequest) {
     const {
       name, description, price, comparePrice, costPrice, sku, stock,
       isActive, isFeatured, images, specs, providerId, providerSku, categoryId,
-      markup, cashDiscount, ivaRate, salePrice, saleStart, saleEnd,
+      markup, cashDiscount, ivaRate, internalTaxRate, salePrice, saleStart, saleEnd,
     } = body
 
     console.log('[products POST] Received images:', images, 'type:', typeof images)
@@ -513,8 +513,8 @@ export async function POST(request: NextRequest) {
     }
 
     await db.execute({
-      sql: `INSERT INTO products (id, name, slug, description, price, comparePrice, costPrice, markup, cashDiscount, ivaRate, salePrice, saleStart, saleEnd, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, createdAt, updatedAt) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT INTO products (id, name, slug, description, price, comparePrice, costPrice, markup, cashDiscount, ivaRate, internalTaxRate, salePrice, saleStart, saleEnd, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, createdAt, updatedAt) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id, name, finalSlug, description || null,
         finalPrice, finalComparePrice,
@@ -522,6 +522,7 @@ export async function POST(request: NextRequest) {
         markup != null && markup !== '' ? Number(markup) : null,
         cashDiscount != null && cashDiscount !== '' ? Number(cashDiscount) : null,
         ivaRate != null && ivaRate !== '' ? Number(ivaRate) : null,
+        internalTaxRate != null && internalTaxRate !== '' ? Number(internalTaxRate) : null,
         salePrice ? Number(salePrice) : null,
         saleStart || null,
         saleEnd || null,
@@ -563,7 +564,7 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
     const { id, name, description, price, comparePrice, costPrice, sku, stock,
       isActive, isFeatured, images, specs, providerId, providerSku, categoryId,
-      markup, cashDiscount, ivaRate, salePrice, saleStart, saleEnd, brandId } = body
+      markup, cashDiscount, ivaRate, internalTaxRate, salePrice, saleStart, saleEnd, brandId } = body
 
     if (!id) {
       return NextResponse.json({ error: 'ID es requerido' }, { status: 400 })
@@ -711,6 +712,10 @@ export async function PUT(request: NextRequest) {
         // null/empty = inherit from category
         fields.push('ivaRate = ?'); values.push(null)
       }
+    }
+    // Sesión 47: internalTaxRate (impuesto interno, ej: 10.5% en algunos monitores)
+    if (internalTaxRate !== undefined) {
+      fields.push('internalTaxRate = ?'); values.push(internalTaxRate != null && internalTaxRate !== '' ? Number(internalTaxRate) : null)
     }
     if (salePrice !== undefined) { fields.push('salePrice = ?'); values.push(salePrice ? Number(salePrice) : null) }
     if (saleStart !== undefined) { fields.push('saleStart = ?'); values.push(saleStart || null) }
