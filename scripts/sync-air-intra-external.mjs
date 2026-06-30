@@ -406,23 +406,67 @@ async function main() {
     process.exit(1)
   }
 
-  // ─── 1. Login Air Intra ───
-  console.log('▸ Login Air Intra...')
-  const loginRes = await fetch(`${AIR_INTRA_BASE}/?q=login&user=${encodeURIComponent(AIR_INTRA_USER)}&pass=${encodeURIComponent(AIR_INTRA_PASS)}`)
-  if (!loginRes.ok) {
-    console.error(`✗ Login HTTP ${loginRes.status}`)
-    process.exit(1)
+  // ─── 1. Login Air Intra (con retry) ───
+  // Sesión 47: Air Intra a veces devuelve HTTP 404 transitoriamente en el login.
+  // Sin retry, el workflow entero muere al primer fallo.
+  // Con 3 intentos y 30s de espera, sobrevive a la mayoría de los transient errors.
+  const LOGIN_MAX_RETRIES = 3
+  const LOGIN_RETRY_DELAY_MS = 30_000
+  let token = null
+  let exchangeRate = 0
+
+  for (let attempt = 1; attempt <= LOGIN_MAX_RETRIES; attempt++) {
+    console.log(`▸ Login Air Intra (intento ${attempt}/${LOGIN_MAX_RETRIES})...`)
+    try {
+      const loginRes = await fetch(`${AIR_INTRA_BASE}/?q=login&user=${encodeURIComponent(AIR_INTRA_USER)}&pass=${encodeURIComponent(AIR_INTRA_PASS)}`)
+      if (!loginRes.ok) {
+        const errText = await loginRes.text().catch(() => '')
+        console.error(`  ✗ Login HTTP ${loginRes.status} — ${errText.substring(0, 200)}`)
+        if (attempt < LOGIN_MAX_RETRIES) {
+          console.log(`  ⏳ Esperando ${LOGIN_RETRY_DELAY_MS / 1000}s antes de reintentar...`)
+          await new Promise(r => setTimeout(r, LOGIN_RETRY_DELAY_MS))
+          continue
+        }
+        console.error(`✗ Login falló después de ${LOGIN_MAX_RETRIES} intentos. Abortando.`)
+        process.exit(1)
+      }
+      const loginRaw = await loginRes.text()
+      const loginCleaned = stripPhpNotices(loginRaw)
+      let jsonStart = -1
+      for (let i = 0; i < loginCleaned.length; i++) {
+        if (loginCleaned[i] === '{' || loginCleaned[i] === '[') { jsonStart = i; break }
+      }
+      if (jsonStart === -1) {
+        console.error(`  ✗ Login: respuesta sin JSON — ${loginCleaned.substring(0, 200)}`)
+        if (attempt < LOGIN_MAX_RETRIES) {
+          await new Promise(r => setTimeout(r, LOGIN_RETRY_DELAY_MS))
+          continue
+        }
+        process.exit(1)
+      }
+      const loginData = JSON.parse(loginCleaned.substring(jsonStart))
+      if (!loginData.token) {
+        console.error(`  ✗ Login: sin token en respuesta — ${JSON.stringify(loginData).substring(0, 200)}`)
+        if (attempt < LOGIN_MAX_RETRIES) {
+          await new Promise(r => setTimeout(r, LOGIN_RETRY_DELAY_MS))
+          continue
+        }
+        process.exit(1)
+      }
+      token = loginData.token
+      exchangeRate = parseFloat(loginData.cotiza || '0')
+      console.log(`  ✓ Login OK. Cotización: $${exchangeRate}`)
+      break
+    } catch (err) {
+      console.error(`  ✗ Login error: ${err.message}`)
+      if (attempt < LOGIN_MAX_RETRIES) {
+        await new Promise(r => setTimeout(r, LOGIN_RETRY_DELAY_MS))
+        continue
+      }
+      console.error(`✗ Login falló después de ${LOGIN_MAX_RETRIES} intentos. Abortando.`)
+      process.exit(1)
+    }
   }
-  const loginRaw = await loginRes.text()
-  const loginCleaned = stripPhpNotices(loginRaw)
-  let jsonStart = -1
-  for (let i = 0; i < loginCleaned.length; i++) {
-    if (loginCleaned[i] === '{' || loginCleaned[i] === '[') { jsonStart = i; break }
-  }
-  const loginData = JSON.parse(loginCleaned.substring(jsonStart))
-  const token = loginData.token
-  const exchangeRate = parseFloat(loginData.cotiza || '0')
-  console.log(`  ✓ Login OK. Cotización: $${exchangeRate}`)
 
   // ─── 2. Cargar productos existentes de Turso ───
   console.log('▸ Cargando productos existentes de Turso...')
