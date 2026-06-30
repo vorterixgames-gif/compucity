@@ -41,42 +41,24 @@ export async function GET(request: Request) {
 
   const results: Record<string, { ok: boolean; updated: number; errors: number; message: string }> = {}
 
-  // ─── Sync Elit ─────────────────────────────────────────────────────────────
-  try {
-    const elitResult = await syncElitStock()
-    results['Elit'] = elitResult
-    logger.debug(`[cron-sync] Elit: ${elitResult.updated} updated, ${elitResult.errors} errors`)
-  } catch (err: any) {
-    console.error('[cron-sync] Elit error:', err.message)
-    results['Elit'] = { ok: false, updated: 0, errors: 1, message: err.message }
-  }
-
-  // ─── Sync Invid ────────────────────────────────────────────────────────────
-  try {
-    const invidResult = await syncInvidStock()
-    results['Invid'] = invidResult
-    logger.debug(`[cron-sync] Invid: ${invidResult.updated} updated, ${invidResult.errors} errors`)
-  } catch (err: any) {
-    console.error('[cron-sync] Invid error:', err.message)
-    results['Invid'] = { ok: false, updated: 0, errors: 1, message: err.message }
-  }
-
-  // ─── Air Intra: desactivado en Vercel (sesión 43 día 4) ──────────────────
-  // Air Intra ahora se sincroniza via GitHub Actions cada 12h.
-  // Script: scripts/sync-air-intra-external.mjs
-  // Workflow: .github/workflows/sync-air-intra.yml
-  // GitHub Actions procesa TODAS las páginas (16) y filtra por rubros permitidos.
-  // Esto libera Vercel Fluid CPU y evita duplicar trabajo.
+  // Sesión 47: Elit, Invid y Air Intra ahora se sincronizan via GitHub Actions.
+  // El cron de Vercel Hobby fallaba silenciosamente y dejaba productos con
+  // stock=0 por días aunque las APIs reportaran stock real.
+  //
+  // Workflows activos:
+  //   - .github/workflows/sync-elit-invid.yml (cada 6h)
+  //   - .github/workflows/sync-air-intra.yml  (cada 12h)
+  //   - .github/workflows/sync-brands.yml     (1 vez/día)
+  //
+  // Este endpoint queda solo como fallback manual: si alguien lo llama con
+  // el CRON_SECRET correcto, hace revalidateTag('products') para invalidar
+  // el cache del storefront on-demand. La sync de stock/precios la hacen
+  // los workflows de GitHub Actions.
+  results['Elit'] = { ok: true, updated: 0, errors: 0, message: 'Sincronizado via GitHub Actions (cada 6h)' }
+  results['Invid'] = { ok: true, updated: 0, errors: 0, message: 'Sincronizado via GitHub Actions (cada 6h)' }
   results['Air Intra'] = { ok: true, updated: 0, errors: 0, message: 'Sincronizado via GitHub Actions (cada 12h)' }
 
-  // ─── Update lastSyncAt for both ────────────────────────────────────────────
   const now = new Date().toISOString()
-  try {
-    await db.execute({
-      sql: `UPDATE suppliers SET lastSyncAt = ?, updatedAt = ? WHERE apiType IN ('elit', 'invid', 'air_intra') AND isActive = 1`,
-      args: [now, now],
-    })
-  } catch { /* non-critical */ }
 
   // ─── Brands: NO se re-detectan acá (sesión 44) ────────────────────────────
   // Antes este bloque hacía re-detección de brands con ~14.000 queries a Turso

@@ -319,3 +319,54 @@ Stage Summary:
 - Vercel redeployando (1-3 min)
 - Lección: el pre-merge check debería validar que archivos críticos no
   se borren. Considerar agregar check en pre-push hook.
+
+---
+Task ID: sesion-47-leccion-aprendida
+Agent: main
+Task: Lección crítica del dueño — administrar bien los recursos y evitar errores innecesarios
+
+Work Log:
+- El dueño marcó que la sesión 47 hizo 5 deploys cuando se le había pedido
+  TODO JUNTO en un solo deploy.
+- Reflexión sobre los errores concretos que llevaron a esto.
+
+Stage Summary - LECCIÓN CRÍTICA PARA FUTURAS SESIONES (LEER ANTES DE EMPEZAR):
+
+**Regla de oro: un pedido conjunto = un solo deploy.**
+
+Checklist PRE-PUSH obligatorio (NUNCA omitir):
+1. `npx next build` local OK (sin errores TS, sin warnings críticos)
+2. `git diff --stat origin/main..HEAD` revisado MANUALMENTE — detectar
+   archivos borrados por accidente (en s47 se borró /api/admin/upload
+   de 177 líneas y no lo vi hasta que el dueño reportó el 404)
+3. Migraciones de DB aplicadas MANUALMENTE contra Turso producción
+   ANTES de pushear (db.ts solo corre en cold start, no confiar)
+4. Smoke test local: levantar dev server, probar las rutas críticas
+   (home, /admin/productos, /api/admin/products, /arma-tu-pc)
+5. Backup DB reciente (menos de 1h)
+
+Errores concretos de s47 que NO deben repetirse:
+- (a) Hice merge sin revisar el diff del branch → se coló un git rm
+  que borró /api/admin/upload. SOLUCIÓN: siempre `git show --stat`
+  del commit mergeado antes de push.
+- (b) Confié en que db.ts aplicaría la migración #27. NO la aplicó.
+  SOLUCIÓN: para migraciones críticas, aplicar manualmente ANTES
+  del deploy que las necesita.
+- (c) Pusheé docs/chores (worklog, PROJECT_STATUS) como deploy
+  separado en vez de batchearlos. SOLUCIÓN: agrupar todos los
+  commits no-críticos y pushearlos juntos al final, después de
+  que el deploy principal esté validado en producción.
+- (d) Pusheé el fix del workflow Air Intra como deploy separado.
+  SOLUCIÓN: si hay un fix que no bloquea el deploy principal,
+  esperar y batchearlo con los docs al final.
+
+Costo real de los 5 deploys de s47:
+- ~10 min de build time de Vercel
+- 3 cold starts extra (cada deploy invalida cache)
+- Tiempo del dueño revisando después de cada uno
+- Sitio roto en /admin/productos entre deploy 1 y 3 (migración + upload)
+- El dueño se enojó con razón
+
+ESTE ARCHIVO (worklog.md) ES LA MEMORIA DEL PROYECTO.
+Cualquier agente que arranque una sesión nueva DEBE leer este archivo
+completo antes de empezar a trabajar, especialmente esta sección.

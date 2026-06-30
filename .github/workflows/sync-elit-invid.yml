@@ -1,0 +1,71 @@
+name: Sync Elit + Invid
+
+# Sincronización de stock y precios para Elit e Invid.
+# Sesión 47: migrado del cron de Vercel a GitHub Actions porque
+# el cron de Vercel Hobby fallaba silenciosamente y dejaba productos
+# con stock=0 por días aunque la API reportara stock real.
+#
+# Cron cada 6 horas (00:00, 06:00, 12:00, 18:00 UTC = 21:00, 03:00, 09:00, 15:00 Argentina)
+# También se puede disparar manualmente desde GitHub Actions tab.
+
+on:
+  schedule:
+    - cron: '0 0,6,12,18 * * *'  # cada 6 horas
+  workflow_dispatch: {}  # disparo manual
+
+permissions:
+  contents: read
+
+jobs:
+  sync-elit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Run Elit sync
+        env:
+          TURSO_URL: ${{ secrets.TURSO_URL }}
+          TURSO_TOKEN: ${{ secrets.TURSO_TOKEN }}
+          ELIT_USER_ID: ${{ secrets.ELIT_USER_ID }}
+          ELIT_TOKEN: ${{ secrets.ELIT_TOKEN }}
+        run: node scripts/sync-elit-external.mjs
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ La sync de Elit falló. Revisar los logs arriba."
+
+  sync-invid:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: sync-elit  # correr después de Elit para no saturar Turso
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Run Invid sync
+        env:
+          TURSO_URL: ${{ secrets.TURSO_URL }}
+          TURSO_TOKEN: ${{ secrets.TURSO_TOKEN }}
+          INVID_USER: ${{ secrets.INVID_USER }}
+          INVID_PASS: ${{ secrets.INVID_PASS }}
+        run: node scripts/sync-invid-external.mjs
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ La sync de Invid falló. Revisar los logs arriba."
