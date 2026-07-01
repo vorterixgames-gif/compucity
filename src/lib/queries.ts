@@ -405,14 +405,15 @@ export const getProductBySlug = unstable_cache(
 // Se mantiene el revalidate del endpoint /api/search.
 export async function searchProducts(query: string, limit = 20): Promise<Product[]> {
   const searchTerm = `%${query}%`
+  const searchTermStart = `${query}%`
   const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
     db.execute({
       sql: `SELECT * FROM products
             WHERE isActive = 1 AND stock > 0
-            AND (name LIKE ? OR description LIKE ? OR sku LIKE ?)
+            AND (name LIKE ? OR sku LIKE ?)
             ORDER BY CASE WHEN images IS NOT NULL AND images != '[]' THEN 0 ELSE 1 END, CASE WHEN name LIKE ? THEN 0 ELSE 1 END, COALESCE(createdAt, updatedAt) DESC
             LIMIT ?`,
-      args: [searchTerm, searchTerm, searchTerm, searchTerm, limit],
+      args: [searchTerm, searchTerm, searchTermStart, limit],
     }),
     fetchDollarRate(),
     getStoreConfigNumber('markup', 30),
