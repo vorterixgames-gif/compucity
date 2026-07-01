@@ -267,7 +267,7 @@ async function enrichWithBrandInfo<T extends { brandId?: string | null }>(produc
 async function _getAllActiveProductsRaw(limit: number): Promise<Product[]> {
   const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
     db.execute({
-      sql: `SELECT id, name, slug, price, comparePrice, costPrice, currency, images,
+      sql: `SELECT id, name, slug, price, comparePrice, costPrice, images,
                    categoryId, brandId, isActive, stock, markup, cashDiscount, ivaRate,
                    internalTaxRate, salePrice, saleStart, saleEnd, sku, providerId,
                    isFeatured, createdAt, updatedAt
@@ -296,7 +296,7 @@ export const getAllActiveProducts = unstable_cache(
 async function _getFeaturedProductsRaw(): Promise<Product[]> {
   const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
     db.execute({
-      sql: `SELECT id, name, slug, price, comparePrice, costPrice, currency, images,
+      sql: `SELECT id, name, slug, price, comparePrice, costPrice, images,
                    categoryId, brandId, isActive, stock, markup, cashDiscount, ivaRate,
                    internalTaxRate, salePrice, saleStart, saleEnd, sku, providerId,
                    isFeatured, createdAt, updatedAt
@@ -349,7 +349,7 @@ async function _getProductsByCategoryRaw(slug: string): Promise<Product[]> {
 
   const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
     db.execute({
-      sql: `SELECT p.id, p.name, p.slug, p.price, p.comparePrice, p.costPrice, p.currency,
+      sql: `SELECT p.id, p.name, p.slug, p.price, p.comparePrice, p.costPrice,
                    p.images, p.categoryId, p.brandId, p.isActive, p.stock,
                    p.markup, p.cashDiscount, p.ivaRate, p.internalTaxRate,
                    p.salePrice, p.saleStart, p.saleEnd, p.sku, p.providerId,
@@ -431,7 +431,7 @@ export async function searchProducts(query: string, limit = 20): Promise<Product
   const searchTermAny = `%${query}%`
 
   // Columnas necesarias para la UI de sugerencias y cálculo de precios
-  const selectCols = `id, name, slug, price, comparePrice, costPrice, currency, images,
+  const selectCols = `id, name, slug, price, comparePrice, costPrice, images,
                       categoryId, brandId, isActive, stock, markup, cashDiscount, ivaRate,
                       internalTaxRate, salePrice, saleStart, saleEnd, sku, providerId`
 
