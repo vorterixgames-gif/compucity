@@ -30,7 +30,7 @@ export async function GET() {
       // Dollar: try/catch para tolerar si faltan columnas compra/venta
       db.execute('SELECT rate, source, compra, venta, updatedAt FROM dollar_rates ORDER BY updatedAt DESC LIMIT 1')
         .catch(() => db.execute('SELECT rate, source, updatedAt FROM dollar_rates ORDER BY updatedAt DESC LIMIT 1')),
-      db.execute('SELECT * FROM orders ORDER BY createdAt DESC LIMIT 5'),
+      db.execute('SELECT id, orderNumber, customerName, total, status, createdAt FROM orders ORDER BY createdAt DESC LIMIT 5'),
       db.execute('SELECT COUNT(*) as count FROM products WHERE isActive = 1'),
       db.execute('SELECT COUNT(*) as count FROM products WHERE isFeatured = 1'),
       db.execute('SELECT status, COUNT(*) as count FROM orders GROUP BY status'),

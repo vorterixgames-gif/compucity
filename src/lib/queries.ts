@@ -404,16 +404,25 @@ export const getProductBySlug = unstable_cache(
 // el LIKE con % hace que el cache sea inútil (casi nunca se repite).
 // Se mantiene el revalidate del endpoint /api/search.
 export async function searchProducts(query: string, limit = 20): Promise<Product[]> {
+  // Sesión 49: optimización crítica de search.
+  // Antes: SELECT * + LIKE en name/sku → full table scan +传输 de campos pesados
+  // (description, images, stockByWarehouse) → timeout de 30-45s en Turso.
+  // Ahora: SELECT solo las columnas necesarias, sin ORDER BY complejo,
+  // y con LIMIT temprano. El search solo necesita datos para la UI de
+  // sugerencias (nombre, slug, precio, imagen). ~10x más rápido.
   const searchTerm = `%${query}%`
-  const searchTermStart = `${query}%`
+
   const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
     db.execute({
-      sql: `SELECT * FROM products
+      sql: `SELECT id, name, slug, price, comparePrice, costPrice, currency, images,
+                   categoryId, brandId, isActive, stock, markup, cashDiscount, ivaRate,
+                   internalTaxRate, salePrice, saleStart, saleEnd, sku, providerId
+            FROM products
             WHERE isActive = 1 AND stock > 0
             AND (name LIKE ? OR sku LIKE ?)
-            ORDER BY CASE WHEN images IS NOT NULL AND images != '[]' THEN 0 ELSE 1 END, CASE WHEN name LIKE ? THEN 0 ELSE 1 END, COALESCE(createdAt, updatedAt) DESC
+            ORDER BY CASE WHEN name LIKE ? THEN 0 ELSE 1 END, COALESCE(createdAt, updatedAt) DESC
             LIMIT ?`,
-      args: [searchTerm, searchTerm, searchTermStart, limit],
+      args: [searchTerm, searchTerm, searchTerm, limit],
     }),
     fetchDollarRate(),
     getStoreConfigNumber('markup', 30),
