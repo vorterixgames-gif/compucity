@@ -1,7 +1,1 @@
-{
-  "functions": {
-    "src/app/api/admin/suppliers/sync/route.ts": {
-      "maxDuration": 300
-    }
-  }
-}
+{}
