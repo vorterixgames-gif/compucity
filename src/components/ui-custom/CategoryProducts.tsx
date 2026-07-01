@@ -431,7 +431,7 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'screen', label: '14"', value: '14', matchFn: (n) => /14[\."]|14\s/i.test(n) },
     { key: 'screen', label: '15"', value: '15', matchFn: (n) => /15[\."]|15\s/i.test(n) },
     { key: 'screen', label: '16"', value: '16', matchFn: (n) => /16[\."]|16\s/i.test(n) },
-    { key: 'gpu', label: 'Con GPU dedicada', value: 'dedicated', matchFn: (n) => /\bRTX\b|\bGTX\b|\bRADEON\b/i.test(n) && /\bNB\b|\bNOTEBOOK\b/i.test(n) },
+    { key: 'gpu', label: 'Con GPU dedicada', value: 'dedicated', matchFn: (n) => /\bRTX\b|\bGTX\b|\bRADEON\b/i.test(n) },
   ],
   'smart-home': [
     { key: 'brand', label: 'EZVIZ', value: 'EZVIZ', matchFn: (n) => /\bEZVIZ\b/i.test(n) },
@@ -864,28 +864,41 @@ export default function CategoryProducts({
 
   // Get filter groups for current category
   // Non-brand filters remain hardcoded; brand filters are generated dynamically from brandId
+  // EXCEPTION: categories in HARDCODED_BRAND_CATEGORIES use hardcoded brand filters (to avoid
+  // Intel/AMD appearing as notebook manufacturers, etc.)
+  const HARDCODED_BRAND_CATEGORIES = new Set(['notebooks', 'gamer-y-diseno', 'pc-armadas'])
   const currentCategoryFilterOptions = CATEGORY_FILTERS[filterSlug] || []
+  const useHardcodedBrands = HARDCODED_BRAND_CATEGORIES.has(filterSlug)
   const filterGroups = useMemo(() => {
     const groups: { key: string; label: string; options: CategoryFilterOption[] }[] = []
     const keyMap = new Map<string, CategoryFilterOption[]>()
 
-    // 1. Add non-brand hardcoded filters
+    // 1. Add non-brand hardcoded filters (always)
     for (const opt of currentCategoryFilterOptions) {
-      if (opt.key === 'brand') continue // Skip hardcoded brand filters
+      if (opt.key === 'brand') {
+        // For categories that need hardcoded brands (notebooks, gamer-y-diseno, pc-armadas),
+        // use the hardcoded brand filters instead of dynamic ones
+        if (useHardcodedBrands) {
+          if (!keyMap.has(opt.key)) keyMap.set(opt.key, [])
+          keyMap.get(opt.key)!.push(opt)
+        }
+        continue
+      }
       if (!keyMap.has(opt.key)) keyMap.set(opt.key, [])
       keyMap.get(opt.key)!.push(opt)
     }
 
     // 2. Generate dynamic brand filters from product brandId/brandName
-    // Group products by brandId to discover which brands exist in this category
-    const brandMap = new Map<string, { id: string; name: string; count: number }>()
-    for (const p of products) {
-      if (!p.brandId || !p.brandName) continue
-      if (!brandMap.has(p.brandId)) {
-        brandMap.set(p.brandId, { id: p.brandId, name: p.brandName, count: 0 })
+    // Only for categories NOT in HARDCODED_BRAND_CATEGORIES
+    if (!useHardcodedBrands) {
+      const brandMap = new Map<string, { id: string; name: string; count: number }>()
+      for (const p of products) {
+        if (!p.brandId || !p.brandName) continue
+        if (!brandMap.has(p.brandId)) {
+          brandMap.set(p.brandId, { id: p.brandId, name: p.brandName, count: 0 })
+        }
+        brandMap.get(p.brandId)!.count++
       }
-      brandMap.get(p.brandId)!.count++
-    }
 
     // Sort brands by product count (most products first) then alphabetically
     const sortedBrands = [...brandMap.values()].sort((a, b) =>
@@ -905,6 +918,7 @@ export default function CategoryProducts({
     if (brandOptions.length > 0) {
       keyMap.set('brand', brandOptions)
     }
+    } // end if (!useHardcodedBrands)
 
     // Build groups in a stable order (brand first, then others)
     const orderedKeys: string[] = []
@@ -918,7 +932,7 @@ export default function CategoryProducts({
       groups.push({ key, label: FILTER_GROUP_LABELS[key] || key, options })
     }
     return groups
-  }, [currentCategoryFilterOptions.length, filterSlug, products])
+  }, [currentCategoryFilterOptions.length, filterSlug, products, useHardcodedBrands])
 
   const setCategoryFilter = (key: string, value: string) => {
     setCategoryFilters(prev => {

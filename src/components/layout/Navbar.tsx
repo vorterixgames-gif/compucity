@@ -35,6 +35,14 @@ interface NavbarProps {
   categories: Category[]
 }
 
+// Slugs preferidos para los links directos del navbar (orden fijo, no depende de la DB)
+const PREFERRED_NAV_CATEGORIES = [
+  'monitores',
+  'pc-armadas',
+  'notebooks',
+  'componentes-de-pc',
+]
+
 const NAV_LINKS = [
   { name: 'Arma tu PC', href: '/arma-tu-pc' },
   { name: 'Contacto', href: '/contacto' },
@@ -565,11 +573,15 @@ export default function Navbar() {
 
             {/* Marcas dropdown - hidden */}
 
-            {categories.slice(0, 4).map((cat) => (
-              <Link key={cat.id} href={`/categoria/${cat.slug}`} className="px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 transition font-medium text-sm">
-                {cat.name}
-              </Link>
-            ))}
+            {PREFERRED_NAV_CATEGORIES.map((slug) => {
+              const cat = categories.find((c) => c.slug === slug)
+              if (!cat) return null
+              return (
+                <Link key={cat.id} href={`/categoria/${cat.slug}`} className="px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 transition font-medium text-sm">
+                  {cat.name}
+                </Link>
+              )
+            })}
 
             {NAV_LINKS.map((link) => (
               <Link key={link.href} href={link.href} className="px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 transition font-medium text-sm">
