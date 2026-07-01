@@ -11,7 +11,7 @@ import { verifyToken } from '@/lib/admin-auth'
  * El storefront no pasa por proxy → menos latencia + menos CPU.
  */
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Rutas públicas del admin (login y auth API) — no requieren token
