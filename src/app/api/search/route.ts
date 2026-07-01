@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { fetchDollarRate, getStoreConfigNumber, calculateProductPrices } from '@/lib/dollar'
+import { getCategoryMarkupMap } from '@/lib/queries'
 
-// Search endpoint optimizado: query directa a DB sin pipeline de precios completo.
-// El search del navbar solo necesita nombre, slug, precio e imagen para las sugerencias.
-// No necesita deduplicación, enriquecimiento de marcas, ni cálculo completo de precios.
+// Search endpoint: query directa + cálculo de precios solo para los 6 resultados.
+// Antes usaba searchProducts() que hacía 2 queries LIKE secuenciales + 3 queries de config
+// + calculateProductPrices + enrichWithBrandInfo + deduplicateProducts para 20 productos.
+// Ahora: 1 query LIKE + 3 queries config en paralelo + cálculo de precios para 6 productos.
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
@@ -17,11 +20,12 @@ export async function GET(request: NextRequest) {
   const limit = 6
 
   try {
-    // Query directa: solo columnas necesarias, sin currency (no existe en la tabla),
-    // sin JOINs, sin ORDER BY complejo.
-    // Usa los precios ya calculados (price, comparePrice) que se guardan en la DB.
+    // Paso 1: Query directa con LIKE + traer datos para cálculo de precios
+    // Seleccionamos columnas necesarias para calculateProductPrices
     const result = await db.execute({
-      sql: `SELECT id, name, slug, price, comparePrice, images
+      sql: `SELECT id, name, slug, price, comparePrice, costPrice, images,
+                   categoryId, brandId, isActive, stock, markup, cashDiscount, ivaRate,
+                   internalTaxRate, salePrice, saleStart, saleEnd
             FROM products
             WHERE isActive = 1 AND stock > 0 AND name LIKE ?
             ORDER BY CASE WHEN images IS NOT NULL AND images != '[]' THEN 0 ELSE 1 END,
@@ -30,14 +34,30 @@ export async function GET(request: NextRequest) {
       args: [`%${searchTerm}%`, limit],
     })
 
-    const products = (result.rows as any[]).map((p) => ({
-      id: p.id,
-      name: p.name,
-      slug: p.slug,
-      price: p.price,
-      comparePrice: p.comparePrice,
-      images: p.images ? (() => { try { return JSON.parse(p.images) } catch { return [] } })() : [],
-    }))
+    if (result.rows.length === 0) {
+      return NextResponse.json({ ok: true, products: [] })
+    }
+
+    // Paso 2: Calcular precios con cotización actual (en paralelo con config)
+    const [dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
+      fetchDollarRate(),
+      getStoreConfigNumber('markup', 30),
+      getStoreConfigNumber('cash_discount', 10),
+      getCategoryMarkupMap(),
+    ])
+
+    // Paso 3: Aplicar calculateProductPrices a cada resultado
+    const products = (result.rows as any[]).map((p) => {
+      const calculated = calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
+      return {
+        id: calculated.id,
+        name: calculated.name,
+        slug: calculated.slug,
+        price: calculated.price,
+        comparePrice: calculated.comparePrice,
+        images: calculated.images ? (() => { try { return JSON.parse(calculated.images) } catch { return [] } })() : [],
+      }
+    })
 
     return NextResponse.json({ ok: true, products })
   } catch (error) {
