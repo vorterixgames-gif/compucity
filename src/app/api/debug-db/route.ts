@@ -3,94 +3,62 @@ import { db } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
-// Public diagnostic endpoint - will be removed after debugging
+// Debug: check if 'currency' column exists in products table
 export async function GET() {
   try {
     const results: Record<string, any> = {}
 
-    // Test 1: Simple count
+    // Test: SELECT with currency column
     try {
-      const countRes = await db.execute('SELECT COUNT(*) as count FROM products')
-      results.totalProducts = (countRes.rows as any[])[0]?.count
-    } catch (e: any) {
-      results.countError = e.message
-    }
-
-    // Test 2: Active + stock count
-    try {
-      const activeRes = await db.execute('SELECT COUNT(*) as count FROM products WHERE isActive = 1 AND stock > 0')
-      results.activeWithStock = (activeRes.rows as any[])[0]?.count
-    } catch (e: any) {
-      results.activeError = e.message
-    }
-
-    // Test 3: LIKE prefix search
-    try {
-      const prefixRes = await db.execute({
-        sql: "SELECT id, name FROM products WHERE isActive = 1 AND stock > 0 AND name LIKE ? LIMIT 5",
-        args: ['notebook%'],
-      })
-      results.prefixSearchCount = prefixRes.rows.length
-      results.prefixSearchSample = (prefixRes.rows as any[]).map(r => r.name)
-    } catch (e: any) {
-      results.prefixError = e.message
-    }
-
-    // Test 4: LIKE anywhere search
-    try {
-      const anyRes = await db.execute({
-        sql: "SELECT id, name FROM products WHERE isActive = 1 AND stock > 0 AND name LIKE ? LIMIT 5",
+      const res = await db.execute({
+        sql: "SELECT id, name, currency FROM products WHERE isActive = 1 AND stock > 0 AND name LIKE ? LIMIT 3",
         args: ['%notebook%'],
       })
-      results.anySearchCount = anyRes.rows.length
-      results.anySearchSample = (anyRes.rows as any[]).map(r => r.name)
+      results.withCurrencyCount = res.rows.length
+      results.withCurrencySample = (res.rows as any[]).map(r => ({ name: r.name, currency: r.currency }))
     } catch (e: any) {
-      results.anyError = e.message
+      results.withCurrencyError = e.message
     }
 
-    // Test 5: Sample active products
+    // Test: SELECT without currency column  
     try {
-      const sampleRes = await db.execute({
-        sql: 'SELECT id, name, isActive, stock FROM products WHERE isActive = 1 AND stock > 0 LIMIT 5',
-        args: [],
-      })
-      results.sampleCount = sampleRes.rows.length
-      results.sampleNames = (sampleRes.rows as any[]).map(r => r.name)
-    } catch (e: any) {
-      results.sampleError = e.message
-    }
-
-    // Test 6: Raw LIKE without filters
-    try {
-      const rawRes = await db.execute({
-        sql: "SELECT id, name, isActive, stock FROM products WHERE name LIKE ? LIMIT 5",
+      const res = await db.execute({
+        sql: "SELECT id, name FROM products WHERE isActive = 1 AND stock > 0 AND name LIKE ? LIMIT 3",
         args: ['%notebook%'],
       })
-      results.rawLikeCount = rawRes.rows.length
-      results.rawLikeSample = (rawRes.rows as any[]).map(r => ({ name: r.name, isActive: r.isActive, stock: r.stock }))
+      results.withoutCurrencyCount = res.rows.length
+      results.withoutCurrencySample = (res.rows as any[]).map(r => r.name)
     } catch (e: any) {
-      results.rawLikeError = e.message
+      results.withoutCurrencyError = e.message
     }
 
-    // Test 7: DB URL type
-    const dbUrl = process.env.DATABASE_URL || '(not set)'
-    results.dbUrlType = dbUrl.startsWith('libsql://') ? 'libsql (remote)' : dbUrl.startsWith('file:') ? 'file (local)' : 'other'
-    results.hasAuthToken = !!process.env.TURSO_AUTH_TOKEN
-
-    // Test 8: LOWER() + LIKE
+    // Test: PRAGMA table_info for products
     try {
-      const lowerRes = await db.execute({
-        sql: "SELECT id, name FROM products WHERE LOWER(name) LIKE LOWER(?) LIMIT 5",
-        args: ['%notebook%'],
-      })
-      results.lowerLikeCount = lowerRes.rows.length
-      results.lowerLikeSample = (lowerRes.rows as any[]).map(r => r.name)
+      const info = await db.execute("PRAGMA table_info(products)")
+      results.columns = (info.rows as any[]).map(r => r.name)
+      results.hasCurrency = results.columns.includes('currency')
     } catch (e: any) {
-      results.lowerLikeError = e.message
+      results.pragmaError = e.message
+    }
+
+    // Test: The EXACT query from searchProducts
+    try {
+      const selectCols = `id, name, slug, price, comparePrice, costPrice, currency, images,
+                          categoryId, brandId, isActive, stock, markup, cashDiscount, ivaRate,
+                          internalTaxRate, salePrice, saleStart, saleEnd, sku, providerId`
+      const res = await db.execute({
+        sql: `SELECT ${selectCols} FROM products
+              WHERE isActive = 1 AND stock > 0 AND name LIKE ?
+              ORDER BY COALESCE(createdAt, updatedAt) DESC LIMIT ?`,
+        args: ['notebook%', 20],
+      })
+      results.exactSearchQueryCount = res.rows.length
+    } catch (e: any) {
+      results.exactSearchQueryError = e.message
     }
 
     return NextResponse.json({ ok: true, diagnostics: results })
   } catch (error: any) {
-    return NextResponse.json({ error: error.message, stack: error.stack }, { status: 500 })
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
