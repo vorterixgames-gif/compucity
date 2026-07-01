@@ -80,26 +80,6 @@ export async function fetchDollarRate(): Promise<DollarInfo> {
     const venta = dolarData.value_sell
     const fecha = data.last_update
 
-    // 4. Guardar en DB (UPDATE si existe, INSERT si no)
-    const nowIso = new Date().toISOString()
-    const existing = await db.execute({
-      sql: 'SELECT id FROM dollar_rates ORDER BY updatedAt DESC LIMIT 1',
-      args: [],
-    })
-
-    if (existing.rows.length > 0) {
-      await db.execute({
-        sql: 'UPDATE dollar_rates SET rate = ?, source = ?, compra = ?, venta = ?, updatedAt = ? WHERE id = ?',
-        args: [rate, configSource, compra, venta, nowIso, (existing.rows[0] as any).id],
-      })
-    } else {
-      const id = crypto.randomUUID()
-      await db.execute({
-        sql: 'INSERT INTO dollar_rates (id, rate, source, compra, venta, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
-        args: [id, rate, configSource, compra, venta, nowIso],
-      })
-    }
-
     const result: DollarInfo = {
       rate,
       source: configSource === 'blue' ? 'Dólar Blue' : 'Banco Nación',
@@ -109,14 +89,20 @@ export async function fetchDollarRate(): Promise<DollarInfo> {
       cached: false,
     }
 
-    // 5. Guardar en caché en memoria
+    // 4. Guardar en caché en memoria (15 min)
     dollarCache = { data: result, expiresAt: now + DOLLAR_CACHE_TTL_MS }
+
+    // 5. Guardar en DB — FIRE AND FORGET (no esperar la escritura)
+    // Sesión 49: la escritura a dollar_rates ya no bloquea el read path.
+    // Antes: 2 queries extra (SELECT + UPDATE/INSERT) en serie = +200-500ms
+    // Ahora: la escritura corre en background, no afecta al usuario.
+    saveDollarRateToDb(rate, configSource, compra, venta).catch(() => {})
 
     return result
   } catch {
     // Fallback: devolver valor guardado en DB
     try {
-      const result = await db.execute('SELECT * FROM dollar_rates ORDER BY updatedAt DESC LIMIT 1')
+      const result = await db.execute('SELECT rate, source, updatedAt FROM dollar_rates ORDER BY updatedAt DESC LIMIT 1')
       const rows = result.rows as any[]
       if (rows.length > 0) {
         const fallback: DollarInfo = {
@@ -127,8 +113,8 @@ export async function fetchDollarRate(): Promise<DollarInfo> {
           fecha: rows[0].updatedAt,
           cached: true,
         }
-        // Cachear también el fallback por 1 min para no spammear DB si la API cae
-        dollarCache = { data: fallback, expiresAt: now + 60_000 }
+        // Cachear también el fallback por 5 min
+        dollarCache = { data: fallback, expiresAt: now + 300_000 }
         return fallback
       }
     } catch {}
@@ -142,6 +128,33 @@ export async function fetchDollarRate(): Promise<DollarInfo> {
       cached: true,
     }
     return ultimate
+  }
+}
+
+/** Guarda la cotización en DB — fire and forget desde fetchDollarRate */
+async function saveDollarRateToDb(rate: number, source: string, compra: number | null, venta: number): Promise<void> {
+  try {
+    const nowIso = new Date().toISOString()
+    const existing = await db.execute({
+      sql: 'SELECT id FROM dollar_rates ORDER BY updatedAt DESC LIMIT 1',
+      args: [],
+    })
+
+    if (existing.rows.length > 0) {
+      await db.execute({
+        sql: 'UPDATE dollar_rates SET rate = ?, source = ?, compra = ?, venta = ?, updatedAt = ? WHERE id = ?',
+        args: [rate, source, compra, venta, nowIso, (existing.rows[0] as any).id],
+      })
+    } else {
+      const id = crypto.randomUUID()
+      await db.execute({
+        sql: 'INSERT INTO dollar_rates (id, rate, source, compra, venta, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+        args: [id, rate, source, compra, venta, nowIso],
+      })
+    }
+  } catch (e) {
+    // Silenciar — la escritura es best-effort
+    console.warn('saveDollarRateToDb error:', e)
   }
 }
 

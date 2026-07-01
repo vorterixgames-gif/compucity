@@ -13,16 +13,13 @@ interface Props {
   searchParams: Promise<{ q?: string }>
 }
 
-// Sesion 43: era `force-dynamic` (cada visita = queries frescas a Turso).
-// Cambiado a revalidate=300 (5 min) para reducir rows reads en Turso.
-// Las categorías grandes (cables 393, mouse 384, motherboards 309) sin caché
-// causaban el 80% del consumo de Turso. 5 min de stale es aceptable porque
-// los precios/stock se actualizan via cron solo 1 vez por día.
-// Sesión 44 round 6: subido a revalidate=3600 (1h) para reducir Fluid CPU.
-// El admin puede forzar refresh con revalidateTag('products') cuando hace
-// cambios (invalida cache on-demand). Bots que crawlean categorías múltiples
-// veces por hora ya no regeneran la página cada vez.
-export const revalidate = 3600
+// Sesión 49: cambiado a force-dynamic para evitar timeout durante build.
+// Las categorías grandes (notebooks, cables) con SELECT * + 5 queries
+// paralelas tardaban >60s en la generación estática de Vercel.
+// Con force-dynamic, se renderiza on-demand y Vercel CDN cachea.
+// Las queries internas usan unstable_cache (5 min) así que el costo
+// de Turso es mínimo después del primer hit.
+export const dynamic = 'force-dynamic'
 
 // Dynamic metadata for category pages
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {

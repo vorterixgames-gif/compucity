@@ -267,7 +267,12 @@ async function enrichWithBrandInfo<T extends { brandId?: string | null }>(produc
 async function _getAllActiveProductsRaw(limit: number): Promise<Product[]> {
   const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
     db.execute({
-      sql: "SELECT * FROM products WHERE isActive = 1 AND stock > 0 ORDER BY CASE WHEN images IS NOT NULL AND images != '[]' THEN 0 ELSE 1 END, COALESCE(createdAt, updatedAt) DESC LIMIT ?",
+      sql: `SELECT id, name, slug, price, comparePrice, costPrice, currency, images,
+                   categoryId, brandId, isActive, stock, markup, cashDiscount, ivaRate,
+                   internalTaxRate, salePrice, saleStart, saleEnd, sku, providerId,
+                   isFeatured, createdAt, updatedAt
+            FROM products WHERE isActive = 1 AND stock > 0
+            ORDER BY CASE WHEN images IS NOT NULL AND images != '[]' THEN 0 ELSE 1 END, COALESCE(createdAt, updatedAt) DESC LIMIT ?`,
       args: [limit],
     }),
     fetchDollarRate(),
@@ -290,7 +295,15 @@ export const getAllActiveProducts = unstable_cache(
 
 async function _getFeaturedProductsRaw(): Promise<Product[]> {
   const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
-    db.execute("SELECT * FROM products WHERE isFeatured = 1 AND isActive = 1 AND stock > 0 ORDER BY CASE WHEN images IS NOT NULL AND images != '[]' THEN 0 ELSE 1 END, COALESCE(createdAt, updatedAt) DESC LIMIT 8"),
+    db.execute({
+      sql: `SELECT id, name, slug, price, comparePrice, costPrice, currency, images,
+                   categoryId, brandId, isActive, stock, markup, cashDiscount, ivaRate,
+                   internalTaxRate, salePrice, saleStart, saleEnd, sku, providerId,
+                   isFeatured, createdAt, updatedAt
+            FROM products WHERE isFeatured = 1 AND isActive = 1 AND stock > 0
+            ORDER BY CASE WHEN images IS NOT NULL AND images != '[]' THEN 0 ELSE 1 END, COALESCE(createdAt, updatedAt) DESC LIMIT 8`,
+      args: [],
+    }),
     fetchDollarRate(),
     getStoreConfigNumber('markup', 30),
     getStoreConfigNumber('cash_discount', 10),
@@ -336,7 +349,12 @@ async function _getProductsByCategoryRaw(slug: string): Promise<Product[]> {
 
   const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
     db.execute({
-      sql: `SELECT p.* FROM products p
+      sql: `SELECT p.id, p.name, p.slug, p.price, p.comparePrice, p.costPrice, p.currency,
+                   p.images, p.categoryId, p.brandId, p.isActive, p.stock,
+                   p.markup, p.cashDiscount, p.ivaRate, p.internalTaxRate,
+                   p.salePrice, p.saleStart, p.saleEnd, p.sku, p.providerId,
+                   p.isFeatured, p.createdAt, p.updatedAt
+            FROM products p
             WHERE p.categoryId IN (${placeholders}) AND p.isActive = 1 AND p.stock > 0
             ORDER BY CASE WHEN p.images IS NOT NULL AND p.images != '[]' THEN 0 ELSE 1 END, COALESCE(p.createdAt, p.updatedAt) DESC`,
       args: allIds,
@@ -405,25 +423,49 @@ export const getProductBySlug = unstable_cache(
 // Se mantiene el revalidate del endpoint /api/search.
 export async function searchProducts(query: string, limit = 20): Promise<Product[]> {
   // Sesión 49: optimización crítica de search.
-  // Antes: SELECT * + LIKE en name/sku → full table scan +传输 de campos pesados
-  // (description, images, stockByWarehouse) → timeout de 30-45s en Turso.
-  // Ahora: SELECT solo las columnas necesarias, sin ORDER BY complejo,
-  // y con LIMIT temprano. El search solo necesita datos para la UI de
-  // sugerencias (nombre, slug, precio, imagen). ~10x más rápido.
-  const searchTerm = `%${query}%`
+  // Estrategia: intentar primero búsqueda por prefijo (name LIKE 'query%') que
+  // puede usar índice en Turso. Si no hay resultados, hacer LIKE '%query%' como
+  // fallback. Esto evita el full table scan en la mayoría de las búsquedas.
+  // Además: SELECT solo columnas necesarias, sin ORDER BY complejo.
+  const searchTermPrefix = `${query}%`
+  const searchTermAny = `%${query}%`
 
-  const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
-    db.execute({
-      sql: `SELECT id, name, slug, price, comparePrice, costPrice, currency, images,
-                   categoryId, brandId, isActive, stock, markup, cashDiscount, ivaRate,
-                   internalTaxRate, salePrice, saleStart, saleEnd, sku, providerId
-            FROM products
-            WHERE isActive = 1 AND stock > 0
-            AND (name LIKE ? OR sku LIKE ?)
-            ORDER BY CASE WHEN name LIKE ? THEN 0 ELSE 1 END, COALESCE(createdAt, updatedAt) DESC
-            LIMIT ?`,
-      args: [searchTerm, searchTerm, searchTerm, limit],
-    }),
+  // Columnas necesarias para la UI de sugerencias y cálculo de precios
+  const selectCols = `id, name, slug, price, comparePrice, costPrice, currency, images,
+                      categoryId, brandId, isActive, stock, markup, cashDiscount, ivaRate,
+                      internalTaxRate, salePrice, saleStart, saleEnd, sku, providerId`
+
+  // Intento 1: búsqueda por prefijo (más rápida, potencialmente usa índice)
+  let result
+  try {
+    const prefixResult = await db.execute({
+      sql: `SELECT ${selectCols} FROM products
+            WHERE isActive = 1 AND stock > 0 AND name LIKE ?
+            ORDER BY COALESCE(createdAt, updatedAt) DESC LIMIT ?`,
+      args: [searchTermPrefix, limit],
+    })
+    if (prefixResult.rows.length > 0) {
+      result = prefixResult
+    } else {
+      // Intento 2: LIKE en cualquier posición (más lento pero necesario)
+      const anyResult = await db.execute({
+        sql: `SELECT ${selectCols} FROM products
+              WHERE isActive = 1 AND stock > 0
+              AND (name LIKE ? OR sku LIKE ?)
+              ORDER BY COALESCE(createdAt, updatedAt) DESC LIMIT ?`,
+        args: [searchTermAny, searchTermAny, limit],
+      })
+      result = anyResult
+    }
+  } catch (error) {
+    console.error('searchProducts DB error:', error)
+    return []
+  }
+
+  // Fetch config en paralelo solo si hay resultados
+  if (!result || result.rows.length === 0) return []
+
+  const [dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
     fetchDollarRate(),
     getStoreConfigNumber('markup', 30),
     getStoreConfigNumber('cash_discount', 10),
