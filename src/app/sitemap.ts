@@ -3,11 +3,11 @@ import { db } from '@/lib/db'
 
 const SITE_URL = 'https://www.compucityonline.com.ar'
 
-// Sesión 43: agregado revalidate=3600 (1h) para que Turso no reciba queries
-// en cada request al sitemap. Googlebot y otros crawlers piden el sitemap
-// frecuentemente, y sin revalidate cada pedido = 2 SELECTs a Turso.
-// Con revalidate=3600, se sirve desde caché 1h y se regenera en background.
-export const revalidate = 3600
+// Sesión 49: cambiado a force-dynamic para evitar timeout durante build.
+// El sitemap se genera on-demand (raramente pedido) y las queries
+// ya tienen error handling (catch) que permite que funcione incluso
+// si hay errores de conexión.
+export const dynamic = 'force-dynamic'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Static pages with high priority

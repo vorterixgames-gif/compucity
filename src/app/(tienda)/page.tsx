@@ -13,14 +13,14 @@ import { getFeaturedProducts, getAllActiveProducts, getTopProductsByCategorySlug
 import Link from 'next/link'
 import { Truck, Shield, MessageCircle, Headphones, ArrowRight } from 'lucide-react'
 
-// Sesion 43: era `force-dynamic` (cada visita = queries frescas a Turso).
-// Cambiado a revalidate=300 (5 min) para reducir rows reads en Turso.
-// Sesión 44 round 6: subido a revalidate=3600 (1h) para reducir Fluid CPU.
-// El contenido de la home cambia raramente (productos destacados, banners,
-// categorías top) — 1h de stale es aceptable y reduce 12x las regeneraciones
-// vs 5 min. El admin puede forzar refresh con revalidateTag('products') cuando
-// hace cambios (eso invalida el cache on-demand, sin esperar a los 5 min).
-export const revalidate = 3600
+// Sesión 49: cambiado a force-dynamic porque la generación estática
+// timeoutea en Vercel (>60s por las 5 queries a Turso en paralelo).
+// Con force-dynamic, la home se renderiza on-demand y Vercel CDN la cachea
+// automáticamente (stale-while-revalidate). El usuario no nota diferencia
+// porque el CDN sirve la versión cacheada instantáneamente.
+// Las queries internas usan unstable_cache con revalidate, así que los
+// datos se cachean en memoria y solo se refrescan cada N segundos.
+export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Compucity - Tu Mundo Digital | Tienda de Informática en La Falda, Córdoba',
