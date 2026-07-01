@@ -2,23 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/admin-auth'
 
 /**
- * Middleware para Compucity — Sesión 44 día 4 (Round 5):
+ * Proxy para Compucity — Sesión 49:
  *
- * REFACTORIZACIÓN: El middleware anterior se ejecutaba en TODAS las rutas
- * (storefront + admin + APIs). Eso consumía Edge CPU innecesaria en cada
- * visita al storefront, aunque fuera cacheada.
+ * Migrado de middleware.ts a proxy.ts (Next.js 16.2+ convención).
+ * El archivo "middleware" está deprecado en Next.js 16.2+.
  *
- * Ahora el middleware SOLO se ejecuta en /admin/* y /api/admin/*.
- * El storefront no pasa por middleware → menos latencia + menos CPU.
- *
- * Anti-scraping: movido a next.config.ts (redirects basados en User-Agent).
- * Rate limiting: eliminado (era Edge CPU cara para poco beneficio real).
- * Redirect vercel.app → dominio propio: movido a next.config.ts.
- *
- * Lo que queda acá: solo verificación de admin_token para rutas protegidas.
+ * Funcionalidad idéntica: solo verificación de admin_token para rutas protegidas.
+ * El storefront no pasa por proxy → menos latencia + menos CPU.
  */
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Rutas públicas del admin (login y auth API) — no requieren token
@@ -67,13 +60,7 @@ export async function middleware(request: NextRequest) {
   return NextResponse.next()
 }
 
-// ============================================
-// Matcher — SOLO rutas admin (sesión 44 round 5)
-// ============================================
-// Antes: matcher cubría TODAS las rutas menos estáticas.
-// Ahora: solo /admin/* y /api/admin/*.
-// El storefront (home, categorías, productos) NO pasa por middleware.
-// Reducción estimada: ~90% de ejecuciones de middleware eliminadas.
+// Matcher — SOLO rutas admin (igual que antes)
 export const config = {
   matcher: [
     '/admin/:path*',
