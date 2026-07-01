@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { searchProducts } from '@/lib/queries'
+import { db } from '@/lib/db'
 
-// Sesión 49: force-dynamic para evitar timeout en build.
-// El search es paramétrico (cada query distinta) y no tiene sentido
-// pre-renderizarlo estáticamente.
+// Search endpoint optimizado: query directa a DB sin pipeline de precios completo.
+// El search del navbar solo necesita nombre, slug, precio e imagen para las sugerencias.
+// No necesita deduplicación, enriquecimiento de marcas, ni cálculo completo de precios.
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
@@ -13,24 +13,30 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: true, products: [] })
   }
 
-  try {
-    // Timeout de 8 segundos para evitar que una query lenta
-    // cuelgue al usuario. Si tarda más, devolvemos vacío.
-    const timeoutMs = 8000
-    const results = await Promise.race([
-      searchProducts(q.trim()),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Search timeout')), timeoutMs)
-      ),
-    ])
+  const searchTerm = q.trim()
+  const limit = 6
 
-    const products = results.slice(0, 6).map((p) => ({
+  try {
+    // Query directa: solo columnas necesarias, sin currency (no existe en la tabla),
+    // sin JOINs, sin ORDER BY complejo.
+    // Usa los precios ya calculados (price, comparePrice) que se guardan en la DB.
+    const result = await db.execute({
+      sql: `SELECT id, name, slug, price, comparePrice, images
+            FROM products
+            WHERE isActive = 1 AND stock > 0 AND name LIKE ?
+            ORDER BY CASE WHEN images IS NOT NULL AND images != '[]' THEN 0 ELSE 1 END,
+                     COALESCE(createdAt, updatedAt) DESC
+            LIMIT ?`,
+      args: [`%${searchTerm}%`, limit],
+    })
+
+    const products = (result.rows as any[]).map((p) => ({
       id: p.id,
       name: p.name,
       slug: p.slug,
       price: p.price,
       comparePrice: p.comparePrice,
-      images: p.images ? JSON.parse(p.images) : [],
+      images: p.images ? (() => { try { return JSON.parse(p.images) } catch { return [] } })() : [],
     }))
 
     return NextResponse.json({ ok: true, products })
