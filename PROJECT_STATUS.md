@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-07-02 (sesión 48 — navbar fijo + GPU notebooks + marcas fabricantes)
+**Ultima actualizacion:** 2026-07-02 (sesión 50 — fix search vacío + columna currency fantasma)
 
 ---
 
@@ -14,15 +14,15 @@
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
-- **Commit estable:** c0520b2 (fix: navbar fijo + GPU notebooks + marcas fabricantes s48)
-- **Commit actual:** c0520b2
+- **Commit estable:** a561957 (fix: search vacío por columna currency inexistente s50)
+- **Commit actual:** a561957
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 48
+- **Sesiones totales:** 50
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
-- **Framework:** Next.js 16.1 + TypeScript 6
+- **Framework:** Next.js 16.2.10 + TypeScript 6
 - **Estilos:** Tailwind CSS 4 + shadcn/ui
 - **Base de datos:** Turso (libSQL) + Prisma ORM (solo schema, raw SQL en runtime)
 - **Auth:** Custom HMAC cookie auth (admin_token + customer_token)
@@ -872,6 +872,36 @@ El rango real (medido por Turso): ~517M en 21 dias = ~25M/dia promedio. Coincide
 5. Verificar cada query con `EXPLAIN QUERY PLAN` antes de asumir que usa indice
 6. Medir en produccion con Turso Usage dashboard, no estimar en teoria
 
+### Leccion aprendida sesion 50: columna fantasma "currency" rompio search
+
+**Bug:** El search (/api/search) siempre devolvía `products: []` para cualquier término. La home y categorías funcionaban normalmente.
+
+**Causa raíz:** En la sesión 49, al optimizar las queries de `queries.ts` cambiando `SELECT *` por columnas específicas, se incluyó la columna `currency` en 4 queries (`getAllActiveProducts`, `getFeaturedProducts`, `getProductsByCategory`, `searchProducts`). **Esa columna NUNCA existió en la tabla `products` de Turso** (verificar con `PRAGMA table_info(products)`). El `SQL_INPUT_ERROR: no such column: currency` era atrapado por el `catch` de `searchProducts` que devolvía `[]` silenciosamente.
+
+**Por qué la home funcionaba y el search no:** Las 3 primeras queries usan `unstable_cache` de Next.js que cachea resultados en el filesystem de Vercel. Probablemente el cache se generó en un deploy anterior (cuando la columna sí existía o cuando se usaba `SELECT *`). El search NO usaba cache → cada consulta iba fresca a Turso → SQL_INPUT_ERROR → `[]`.
+
+**Fix aplicado (commit a561957):**
+1. Removida `currency` de los 4 SELECTs en `queries.ts`
+2. Optimizado `/api/search/route.ts`: query directa (sin pasar por `searchProducts()`) + `calculateProductPrices` solo para los 6 resultados necesarios
+3. Resultado: search vacío → 6 resultados en 2.5s (antes 7.4s o timeout)
+
+**Regla crítica para futuros cambios de SQL:**
+- **NUNCA** agregar una columna a un SELECT sin verificar que existe en la DB real (`PRAGMA table_info(tabla)`)
+- **NUNCA** usar `catch` que devuelva datos vacíos silenciosamente — siempre loguear el error
+- **SIEMPRE** que se cambie `SELECT *` a columnas específicas, validar contra la DB real, no contra el schema de Prisma (pueden estar desincronizados)
+- **SIEMPRE** probar queries nuevas contra Turso antes de deployar (local usa SQLite que puede tener columnas diferentes)
+
+**Columnas reales de la tabla products (verificado s50):**
+```
+id, name, slug, description, price, comparePrice, costPrice, sku, stock,
+isActive, isFeatured, images, specs, providerId, providerSku, categoryId,
+createdAt, updatedAt, supplierCategory, duplicateOfId, markup, cashDiscount,
+categorySource, ivaRate, salePrice, saleStart, saleEnd, stockByWarehouse,
+brandId, internalTaxRate
+```
+
+**Nota:** La columna `currency` aparece en el schema de Prisma (`prisma/schema.prisma`) y en el modelo TypeScript `Product`, pero NO en la DB real. Esto es porque Prisma se usa solo para documentación — las migraciones se hacen manualmente con ALTER TABLE en `db.ts`. El schema de Prisma puede desactualizarse.
+
 ### Schema Products
 ```
 id TEXT PRIMARY KEY, name TEXT NOT NULL, slug TEXT NOT NULL UNIQUE,
@@ -883,6 +913,7 @@ images TEXT DEFAULT '[]', specs TEXT DEFAULT '{}',
 providerId TEXT, providerSku TEXT, categoryId TEXT, brandId TEXT,
 supplierCategory TEXT, duplicateOfId TEXT, categorySource TEXT DEFAULT 'auto',
 ivaRate REAL,          -- NULL = heredar de categoria, 10.5 o 21 = valor individual
+internalTaxRate REAL,  -- NULL = sin impuesto interno (ej: 10.5% algunos monitores)
 salePrice REAL, saleStart TEXT, saleEnd TEXT,
 createdAt TEXT, updatedAt TEXT
 ```
@@ -1081,7 +1112,15 @@ bash scripts/auto-backup.sh "descripcion del cambio"
 bash scripts/pre-change-safeguard.sh
 ```
 
-### 5. Proceso seguro para cambios
+### 5. REGLA CRITICA SQL: Verificar columnas contra DB real (agregada sesion 50)
+- **PROHIBIDO** agregar una columna a un `SELECT` sin verificar que existe en la DB real de Turso
+- **OBLIGATORIO** ejecutar `PRAGMA table_info(tabla)` contra Turso antes de cambiar `SELECT *` por columnas específicas
+- **PROHIBIDO** usar `catch` que devuelva datos vacíos silenciosamente — siempre `console.error` con el error completo
+- **NOTA:** El schema de Prisma (`prisma/schema.prisma`) y los modelos TypeScript pueden estar desincronizados con la DB real. Las migraciones se hacen manualmente con ALTER TABLE en `db.ts`, Prisma es solo documentación
+- **NOTA:** `ignoreBuildErrors: true` en `next.config.ts` oculta errores de TypeScript. Un tipo que referencia una columna inexistente NO genera error de build
+- **VERIFICACIÓN:** Después de cualquier cambio de SQL, testear contra producción: `curl https://www.compucityonline.com.ar/api/search?q=test`
+
+### 6. Proceso seguro para cambios
 1. Hacer backup
 2. Crear branch: `git checkout -b fix/nombre-del-cambio`
 3. Hacer SOLO los cambios necesarios (ediciones puntuales)
@@ -1090,7 +1129,7 @@ bash scripts/pre-change-safeguard.sh
 6. Commitear con mensaje descriptivo
 7. Hacer push y verificar deploy
 
-### 6. Paleta de colores aprobada (NO modificar)
+### 7. Paleta de colores aprobada (NO modificar)
 | Clase                | Hex       | Uso                              |
 |---------------------|-----------|----------------------------------|
 | compucity-green-50  | #EFF5F2   | Fondos suaves                    |
@@ -1111,6 +1150,8 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-07-02 (s50):** Fix search vacío + columna currency fantasma. **Commits: 49f296d (debug endpoints) + ebbe217 (fix: remover currency de queries) + 1d08952 (search simplificado) + a561957 (search con precios correctos).** **Bug:** /api/search siempre devolvía `products: []` para cualquier término. **Causa raíz:** en la sesión 49, al cambiar `SELECT *` por columnas específicas en `queries.ts`, se incluyó `currency` que NUNCA existió en la tabla products de Turso. El `SQL_INPUT_ERROR: no such column: currency` era atrapado por `catch` que devolvía `[]` silenciosamente. La home funcionaba porque `unstable_cache` cacheaba resultados; el search no tenía cache. **Diagnóstico:** se crearon endpoints temporales `/api/debug-db` y `/api/debug-search` para probar queries directamente contra Turso. Confirmado: `PRAGMA table_info(products)` no tiene columna `currency`. La query directa `SELECT id, name FROM products WHERE name LIKE '%notebook%'` devuelve resultados; la query con `currency` falla. **Fix:** (1) Removida `currency` de 4 SELECTs en queries.ts. (2) Optimizado `/api/search/route.ts`: query directa + `calculateProductPrices` solo para 6 resultados (antes usaba `searchProducts()` con pipeline completo para 20 productos). **Resultado:** search de vacío → 6 resultados en 2.5s. **Lecciones documentadas:** regla #5 en SAFETY-RULES (verificar columnas contra DB real antes de SELECT específico). **Nota sobre s49:** los 4 commits de performance de s49 (1afabef, 56e8f76, 991788f, cee605e) incluían la columna `currency` en las queries, lo que rompió el search silenciosamente. El upgrade a Next.js 16.2.10 y el force-dynamic de la home NO fueron la causa del problema.
+- **2026-07-02 (s49):** Performance fixes + Next.js 16.2.10 upgrade. **Commits: cee605e (revert proxy→middleware) + 991788f (force-dynamic home) + 56e8f76 (search timeout) + 1afabef (4 fixes críticos).** ⚠️ **Estos commits introdujeron el bug de la columna `currency`** (ver s50). Cambios: (1) Revertido middleware→proxy migration. (2) Home y sitemap cambiados a `force-dynamic` para evitar timeout en build. (3) Search timeout de 8s. (4) Next.js 16.2.10 upgrade (fix Vercel modifyConfig bug). (5) `.env` removido del repo. (6) Queries optimizadas con columnas específicas **(incluían `currency` que no existe — ver s50)**.
 - **2026-07-02 (s48):** Navbar fijo + GPU notebooks + marcas fabricantes. **Commit: c0520b2.** **3 fixes aplicados:** (1) **Navbar links fijos** — reemplazado `categories.slice(0, 4)` por lista de slugs preferidos `PREFERRED_NAV_CATEGORIES = ['monitores', 'pc-armadas', 'notebooks', 'componentes-de-pc']`. El navbar ahora siempre muestra: Monitores → PC Armadas → Notebooks → Componentes de PC → Arma tu PC → Contacto. La categoría "Imagen" (existente en la DB como padre con enabled=1) nunca más aparece en el navbar. Antes dependía del orden de la DB y de qué categorías existieran. (2) **Filtro GPU notebooks arreglado** — el filtro "Con GPU dedicada" usaba regex `/\bRTX\b|\bGTX\b|\bRADEON\b/i && /\bNB\b|\bNOTEBOOK\b/i` que requería que el nombre tuviera "NB" o "NOTEBOOK" en mayúsculas. Muchas notebooks usan "Nb" (minúscula) o no incluyen la palabra, así que solo 4 matcheaban. Fix: eliminado el requisito de "NB|NOTEBOOK" ya que todos los productos en la categoría notebooks son notebooks por definición. Ahora muestra todas las notebooks con GPU dedicada. (3) **Marcas de notebooks sin Intel/AMD** — el sistema de detección de marcas (`brand-patterns.ts`) es category-agnostic y first-match-wins. Una notebook "Lenovo IdeaPad Core i5" matcheaba Intel antes que Lenovo. Resultado: Intel y AMD aparecían como marcas en el filtro de notebooks. Fix: agregado `HARDCODED_BRAND_CATEGORIES = new Set(['notebooks', 'gamer-y-diseno', 'pc-armadas'])` en CategoryProducts.tsx. En esas categorías se usan los filtros hardcodeados de fabricantes (Lenovo, HP, Dell, ASUS, MSI, Acer, CX, Kelyx) en vez de los dinámicos por brandId. El resto de las categorías sigue con marcas dinámicas. **Archivos modificados:** `src/components/layout/Navbar.tsx` (PREFERRED_NAV_CATEGORIES), `src/components/ui-custom/CategoryProducts.tsx` (GPU filter + HARDCODED_BRAND_CATEGORIES). **Backup:** compucity-backup-20260701-192505 (código + git history, sin DB local).
 - **2026-06-30 (s47 dia 2):** Migración sincronización Elit+Invid a GitHub Actions. **Commits: 6f2006e (feat: migración) + d0d9131 (docs: worklog).** Backup: compucity_turso_backup_2026-06-30T15-33-05-751Z.json (54MB, 9750 filas, 7824 productos). **Causa:** el dueño reportó "Elit muestra sin stock algunos productos y en realidad no hay stock de Córdoba pero sí de Buenos Aires". SKU ejemplo: MSIMONM274CFX24. **Diagnóstico:** (1) API Elit devuelve 3 campos de stock: `stock_total`, `stock_deposito_cliente`, `stock_deposito_cd`. Para el SKU reportado: stock_total=38, stock_deposito_cliente=0, stock_deposito_cd=38. La API NO oculta info. (2) El cron de Vercel `0 6 * * *` NO se estaba ejecutando. Tabla `rate_limits` vacía. 21 productos Elit con stock=0 desde hace días aunque API reportaba stock. lastSyncAt de hace 8h pero muchos productos sin actualizar desde 16/6 (14 días). **Sync manual one-shot:** 309 productos actualizados (21 pasaron 0 → con stock, 6 con stock → 0, 56 cambios de precio). **Solución permanente:** migración a GitHub Actions. Nuevos scripts: `scripts/sync-elit-external.mjs` (con retry HTTP 3 intentos/30s) y `scripts/sync-invid-external.mjs` (con retry auth 3 intentos/30s). Workflow `.github/workflows/sync-elit-invid.yml` cron cada 6h (00:00, 06:00, 12:00, 18:00 UTC = 21:00, 03:00, 09:00, 15:00 AR). 4 secrets nuevos en GitHub: ELIT_USER_ID, ELIT_TOKEN, INVID_USER, INVID_PASS. `src/app/api/cron/sync/route.ts` limpiado (solo queda `revalidateTag('products')` como fallback manual). `vercel.json` removido el cron job. **Validación local:** Elit 1600 productos/2 updates/14.6s, Invid 5760 productos/17 updates/42.3s. **Validación GitHub Actions:** workflow_dispatch run 28455692930 → success. Elit 1600 productos/6 updates/5.6s, Invid 5761 productos/0 updates/15.2s, Auth OK intento 1/3. **Estado final de workflows GitHub Actions:** sync-air-intra.yml (cada 12h, s43), sync-elit-invid.yml (cada 6h, s47), sync-brands.yml (1 vez/día, s44). Costo $0 (GitHub free tier). Beneficio: GitHub manda mail si workflow falla, Vercel Hobby fallaba silenciosamente. **Pendiente usuario:** borrar cron manualmente del panel de Vercel → Settings → Cron Jobs si aparece (debería desaparecer solo con el deploy).
 - **2026-06-30 (s47):** Implementación de las 6 funcionalidades pendientes del dueño + 3 hotfixes post-deploy + fix workflow Air Intra. **Commits: 3c61ec0 (feat: 6 pendientes) + 4c831e0 (fix TS ProductForm.internalTaxRate) + 79f8282 (fix workflow Air Intra retry login) + f6cb28b (script migración manual #27) + 1de2cd4 (fix /api/admin/upload restaurado).** **6 funcionalidades implementadas (commit 3c61ec0):** (1) QR AFIP en footer — HTML del dueño pegado en Footer.tsx, cambiado `http://` → `https://` para evitar contenido mixto. (2) Arma tu PC — slots de RAM y SSD/HDD ya no auto-avanzan; usuario debe clickear "Siguiente". Demás slots siguen con auto-avance. (3) Arma tu PC — filtro de Gabinetes con/sin fuente YA EXISTÍA (líneas 201-204 de arma-tu-pc/page.tsx), no requirió cambios. (4) Arma tu PC — botón "Sumar al carrito" agrega todos los componentes seleccionados al carrito (precio de lista). Notificación toast con link al carrito, sin redirección. (5) Sub-categorías de Monitores y Notebooks eliminadas — script scripts/move-subcats-to-parent.mjs ejecutado: 203 productos movidos a Monitores padre (4 subcats desactivadas con enabled=0), 286 a Notebooks padre (5 subcats desactivadas). Total: 9 subcats desactivadas, 489 productos movidos. Filtros ya existían. (6) Impuesto interno 10.5% — migración #27: columna `internalTaxRate REAL` en products (nullable, NULL=sin impuesto). Fórmula aditiva: `costPrice × (1 + IVA/100 + internalTaxRate/100) × (1 + markup/100) × dollarRate`. Selector en admin al lado del IVA. API SELECT/INSERT/PUT actualizadas. **3 hotfixes post-deploy:** (a) TypeScript error — el commit 3c61ec0 usaba `internalTaxRate` en form pero faltaba declararlo en `ProductForm`. Fix 4c831e0. (b) Migración #27 no aplicada en producción — db.ts solo corre migraciones en cold start, no se ejecutó. Síntoma: admin productos vacío. Fix: ALTER TABLE manual via scripts/migrate-add-internaltax.mjs. Commit f6cb28b. (c) /api/admin/upload borrado accidentalmente en merge — el commit 3c61ec0 incluyó un git rm que borró el endpoint de subida de imágenes (177 líneas). Síntoma: 404 al subir imágenes. Restaurado del commit 848c9f0. Commit 1de2cd4. **Fix workflow Air Intra (commit 79f8282):** el workflow .github/workflows/sync-air-intra.yml reportó "All jobs have failed" por mail. Diagnóstico: el endpoint /?q=login de Air Intra devuelve HTTP 404 transitoriamente (sin razón aparente, se auto-recupera en horas). El script moría al primer fallo. Fix: agregado retry en login (3 intentos, 30s entre cada uno). Maneja HTTP error, sin JSON, sin token, excepción. Validado con workflow_dispatch: success en 87.9s, 1 nuevo + 402 actualizados. **Backups:** compucity_turso_backup_2026-06-30T13-35-24-079Z.json (54MB, pre-deploy) + compucity_turso_backup_2026-06-30T14-25-15-134Z.json (54MB, post-deploy, 9744 filas, 7823 productos) + compucity_src_backup_2026-06-30.tar.gz (3.3MB, código fuente completo sin node_modules/.next/.git). **Lecciones aprendidas:** (1) Para migraciones críticas, no confiar solo en db.ts — aplicar manualmente ANTES del deploy que las necesita. (2) El pre-merge check debería validar que archivos críticos no se borren — agregar check en pre-push hook como tarea futura. (3) El script de GitHub Actions debe tener retry en el login para sobrevivir transient errors de Air Intra.
