@@ -98,6 +98,7 @@ export default function AdminArmaTuPC() {
   const [newSlotKey, setNewSlotKey] = useState('')
   const [newSlotLabel, setNewSlotLabel] = useState('')
   const [newSlotCategory, setNewSlotCategory] = useState('')
+  const [newSlotIncludedSubcategorySlugs, setNewSlotIncludedSubcategorySlugs] = useState<string[]>([])
   const [showAddForm, setShowAddForm] = useState(false)
 
   // Load slots and categories
@@ -118,10 +119,10 @@ export default function AdminArmaTuPC() {
         const parents = cats.filter((c: any) => !c.parentId)
         const children = cats.filter((c: any) => c.parentId)
         console.log('[DEBUG pc-builder-slots] Parents:', parents.length, '| Children:', children.length)
-        // Log a few parent IDs
-        parents.slice(0, 5).forEach((p: any) => {
-          const subCount = cats.filter((c: any) => c.parentId === p.id).length
-          console.log(`[DEBUG pc-builder-slots] Parent "${p.name}" (id=${p.id}, slug=${p.slug}): ${subCount} children`)
+        // Log ALL parents and their children
+        parents.forEach((p: any) => {
+          const subCats = cats.filter((c: any) => c.parentId === p.id)
+          console.log(`[DEBUG pc-builder-slots] Parent "${p.name}" (id=${p.id}, slug=${p.slug}): ${subCats.length} children`, subCats.map((s: any) => s.slug))
         })
       }
       setLoading(false)
@@ -256,6 +257,7 @@ export default function AdminArmaTuPC() {
       slot: newSlotKey,
       label: newSlotLabel,
       categorySlug: newSlotCategory,
+      includedSubcategorySlugs: newSlotIncludedSubcategorySlugs.length > 0 ? newSlotIncludedSubcategorySlugs : undefined,
       enabled: true,
       required: false,
       maxQty: 1,
@@ -266,6 +268,7 @@ export default function AdminArmaTuPC() {
     setNewSlotKey('')
     setNewSlotLabel('')
     setNewSlotCategory('')
+    setNewSlotIncludedSubcategorySlugs([])
     setShowAddForm(false)
   }
 
@@ -539,7 +542,10 @@ export default function AdminArmaTuPC() {
               </div>
               <div>
                 <Label className="text-xs text-gray-500">Categoría</Label>
-                <Select value={newSlotCategory} onValueChange={setNewSlotCategory}>
+                <Select value={newSlotCategory} onValueChange={v => {
+                  setNewSlotCategory(v)
+                  setNewSlotIncludedSubcategorySlugs([])
+                }}>
                   <SelectTrigger className="h-8 text-sm mt-1">
                     <SelectValue placeholder="Seleccionar..." />
                   </SelectTrigger>
@@ -551,18 +557,77 @@ export default function AdminArmaTuPC() {
                 </Select>
               </div>
             </div>
+            {/* Subcategory selection for new slot */}
+            {(() => {
+              const newParentCat = categoryBySlug.get(newSlotCategory)
+              const newSubcategories = newParentCat ? (subcategoriesByParentId.get(newParentCat.id) || []) : []
+              const newHasSubcategories = newSubcategories.length > 0
+              const newHasSubcategoryFilter = newSlotIncludedSubcategorySlugs.length > 0
+              if (!newParentCat || !newHasSubcategories) return null
+              return (
+                <div className="mt-3 pt-3 border-t border-green-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-xs text-gray-500 flex items-center gap-1">
+                      <Filter className="w-3 h-3" />
+                      Subcategorías incluidas
+                    </Label>
+                    {newHasSubcategoryFilter && (
+                      <button
+                        onClick={() => setNewSlotIncludedSubcategorySlugs([])}
+                        className="text-xs text-blue-600 hover:text-blue-800"
+                      >
+                        Seleccionar todas
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-400 mb-2">
+                    {newHasSubcategoryFilter
+                      ? 'Solo se mostrarán productos de las subcategorías seleccionadas.'
+                      : 'Sin seleccionar = se incluyen todas las subcategorías (comportamiento por defecto).'}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {newSubcategories.map(sub => {
+                      const isSelected = newSlotIncludedSubcategorySlugs.includes(sub.slug)
+                      return (
+                        <button
+                          key={sub.id}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              setNewSlotIncludedSubcategorySlugs(prev => prev.filter(s => s !== sub.slug))
+                            } else {
+                              setNewSlotIncludedSubcategorySlugs(prev => [...prev, sub.slug])
+                            }
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition border ${
+                            isSelected
+                              ? 'bg-compucity-green-50 text-compucity-green border-compucity-green-200'
+                              : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {sub.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })()}
             <div className="flex items-center gap-2 mt-3">
               <Button size="sm" onClick={addNewSlot} disabled={!newSlotKey || !newSlotLabel || !newSlotCategory}>
                 Agregar
               </Button>
-              <Button size="sm" variant="outline" onClick={() => setShowAddForm(false)}>
+              <Button size="sm" variant="outline" onClick={() => {
+                setShowAddForm(false)
+                setNewSlotIncludedSubcategorySlugs([])
+              }}>
                 Cancelar
               </Button>
             </div>
             <p className="text-xs text-gray-500 mt-2">
-              Nota: los slots nuevos tendrán filtros básicos. Los filtros avanzados (inclusión/exclusión, compatibilidad) 
-              se configuran en el código para los slots estándar. Si necesitás filtros avanzados para un slot nuevo, 
-              consultá con el desarrollador. Podrás elegir subcategorías después de crear el slot.
+              Nota: los slots nuevos tendrán filtros básicos. Los filtros avanzados (inclusión/exclusión, compatibilidad)
+              se configuran en el código para los slots estándar. Si necesitás filtros avanzados para un slot nuevo,
+              consultá con el desarrollador.
             </p>
           </CardContent>
         </Card>
