@@ -39,6 +39,93 @@ interface CategoryFilterOption {
   matchFn: (name: string, product?: ProductItem) => boolean
 }
 
+// ============================================
+// Helper: Extract RAM from notebook product names
+// Avoids matching VRAM (e.g., "RTX 3050 8GB") and SSD capacity.
+// Handles split RAM notation: (8G+8G) → 16GB, (8GB+4GB) → 12GB
+// ============================================
+function extractNotebookRAM(name: string): number | null {
+  const upper = name.toUpperCase()
+
+  // 1) Check split RAM notation: (8G+8G), (8GB+4GB), (4G+4G), etc.
+  const splitMatch = upper.match(/\((\d+)\s*GB?\s*\+\s*(\d+)\s*GB?\)/)
+  if (splitMatch) {
+    const total = parseInt(splitMatch[1]) + parseInt(splitMatch[2])
+    if (total >= 4 && total <= 128) return total
+  }
+
+  // 2) Look for explicit RAM context: "8GB DDR4", "8GB DDR5", "8GB RAM", "8GBDDR4"
+  const explicitMatch = upper.match(/(\d+)\s*GB\s*(?:DDR[345]|RAM)/)
+  if (explicitMatch) {
+    const gb = parseInt(explicitMatch[1])
+    if (gb >= 4 && gb <= 128) return gb
+  }
+
+  // 3) Look for DDR right before: "DDR4 8GB", "DDR5 16GB"
+  const ddrBefore = upper.match(/DDR[345]\s+(\d+)\s*GB/)
+  if (ddrBefore) {
+    const gb = parseInt(ddrBefore[1])
+    if (gb >= 4 && gb <= 128) return gb
+  }
+
+  // 4) Find all "NGB" occurrences, exclude those adjacent to GPU models
+  const gpuPattern = /\b(RTX|GTX|RADEON|RX\s*\d{4}|ARC)\s*\d{4}\s*(TI|SUPER)?/i
+  const allGbMatches = [...upper.matchAll(/(\d+)\s*GB\b/g)]
+
+  for (const m of allGbMatches) {
+    const gb = parseInt(m[1])
+    if (gb < 4 || gb > 128) continue // Skip SSD sizes like 256GB, 512GB
+
+    // Check if this GB match is part of a GPU VRAM pattern
+    // Look at the 20 chars before this match for GPU keywords
+    const matchStart = m.index!
+    const beforeText = upper.substring(Math.max(0, matchStart - 20), matchStart + m[0].length)
+    if (gpuPattern.test(beforeText)) continue // This is VRAM, skip it
+
+    return gb
+  }
+
+  // 5) Fallback: "8G " without B (already normalized to 8GB by format-product, but just in case)
+  const shortMatch = upper.match(/(\d+)G\s/)
+  if (shortMatch) {
+    const gb = parseInt(shortMatch[1])
+    if (gb >= 4 && gb <= 128) return gb
+  }
+
+  return null
+}
+
+// ============================================
+// Helper: Detect GPU type in notebook names
+// ============================================
+type GPUType = 'dedicated' | 'integrated' | 'none'
+
+function detectNotebookGPUType(name: string): GPUType {
+  const upper = name.toUpperCase()
+
+  // Dedicated GPU: NVIDIA RTX/GTX, AMD Radeon RX, Intel Arc
+  if (/\bRTX\s*\d{4}/.test(upper) || /\bGTX\s*\d{4}/.test(upper)) return 'dedicated'
+  if (/\bRADEON\s*RX\s*\d{4}/.test(upper)) return 'dedicated'
+  if (/\bARC\s*A?\d{3}/.test(upper)) return 'dedicated'
+  // Generic "Radeon" without RX model could be integrated on AMD APUs, but in notebooks
+  // "Radeon" alone usually means dedicated in product names. Skip ambiguous cases.
+  // "Con Video" or "C/Video" is the common marker for integrated GPU in Argentinian market
+  if (/\bCON\s*VIDEO\b/i.test(name) || /\bC\/VIDEO\b/i.test(name)) return 'integrated'
+
+  // Intel integrated GPU indicators
+  if (/\bUHD\s*GRAPHICS\b/i.test(name)) return 'integrated'
+  if (/\bIRIS\s*X[Eé]?\b/i.test(name)) return 'integrated'
+  if (/\bIRIS\s*PLUS\b/i.test(name)) return 'integrated'
+  if (/\bINTEL\s*GRAPHICS\b/i.test(name)) return 'integrated'
+
+  // AMD integrated GPU indicators
+  if (/\bRADEON\s*(\d{3,4})\M\b/i.test(name)) return 'integrated'  // e.g., Radeon 780M
+  if (/\bRADEON\s*GRAPHICS\b/i.test(name)) return 'integrated'
+
+  // No GPU keywords found — likely has basic integrated graphics
+  return 'none'
+}
+
 const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
   'microprocesadores': [
     { key: 'brand', label: 'AMD', value: 'AMD', matchFn: (n) => /\bAMD\b|\bRYZEN\b|\bATHLON\b/i.test(n) },
@@ -422,16 +509,18 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'processor', label: 'Ryzen 7', value: 'r7', matchFn: (n) => /\bRYZEN\s*7\b|\bR7[- ]?\d/i.test(n) },
     { key: 'processor', label: 'Ryzen 5', value: 'r5', matchFn: (n) => /\bRYZEN\s*5\b|\bR5[- ]?\d/i.test(n) },
     { key: 'processor', label: 'Ryzen 3', value: 'r3', matchFn: (n) => /\bRYZEN\s*3\b|\bR3[- ]?\d/i.test(n) },
-    { key: 'ram', label: '4GB', value: '4gb', matchFn: (n) => /\b4\s*G[Bb]?\b/i.test(n) },
-    { key: 'ram', label: '8GB', value: '8gb', matchFn: (n) => /\b8\s*G[Bb]?\b/i.test(n) },
-    { key: 'ram', label: '16GB', value: '16gb', matchFn: (n) => /\b16\s*G[Bb]?\b/i.test(n) },
-    { key: 'ram', label: '24GB', value: '24gb', matchFn: (n) => /\b24\s*G[Bb]?\b/i.test(n) },
-    { key: 'ram', label: '32GB', value: '32gb', matchFn: (n) => /\b32\s*G[Bb]?\b/i.test(n) },
+    { key: 'ram', label: '4GB', value: '4gb', matchFn: (n) => extractNotebookRAM(n) === 4 },
+    { key: 'ram', label: '8GB', value: '8gb', matchFn: (n) => extractNotebookRAM(n) === 8 },
+    { key: 'ram', label: '16GB', value: '16gb', matchFn: (n) => extractNotebookRAM(n) === 16 },
+    { key: 'ram', label: '24GB', value: '24gb', matchFn: (n) => extractNotebookRAM(n) === 24 },
+    { key: 'ram', label: '32GB', value: '32gb', matchFn: (n) => extractNotebookRAM(n) === 32 },
     { key: 'screen', label: '13"', value: '13', matchFn: (n) => /13[\."]|13\s/i.test(n) },
     { key: 'screen', label: '14"', value: '14', matchFn: (n) => /14[\."]|14\s/i.test(n) },
     { key: 'screen', label: '15"', value: '15', matchFn: (n) => /15[\."]|15\s/i.test(n) },
     { key: 'screen', label: '16"', value: '16', matchFn: (n) => /16[\."]|16\s/i.test(n) },
-    { key: 'gpu', label: 'Con GPU dedicada', value: 'dedicated', matchFn: (n) => /\b(RTX|GTX|RADEON)/i.test(n) },
+    { key: 'gpu', label: 'GPU dedicada', value: 'dedicated', matchFn: (n) => detectNotebookGPUType(n) === 'dedicated' },
+    { key: 'gpu', label: 'GPU integrada', value: 'integrated', matchFn: (n) => detectNotebookGPUType(n) === 'integrated' },
+    { key: 'gpu', label: 'Sin GPU dedicada', value: 'no_dedicated', matchFn: (n) => detectNotebookGPUType(n) !== 'dedicated' },
   ],
   'smart-home': [
     { key: 'brand', label: 'EZVIZ', value: 'EZVIZ', matchFn: (n) => /\bEZVIZ\b/i.test(n) },
@@ -479,15 +568,18 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'processor', label: 'Ryzen 7', value: 'r7', matchFn: (n) => /\bRYZEN\s*7\b|\bR7[- ]?\d/i.test(n) },
     { key: 'processor', label: 'Ryzen 5', value: 'r5', matchFn: (n) => /\bRYZEN\s*5\b|\bR5[- ]?\d/i.test(n) },
     { key: 'processor', label: 'Ryzen 3', value: 'r3', matchFn: (n) => /\bRYZEN\s*3\b|\bR3[- ]?\d/i.test(n) },
-    { key: 'ram', label: '4GB', value: '4gb', matchFn: (n) => /\b4\s*G[Bb]?\b/i.test(n) },
-    { key: 'ram', label: '8GB', value: '8gb', matchFn: (n) => /\b8\s*G[Bb]?\b/i.test(n) },
-    { key: 'ram', label: '16GB', value: '16gb', matchFn: (n) => /\b16\s*G[Bb]?\b/i.test(n) },
-    { key: 'ram', label: '24GB', value: '24gb', matchFn: (n) => /\b24\s*G[Bb]?\b/i.test(n) },
-    { key: 'ram', label: '32GB', value: '32gb', matchFn: (n) => /\b32\s*G[Bb]?\b/i.test(n) },
+    { key: 'ram', label: '4GB', value: '4gb', matchFn: (n) => extractNotebookRAM(n) === 4 },
+    { key: 'ram', label: '8GB', value: '8gb', matchFn: (n) => extractNotebookRAM(n) === 8 },
+    { key: 'ram', label: '16GB', value: '16gb', matchFn: (n) => extractNotebookRAM(n) === 16 },
+    { key: 'ram', label: '24GB', value: '24gb', matchFn: (n) => extractNotebookRAM(n) === 24 },
+    { key: 'ram', label: '32GB', value: '32gb', matchFn: (n) => extractNotebookRAM(n) === 32 },
     { key: 'screen', label: '13"', value: '13', matchFn: (n) => /13[\."]|13\s/i.test(n) },
     { key: 'screen', label: '14"', value: '14', matchFn: (n) => /14[\."]|14\s/i.test(n) },
     { key: 'screen', label: '15"', value: '15', matchFn: (n) => /15[\."]|15\s/i.test(n) },
     { key: 'screen', label: '16"', value: '16', matchFn: (n) => /16[\."]|16\s/i.test(n) },
+    { key: 'gpu', label: 'GPU dedicada', value: 'dedicated', matchFn: (n) => detectNotebookGPUType(n) === 'dedicated' },
+    { key: 'gpu', label: 'GPU integrada', value: 'integrated', matchFn: (n) => detectNotebookGPUType(n) === 'integrated' },
+    { key: 'gpu', label: 'Sin GPU dedicada', value: 'no_dedicated', matchFn: (n) => detectNotebookGPUType(n) !== 'dedicated' },
   ],
   'ups': [
     { key: 'brand', label: 'APC', value: 'APC', matchFn: (n) => /\bAPC\b/i.test(n) },
@@ -709,10 +801,10 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'processor', label: 'Ryzen 7', value: 'r7', matchFn: (n) => /\bRYZEN\s*7\b|\bR7[- ]?\d/i.test(n) },
     { key: 'processor', label: 'Ryzen 5', value: 'r5', matchFn: (n) => /\bRYZEN\s*5\b|\bR5[- ]?\d/i.test(n) },
     { key: 'processor', label: 'Ryzen 3', value: 'r3', matchFn: (n) => /\bRYZEN\s*3\b|\bR3[- ]?\d/i.test(n) },
-    { key: 'ram', label: '8GB', value: '8gb', matchFn: (n) => /\b8\s*G[Bb]?\b/i.test(n) },
-    { key: 'ram', label: '16GB', value: '16gb', matchFn: (n) => /\b16\s*G[Bb]?\b/i.test(n) },
-    { key: 'ram', label: '24GB', value: '24gb', matchFn: (n) => /\b24\s*G[Bb]?\b/i.test(n) },
-    { key: 'ram', label: '32GB', value: '32gb', matchFn: (n) => /\b32\s*G[Bb]?\b/i.test(n) },
+    { key: 'ram', label: '8GB', value: '8gb', matchFn: (n) => extractNotebookRAM(n) === 8 },
+    { key: 'ram', label: '16GB', value: '16gb', matchFn: (n) => extractNotebookRAM(n) === 16 },
+    { key: 'ram', label: '24GB', value: '24gb', matchFn: (n) => extractNotebookRAM(n) === 24 },
+    { key: 'ram', label: '32GB', value: '32gb', matchFn: (n) => extractNotebookRAM(n) === 32 },
     { key: 'screen', label: '15"', value: '15', matchFn: (n) => /15[\."]|15\s/i.test(n) },
     { key: 'screen', label: '16"', value: '16', matchFn: (n) => /16[\."]|16\s/i.test(n) },
     { key: 'gpu', label: 'RTX 5060', value: 'rtx5060', matchFn: (n) => /RTX\s*5060/i.test(n) },
@@ -720,7 +812,8 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'gpu', label: 'RTX 4050', value: 'rtx4050', matchFn: (n) => /RTX\s*4050/i.test(n) },
     { key: 'gpu', label: 'RTX 3050', value: 'rtx3050', matchFn: (n) => /RTX\s*3050/i.test(n) },
     { key: 'gpu', label: 'RTX 1000/2000', value: 'rtx1000-2000', matchFn: (n) => /RTX\s*(1000|2000)/i.test(n) },
-    { key: 'gpu', label: 'Otras', value: 'other_gpu', matchFn: (n) => /\b(RTX|GTX)/i.test(n) && !/RTX\s*(5060|5050|4050|3050|1000|2000)/i.test(n) },
+    { key: 'gpu', label: 'Radeon RX', value: 'radeon_rx', matchFn: (n) => /RADEON\s*RX\s*\d{4}/i.test(n) },
+    { key: 'gpu', label: 'Otras dedicadas', value: 'other_gpu', matchFn: (n) => detectNotebookGPUType(n) === 'dedicated' && !/RTX\s*(5060|5050|4050|3050|1000|2000)/i.test(n) && !/RADEON\s*RX\s*\d{4}/i.test(n) },
   ],
 }
 

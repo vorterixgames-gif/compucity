@@ -330,12 +330,51 @@ function extractNotebookSpecs(name: string): {
     processor = m ? `AMD Ryzen ${m[1]}` : null
   }
 
-  // RAM
+  // RAM — improved extraction that avoids matching VRAM and SSD capacity
   let ram: string | null = null
-  const ramMatch = name.match(/(\d+)\s*GB\s*(?:DDR[345]|RAM)?/i)
-  if (ramMatch) {
-    const gb = parseInt(ramMatch[1])
-    if (gb >= 4 && gb <= 128) ram = `${gb}GB RAM`
+
+  // 1) Check split RAM notation: (8G+8G), (8GB+4GB), etc.
+  const splitMatch = upper.match(/\((\d+)\s*GB?\s*\+\s*(\d+)\s*GB?\)/)
+  if (splitMatch) {
+    const total = parseInt(splitMatch[1]) + parseInt(splitMatch[2])
+    if (total >= 4 && total <= 128) ram = `${total}GB RAM`
+  }
+
+  if (!ram) {
+    // 2) Look for explicit RAM context: "8GB DDR4", "8GB DDR5", "8GB RAM"
+    const explicitMatch = upper.match(/(\d+)\s*GB\s*(?:DDR[345]|RAM)/)
+    if (explicitMatch) {
+      const gb = parseInt(explicitMatch[1])
+      if (gb >= 4 && gb <= 128) ram = `${gb}GB RAM`
+    }
+  }
+
+  if (!ram) {
+    // 3) Look for DDR right before: "DDR4 8GB", "DDR5 16GB"
+    const ddrBefore = upper.match(/DDR[345]\s+(\d+)\s*GB/)
+    if (ddrBefore) {
+      const gb = parseInt(ddrBefore[1])
+      if (gb >= 4 && gb <= 128) ram = `${gb}GB RAM`
+    }
+  }
+
+  if (!ram) {
+    // 4) Find all "NGB" occurrences, exclude those adjacent to GPU models (VRAM)
+    const gpuPattern = /\b(RTX|GTX|RADEON|RX\s*\d{4}|ARC)\s*\d{4}\s*(TI|SUPER)?/i
+    const allGbMatches = [...upper.matchAll(/(\d+)\s*GB\b/g)]
+
+    for (const m of allGbMatches) {
+      const gb = parseInt(m[1])
+      if (gb < 4 || gb > 128) continue // Skip SSD sizes like 256GB, 512GB
+
+      // Check if this GB match is part of a GPU VRAM pattern
+      const matchStart = m.index!
+      const beforeText = upper.substring(Math.max(0, matchStart - 20), matchStart + m[0].length)
+      if (gpuPattern.test(beforeText)) continue // This is VRAM, skip it
+
+      ram = `${gb}GB RAM`
+      break
+    }
   }
 
   // Screen size
@@ -346,7 +385,7 @@ function extractNotebookSpecs(name: string): {
     if (size >= 11 && size <= 18) screen = `${size}"`
   }
 
-  // GPU
+  // GPU — detect both dedicated and integrated
   let gpu: string | null = null
   if (/RTX\s*\d{4}/i.test(name)) {
     const m = name.match(/(RTX\s*\d{4}\s*(?:TI|SUPER)?)/i)
@@ -354,11 +393,27 @@ function extractNotebookSpecs(name: string): {
   } else if (/GTX\s*\d{4}/i.test(name)) {
     const m = name.match(/(GTX\s*\d{4}\s*(?:TI|SUPER)?)/i)
     gpu = m ? m[1].toUpperCase() : 'GTX'
+  } else if (/RADEON\s*RX\s*\d{4}/i.test(name)) {
+    const m = name.match(/(RADEON\s*RX\s*\d{4})/i)
+    gpu = m ? m[1].toUpperCase() : 'Radeon RX'
   } else if (/RX\s*\d{4}/i.test(name)) {
     const m = name.match(/(RX\s*\d{4})/i)
     gpu = m ? m[1].toUpperCase() : 'Radeon'
   } else if (/ARC\s*A?\d{3}/i.test(name)) {
     gpu = 'Intel Arc'
+  } else if (/CON\s*VIDEO/i.test(name) || /C\/VIDEO/i.test(name)) {
+    gpu = 'Integrada (con Video)'
+  } else if (/UHD\s*GRAPHICS/i.test(name)) {
+    gpu = 'Intel UHD Graphics'
+  } else if (/IRIS\s*X[Eé]?/i.test(name)) {
+    gpu = 'Intel Iris Xe'
+  } else if (/IRIS\s*PLUS/i.test(name)) {
+    gpu = 'Intel Iris Plus'
+  } else if (/RADEON\s*\d{3,4}M/i.test(name)) {
+    const m = name.match(/(RADEON\s*\d{3,4}M)/i)
+    gpu = m ? m[1] : 'AMD Radeon Integrada'
+  } else if (/RADEON\s*GRAPHICS/i.test(name)) {
+    gpu = 'AMD Radeon Graphics'
   }
 
   // Storage
