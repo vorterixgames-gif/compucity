@@ -98,7 +98,7 @@ function extractNotebookRAM(name: string): number | null {
 // ============================================
 // Helper: Detect GPU type in notebook names
 // ============================================
-type GPUType = 'dedicated' | 'integrated' | 'none'
+type GPUType = 'dedicated' | 'integrated'
 
 function detectNotebookGPUType(name: string): GPUType {
   const upper = name.toUpperCase()
@@ -107,23 +107,9 @@ function detectNotebookGPUType(name: string): GPUType {
   if (/\bRTX\s*\d{4}/.test(upper) || /\bGTX\s*\d{4}/.test(upper)) return 'dedicated'
   if (/\bRADEON\s*RX\s*\d{4}/.test(upper)) return 'dedicated'
   if (/\bARC\s*A?\d{3}/.test(upper)) return 'dedicated'
-  // Generic "Radeon" without RX model could be integrated on AMD APUs, but in notebooks
-  // "Radeon" alone usually means dedicated in product names. Skip ambiguous cases.
-  // "Con Video" or "C/Video" is the common marker for integrated GPU in Argentinian market
-  if (/\bCON\s*VIDEO\b/i.test(name) || /\bC\/VIDEO\b/i.test(name)) return 'integrated'
 
-  // Intel integrated GPU indicators
-  if (/\bUHD\s*GRAPHICS\b/i.test(name)) return 'integrated'
-  if (/\bIRIS\s*X[Eé]?\b/i.test(name)) return 'integrated'
-  if (/\bIRIS\s*PLUS\b/i.test(name)) return 'integrated'
-  if (/\bINTEL\s*GRAPHICS\b/i.test(name)) return 'integrated'
-
-  // AMD integrated GPU indicators
-  if (/\bRADEON\s*(\d{3,4})\M\b/i.test(name)) return 'integrated'  // e.g., Radeon 780M
-  if (/\bRADEON\s*GRAPHICS\b/i.test(name)) return 'integrated'
-
-  // No GPU keywords found — likely has basic integrated graphics
-  return 'none'
+  // Everything else is integrated — ALL notebooks have at least integrated graphics
+  return 'integrated'
 }
 
 const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
@@ -520,7 +506,6 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'screen', label: '16"', value: '16', matchFn: (n) => /16[\."]|16\s/i.test(n) },
     { key: 'gpu', label: 'GPU dedicada', value: 'dedicated', matchFn: (n) => detectNotebookGPUType(n) === 'dedicated' },
     { key: 'gpu', label: 'GPU integrada', value: 'integrated', matchFn: (n) => detectNotebookGPUType(n) === 'integrated' },
-    { key: 'gpu', label: 'Sin GPU dedicada', value: 'no_dedicated', matchFn: (n) => detectNotebookGPUType(n) !== 'dedicated' },
   ],
   'smart-home': [
     { key: 'brand', label: 'EZVIZ', value: 'EZVIZ', matchFn: (n) => /\bEZVIZ\b/i.test(n) },
@@ -579,7 +564,6 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'screen', label: '16"', value: '16', matchFn: (n) => /16[\."]|16\s/i.test(n) },
     { key: 'gpu', label: 'GPU dedicada', value: 'dedicated', matchFn: (n) => detectNotebookGPUType(n) === 'dedicated' },
     { key: 'gpu', label: 'GPU integrada', value: 'integrated', matchFn: (n) => detectNotebookGPUType(n) === 'integrated' },
-    { key: 'gpu', label: 'Sin GPU dedicada', value: 'no_dedicated', matchFn: (n) => detectNotebookGPUType(n) !== 'dedicated' },
   ],
   'ups': [
     { key: 'brand', label: 'APC', value: 'APC', matchFn: (n) => /\bAPC\b/i.test(n) },
