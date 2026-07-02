@@ -193,8 +193,10 @@ export async function GET(request: NextRequest) {
       // Also find subcategory IDs (for parent categories like "perifericos" that have no direct products)
       // If includedSubcategorySlugs is set, only include those specific subcategories
       let subCatIds: string[] = []
+      let subcategoryFilterActive = false
       if (slotConfig.includedSubcategorySlugs && slotConfig.includedSubcategorySlugs.length > 0) {
         // Only include specific subcategories by slug
+        subcategoryFilterActive = true
         const subSlugs = slotConfig.includedSubcategorySlugs
         const subPlaceholders = subSlugs.map(() => '?').join(',')
         const filteredSubResult = await db.execute({
@@ -210,7 +212,10 @@ export async function GET(request: NextRequest) {
         })
         subCatIds = (subCatResult.rows as any[]).map(r => r.id)
       }
-      let categoryIds = [categoryId, ...subCatIds]
+      // When subcategoryFilterActive is true, ONLY use selected subcategory IDs,
+      // NOT the parent category — otherwise products directly in the parent
+      // (cables, adapters, etc.) leak through the filter.
+      let categoryIds = subcategoryFilterActive ? [...subCatIds] : [categoryId, ...subCatIds]
 
       // Also include additional category slugs (e.g., "gabinetes-con-fuente" for case slot)
       if (slotConfig.additionalCategorySlugs && slotConfig.additionalCategorySlugs.length > 0) {
@@ -320,11 +325,15 @@ export async function GET(request: NextRequest) {
       if (!cat) return { ...s, count: 0 }
 
       // Incluir categoría principal + subcategorías (respetando filtro de subcategorías si existe)
+      // When subcategoryFilterActive, ONLY count products in selected subcategories (not parent)
       const allChildren = childrenByParent.get(cat.id) || []
-      const filteredChildren = (s.includedSubcategorySlugs && s.includedSubcategorySlugs.length > 0)
+      const subcategoryFilterActive = (s.includedSubcategorySlugs && s.includedSubcategorySlugs.length > 0)
+      const filteredChildren = subcategoryFilterActive
         ? allChildren.filter(c => s.includedSubcategorySlugs!.includes(c.slug))
         : allChildren
-      const allIds = [cat.id, ...filteredChildren.map(c => c.id)]
+      const allIds = subcategoryFilterActive
+        ? [...filteredChildren.map(c => c.id)]
+        : [cat.id, ...filteredChildren.map(c => c.id)]
 
       // Incluir categorías adicionales (ej: gabinetes-con-fuente)
       if (s.additionalCategorySlugs) {
