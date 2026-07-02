@@ -173,7 +173,7 @@ const CATEGORY_KEYWORD_MAP: { keywords: string[]; categorySlug: string; name: st
   // Motherboards
   { keywords: ['MOTHER','H610','B760','H810','A520','A620','B650','B550','H510'], categorySlug: 'motherboards', name: 'Motherboards' },
   // Memorias RAM
-  { keywords: ['MEMORIA DDR','DDR3','DDR4','DDR5','CORSAIR MEMORY'], categorySlug: 'memorias-ram', name: 'Memorias RAM' },
+  { keywords: ['MEMORIA DDR','DDR3','DDR4','DDR5','CORSAIR MEMORY'], categorySlug: 'memoria-ram-pc', name: 'Memoria RAM PC' },
   { keywords: ['SODIMM'], categorySlug: 'memoria-ram-notebook', name: 'Memoria RAM Notebook' },
   // Placas de Video — comes AFTER notebooks/PCs to prevent "NOTEBOOK RTX" → placas-de-video
   { keywords: ['RTX','GTX','RADEON RX','GEFORCE','GRAPHICS CARD','QUADRO RTX'], categorySlug: 'placas-de-video', name: 'Placas de Video' },
@@ -3839,9 +3839,13 @@ export async function POST(request: Request) {
           { namePattern: "name LIKE '%MINI PC%' OR name LIKE '%BAREBONE%'", wrongSlug: 'microprocesadores', correctSlug: 'pc-armadas' },
           { namePattern: "name LIKE 'AIO %' OR name LIKE 'SSD PC Mini%'", wrongSlug: 'microprocesadores', correctSlug: 'pc-armadas' },
           // === Memorias RAM corrections ===
+          // Desktop RAM (memoria-ram-pc) and parent (memorias-ram) both need corrections
           { namePattern: "name LIKE '%NOTEBOOK%' OR name LIKE '%LAPBOOK%'", wrongSlug: 'memorias-ram', correctSlug: 'notebooks' },
+          { namePattern: "name LIKE '%NOTEBOOK%' OR name LIKE '%LAPBOOK%'", wrongSlug: 'memoria-ram-pc', correctSlug: 'notebooks' },
           { namePattern: "name LIKE '%PC GAMER%' OR name LIKE '%PC LENOVO%'", wrongSlug: 'memorias-ram', correctSlug: 'pc-armadas' },
+          { namePattern: "name LIKE '%PC GAMER%' OR name LIKE '%PC LENOVO%'", wrongSlug: 'memoria-ram-pc', correctSlug: 'pc-armadas' },
           { namePattern: "name LIKE '%PROCESADOR%'", wrongSlug: 'memorias-ram', correctSlug: 'microprocesadores' },
+          { namePattern: "name LIKE '%PROCESADOR%'", wrongSlug: 'memoria-ram-pc', correctSlug: 'microprocesadores' },
           // === Discos SSD corrections ===
           { namePattern: "name LIKE '%EXTERNO%' OR name LIKE '%EXTERNA%' OR name LIKE '%PORTABLE%'", wrongSlug: 'discos-ssd', correctSlug: 'discos-externos' },
           { namePattern: "name LIKE '%NOTEBOOK%' OR name LIKE '%LAPTOP%'", wrongSlug: 'discos-ssd', correctSlug: 'notebooks' },
