@@ -239,7 +239,7 @@ export async function GET() {
 
     // Also count products per PC Builder category
     const PC_BUILDER_SLOTS = [
-      'microprocesadores', 'motherboards', 'memorias-ram', 'placas-de-video',
+      'microprocesadores', 'motherboards', 'memoria-ram-pc', 'placas-de-video',
       'discos-ssd', 'discos-hdd', 'fuentes', 'gabinetes', 'refrigeracion', 'pastas-termicas',
     ]
     const categoryCounts: Record<string, number> = {}

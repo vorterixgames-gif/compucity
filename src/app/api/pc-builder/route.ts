@@ -33,7 +33,7 @@ async function getConfig(key: string, defaultValue: number): Promise<number> {
 const DEFAULT_COMPONENT_SLOTS: { slot: string; label: string; categorySlug: string; additionalCategorySlugs?: string[]; includedSubcategorySlugs?: string[] }[] = [
   { slot: 'processor', label: 'Microprocesador', categorySlug: 'microprocesadores' },
   { slot: 'motherboard', label: 'Motherboard', categorySlug: 'motherboards' },
-  { slot: 'ram', label: 'Memoria RAM', categorySlug: 'memorias-ram' },
+  { slot: 'ram', label: 'Memoria RAM', categorySlug: 'memoria-ram-pc' },
   { slot: 'gpu', label: 'Placa de Video', categorySlug: 'placas-de-video' },
   { slot: 'ssd', label: 'Disco SSD', categorySlug: 'discos-ssd' },
   { slot: 'hdd', label: 'Disco HDD', categorySlug: 'discos-hdd' },

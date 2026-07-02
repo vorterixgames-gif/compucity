@@ -197,6 +197,8 @@ export interface Product {
   // Calculated
   _calculated?: boolean
   _costUsd?: number
+  // Tags for filter matching
+  tags?: string[]
 }
 
 // Helper: build a map of categoryId -> CategoryMarkup for fast lookup
@@ -353,7 +355,7 @@ async function _getProductsByCategoryRaw(slug: string): Promise<Product[]> {
                    p.images, p.categoryId, p.brandId, p.isActive, p.stock,
                    p.markup, p.cashDiscount, p.ivaRate, p.internalTaxRate,
                    p.salePrice, p.saleStart, p.saleEnd, p.sku, p.providerId,
-                   p.isFeatured, p.createdAt, p.updatedAt
+                   p.isFeatured, p.createdAt, p.updatedAt, p.tags
             FROM products p
             WHERE p.categoryId IN (${placeholders}) AND p.isActive = 1 AND p.stock > 0
             ORDER BY CASE WHEN p.images IS NOT NULL AND p.images != '[]' THEN 0 ELSE 1 END, COALESCE(p.createdAt, p.updatedAt) DESC`,
@@ -365,9 +367,10 @@ async function _getProductsByCategoryRaw(slug: string): Promise<Product[]> {
     getCategoryMarkupMap(),
   ])
 
-  const mapped3 = (result.rows as any[]).map(p =>
-    calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
-  ) as Product[]
+  const mapped3 = (result.rows as any[]).map(p => {
+    const calculated = calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
+    return { ...calculated, tags: p.tags ? JSON.parse(p.tags) : [] }
+  }) as Product[]
   return enrichWithBrandInfo(deduplicateProducts(mapped3))
 }
 

@@ -275,7 +275,7 @@ function applyManualFilters(products: BuilderProduct[], filters: Record<string, 
 const DEFAULT_SLOTS: { slot: string; label: string; categorySlug: string; icon: React.ElementType; required: boolean; maxQty: number }[] = [
   { slot: 'processor', label: 'Microprocesador', categorySlug: 'microprocesadores', icon: Cpu, required: true, maxQty: 1 },
   { slot: 'motherboard', label: 'Motherboard', categorySlug: 'motherboards', icon: CircuitBoard, required: true, maxQty: 1 },
-  { slot: 'ram', label: 'Memoria RAM', categorySlug: 'memorias-ram', icon: Zap, required: true, maxQty: 4 },
+  { slot: 'ram', label: 'Memoria RAM', categorySlug: 'memoria-ram-pc', icon: Zap, required: true, maxQty: 4 },
   { slot: 'gpu', label: 'Placa de Video', categorySlug: 'placas-de-video', icon: Gamepad2, required: false, maxQty: 1 },
   { slot: 'ssd', label: 'Disco SSD', categorySlug: 'discos-ssd', icon: HardDrive, required: true, maxQty: 4 },
   { slot: 'hdd', label: 'Disco HDD', categorySlug: 'discos-hdd', icon: HardDrive, required: false, maxQty: 2 },

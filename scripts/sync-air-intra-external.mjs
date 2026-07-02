@@ -167,7 +167,7 @@ const RUBRO_TO_CATEGORY = {
 
   '001-0258': '66f20839-0487-433a-930f-9705ca43365d',
 
-  '001-0280': '8fec8068-83c9-43a9-a972-9eeafe9e0bda',
+  '001-0280': 'cat-ram-pc-desktop',
 
   '001-0281': 'f78dc8a5-69e0-4097-b4f9-c928fd90069f',
 
@@ -255,7 +255,7 @@ const RUBRO_TO_CATEGORY = {
 
   '002-0190': 'b24872b5-c02e-4969-892b-aa03f1acdae8',
 
-  '002-0280': '8fec8068-83c9-43a9-a972-9eeafe9e0bda',
+  '002-0280': 'cat-ram-pc-desktop',
 
   '002-0320': 'cat4',
 

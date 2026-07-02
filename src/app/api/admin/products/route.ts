@@ -309,7 +309,7 @@ export async function GET(request: NextRequest) {
     const selectColumns = `p.id, p.name, p.slug, p.description, p.price, p.comparePrice, p.costPrice,
        p.markup, p.cashDiscount, p.ivaRate, p.internalTaxRate, p.sku, p.stock, p.stockByWarehouse, p.isActive, p.isFeatured,
        p.images, p.specs, p.providerId, p.providerSku, p.categoryId, p.supplierCategory,
-       p.salePrice, p.saleStart, p.saleEnd, p.createdAt, p.updatedAt,
+       p.salePrice, p.saleStart, p.saleEnd, p.createdAt, p.updatedAt, p.tags,
        c.name as categoryName, c.markup as categoryMarkup, c.cashDiscount as categoryCashDiscount,
        s.name as providerName`
 
@@ -378,6 +378,7 @@ export async function GET(request: NextRequest) {
         ...calculated,
         categoryName: p.categoryName,
         providerName: p.providerName,
+        tags: p.tags ? JSON.parse(p.tags) : [],
         _dollarRate: dollarRate,
       }
     })
@@ -415,7 +416,7 @@ export async function POST(request: NextRequest) {
     const {
       name, description, price, comparePrice, costPrice, sku, stock,
       isActive, isFeatured, images, specs, providerId, providerSku, categoryId,
-      markup, cashDiscount, ivaRate, internalTaxRate, salePrice, saleStart, saleEnd,
+      markup, cashDiscount, ivaRate, internalTaxRate, salePrice, saleStart, saleEnd, tags,
     } = body
 
     console.log('[products POST] Received images:', images, 'type:', typeof images)
@@ -513,8 +514,8 @@ export async function POST(request: NextRequest) {
     }
 
     await db.execute({
-      sql: `INSERT INTO products (id, name, slug, description, price, comparePrice, costPrice, markup, cashDiscount, ivaRate, internalTaxRate, salePrice, saleStart, saleEnd, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, createdAt, updatedAt) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT INTO products (id, name, slug, description, price, comparePrice, costPrice, markup, cashDiscount, ivaRate, internalTaxRate, salePrice, saleStart, saleEnd, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, tags, createdAt, updatedAt) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id, name, finalSlug, description || null,
         finalPrice, finalComparePrice,
@@ -532,7 +533,8 @@ export async function POST(request: NextRequest) {
         isFeatured !== undefined ? (isFeatured ? 1 : 0) : 0,
         images || '[]', specs || '{}',
         resolvedProviderId, providerSku || null,
-        categoryId || null, now, now,
+        categoryId || null,
+        JSON.stringify(Array.isArray(tags) ? tags : []), now, now,
       ],
     })
 
@@ -564,7 +566,7 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
     const { id, name, description, price, comparePrice, costPrice, sku, stock,
       isActive, isFeatured, images, specs, providerId, providerSku, categoryId,
-      markup, cashDiscount, ivaRate, internalTaxRate, salePrice, saleStart, saleEnd, brandId } = body
+      markup, cashDiscount, ivaRate, internalTaxRate, salePrice, saleStart, saleEnd, brandId, tags } = body
 
     if (!id) {
       return NextResponse.json({ error: 'ID es requerido' }, { status: 400 })
@@ -721,6 +723,7 @@ export async function PUT(request: NextRequest) {
     if (saleStart !== undefined) { fields.push('saleStart = ?'); values.push(saleStart || null) }
     if (saleEnd !== undefined) { fields.push('saleEnd = ?'); values.push(saleEnd || null) }
     if (brandId !== undefined) { fields.push('brandId = ?'); values.push(brandId || null) }
+    if (tags !== undefined) { fields.push('tags = ?'); values.push(JSON.stringify(Array.isArray(tags) ? tags : [])) }
 
     if (fields.length === 0) {
       return NextResponse.json({ error: 'No hay campos para actualizar' }, { status: 400 })

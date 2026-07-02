@@ -71,7 +71,7 @@ interface SuggestedBuild {
 const SLOTS = [
   { slot: 'processor', label: 'Microprocesador', categorySlug: 'microprocesadores', required: true },
   { slot: 'motherboard', label: 'Motherboard', categorySlug: 'motherboards', required: true },
-  { slot: 'ram', label: 'Memoria RAM', categorySlug: 'memorias-ram', required: true },
+  { slot: 'ram', label: 'Memoria RAM', categorySlug: 'memoria-ram-pc', required: true },
   { slot: 'gpu', label: 'Placa de Video', categorySlug: 'placas-de-video', required: false },
   { slot: 'ssd', label: 'Disco SSD', categorySlug: 'discos-ssd', required: true },
   { slot: 'psu', label: 'Fuente', categorySlug: 'fuentes', required: true },

@@ -43,6 +43,13 @@ const SUBCATEGORY_RULES: { parentSlug: string; rules: { keywords: string[]; subc
       { keywords: ['BASE CARGADORA', 'DOCK'], subcategorySlug: 'bases', name: 'Bases' },
     ],
   },
+  {
+    parentSlug: 'memorias-ram',
+    rules: [
+      { keywords: ['SODIMM'], subcategorySlug: 'memoria-ram-notebook', name: 'Memoria RAM Notebook' },
+      { keywords: ['MEMORIA DDR', 'DDR3', 'DDR4', 'DDR5', 'CORSAIR MEMORY'], subcategorySlug: 'memoria-ram-pc', name: 'Memoria RAM PC' },
+    ],
+  },
 ]
 
 /**

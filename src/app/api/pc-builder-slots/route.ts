@@ -39,7 +39,7 @@ export async function GET() {
 const DEFAULT_PUBLIC_SLOTS = [
   { slot: 'processor', label: 'Microprocesador', categorySlug: 'microprocesadores', required: true, maxQty: 1, order: 0, icon: 'Cpu' },
   { slot: 'motherboard', label: 'Motherboard', categorySlug: 'motherboards', required: true, maxQty: 1, order: 1, icon: 'CircuitBoard' },
-  { slot: 'ram', label: 'Memoria RAM', categorySlug: 'memorias-ram', required: true, maxQty: 4, order: 2, icon: 'Zap' },
+  { slot: 'ram', label: 'Memoria RAM', categorySlug: 'memoria-ram-pc', required: true, maxQty: 4, order: 2, icon: 'Zap' },
   { slot: 'gpu', label: 'Placa de Video', categorySlug: 'placas-de-video', required: false, maxQty: 1, order: 3, icon: 'Gamepad2' },
   { slot: 'ssd', label: 'Disco SSD', categorySlug: 'discos-ssd', required: true, maxQty: 4, order: 4, icon: 'HardDrive' },
   { slot: 'hdd', label: 'Disco HDD', categorySlug: 'discos-hdd', required: false, maxQty: 2, order: 5, icon: 'HardDrive' },

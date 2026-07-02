@@ -151,7 +151,7 @@ export interface BuilderSlotConfig {
 const DEFAULT_SLOTS: BuilderSlotConfig[] = [
   { slot: 'processor', label: 'Microprocesador', categorySlug: 'microprocesadores', enabled: true, required: true, maxQty: 1, order: 0, icon: 'Cpu' },
   { slot: 'motherboard', label: 'Motherboard', categorySlug: 'motherboards', enabled: true, required: true, maxQty: 1, order: 1, icon: 'CircuitBoard' },
-  { slot: 'ram', label: 'Memoria RAM', categorySlug: 'memorias-ram', enabled: true, required: true, maxQty: 4, order: 2, icon: 'Zap' },
+  { slot: 'ram', label: 'Memoria RAM', categorySlug: 'memoria-ram-pc', enabled: true, required: true, maxQty: 4, order: 2, icon: 'Zap' },
   { slot: 'gpu', label: 'Placa de Video', categorySlug: 'placas-de-video', enabled: true, required: false, maxQty: 1, order: 3, icon: 'Gamepad2' },
   { slot: 'ssd', label: 'Disco SSD', categorySlug: 'discos-ssd', enabled: true, required: true, maxQty: 4, order: 4, icon: 'HardDrive' },
   { slot: 'hdd', label: 'Disco HDD', categorySlug: 'discos-hdd', enabled: true, required: false, maxQty: 2, order: 5, icon: 'HardDrive' },

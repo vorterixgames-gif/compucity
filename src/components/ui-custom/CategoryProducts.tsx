@@ -26,6 +26,7 @@ interface ProductItem {
   brandId?: string | null
   brandName?: string | null
   isFeatured?: number
+  tags?: string[]
 }
 
 // ============================================
@@ -185,18 +186,37 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'ddr', label: 'DDR5', value: 'DDR5', matchFn: (n) => /\bDDR5\b/i.test(n) },
   ],
   'memorias-ram': [
-    { key: 'brand', label: 'Kingston', value: 'KINGSTON', matchFn: (n) => /\bKINGSTON\b|\bFURY\b/i.test(n) },
-    { key: 'brand', label: 'Hiksemi', value: 'HIKSEMI', matchFn: (n) => /\bHIKSEMI\b/i.test(n) },
-    { key: 'brand', label: 'ADATA / XPG', value: 'ADATA', matchFn: (n) => /\bADATA\b|\bXPG\b/i.test(n) },
-    { key: 'brand', label: 'Corsair', value: 'CORSAIR', matchFn: (n) => /\bCORSAIR\b|\bVENGEANCE\b/i.test(n) },
-    { key: 'brand', label: 'Memox', value: 'MEMOX', matchFn: (n) => /\bMEMOX\b/i.test(n) },
-    { key: 'brand', label: 'Crucial', value: 'CRUCIAL', matchFn: (n) => /\bCRUCIAL\b/i.test(n) },
-    { key: 'brand', label: 'Lexar', value: 'LEXAR', matchFn: (n) => /\bLEXAR\b/i.test(n) },
-    { key: 'brand', label: 'G.Skill', value: 'GSKILL', matchFn: (n) => /\bG\.?SKILL\b|\bTRIDENT\b|\bRIPJAWS\b/i.test(n) },
-    { key: 'brand', label: 'Patriot', value: 'PATRIOT', matchFn: (n) => /\bPATRIOT\b/i.test(n) },
-    { key: 'ddr', label: 'DDR3', value: 'DDR3', matchFn: (n) => /\bDDR3\b/i.test(n) },
-    { key: 'ddr', label: 'DDR4', value: 'DDR4', matchFn: (n) => /\bDDR4\b/i.test(n) },
-    { key: 'ddr', label: 'DDR5', value: 'DDR5', matchFn: (n) => /\bDDR5\b/i.test(n) },
+    { key: 'brand', label: 'Kingston', value: 'kingston', matchFn: (n) => /\bKINGSTON\b|\bFURY\b/i.test(n) },
+    { key: 'brand', label: 'Hiksemi', value: 'hiksemi', matchFn: (n) => /\bHIKSEMI\b/i.test(n) },
+    { key: 'brand', label: 'ADATA / XPG', value: 'adata', matchFn: (n) => /\bADATA\b|\bXPG\b/i.test(n) },
+    { key: 'brand', label: 'Corsair', value: 'corsair', matchFn: (n) => /\bCORSAIR\b|\bVENGEANCE\b/i.test(n) },
+    { key: 'brand', label: 'Memox', value: 'memox', matchFn: (n) => /\bMEMOX\b/i.test(n) },
+    { key: 'brand', label: 'Crucial', value: 'crucial', matchFn: (n) => /\bCRUCIAL\b/i.test(n) },
+    { key: 'brand', label: 'Lexar', value: 'lexar', matchFn: (n) => /\bLEXAR\b/i.test(n) },
+    { key: 'brand', label: 'G.Skill', value: 'gskill', matchFn: (n) => /\bG\.?SKILL\b|\bTRIDENT\b|\bRIPJAWS\b/i.test(n) },
+    { key: 'brand', label: 'Patriot', value: 'patriot', matchFn: (n) => /\bPATRIOT\b/i.test(n) },
+    { key: 'ddr', label: 'DDR3', value: 'ddr3', matchFn: (n) => /\bDDR3\b/i.test(n) },
+    { key: 'ddr', label: 'DDR4', value: 'ddr4', matchFn: (n) => /\bDDR4\b/i.test(n) },
+    { key: 'ddr', label: 'DDR5', value: 'ddr5', matchFn: (n) => /\bDDR5\b/i.test(n) },
+    { key: 'capacity', label: '4GB', value: '4gb', matchFn: (n) => /\b4\s*G[Bb]?\b/i.test(n) },
+    { key: 'capacity', label: '8GB', value: '8gb', matchFn: (n) => /\b8\s*G[Bb]?\b/i.test(n) },
+    { key: 'capacity', label: '16GB', value: '16gb', matchFn: (n) => /\b16\s*G[Bb]?\b/i.test(n) },
+    { key: 'capacity', label: '32GB', value: '32gb', matchFn: (n) => /\b32\s*G[Bb]?\b/i.test(n) },
+    { key: 'capacity', label: '48GB+', value: '48gbplus', matchFn: (n) => { const m = n.match(/\b(\d+)\s*G[Bb]?\b/i); return m ? parseInt(m[1]) >= 48 : false } },
+  ],
+  'memoria-ram-pc': [
+    { key: 'brand', label: 'Kingston', value: 'kingston', matchFn: (n) => /\bKINGSTON\b|\bFURY\b/i.test(n) },
+    { key: 'brand', label: 'Hiksemi', value: 'hiksemi', matchFn: (n) => /\bHIKSEMI\b/i.test(n) },
+    { key: 'brand', label: 'ADATA / XPG', value: 'adata', matchFn: (n) => /\bADATA\b|\bXPG\b/i.test(n) },
+    { key: 'brand', label: 'Corsair', value: 'corsair', matchFn: (n) => /\bCORSAIR\b|\bVENGEANCE\b/i.test(n) },
+    { key: 'brand', label: 'Memox', value: 'memox', matchFn: (n) => /\bMEMOX\b/i.test(n) },
+    { key: 'brand', label: 'Crucial', value: 'crucial', matchFn: (n) => /\bCRUCIAL\b/i.test(n) },
+    { key: 'brand', label: 'Lexar', value: 'lexar', matchFn: (n) => /\bLEXAR\b/i.test(n) },
+    { key: 'brand', label: 'G.Skill', value: 'gskill', matchFn: (n) => /\bG\.?SKILL\b|\bTRIDENT\b|\bRIPJAWS\b/i.test(n) },
+    { key: 'brand', label: 'Patriot', value: 'patriot', matchFn: (n) => /\bPATRIOT\b/i.test(n) },
+    { key: 'ddr', label: 'DDR3', value: 'ddr3', matchFn: (n) => /\bDDR3\b/i.test(n) },
+    { key: 'ddr', label: 'DDR4', value: 'ddr4', matchFn: (n) => /\bDDR4\b/i.test(n) },
+    { key: 'ddr', label: 'DDR5', value: 'ddr5', matchFn: (n) => /\bDDR5\b/i.test(n) },
     { key: 'capacity', label: '4GB', value: '4gb', matchFn: (n) => /\b4\s*G[Bb]?\b/i.test(n) },
     { key: 'capacity', label: '8GB', value: '8gb', matchFn: (n) => /\b8\s*G[Bb]?\b/i.test(n) },
     { key: 'capacity', label: '16GB', value: '16gb', matchFn: (n) => /\b16\s*G[Bb]?\b/i.test(n) },
@@ -531,14 +551,14 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'type', label: 'Joystick', value: 'JOYSTICK', matchFn: (n) => /\bJOYSTICK\b|\bGAMEPAD\b|\bCONTROL\s*(PS|XBOX|XBOX\s*ONE|DECK|SWITCH)\b/i.test(n) },
   ],
   'notebooks': [
-    { key: 'brand', label: 'Lenovo', value: 'LENOVO', matchFn: (n) => /\bLENOVO\b|\bTHINKPAD\b|\bIDEAPAD\b|\bLOQ\b|\bLEGION\b|\bYOGA\b/i.test(n) },
-    { key: 'brand', label: 'HP', value: 'HP', matchFn: (n) => /\bHP\b|\bPAVILION\b|\bOMEN\b|\bVICTUS\b|\bDRAGONFLY\b|\bZBOOK\b/i.test(n) },
-    { key: 'brand', label: 'Dell', value: 'DELL', matchFn: (n) => /\bDELL\b|\bINSPIRON\b|\bLATITUDE\b|\bALIENWARE\b/i.test(n) },
-    { key: 'brand', label: 'Asus', value: 'ASUS', matchFn: (n) => /\bASUS\b|\bROG\b|\bTUF\b|\bZENBOOK\b|\bVIVOBOOK\b/i.test(n) },
-    { key: 'brand', label: 'MSI', value: 'MSI', matchFn: (n) => /\bMSI\b|\bRAIDER\b|\bTHIN\b|\bCYBORG\b/i.test(n) },
-    { key: 'brand', label: 'Acer', value: 'ACER', matchFn: (n) => /\bACER\b|\bASPIRE\b|\bNITRO\b|\bPREDATOR\b/i.test(n) },
-    { key: 'brand', label: 'CX', value: 'CX', matchFn: (n) => /\bCX\b/i.test(n) },
-    { key: 'brand', label: 'Kelyx', value: 'KELYX', matchFn: (n) => /\bKELYX\b/i.test(n) },
+    { key: 'brand', label: 'Lenovo', value: 'lenovo', matchFn: (n) => /\bLENOVO\b|\bTHINKPAD\b|\bIDEAPAD\b|\bLOQ\b|\bLEGION\b|\bYOGA\b/i.test(n) },
+    { key: 'brand', label: 'HP', value: 'hp', matchFn: (n) => /\bHP\b|\bPAVILION\b|\bOMEN\b|\bVICTUS\b|\bDRAGONFLY\b|\bZBOOK\b/i.test(n) },
+    { key: 'brand', label: 'Dell', value: 'dell', matchFn: (n) => /\bDELL\b|\bINSPIRON\b|\bLATITUDE\b|\bALIENWARE\b/i.test(n) },
+    { key: 'brand', label: 'Asus', value: 'asus', matchFn: (n) => /\bASUS\b|\bROG\b|\bTUF\b|\bZENBOOK\b|\bVIVOBOOK\b/i.test(n) },
+    { key: 'brand', label: 'MSI', value: 'msi', matchFn: (n) => /\bMSI\b|\bRAIDER\b|\bTHIN\b|\bCYBORG\b/i.test(n) },
+    { key: 'brand', label: 'Acer', value: 'acer', matchFn: (n) => /\bACER\b|\bASPIRE\b|\bNITRO\b|\bPREDATOR\b/i.test(n) },
+    { key: 'brand', label: 'CX', value: 'cx', matchFn: (n) => /\bCX\b/i.test(n) },
+    { key: 'brand', label: 'Kelyx', value: 'kelyx', matchFn: (n) => /\bKELYX\b/i.test(n) },
     { key: 'processor', label: 'Core i9 / Ultra 9', value: 'i9', matchFn: (n) => /\bI9\b|\bCORE\s*9\b|\bCORE\s*ULTRA\s*9\b/i.test(n) },
     { key: 'processor', label: 'Core i7 / Ultra 7', value: 'i7', matchFn: (n) => /\bI7\b|\bCORE\s*7\b|\bCORE\s*ULTRA\s*7\b|\bU7[- ]?\d/i.test(n) },
     { key: 'processor', label: 'Core i5 / Ultra 5', value: 'i5', matchFn: (n) => /\bI5\b|\bCORE\s*5\b|\bCORE\s*ULTRA\s*5\b|\bC5[- ]?\d|\bU5[- ]?\d/i.test(n) },
@@ -558,8 +578,8 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'screen', label: '14"', value: '14', matchFn: (n) => /14[\."]|14\s/i.test(n) },
     { key: 'screen', label: '15"', value: '15', matchFn: (n) => /15[\."]|15\s/i.test(n) },
     { key: 'screen', label: '16"', value: '16', matchFn: (n) => /16[\."]|16\s/i.test(n) },
-    { key: 'gpu', label: 'GPU dedicada', value: 'dedicated', matchFn: (n) => detectNotebookGPUType(n) === 'dedicated' },
-    { key: 'gpu', label: 'GPU integrada', value: 'integrated', matchFn: (n) => detectNotebookGPUType(n) === 'integrated' },
+    { key: 'gpu', label: 'GPU dedicada', value: 'dedicated_gpu', matchFn: (n) => detectNotebookGPUType(n) === 'dedicated' },
+    { key: 'gpu', label: 'GPU integrada', value: 'integrated_gpu', matchFn: (n) => detectNotebookGPUType(n) === 'integrated' },
   ],
   'smart-home': [
     { key: 'brand', label: 'EZVIZ', value: 'EZVIZ', matchFn: (n) => /\bEZVIZ\b/i.test(n) },
@@ -616,8 +636,8 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'screen', label: '14"', value: '14', matchFn: (n) => /14[\."]|14\s/i.test(n) },
     { key: 'screen', label: '15"', value: '15', matchFn: (n) => /15[\."]|15\s/i.test(n) },
     { key: 'screen', label: '16"', value: '16', matchFn: (n) => /16[\."]|16\s/i.test(n) },
-    { key: 'gpu', label: 'GPU dedicada', value: 'dedicated', matchFn: (n) => detectNotebookGPUType(n) === 'dedicated' },
-    { key: 'gpu', label: 'GPU integrada', value: 'integrated', matchFn: (n) => detectNotebookGPUType(n) === 'integrated' },
+    { key: 'gpu', label: 'GPU dedicada', value: 'dedicated_gpu', matchFn: (n) => detectNotebookGPUType(n) === 'dedicated' },
+    { key: 'gpu', label: 'GPU integrada', value: 'integrated_gpu', matchFn: (n) => detectNotebookGPUType(n) === 'integrated' },
   ],
   'ups': [
     { key: 'brand', label: 'APC', value: 'APC', matchFn: (n) => /\bAPC\b/i.test(n) },
@@ -631,16 +651,16 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'wattage', label: '3000VA+', value: '3000plus', matchFn: (n) => { const m = n.match(/(\d{3,4})\s*VA/i); return m ? parseInt(m[1]) >= 3000 : false } },
   ],
   'memoria-ram-notebook': [
-    { key: 'brand', label: 'Kingston', value: 'KINGSTON', matchFn: (n) => /\bKINGSTON\b|\bKVR\b/i.test(n) },
-    { key: 'brand', label: 'ADATA', value: 'ADATA', matchFn: (n) => /\bADATA\b/i.test(n) },
-    { key: 'brand', label: 'Lexar', value: 'LEXAR', matchFn: (n) => /\bLEXAR\b/i.test(n) },
-    { key: 'brand', label: 'Crucial', value: 'CRUCIAL', matchFn: (n) => /\bCRUCIAL\b/i.test(n) },
-    { key: 'brand', label: 'Corsair', value: 'CORSAIR', matchFn: (n) => /\bCORSAIR\b|\bVENGEANCE\b/i.test(n) },
-    { key: 'brand', label: 'Hiksemi', value: 'HIKSEMI', matchFn: (n) => /\bHIKSEMI\b/i.test(n) },
-    { key: 'brand', label: 'Samsung', value: 'SAMSUNG', matchFn: (n) => /\bSAMSUNG\b/i.test(n) },
-    { key: 'ddr', label: 'DDR3', value: 'DDR3', matchFn: (n) => /\bDDR3\b/i.test(n) },
-    { key: 'ddr', label: 'DDR4', value: 'DDR4', matchFn: (n) => /\bDDR4\b/i.test(n) },
-    { key: 'ddr', label: 'DDR5', value: 'DDR5', matchFn: (n) => /\bDDR5\b/i.test(n) },
+    { key: 'brand', label: 'Kingston', value: 'kingston', matchFn: (n) => /\bKINGSTON\b|\bKVR\b/i.test(n) },
+    { key: 'brand', label: 'ADATA', value: 'adata', matchFn: (n) => /\bADATA\b/i.test(n) },
+    { key: 'brand', label: 'Lexar', value: 'lexar', matchFn: (n) => /\bLEXAR\b/i.test(n) },
+    { key: 'brand', label: 'Crucial', value: 'crucial', matchFn: (n) => /\bCRUCIAL\b/i.test(n) },
+    { key: 'brand', label: 'Corsair', value: 'corsair', matchFn: (n) => /\bCORSAIR\b|\bVENGEANCE\b/i.test(n) },
+    { key: 'brand', label: 'Hiksemi', value: 'hiksemi', matchFn: (n) => /\bHIKSEMI\b/i.test(n) },
+    { key: 'brand', label: 'Samsung', value: 'samsung', matchFn: (n) => /\bSAMSUNG\b/i.test(n) },
+    { key: 'ddr', label: 'DDR3', value: 'ddr3', matchFn: (n) => /\bDDR3\b/i.test(n) },
+    { key: 'ddr', label: 'DDR4', value: 'ddr4', matchFn: (n) => /\bDDR4\b/i.test(n) },
+    { key: 'ddr', label: 'DDR5', value: 'ddr5', matchFn: (n) => /\bDDR5\b/i.test(n) },
     { key: 'capacity', label: '4GB', value: '4gb', matchFn: (n) => /\b4\s*G[Bb]?\b/i.test(n) },
     { key: 'capacity', label: '8GB', value: '8gb', matchFn: (n) => /\b8\s*G[Bb]?\b/i.test(n) },
     { key: 'capacity', label: '16GB', value: '16gb', matchFn: (n) => /\b16\s*G[Bb]?\b/i.test(n) },
@@ -766,14 +786,14 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'type', label: 'Mini PC', value: 'mini_pc', matchFn: (n) => /\bMINI PC\b|\bSTICK PC\b|\bNUC\b|\bMELE\b|\bN100\b/i.test(n) },
     { key: 'type', label: 'All in One', value: 'aio', matchFn: (n) => /\bAIO\b|\bALL[- ]?IN[- ]?ONE\b/i.test(n) },
     // Marca
-    { key: 'brand', label: 'HP', value: 'HP', matchFn: (n) => /\bHP\b|\bZ1G\b|\bZ2G\b|\bOMEN\b|\bVICTUS\b|\bELITEDESK\b|\bPRODESK\b/i.test(n) },
-    { key: 'brand', label: 'Lenovo', value: 'LENOVO', matchFn: (n) => /\bLENOVO\b|\bTHINKCENTRE\b|\bIDEACENTRE\b|\bLEGION\b|\bLOQ\b/i.test(n) },
-    { key: 'brand', label: 'Dell', value: 'DELL', matchFn: (n) => /\bDELL\b|\bINSPIRON\b|\bOPTIPLEX\b|\bALIENWARE\b/i.test(n) },
-    { key: 'brand', label: 'CX', value: 'CX', matchFn: (n) => /\bCX\b/i.test(n) },
-    { key: 'brand', label: 'Gamemax', value: 'GAMEMAX', matchFn: (n) => /\bGAMEMAX\b/i.test(n) },
-    { key: 'brand', label: 'Kelyx', value: 'KELYX', matchFn: (n) => /\bKELYX\b/i.test(n) },
-    { key: 'brand', label: 'ASUS', value: 'ASUS', matchFn: (n) => /\bASUS\b|\bROG\b|\bTUF\b|\bPN\d/i.test(n) },
-    { key: 'brand', label: 'Intel', value: 'INTEL', matchFn: (n) => /\bINTEL\b|\bNUC\b/i.test(n) },
+    { key: 'brand', label: 'HP', value: 'hp', matchFn: (n) => /\bHP\b|\bZ1G\b|\bZ2G\b|\bOMEN\b|\bVICTUS\b|\bELITEDESK\b|\bPRODESK\b/i.test(n) },
+    { key: 'brand', label: 'Lenovo', value: 'lenovo', matchFn: (n) => /\bLENOVO\b|\bTHINKCENTRE\b|\bIDEACENTRE\b|\bLEGION\b|\bLOQ\b/i.test(n) },
+    { key: 'brand', label: 'Dell', value: 'dell', matchFn: (n) => /\bDELL\b|\bINSPIRON\b|\bOPTIPLEX\b|\bALIENWARE\b/i.test(n) },
+    { key: 'brand', label: 'CX', value: 'cx', matchFn: (n) => /\bCX\b/i.test(n) },
+    { key: 'brand', label: 'Gamemax', value: 'gamemax', matchFn: (n) => /\bGAMEMAX\b/i.test(n) },
+    { key: 'brand', label: 'Kelyx', value: 'kelyx', matchFn: (n) => /\bKELYX\b/i.test(n) },
+    { key: 'brand', label: 'ASUS', value: 'asus', matchFn: (n) => /\bASUS\b|\bROG\b|\bTUF\b|\bPN\d/i.test(n) },
+    { key: 'brand', label: 'Intel', value: 'intel', matchFn: (n) => /\bINTEL\b|\bNUC\b/i.test(n) },
     // Procesador
     { key: 'processor', label: 'Core i9 / Ultra 9', value: 'i9', matchFn: (n) => /\bI9\b|\bCORE\s*9\b|\bCORE\s*ULTRA\s*9\b/i.test(n) },
     { key: 'processor', label: 'Core i7 / Ultra 7', value: 'i7', matchFn: (n) => /\bI7\b|\bCORE\s*7\b|\bCORE\s*ULTRA\s*7\b|\bU7[- ]?\d/i.test(n) },
@@ -792,8 +812,8 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'ram', label: '24GB', value: '24gb', matchFn: (n) => extractNotebookRAM(n) === 24 },
     { key: 'ram', label: '32GB', value: '32gb', matchFn: (n) => extractNotebookRAM(n) === 32 },
     // GPU
-    { key: 'gpu', label: 'GPU dedicada', value: 'dedicated', matchFn: (n) => detectNotebookGPUType(n) === 'dedicated' },
-    { key: 'gpu', label: 'GPU integrada', value: 'integrated', matchFn: (n) => detectNotebookGPUType(n) === 'integrated' },
+    { key: 'gpu', label: 'GPU dedicada', value: 'dedicated_gpu', matchFn: (n) => detectNotebookGPUType(n) === 'dedicated' },
+    { key: 'gpu', label: 'GPU integrada', value: 'integrated_gpu', matchFn: (n) => detectNotebookGPUType(n) === 'integrated' },
   ],
   'smarts-tv': [
     { key: 'brand', label: 'Philips', value: 'PHILIPS', matchFn: (n) => /\bPHILIPS\b/i.test(n) },
@@ -839,12 +859,12 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'brand', label: 'Gamemax', value: 'GAMEMAX', matchFn: (n) => /\bGAMEMAX\b/i.test(n) },
   ],
   'gamer-y-diseno': [
-    { key: 'brand', label: 'HP', value: 'HP', matchFn: (n) => /\bHP\b|\bOMEN\b|\bVICTUS\b|\bZBOOK\b/i.test(n) },
-    { key: 'brand', label: 'Lenovo', value: 'LENOVO', matchFn: (n) => /\bLENOVO\b|\bLEGION\b|\bLOQ\b/i.test(n) },
-    { key: 'brand', label: 'MSI', value: 'MSI', matchFn: (n) => /\bMSI\b|\bKATANA\b|\bCROSSHAIR\b|\bCYBORG\b|\bGF\d/i.test(n) },
-    { key: 'brand', label: 'Dell', value: 'DELL', matchFn: (n) => /\bDELL\b|\bALIENWARE\b/i.test(n) },
-    { key: 'brand', label: 'Asus', value: 'ASUS', matchFn: (n) => /\bASUS\b|\bROG\b|\bTUF\b/i.test(n) },
-    { key: 'brand', label: 'Acer', value: 'ACER', matchFn: (n) => /\bACER\b|\bNITRO\b|\bPREDATOR\b|\bASPIRE\b/i.test(n) },
+    { key: 'brand', label: 'HP', value: 'hp', matchFn: (n) => /\bHP\b|\bOMEN\b|\bVICTUS\b|\bZBOOK\b/i.test(n) },
+    { key: 'brand', label: 'Lenovo', value: 'lenovo', matchFn: (n) => /\bLENOVO\b|\bLEGION\b|\bLOQ\b/i.test(n) },
+    { key: 'brand', label: 'MSI', value: 'msi', matchFn: (n) => /\bMSI\b|\bKATANA\b|\bCROSSHAIR\b|\bCYBORG\b|\bGF\d/i.test(n) },
+    { key: 'brand', label: 'Dell', value: 'dell', matchFn: (n) => /\bDELL\b|\bALIENWARE\b/i.test(n) },
+    { key: 'brand', label: 'Asus', value: 'asus', matchFn: (n) => /\bASUS\b|\bROG\b|\bTUF\b/i.test(n) },
+    { key: 'brand', label: 'Acer', value: 'acer', matchFn: (n) => /\bACER\b|\bNITRO\b|\bPREDATOR\b|\bASPIRE\b/i.test(n) },
     { key: 'processor', label: 'Core i9 / Ultra 9', value: 'i9', matchFn: (n) => /\bI9\b|\bCORE\s*9\b|\bCORE\s*ULTRA\s*9\b/i.test(n) },
     { key: 'processor', label: 'Core i7 / Ultra 7', value: 'i7', matchFn: (n) => /\bI7\b|\bCORE\s*7\b|\bCORE\s*ULTRA\s*7\b|\bU7[- ]?\d/i.test(n) },
     { key: 'processor', label: 'Core i5 / Ultra 5', value: 'i5', matchFn: (n) => /\bI5\b|\bCORE\s*5\b|\bCORE\s*ULTRA\s*5\b|\bC5[- ]?\d|\bU5[- ]?\d/i.test(n) },
@@ -945,7 +965,14 @@ function applyCategoryFilters(products: ProductItem[], filters: Record<string, s
 
   return products.filter(product => {
     for (const [, options] of activeGroups) {
-      const matchesGroup = options.some(opt => opt.matchFn(product.name, product))
+      const matchesGroup = options.some(opt => {
+        // If product has explicit tags, use tag matching first
+        if (product.tags && product.tags.length > 0) {
+          return product.tags.includes(opt.value)
+        }
+        // Fallback to regex name matching for products without tags
+        return opt.matchFn(product.name, product)
+      })
       if (!matchesGroup) return false
     }
     return true

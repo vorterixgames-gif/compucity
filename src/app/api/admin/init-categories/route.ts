@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentAdmin } from '@/lib/admin-auth'
 
-const CATEGORIES_STRUCTURE: { name: string; slug: string; children: { name: string; slug: string }[] }[] = [
+const CATEGORIES_STRUCTURE: { name: string; slug: string; children: { name: string; slug: string; children?: { name: string; slug: string }[] }[] }[] = [
   {
     name: 'Notebooks',
     slug: 'notebooks',
@@ -30,7 +30,10 @@ const CATEGORIES_STRUCTURE: { name: string; slug: string; children: { name: stri
       { name: 'Placas de Video', slug: 'placas-de-video' },
       { name: 'Microprocesadores', slug: 'microprocesadores' },
       { name: 'Motherboards', slug: 'motherboards' },
-      { name: 'Memorias RAM', slug: 'memorias-ram' },
+      { name: 'Memorias RAM', slug: 'memorias-ram', children: [
+        { name: 'Memoria RAM PC', slug: 'memoria-ram-pc' },
+        { name: 'Memoria RAM Notebook', slug: 'memoria-ram-notebook' },
+      ]},
       { name: 'Discos SSD', slug: 'discos-ssd' },
       { name: 'Discos HDD', slug: 'discos-hdd' },
       { name: 'Fuentes', slug: 'fuentes' },
@@ -207,20 +210,49 @@ export async function POST() {
           args: [sub.slug],
         })
 
+        let subId: string
+
         if (existingSub.rows.length === 0) {
-          const subId = crypto.randomUUID()
+          subId = crypto.randomUUID()
           await db.execute({
             sql: 'INSERT INTO categories (id, name, slug, image, parentId, enabled, "order", createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
             args: [subId, sub.name, sub.slug, null, parentId, 1, subIdx, now, now],
           })
           created++
         } else {
-          const subId = (existingSub.rows[0] as any).id
+          subId = (existingSub.rows[0] as any).id
           await db.execute({
             sql: 'UPDATE categories SET name = ?, parentId = ?, "order" = ?, enabled = COALESCE(enabled, 1), updatedAt = ? WHERE id = ?',
             args: [sub.name, parentId, subIdx, now, subId],
           })
           updated++
+        }
+
+        // Seed/update grandchildren (nested children)
+        if (sub.children && sub.children.length > 0) {
+          for (let grandIdx = 0; grandIdx < sub.children.length; grandIdx++) {
+            const grand = sub.children[grandIdx]
+            const existingGrand = await db.execute({
+              sql: 'SELECT id FROM categories WHERE slug = ?',
+              args: [grand.slug],
+            })
+
+            if (existingGrand.rows.length === 0) {
+              const grandId = crypto.randomUUID()
+              await db.execute({
+                sql: 'INSERT INTO categories (id, name, slug, image, parentId, enabled, "order", createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                args: [grandId, grand.name, grand.slug, null, subId, 1, grandIdx, now, now],
+              })
+              created++
+            } else {
+              const grandId = (existingGrand.rows[0] as any).id
+              await db.execute({
+                sql: 'UPDATE categories SET name = ?, parentId = ?, "order" = ?, enabled = COALESCE(enabled, 1), updatedAt = ? WHERE id = ?',
+                args: [grand.name, subId, grandIdx, now, grandId],
+              })
+              updated++
+            }
+          }
         }
       }
     }

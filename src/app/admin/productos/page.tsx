@@ -59,6 +59,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import ImageUploader from '@/components/ui-custom/ImageUploader'
+import { getTagGroupsForCategory, autoDetectTags } from '@/lib/product-tags'
 
 interface Category {
   id: string
@@ -131,6 +132,7 @@ interface ProductForm {
   salePrice: string     // promotional price (empty = no sale)
   saleStart: string     // sale start date (ISO)
   saleEnd: string       // sale end date (ISO)
+  tags: string[]        // explicit filter tags (e.g. ['gamer','ddr4','hp'])
 }
 
 type SortColumn = 'name' | 'categoryName' | 'costPrice' | 'price' | 'comparePrice' | 'stock' | 'isActive'
@@ -202,6 +204,7 @@ const emptyForm: ProductForm = {
   salePrice: '',
   saleStart: '',
   saleEnd: '',
+  tags: [],
 }
 
 function formatPrice(price: number): string {
@@ -525,6 +528,7 @@ export default function AdminProductos() {
       salePrice: product.salePrice != null ? String(product.salePrice) : '',
       saleStart: product.saleStart ? product.saleStart.slice(0, 10) : '',
       saleEnd: product.saleEnd ? product.saleEnd.slice(0, 10) : '',
+      tags: (product as any).tags || [],
     })
     setFormError('')
     fetchDollarConfig()
@@ -654,6 +658,7 @@ export default function AdminProductos() {
         salePrice: form.salePrice ? Number(form.salePrice) : null,
         saleStart: form.saleStart || null,
         saleEnd: form.saleEnd || null,
+        tags: form.tags,
       }
 
       const res = await fetch('/api/admin/products', {
@@ -2084,6 +2089,93 @@ export default function AdminProductos() {
                 )
               })()}
             </div>
+
+            {/* Tags section - context-aware based on selected category */}
+            {form.categoryId && (() => {
+              const selectedCat = categories.find(c => c.id === form.categoryId)
+              if (!selectedCat) return null
+              // Resolve slug: if subcategory, use parent slug for tag groups
+              const catSlug = selectedCat.parentId
+                ? categories.find(c => c.id === selectedCat.parentId)?.slug || selectedCat.slug
+                : selectedCat.slug
+              // Also check the subcategory slug itself (for memoria-ram-pc etc.)
+              const tagGroups = getTagGroupsForCategory(catSlug)
+              const subTagGroups = catSlug !== selectedCat.slug ? getTagGroupsForCategory(selectedCat.slug) : []
+              const activeGroups = subTagGroups.length > 0 ? subTagGroups : tagGroups
+              if (activeGroups.length === 0) return null
+
+              const toggleTag = (tagValue: string) => {
+                setForm(prev => ({
+                  ...prev,
+                  tags: prev.tags.includes(tagValue)
+                    ? prev.tags.filter(t => t !== tagValue)
+                    : [...prev.tags, tagValue]
+                }))
+              }
+
+              const autoFillTags = () => {
+                const detected = autoDetectTags(form.name, catSlug)
+                setForm(prev => ({ ...prev, tags: [...new Set([...prev.tags, ...detected])] }))
+              }
+
+              return (
+                <div className="sm:col-span-2 border rounded-lg p-4 bg-blue-50/50 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                      Tags (Filtros)
+                    </div>
+                    <button
+                      type="button"
+                      onClick={autoFillTags}
+                      className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+                      title="Detectar tags automáticamente desde el nombre del producto"
+                    >
+                      <Sparkles className="w-3 h-3" /> Auto-detectar
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Marcá las características para que el producto aparezca en los filtros de la tienda. Sin tags, el producto puede quedar fuera de los filtros si el nombre no coincide con los patrones de búsqueda.
+                  </p>
+                  {activeGroups.map(group => (
+                    <div key={group.key} className="space-y-1.5">
+                      <p className="text-xs font-medium text-gray-600">{group.label}</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {group.options.map(opt => {
+                          const isSelected = form.tags.includes(opt.value)
+                          return (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => toggleTag(opt.value)}
+                              className={`px-2.5 py-1 rounded-md text-xs font-medium transition border ${
+                                isSelected
+                                  ? 'bg-compucity-green text-white border-compucity-green'
+                                  : 'bg-white text-gray-600 border-gray-200 hover:border-compucity-green hover:text-compucity-green'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                  {form.tags.length > 0 && (
+                    <div className="flex items-center gap-2 pt-1">
+                      <span className="text-xs text-gray-400">{form.tags.length} tags seleccionados</span>
+                      <button
+                        type="button"
+                        onClick={() => setForm(prev => ({ ...prev, tags: [] }))}
+                        className="text-xs text-red-500 hover:text-red-700"
+                      >
+                        Limpiar todos
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
 
             <div className="space-y-2">
               <Label htmlFor="providerId">Proveedor</Label>
