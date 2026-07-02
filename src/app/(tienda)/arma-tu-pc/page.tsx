@@ -270,7 +270,9 @@ function applyManualFilters(products: BuilderProduct[], filters: Record<string, 
 // Slot Definitions
 // ============================================
 
-const SLOTS: { slot: string; label: string; categorySlug: string; icon: React.ElementType; required: boolean; maxQty: number }[] = [
+// Default slots (fallback when API is unavailable)
+// IMPORTANT: Keep in sync with DEFAULT_SLOTS in /api/admin/pc-builder-slots/route.ts
+const DEFAULT_SLOTS: { slot: string; label: string; categorySlug: string; icon: React.ElementType; required: boolean; maxQty: number }[] = [
   { slot: 'processor', label: 'Microprocesador', categorySlug: 'microprocesadores', icon: Cpu, required: true, maxQty: 1 },
   { slot: 'motherboard', label: 'Motherboard', categorySlug: 'motherboards', icon: CircuitBoard, required: true, maxQty: 1 },
   { slot: 'ram', label: 'Memoria RAM', categorySlug: 'memorias-ram', icon: Zap, required: true, maxQty: 4 },
@@ -285,6 +287,12 @@ const SLOTS: { slot: string; label: string; categorySlug: string; icon: React.El
   { slot: 'network', label: 'Placa de Red / WiFi', categorySlug: 'placas-de-red', icon: Wifi, required: false, maxQty: 1 },
   { slot: 'peripherals', label: 'Periféricos', categorySlug: 'perifericos', icon: Mouse, required: false, maxQty: 3 },
 ]
+
+// Icon name to component mapping (for dynamic slot loading from API)
+const ICON_MAP: Record<string, React.ElementType> = {
+  Cpu, CircuitBoard, Zap, Gamepad2, HardDrive, Plug, Box, Wind, Droplets, Monitor, Wifi, Mouse,
+  SlidersHorizontal, Download, Search, X, AlertTriangle, ShieldCheck, Info, ShoppingCart, MessageCircle, Plus, Check, Minus, ChevronRight, ChevronLeft, Trash2, Loader2, ChevronDown
+}
 
 // ============================================
 // Helpers
@@ -308,6 +316,8 @@ function parseSpecs(specs: string): Record<string, string> {
 // ============================================
 
 export default function ArmaTuPCPage() {
+  // Slots loaded from API (falls back to DEFAULT_SLOTS)
+  const [SLOTS, setSLOTS] = useState(DEFAULT_SLOTS)
   const [currentStep, setCurrentStep] = useState(0)
   const [selectedComponents, setSelectedComponents] = useState<SelectedComponent[]>([])
   const [products, setProducts] = useState<BuilderProduct[]>([])
@@ -320,6 +330,28 @@ export default function ArmaTuPCPage() {
   const [manualFilters, setManualFilters] = useState<Record<string, string[]>>({})
   const [addedToCart, setAddedToCart] = useState(false)
   const addItem = useCart((s) => s.addItem)
+
+  // Load slots from API on mount (safe fallback to DEFAULT_SLOTS)
+  useEffect(() => {
+    fetch('/api/pc-builder-slots')
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok && Array.isArray(data.slots) && data.slots.length > 0) {
+          const apiSlots = data.slots.map((s: any) => ({
+            slot: s.slot,
+            label: s.label,
+            categorySlug: s.categorySlug,
+            icon: (s.icon && ICON_MAP[s.icon]) || ICON_MAP.Cpu, // fallback icon
+            required: s.required ?? false,
+            maxQty: s.maxQty ?? 1,
+          }))
+          setSLOTS(apiSlots)
+        }
+      })
+      .catch(() => {
+        // Silently keep DEFAULT_SLOTS on error
+      })
+  }, [])
 
   const handleAddToCart = () => {
     selectedComponents.forEach(c => {

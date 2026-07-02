@@ -17,6 +17,7 @@ import {
   Monitor,
   Tag,
   Calculator,
+  Cpu,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
@@ -27,6 +28,7 @@ const navItems = [
   { href: '/admin/productos', label: 'Productos', icon: Package },
   { href: '/admin/promociones', label: 'Promociones', icon: Tag },
   { href: '/admin/categorias', label: 'Categorías', icon: FolderOpen },
+  { href: '/admin/arma-tu-pc', label: 'Arma tu PC', icon: Cpu },
   { href: '/admin/pedidos', label: 'Pedidos', icon: ShoppingCart },
   { href: '/admin/clientes', label: 'Clientes', icon: Users },
   { href: '/admin/proveedores', label: 'Proveedores', icon: Truck },

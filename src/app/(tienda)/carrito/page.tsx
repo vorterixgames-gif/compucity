@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { useCart, AppliedCoupon } from '@/store/cart'
 import Link from 'next/link'
-import { Trash2, Minus, Plus, ShoppingBag, ArrowLeft, MessageCircle, Tag, X, Loader2 } from 'lucide-react'
+import { Trash2, Minus, Plus, ShoppingBag, ArrowLeft, MessageCircle, Tag, X, Loader2, Download } from 'lucide-react'
+import { generateCartPDF } from '@/lib/generate-cart-pdf'
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, totalPrice, clearCart, appliedCoupon, couponDiscount, applyCoupon, removeCoupon } = useCart()
@@ -205,6 +206,18 @@ export default function CartPage() {
           >
             Finalizar pedido
           </Link>
+          <button
+            onClick={() => generateCartPDF(
+              items.map(i => ({ name: i.name, price: i.price, quantity: i.quantity })),
+              subtotal,
+              appliedCoupon?.code,
+              couponDiscount > 0 ? couponDiscount : undefined
+            )}
+            className="w-full flex items-center justify-center gap-2 py-3 border border-gray-300 text-gray-700 hover:text-compucity-green hover:border-compucity-green font-semibold rounded-lg transition mt-2"
+          >
+            <Download className="w-4 h-4" />
+            Descargar PDF
+          </button>
           <p className="text-xs text-gray-500 text-center mt-2">
             Completás tus datos y enviamos el pedido por WhatsApp
           </p>

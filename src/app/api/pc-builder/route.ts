@@ -28,8 +28,9 @@ async function getConfig(key: string, defaultValue: number): Promise<number> {
   return defaultValue
 }
 
-// Map component slots to category slugs
-const COMPONENT_SLOTS: { slot: string; label: string; categorySlug: string; additionalCategorySlugs?: string[] }[] = [
+// Default component slots (fallback when no custom config in store_config)
+// IMPORTANT: Keep in sync with DEFAULT_SLOTS in /api/admin/pc-builder-slots/route.ts
+const DEFAULT_COMPONENT_SLOTS: { slot: string; label: string; categorySlug: string; additionalCategorySlugs?: string[] }[] = [
   { slot: 'processor', label: 'Microprocesador', categorySlug: 'microprocesadores' },
   { slot: 'motherboard', label: 'Motherboard', categorySlug: 'motherboards' },
   { slot: 'ram', label: 'Memoria RAM', categorySlug: 'memorias-ram' },
@@ -44,6 +45,38 @@ const COMPONENT_SLOTS: { slot: string; label: string; categorySlug: string; addi
   { slot: 'network', label: 'Placa de Red', categorySlug: 'placas-de-red' },
   { slot: 'peripherals', label: 'Periféricos', categorySlug: 'perifericos' },
 ]
+
+/**
+ * Load component slots from store_config (DB), with fallback to hardcoded defaults.
+ * Only returns enabled slots, sorted by order.
+ * SAFE: if anything goes wrong (no config, bad JSON, etc.), returns defaults.
+ */
+async function getComponentSlots(): Promise<typeof DEFAULT_COMPONENT_SLOTS> {
+  try {
+    const result = await db.execute({
+      sql: 'SELECT value FROM store_config WHERE key = ?',
+      args: ['pc_builder_slots'],
+    })
+
+    if (result.rows.length > 0) {
+      const config = JSON.parse((result.rows[0] as any).value)
+      if (Array.isArray(config) && config.length > 0) {
+        return config
+          .filter((s: any) => s.enabled !== false)
+          .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0))
+          .map((s: any) => ({
+            slot: s.slot,
+            label: s.label,
+            categorySlug: s.categorySlug,
+            ...(s.additionalCategorySlugs ? { additionalCategorySlugs: s.additionalCategorySlugs } : {}),
+          }))
+      }
+    }
+  } catch {
+    // Silently fall back to defaults
+  }
+  return DEFAULT_COMPONENT_SLOTS
+}
 
 // Name patterns to EXCLUDE from the PC builder (non-consumer/non-relevant products)
 const BUILDER_EXCLUDE_PATTERNS: Record<string, string[]> = {
@@ -138,6 +171,7 @@ export async function GET(request: NextRequest) {
 
     // If requesting a specific slot, return products for that component category
     if (slot) {
+      const COMPONENT_SLOTS = await getComponentSlots()
       const slotConfig = COMPONENT_SLOTS.find(s => s.slot === slot)
       if (!slotConfig) {
         return NextResponse.json({ error: 'Componente no reconocido' }, { status: 400 })
@@ -264,6 +298,7 @@ export async function GET(request: NextRequest) {
       countByCatId.set(row.categoryId, Number(row.total) || 0)
     }
 
+    const COMPONENT_SLOTS = await getComponentSlots()
     const slotsWithCounts = COMPONENT_SLOTS.map(s => {
       const cat = catBySlug.get(s.categorySlug)
       if (!cat) return { ...s, count: 0 }
