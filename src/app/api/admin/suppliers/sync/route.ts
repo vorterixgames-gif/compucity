@@ -82,8 +82,11 @@ const SUBCATEGORY_RULES: { parentSlug: string; rules: { keywords: string[]; subc
       { keywords: ['MINI PC', 'STICK PC', 'NUC', 'MELE', 'N100'], subcategorySlug: 'mini-pc', name: 'Mini PC' },
       // Design PCs -> PC Armadas/Diseño
       { keywords: ['DESIGN', 'DISEÑO', 'CREATOR', 'STUDIO'], subcategorySlug: 'diseno-pc', name: 'Diseño' },
-      // Oficina PCs (default for most branded PCs) -> PC Armadas/Oficina
-      { keywords: ['SIST.', 'KELYX', 'OFFICE', 'OFICINA', 'PC AIR', 'PC CX', 'PC ARKHAM', 'PC GAMEMAX', 'PC LENOVO', 'PC DELL', 'PC HP', 'PC'], subcategorySlug: 'oficina-pc', name: 'Oficina' },
+      // Oficina PCs -> PC Armadas/Oficina
+      // NOTA (s51): se removió 'PC' como keyword porque es demasiado amplia y manda TODAS
+      // las PCs a Oficina. Ahora solo se asignan a Oficina las que tienen keywords explícitos.
+      // Las PCs genéricas (PC CX, PC Performance, etc.) se quedan en la categoría padre PC Armadas.
+      { keywords: ['SIST.', 'KELYX', 'OFFICE', 'OFICINA'], subcategorySlug: 'oficina-pc', name: 'Oficina' },
     ],
   },
   {

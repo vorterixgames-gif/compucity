@@ -29,7 +29,11 @@ const SUBCATEGORY_RULES: { parentSlug: string; rules: { keywords: string[]; subc
       { keywords: ['GAMER', 'GAMING', 'PC GAMER', 'RTX', 'GEFORCE', 'RADEON'], subcategorySlug: 'gamer-pc', name: 'Gamer' },
       { keywords: ['MINI PC', 'STICK PC', 'NUC', 'MELE', 'N100'], subcategorySlug: 'mini-pc', name: 'Mini PC' },
       { keywords: ['DESIGN', 'DISEÑO', 'CREATOR', 'STUDIO'], subcategorySlug: 'diseno-pc', name: 'Diseño' },
-      { keywords: ['SIST.', 'KELYX', 'OFFICE', 'OFICINA', 'PC'], subcategorySlug: 'oficina-pc', name: 'Oficina' },
+      // Oficina PCs -> PC Armadas/Oficina
+      // NOTA (s51): se removió 'PC' como keyword porque es demasiado amplia y manda TODAS
+      // las PCs a Oficina. Ahora solo se asignan a Oficina las que tienen keywords explícitos.
+      // Las PCs genéricas (PC CX, PC Performance, etc.) se quedan en la categoría padre PC Armadas.
+      { keywords: ['SIST.', 'KELYX', 'OFFICE', 'OFICINA'], subcategorySlug: 'oficina-pc', name: 'Oficina' },
     ],
   },
   {

@@ -24,6 +24,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Sparkles,
+  FolderInput,
 
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -272,6 +273,10 @@ export default function AdminProductos() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkCategoryOpen, setBulkCategoryOpen] = useState(false)
+  const [bulkCategoryTarget, setBulkCategoryTarget] = useState('')
+  const [bulkCategoryParent, setBulkCategoryParent] = useState('')
+  const [bulkCategoryLoading, setBulkCategoryLoading] = useState(false)
 
   // Dialog states
   const [formOpen, setFormOpen] = useState(false)
@@ -574,6 +579,31 @@ export default function AdminProductos() {
     }
     setBulkDeleting(false)
     setBulkDeleteOpen(false)
+  }
+
+  const confirmBulkCategoryChange = async () => {
+    if (!bulkCategoryTarget) return
+    setBulkCategoryLoading(true)
+    try {
+      const ids = Array.from(selectedIds)
+      const res = await fetch('/api/admin/products/batch-category', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productIds: ids, categoryId: bulkCategoryTarget }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        console.error('Error batch category change:', data.error)
+      }
+      setSelectedIds(new Set())
+      setBulkCategoryTarget('')
+      setBulkCategoryParent('')
+      loadProducts() // Reload current page
+    } catch (error) {
+      console.error('Error bulk changing category:', error)
+    }
+    setBulkCategoryLoading(false)
+    setBulkCategoryOpen(false)
   }
 
   const handleSave = async () => {
@@ -907,6 +937,15 @@ export default function AdminProductos() {
             Deseleccionar
           </Button>
           <div className="flex-1" />
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs gap-1 text-blue-600 hover:text-blue-700 border-blue-200 hover:border-blue-300 hover:bg-blue-50"
+            onClick={() => setBulkCategoryOpen(true)}
+          >
+            <FolderInput className="w-3.5 h-3.5" />
+            Cambiar categoría
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -2182,6 +2221,127 @@ export default function AdminProductos() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Bulk Category Change Dialog */}
+      <Dialog open={bulkCategoryOpen} onOpenChange={(open) => { setBulkCategoryOpen(open); if (!open) { setBulkCategoryTarget(''); setBulkCategoryParent('') } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cambiar categoría a {selectedIds.size} producto{selectedIds.size > 1 ? 's' : ''}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Categoría Principal</Label>
+                <Select
+                  value={bulkCategoryParent || '_none'}
+                  onValueChange={(value) => {
+                    if (value === '_none') {
+                      setBulkCategoryParent('')
+                      setBulkCategoryTarget('')
+                    } else {
+                      setBulkCategoryParent(value)
+                      // Auto-select first subcategory
+                      const children = categories
+                        .filter(c => c.parentId === value && c.enabled === 1)
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                      if (children.length > 0) {
+                        setBulkCategoryTarget(children[0].id)
+                      } else {
+                        setBulkCategoryTarget(value)
+                      }
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccioná una categoría" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">Sin categoría</SelectItem>
+                    {categories
+                      .filter(c => !c.parentId)
+                      .sort((a, b) => a.name.localeCompare(b.name))
+                      .map(parent => (
+                        <SelectItem key={parent.id} value={parent.id}>
+                          {parent.name}
+                        </SelectItem>
+                      ))
+                    }
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Subcategoría</Label>
+                <Select
+                  value={bulkCategoryTarget && categories.find(c => c.id === bulkCategoryTarget)?.parentId ? bulkCategoryTarget : bulkCategoryParent ? '_all' : ''}
+                  onValueChange={(value) => {
+                    if (value === '_all') {
+                      setBulkCategoryTarget(bulkCategoryParent)
+                    } else {
+                      setBulkCategoryTarget(value)
+                    }
+                  }}
+                  disabled={!bulkCategoryParent}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(() => {
+                      if (!bulkCategoryParent) return null
+                      const parentCat = categories.find(c => c.id === bulkCategoryParent)
+                      const children = categories
+                        .filter(c => c.parentId === bulkCategoryParent)
+                        .sort((a, b) => a.name.localeCompare(b.name))
+                      if (children.length === 0) return <SelectItem value="_all">Sin subcategorías</SelectItem>
+                      return (
+                        <>
+                          <SelectItem value="_all">Todas las {parentCat?.name || 'subcategorías'}</SelectItem>
+                          {children.map(child => (
+                            <SelectItem key={child.id} value={child.id}>
+                              {child.name}
+                            </SelectItem>
+                          ))}
+                        </>
+                      )
+                    })()}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {bulkCategoryTarget && (
+              <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 border rounded-md px-3 py-2">
+                <span className="font-medium text-compucity-green">
+                  {(() => {
+                    const selectedCat = categories.find(c => c.id === bulkCategoryTarget)
+                    if (!selectedCat) return 'Categoría'
+                    const parentName = selectedCat.parentId
+                      ? categories.find(c => c.id === selectedCat.parentId)?.name
+                      : selectedCat.name
+                    const childName = selectedCat.parentId ? selectedCat.name : null
+                    return `${parentName}${childName ? ` › ${childName}` : ''}`
+                  })()}
+                </span>
+                <span>— Se moverán {selectedIds.size} producto{selectedIds.size > 1 ? 's' : ''}</span>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkCategoryOpen(false)} disabled={bulkCategoryLoading}>
+              Cancelar
+            </Button>
+            <Button onClick={confirmBulkCategoryChange} disabled={!bulkCategoryTarget || bulkCategoryLoading} className="bg-compucity-green hover:bg-compucity-green/90">
+              {bulkCategoryLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Moviendo...
+                </>
+              ) : (
+                `Mover ${selectedIds.size} producto${selectedIds.size > 1 ? 's' : ''}`
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -249,7 +249,7 @@ const RUBRO_TO_CATEGORY = {
 
   '001-3560': 'b854e149-1790-4cad-abc6-0a4fb187740b',
 
-  '002-0015': '9e696a46-81f8-4753-a51f-6dd9d933fbea',
+  '002-0015': 'cat6',  // PC Armadas (antes era Componentes de PC — bug s51)
 
   '002-0137': '18b32130-e146-4843-95c5-860142417306',
 
@@ -263,9 +263,14 @@ const RUBRO_TO_CATEGORY = {
 
   '002-0553': 'cfbf9b6c-5d7b-4d42-aaa3-066a52848fbd',
 
-  '002-0997': '9e696a46-81f8-4753-a51f-6dd9d933fbea',
+  '002-0997': 'cat6',  // PC Armadas / Computadoras PC Promos (antes era Componentes de PC — bug s51)
 
   '002-1616': '00176d39-d1cb-4f68-a01e-617fb37679cb',
+
+  // AIO / All-in-One (s51 — antes no tenían mapeo y quedaban en null)
+  '001-1261': '6f158cb1-0e85-49a5-92bd-25175d03eeb3',  // AIO (subcategoría de PC Armadas)
+  '002-1262': '6f158cb1-0e85-49a5-92bd-25175d03eeb3',  // AIO
+  '002-1263': '6f158cb1-0e85-49a5-92bd-25175d03eeb3',  // 2EN1 CX → AIO
 }
 
 // ============================================
@@ -642,8 +647,23 @@ async function main() {
           Math.abs(costPrice - parseFloat(existing.costPrice || 0)) > 0.01 ||
           totalStock !== parseInt(existing.stock || 0)
         if (needsUpdate) {
+          // s51: Solo sobreescribir categoryId si el producto NO tiene uno,
+          // o si tiene categoryId = null. Si ya tiene categoría asignada
+          // (ej: el admin lo recategorizó manualmente), respetarla.
+          // Excepción: si el categoryId actual es '9e696a46...' (Componentes de PC),
+          // sí lo sobreescribimos porque ese era el mapeo incorrecto anterior.
+          const mappedCatId = RUBRO_TO_CATEGORY[rubro] || null
+          const currentCatId = existing.categoryId
+          let categoryIdClause = ''
+          if (mappedCatId) {
+            // Solo sobreescribir si: no tiene categoría, o está en Componentes de PC (mapeo viejo incorrecto)
+            if (!currentCatId || currentCatId === '9e696a46-81f8-4753-a51f-6dd9d933fbea') {
+              categoryIdClause = `categoryId = '${mappedCatId}', `
+            }
+            // Si ya tiene una categoría válida, no la pisamos
+          }
           batchStmts.push(
-            `UPDATE products SET costPrice = ${costPrice}, price = ${sellingPrice}, stock = ${totalStock}, stockByWarehouse = '${stockByWarehouseJson}', supplierCategory = '${supplierCategory}', ${RUBRO_TO_CATEGORY[rubro] ? `categoryId = '${RUBRO_TO_CATEGORY[rubro]}', ` : ''}isActive = 1, updatedAt = '${now}' WHERE id = '${existing.id}'`
+            `UPDATE products SET costPrice = ${costPrice}, price = ${sellingPrice}, stock = ${totalStock}, stockByWarehouse = '${stockByWarehouseJson}', supplierCategory = '${supplierCategory}', ${categoryIdClause}isActive = 1, updatedAt = '${now}' WHERE id = '${existing.id}'`
           )
           updated++
         }
