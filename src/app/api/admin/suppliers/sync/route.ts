@@ -76,17 +76,9 @@ const SUBCATEGORY_RULES: { parentSlug: string; rules: { keywords: string[]; subc
   {
     parentSlug: 'pc-armadas',
     rules: [
-      // Gamer PCs -> PC Armadas/Gamer
-      { keywords: ['GAMER', 'GAMING', 'PC GAMER', 'RTX', 'GEFORCE', 'RADEON'], subcategorySlug: 'gamer-pc', name: 'Gamer' },
-      // Mini PC -> PC Armadas/Mini PC
-      { keywords: ['MINI PC', 'STICK PC', 'NUC', 'MELE', 'N100'], subcategorySlug: 'mini-pc', name: 'Mini PC' },
-      // Design PCs -> PC Armadas/Diseño
-      { keywords: ['DESIGN', 'DISEÑO', 'CREATOR', 'STUDIO'], subcategorySlug: 'diseno-pc', name: 'Diseño' },
-      // Oficina PCs -> PC Armadas/Oficina
-      // NOTA (s51): se removió 'PC' como keyword porque es demasiado amplia y manda TODAS
-      // las PCs a Oficina. Ahora solo se asignan a Oficina las que tienen keywords explícitos.
-      // Las PCs genéricas (PC CX, PC Performance, etc.) se quedan en la categoría padre PC Armadas.
-      { keywords: ['SIST.', 'KELYX', 'OFFICE', 'OFICINA'], subcategorySlug: 'oficina-pc', name: 'Oficina' },
+      // NOTA: Subcategorías desactivadas — todos los productos van a la categoría padre.
+      // Los usuarios filtran por tipo (Gamer/Oficina/Diseño/Mini PC) desde los filtros laterales.
+      // Igual que notebooks: productos en categoría padre + filtros laterales.
     ],
   },
   {

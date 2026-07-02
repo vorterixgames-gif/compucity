@@ -66,10 +66,8 @@ const SUBCATEGORY_RULES: Record<string, { slug: string; keywords: string[] }[]> 
     { slug: 'oficina-mon', keywords: ['MONITOR', 'LED', 'HDMI', 'FULL HD', 'CORPORATIVO'] },
   ],
   'pc-armadas': [
-    { slug: 'gamer-pc', keywords: ['GAMER', 'GAMING', 'PC GAMER', 'RTX', 'GEFORCE', 'RADEON'] },
-    { slug: 'mini-pc', keywords: ['MINI PC', 'STICK PC', 'NUC', 'N100'] },
-    { slug: 'diseno-pc', keywords: ['DESIGN', 'DISEÑO', 'CREATOR', 'STUDIO'] },
-    { slug: 'oficina-pc', keywords: ['SIST.', 'KELYX', 'OFFICE', 'OFICINA'] },
+    // NOTA: Subcategorías desactivadas — todos los productos van a la categoría padre.
+    // Los usuarios filtran por tipo (Gamer/Oficina/Diseño/Mini PC) desde los filtros laterales.
   ],
   'accesorios': [
     { slug: 'ups', keywords: ['UPS', 'ESTABILIZADOR', 'NOBREAK', 'SURGE PROTECTION'] },
