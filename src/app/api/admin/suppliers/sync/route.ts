@@ -173,7 +173,8 @@ const CATEGORY_KEYWORD_MAP: { keywords: string[]; categorySlug: string; name: st
   // Motherboards
   { keywords: ['MOTHER','H610','B760','H810','A520','A620','B650','B550','H510'], categorySlug: 'motherboards', name: 'Motherboards' },
   // Memorias RAM
-  { keywords: ['MEMORIA DDR','DDR3','DDR4','DDR5','SODIMM','CORSAIR MEMORY'], categorySlug: 'memorias-ram', name: 'Memorias RAM' },
+  { keywords: ['MEMORIA DDR','DDR3','DDR4','DDR5','CORSAIR MEMORY'], categorySlug: 'memorias-ram', name: 'Memorias RAM' },
+  { keywords: ['SODIMM'], categorySlug: 'memoria-ram-notebook', name: 'Memoria RAM Notebook' },
   // Placas de Video — comes AFTER notebooks/PCs to prevent "NOTEBOOK RTX" → placas-de-video
   { keywords: ['RTX','GTX','RADEON RX','GEFORCE','GRAPHICS CARD','QUADRO RTX'], categorySlug: 'placas-de-video', name: 'Placas de Video' },
   // Discos SSD
@@ -3863,8 +3864,8 @@ export async function POST(request: Request) {
           { namePattern: "name LIKE 'FUENTE%NOTEBOOK%'", wrongSlug: 'notebooks', correctSlug: 'cargadores' },
           { namePattern: "name LIKE 'BASE%NOTEBOOK%' OR name LIKE 'BASE GENIUS%'", wrongSlug: 'notebooks', correctSlug: 'bases' },
           { namePattern: "name LIKE 'MONITOR%PORTATIL%' OR name LIKE 'MONITOR%USB%'", wrongSlug: 'notebooks', correctSlug: 'monitores' },
-          // SODIMM RAM modules in notebooks → memorias-ram
-          { namePattern: "name LIKE '%SODIMM%' OR name LIKE '%Sodimm%'", wrongSlug: 'notebooks', correctSlug: 'memorias-ram' },
+          // SODIMM RAM modules in notebooks → memoria-ram-notebook
+          { namePattern: "name LIKE '%SODIMM%' OR name LIKE '%Sodimm%'", wrongSlug: 'notebooks', correctSlug: 'memoria-ram-notebook' },
         ]
 
         // Run all QUICK_FIXES UPDATEs in parallel (limited concurrency) to avoid
