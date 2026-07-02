@@ -131,10 +131,39 @@ function detectNotebookGPUType(name: string): GPUType {
   if (/\bVGA\s*\d+/i.test(upper)) return 'dedicated'
   if (/\bV\d+\s*GB?\b/i.test(upper)) return 'dedicated'
   // Dedicated GPU: GT models (GT 710, GT 1030, GT 210)
-  if (/\bGT\s*\d{3}\b/.test(upper)) return 'dedicated'
+  if (/\bGT\s*\d{3,4}/.test(upper)) return 'dedicated'
 
   // Everything else is integrated
   return 'integrated'
+}
+
+// ============================================
+// Helper: Detect if a PC Armadas product is "Gamer"
+// Includes: RTX/GTX, VGA/V-prefix, GT models, gaming brands (Arkham, Gamemax, XPG),
+// and any PC with a dedicated GPU (RTX A-series, Radeon RX, Arc)
+// ============================================
+function isPcArmadasGamer(name: string): boolean {
+  const upper = name.toUpperCase()
+  // Explicit gamer keywords
+  if (/\bGAMER\b|\bGAMING\b/i.test(upper)) return true
+  // NVIDIA RTX (including A-series like RTX A400, A2000)
+  if (/\bRTX\s*[A-Z]?\d{3,4}/.test(upper)) return true
+  // NVIDIA GTX
+  if (/\bGTX\s*\d{3,4}/.test(upper)) return true
+  // VGA prefix or V-prefix (VGA512MB, VGA1G, V1GB, V1G, VGA16G)
+  if (/\bVGA\s*\d+/.test(upper)) return true
+  if (/\bV\d+\s*GB?\b/.test(upper)) return true
+  // GT models (GT 710, GT 1030, GT 210)
+  if (/\bGT\s*\d{3,4}/.test(upper)) return true
+  // Gaming brands
+  if (/\bARKHAM\b/.test(upper)) return true
+  if (/\bGAMEMAX\b/.test(upper)) return true
+  if (/\bXPG\b/.test(upper)) return true
+  // AMD Radeon RX (dedicated)
+  if (/\bRADEON\s*RX\s*\d{4}/.test(upper)) return true
+  // Intel Arc
+  if (/\bARC\s*A?\d{3}/.test(upper)) return true
+  return false
 }
 
 const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
@@ -730,9 +759,9 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'type', label: '4 Bahías', value: '4BAY', matchFn: (n) => /\b4\s*X?\s*3\.5\b|\b4\s*BAH[ÍI]A/i.test(n) },
   ],
   'pc-armadas': [
-    // Tipo de PC
-    { key: 'type', label: 'Gamer', value: 'gamer', matchFn: (n) => /\bGAMER\b|\bGAMING\b|\bPC GAMER\b|\bRTX\b|\bGTX\b/i.test(n) },
-    { key: 'type', label: 'Oficina', value: 'oficina', matchFn: (n) => /\bSIST\.\b|\bKELYX\b|\bOFFICE\b|\bOFICINA\b|\bPC AIR\b|\bPC CX\b|\bPC ARKHAM\b|\bPC GAMEMAX\b|\bPC LENOVO\b|\bPC DELL\b|\bPC HP\b/i.test(n) && !/\bRTX\b|\bGTX\b|\bGAMER\b|\bGAMING\b/i.test(n) },
+    // Tipo de PC — Gamer detection includes: RTX/GTX, VGA/V-prefix, GT models, gaming brands
+    { key: 'type', label: 'Gamer', value: 'gamer', matchFn: (n) => isPcArmadasGamer(n) },
+    { key: 'type', label: 'Oficina', value: 'oficina', matchFn: (n) => !isPcArmadasGamer(n) && !/\bMINI PC\b|\bSTICK PC\b|\bNUC\b|\bMELE\b|\bN100\b|\bAIO\b|\bALL[- ]?IN[- ]?ONE\b|\bDESIGN\b|\bDISE[ÑN]O\b|\bCREATOR\b|\bSTUDIO\b/i.test(n) && /\bSIST\.\b|\bKELYX\b|\bOFFICE\b|\bOFICINA\b|\bPC\b|\bCOMPUTADORA\b|\bDESKTOP\b/i.test(n) },
     { key: 'type', label: 'Diseño', value: 'diseno', matchFn: (n) => /\bDESIGN\b|\bDISE[ÑN]O\b|\bCREATOR\b|\bSTUDIO\b/i.test(n) },
     { key: 'type', label: 'Mini PC', value: 'mini_pc', matchFn: (n) => /\bMINI PC\b|\bSTICK PC\b|\bNUC\b|\bMELE\b|\bN100\b/i.test(n) },
     { key: 'type', label: 'All in One', value: 'aio', matchFn: (n) => /\bAIO\b|\bALL[- ]?IN[- ]?ONE\b/i.test(n) },

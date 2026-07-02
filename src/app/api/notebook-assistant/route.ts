@@ -427,8 +427,8 @@ function extractNotebookSpecs(name: string): {
     gpu = 'GPU Dedicada (VGA)'
   } else if (/\bV\d+\s*GB?\b/i.test(name)) {
     gpu = 'GPU Dedicada'
-  } else if (/\bGT\s*\d{3}\b/i.test(name)) {
-    const m = name.match(/(GT\s*\d{3})/i)
+  } else if (/\bGT\s*\d{3,4}/i.test(name)) {
+    const m = name.match(/(GT\s*\d{3,4})/i)
     gpu = m ? m[1].toUpperCase() : 'GT'
   } else if (/RADEON\s*RX\s*\d{4}/i.test(name)) {
     const m = name.match(/(RADEON\s*RX\s*\d{4})/i)

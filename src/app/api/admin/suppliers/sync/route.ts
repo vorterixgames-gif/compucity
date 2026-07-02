@@ -3863,6 +3863,8 @@ export async function POST(request: Request) {
           { namePattern: "name LIKE 'FUENTE%NOTEBOOK%'", wrongSlug: 'notebooks', correctSlug: 'cargadores' },
           { namePattern: "name LIKE 'BASE%NOTEBOOK%' OR name LIKE 'BASE GENIUS%'", wrongSlug: 'notebooks', correctSlug: 'bases' },
           { namePattern: "name LIKE 'MONITOR%PORTATIL%' OR name LIKE 'MONITOR%USB%'", wrongSlug: 'notebooks', correctSlug: 'monitores' },
+          // SODIMM RAM modules in notebooks → memorias-ram
+          { namePattern: "name LIKE '%SODIMM%' OR name LIKE '%Sodimm%'", wrongSlug: 'notebooks', correctSlug: 'memorias-ram' },
         ]
 
         // Run all QUICK_FIXES UPDATEs in parallel (limited concurrency) to avoid
