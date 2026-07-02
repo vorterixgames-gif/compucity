@@ -53,6 +53,12 @@ function extractNotebookRAM(name: string): number | null {
     const total = parseInt(splitMatch[1]) + parseInt(splitMatch[2])
     if (total >= 4 && total <= 128) return total
   }
+  // Also: 12GB(8GB+4GB) — total is the first number
+  const splitTotal = upper.match(/(\d+)\s*GB\s*\(\s*\d+\s*GB\s*\+\s*\d+\s*GB\s*\)/)
+  if (splitTotal) {
+    const total = parseInt(splitTotal[1])
+    if (total >= 4 && total <= 128) return total
+  }
 
   // 2) Look for explicit RAM context: "8GB DDR4", "8GB DDR5", "8GB RAM", "8GBDDR4"
   const explicitMatch = upper.match(/(\d+)\s*GB\s*(?:DDR[345]|RAM)/)
@@ -68,28 +74,40 @@ function extractNotebookRAM(name: string): number | null {
     if (gb >= 4 && gb <= 128) return gb
   }
 
-  // 4) Find all "NGB" occurrences, exclude those adjacent to GPU models
-  const gpuPattern = /\b(RTX|GTX|RADEON|RX\s*\d{4}|ARC)\s*\d{4}\s*(TI|SUPER)?/i
-  const allGbMatches = [...upper.matchAll(/(\d+)\s*GB\b/g)]
+  // 4) Pattern: RAM+SSD (very common in PC Armadas): "16g+ssd480", "8G+SSD240", "32g+ssd1t"
+  const ramSsdMatch = upper.match(/(\d+)\s*G[BB]?\s*\+\s*SSD/i)
+  if (ramSsdMatch) {
+    const gb = parseInt(ramSsdMatch[1])
+    if (gb >= 4 && gb <= 128) return gb
+  }
+
+  // 5) Find all "NGB" or "NG" occurrences, exclude those in GPU/VRAM/storage context
+  // Extended GPU pattern: includes RTX A-series (A400, A1000, A2000...), VGA prefix, V-prefix
+  const gpuVramPattern = /\b(RTX|GTX)\s*[A-Z]?\d{3,4}\s*(TI|SUPER)?|\bRADEON\s*RX\s*\d{4}|\bARC\s*A?\d{3}|\bVGA\s*\d+|\bV\d+\s*GB?/i
+  const allGbMatches = [...upper.matchAll(/(\d+)\s*GB?\b/g)]
 
   for (const m of allGbMatches) {
     const gb = parseInt(m[1])
-    if (gb < 4 || gb > 128) continue // Skip SSD sizes like 256GB, 512GB
+    if (gb < 4 || gb > 128) continue // Skip SSD sizes like 240GB, 480GB, 512GB
 
-    // Check if this GB match is part of a GPU VRAM pattern
-    // Look at the 20 chars before this match for GPU keywords
     const matchStart = m.index!
-    const beforeText = upper.substring(Math.max(0, matchStart - 20), matchStart + m[0].length)
-    if (gpuPattern.test(beforeText)) continue // This is VRAM, skip it
+    // Check 30 chars before + the match itself for GPU/VRAM context
+    const beforeText = upper.substring(Math.max(0, matchStart - 30), matchStart + m[0].length)
+    if (gpuVramPattern.test(beforeText)) continue // This is VRAM, skip it
+
+    // Also skip if preceded by SSD (e.g. "SSD240G", "SSD480GB")
+    const prefixText = upper.substring(Math.max(0, matchStart - 10), matchStart)
+    if (/SSD\s*$/i.test(prefixText)) continue
 
     return gb
   }
 
-  // 5) Fallback: "8G " without B (already normalized to 8GB by format-product, but just in case)
-  const shortMatch = upper.match(/(\d+)G\s/)
-  if (shortMatch) {
-    const gb = parseInt(shortMatch[1])
-    if (gb >= 4 && gb <= 128) return gb
+  // 6) After CPU model, standalone small number (Dell style: "I7-14700 16 512gb")
+  // Only if the number is 4-64 and NOT followed by GB/TB
+  const afterCpuMatch = upper.match(/(?:I[3-9]|CORE\s*\d|RYZEN\s*\d|U\d+|C\d+|R[3579])\s*-?\s*\d{3,5}[A-Z]*\s+(\d{1,2})\s+(?:\d{3,}|\d+[TGM])/i)
+  if (afterCpuMatch) {
+    const gb = parseInt(afterCpuMatch[1])
+    if (gb >= 4 && gb <= 64) return gb
   }
 
   return null
@@ -103,12 +121,19 @@ type GPUType = 'dedicated' | 'integrated'
 function detectNotebookGPUType(name: string): GPUType {
   const upper = name.toUpperCase()
 
-  // Dedicated GPU: NVIDIA RTX/GTX, AMD Radeon RX, Intel Arc
-  if (/\bRTX\s*\d{4}/.test(upper) || /\bGTX\s*\d{4}/.test(upper)) return 'dedicated'
+  // Dedicated GPU: NVIDIA RTX/GTX (including A-series like RTX A400, A2000)
+  if (/\bRTX\s*[A-Z]?\d{3,4}/.test(upper) || /\bGTX\s*\d{3,4}/.test(upper)) return 'dedicated'
+  // Dedicated GPU: AMD Radeon RX
   if (/\bRADEON\s*RX\s*\d{4}/.test(upper)) return 'dedicated'
+  // Dedicated GPU: Intel Arc
   if (/\bARC\s*A?\d{3}/.test(upper)) return 'dedicated'
+  // Dedicated GPU: VGA prefix (VGA512MB, VGA1G, VGA16G) or V-prefix (V1GB, V1G)
+  if (/\bVGA\s*\d+/i.test(upper)) return 'dedicated'
+  if (/\bV\d+\s*GB?\b/i.test(upper)) return 'dedicated'
+  // Dedicated GPU: GT models (GT 710, GT 1030, GT 210)
+  if (/\bGT\s*\d{3}\b/.test(upper)) return 'dedicated'
 
-  // Everything else is integrated — ALL notebooks have at least integrated graphics
+  // Everything else is integrated
   return 'integrated'
 }
 
