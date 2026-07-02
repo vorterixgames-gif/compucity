@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import {
   Loader2,
   Save,
@@ -26,11 +26,12 @@ import {
   AlertCircle,
   ArrowUp,
   ArrowDown,
+  Filter,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import {
   Select,
@@ -63,6 +64,7 @@ interface BuilderSlotConfig {
   label: string
   categorySlug: string
   additionalCategorySlugs?: string[]
+  includedSubcategorySlugs?: string[]
   enabled: boolean
   required: boolean
   maxQty: number
@@ -116,6 +118,33 @@ export default function AdminArmaTuPC() {
       setLoading(false)
     })
   }, [])
+
+  // Derived: parent categories (enabled, no parentId)
+  const enabledCategories = useMemo(
+    () => categories.filter(c => c.enabled === 1 && !c.parentId),
+    [categories]
+  )
+
+  // Derived: subcategories grouped by parent ID
+  const subcategoriesByParentId = useMemo(() => {
+    const map = new Map<string, Category[]>()
+    for (const c of categories) {
+      if (c.parentId && c.enabled === 1) {
+        if (!map.has(c.parentId)) map.set(c.parentId, [])
+        map.get(c.parentId)!.push(c)
+      }
+    }
+    return map
+  }, [categories])
+
+  // Derived: category by slug lookup
+  const categoryBySlug = useMemo(() => {
+    const map = new Map<string, Category>()
+    for (const c of categories) {
+      map.set(c.slug, c)
+    }
+    return map
+  }, [categories])
 
   const save = async () => {
     setSaving(true)
@@ -174,6 +203,26 @@ export default function AdminArmaTuPC() {
     setSlots(newSlots)
   }
 
+  const toggleSubcategory = (index: number, subSlug: string) => {
+    const newSlots = [...slots]
+    const slot = { ...newSlots[index] }
+    const current = slot.includedSubcategorySlugs || []
+    if (current.includes(subSlug)) {
+      slot.includedSubcategorySlugs = current.filter(s => s !== subSlug)
+    } else {
+      slot.includedSubcategorySlugs = [...current, subSlug]
+    }
+    newSlots[index] = slot
+    setSlots(newSlots)
+  }
+
+  const clearSubcategoryFilter = (index: number) => {
+    const newSlots = [...slots]
+    newSlots[index] = { ...newSlots[index] }
+    delete newSlots[index].includedSubcategorySlugs
+    setSlots(newSlots)
+  }
+
   const removeSlot = (index: number) => {
     const newSlots = slots.filter((_, i) => i !== index)
     newSlots.forEach((s, i) => s.order = i)
@@ -208,8 +257,6 @@ export default function AdminArmaTuPC() {
     setNewSlotCategory('')
     setShowAddForm(false)
   }
-
-  const enabledCategories = categories.filter(c => c.enabled === 1 && !c.parentId)
 
   if (loading) {
     return (
@@ -247,6 +294,11 @@ export default function AdminArmaTuPC() {
         {slots.map((slot, idx) => {
           const iconOption = ICON_OPTIONS.find(i => i.value === slot.icon)
           const IconComponent = iconOption?.component || Cpu
+          const parentCat = categoryBySlug.get(slot.categorySlug)
+          const subcategories = parentCat ? (subcategoriesByParentId.get(parentCat.id) || []) : []
+          const hasSubcategories = subcategories.length > 0
+          const hasSubcategoryFilter = (slot.includedSubcategorySlugs?.length ?? 0) > 0
+
           return (
             <Card key={slot.slot} className={`${!slot.enabled ? 'opacity-50' : ''}`}>
               <CardContent className="p-4">
@@ -276,16 +328,24 @@ export default function AdminArmaTuPC() {
                       <IconComponent className="w-5 h-5" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-gray-900">{slot.label}</span>
                         <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-500">{slot.slot}</code>
                         {slot.required && (
                           <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded">Obligatorio</span>
                         )}
+                        {hasSubcategoryFilter && (
+                          <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                            <Filter className="w-3 h-3" />
+                            {slot.includedSubcategorySlugs!.length} subcat.
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-gray-500 mt-0.5">
                         Categoría: <span className="font-mono">{slot.categorySlug}</span>
                         {slot.additionalCategorySlugs?.length ? ` + ${slot.additionalCategorySlugs.join(', ')}` : ''}
+                        {hasSubcategoryFilter && ` · Solo: ${slot.includedSubcategorySlugs!.join(', ')}`}
+                        {!hasSubcategoryFilter && hasSubcategories ? ' · Todas las subcategorías' : ''}
                         {' · '}Máx: {slot.maxQty}
                       </p>
                     </div>
@@ -322,7 +382,17 @@ export default function AdminArmaTuPC() {
                   </div>
                   <div>
                     <Label className="text-xs text-gray-500">Categoría</Label>
-                    <Select value={slot.categorySlug} onValueChange={v => updateSlot(idx, 'categorySlug', v)}>
+                    <Select
+                      value={slot.categorySlug}
+                      onValueChange={v => {
+                        // Clear subcategory filter when changing category
+                        const newSlots = [...slots]
+                        const updated = { ...newSlots[idx], categorySlug: v }
+                        delete updated.includedSubcategorySlugs
+                        newSlots[idx] = updated
+                        setSlots(newSlots)
+                      }}
+                    >
                       <SelectTrigger className="h-8 text-sm mt-1">
                         <SelectValue />
                       </SelectTrigger>
@@ -374,6 +444,49 @@ export default function AdminArmaTuPC() {
                     </div>
                   </div>
                 </div>
+
+                {/* Subcategory filter — only shown when the category has subcategories */}
+                {hasSubcategories && (
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="text-xs text-gray-500 flex items-center gap-1">
+                        <Filter className="w-3 h-3" />
+                        Subcategorías incluidas
+                      </Label>
+                      {hasSubcategoryFilter && (
+                        <button
+                          onClick={() => clearSubcategoryFilter(idx)}
+                          className="text-xs text-blue-600 hover:text-blue-800"
+                        >
+                          Seleccionar todas
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-400 mb-2">
+                      {hasSubcategoryFilter
+                        ? 'Solo se mostrarán productos de las subcategorías seleccionadas.'
+                        : 'Sin seleccionar = se incluyen todas las subcategorías (comportamiento por defecto).'}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {subcategories.map(sub => {
+                        const isSelected = slot.includedSubcategorySlugs?.includes(sub.slug) ?? false
+                        return (
+                          <button
+                            key={sub.id}
+                            onClick={() => toggleSubcategory(idx, sub.slug)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition border ${
+                              isSelected
+                                ? 'bg-compucity-green-50 text-compucity-green border-compucity-green-200'
+                                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            {sub.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )
@@ -429,7 +542,7 @@ export default function AdminArmaTuPC() {
             <p className="text-xs text-gray-500 mt-2">
               Nota: los slots nuevos tendrán filtros básicos. Los filtros avanzados (inclusión/exclusión, compatibilidad) 
               se configuran en el código para los slots estándar. Si necesitás filtros avanzados para un slot nuevo, 
-              consultá con el desarrollador.
+              consultá con el desarrollador. Podrás elegir subcategorías después de crear el slot.
             </p>
           </CardContent>
         </Card>
@@ -467,6 +580,7 @@ export default function AdminArmaTuPC() {
           <li>• Los filtros avanzados (inclusión/exclusión de productos, compatibilidad socket/DDR) están en el código y aplican solo a los slots estándar.</li>
           <li>• Los slots nuevos usan la categoría completa sin filtrado avanzado. Si un slot necesita filtros, hay que agregarlos en el código.</li>
           <li>• Al desactivar un slot, ya no aparece en la página &quot;Arma tu PC&quot; pero sus filtros siguen existiendo en el código.</li>
+          <li>• <b>Subcategorías:</b> si seleccionás subcategorías específicas, solo se mostrarán productos de esas subcategorías. Sin seleccionar = todas.</li>
           <li>• &quot;Restaurar por defecto&quot; elimina la configuración personalizada y vuelve a los 13 slots originales.</li>
         </ul>
       </div>

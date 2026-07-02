@@ -134,6 +134,7 @@ export interface BuilderSlotConfig {
   label: string          // e.g., 'Microprocesador', 'Memoria RAM'
   categorySlug: string   // e.g., 'microprocesadores', 'memorias-ram'
   additionalCategorySlugs?: string[] // e.g., ['gabinetes-con-fuente'] for case
+  includedSubcategorySlugs?: string[] // e.g., ['mouse-gamer', 'teclados-gamer'] — if set, only these subcategories are included; if empty/missing, ALL subcategories are included (default behavior)
   enabled: boolean       // whether this slot appears in the builder
   required: boolean      // whether the user must select something
   maxQty: number         // max quantity (1 for most, 4 for RAM, etc.)

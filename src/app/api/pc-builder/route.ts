@@ -30,7 +30,7 @@ async function getConfig(key: string, defaultValue: number): Promise<number> {
 
 // Default component slots (fallback when no custom config in store_config)
 // IMPORTANT: Keep in sync with DEFAULT_SLOTS in /api/admin/pc-builder-slots/route.ts
-const DEFAULT_COMPONENT_SLOTS: { slot: string; label: string; categorySlug: string; additionalCategorySlugs?: string[] }[] = [
+const DEFAULT_COMPONENT_SLOTS: { slot: string; label: string; categorySlug: string; additionalCategorySlugs?: string[]; includedSubcategorySlugs?: string[] }[] = [
   { slot: 'processor', label: 'Microprocesador', categorySlug: 'microprocesadores' },
   { slot: 'motherboard', label: 'Motherboard', categorySlug: 'motherboards' },
   { slot: 'ram', label: 'Memoria RAM', categorySlug: 'memorias-ram' },
@@ -69,6 +69,7 @@ async function getComponentSlots(): Promise<typeof DEFAULT_COMPONENT_SLOTS> {
             label: s.label,
             categorySlug: s.categorySlug,
             ...(s.additionalCategorySlugs ? { additionalCategorySlugs: s.additionalCategorySlugs } : {}),
+            ...(s.includedSubcategorySlugs ? { includedSubcategorySlugs: s.includedSubcategorySlugs } : {}),
           }))
       }
     }
@@ -190,11 +191,26 @@ export async function GET(request: NextRequest) {
       const categoryId = catRows[0].id
 
       // Also find subcategory IDs (for parent categories like "perifericos" that have no direct products)
-      const subCatResult = await db.execute({
-        sql: 'SELECT id FROM categories WHERE parentId = ?',
-        args: [categoryId],
-      })
-      let categoryIds = [categoryId, ...(subCatResult.rows as any[]).map(r => r.id)]
+      // If includedSubcategorySlugs is set, only include those specific subcategories
+      let subCatIds: string[] = []
+      if (slotConfig.includedSubcategorySlugs && slotConfig.includedSubcategorySlugs.length > 0) {
+        // Only include specific subcategories by slug
+        const subSlugs = slotConfig.includedSubcategorySlugs
+        const subPlaceholders = subSlugs.map(() => '?').join(',')
+        const filteredSubResult = await db.execute({
+          sql: `SELECT id FROM categories WHERE parentId = ? AND slug IN (${subPlaceholders}) AND enabled = 1`,
+          args: [categoryId, ...subSlugs],
+        })
+        subCatIds = (filteredSubResult.rows as any[]).map(r => r.id)
+      } else {
+        // Default behavior: include all subcategories
+        const subCatResult = await db.execute({
+          sql: 'SELECT id FROM categories WHERE parentId = ?',
+          args: [categoryId],
+        })
+        subCatIds = (subCatResult.rows as any[]).map(r => r.id)
+      }
+      let categoryIds = [categoryId, ...subCatIds]
 
       // Also include additional category slugs (e.g., "gabinetes-con-fuente" for case slot)
       if (slotConfig.additionalCategorySlugs && slotConfig.additionalCategorySlugs.length > 0) {
@@ -303,8 +319,12 @@ export async function GET(request: NextRequest) {
       const cat = catBySlug.get(s.categorySlug)
       if (!cat) return { ...s, count: 0 }
 
-      // Incluir categoría principal + subcategorías
-      const allIds = [cat.id, ...(childrenByParent.get(cat.id) || []).map(c => c.id)]
+      // Incluir categoría principal + subcategorías (respetando filtro de subcategorías si existe)
+      const allChildren = childrenByParent.get(cat.id) || []
+      const filteredChildren = (s.includedSubcategorySlugs && s.includedSubcategorySlugs.length > 0)
+        ? allChildren.filter(c => s.includedSubcategorySlugs!.includes(c.slug))
+        : allChildren
+      const allIds = [cat.id, ...filteredChildren.map(c => c.id)]
 
       // Incluir categorías adicionales (ej: gabinetes-con-fuente)
       if (s.additionalCategorySlugs) {
