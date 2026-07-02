@@ -113,15 +113,16 @@ export default function AdminArmaTuPC() {
       if (catData.ok) {
         const cats = catData.categories || []
         setCategories(cats)
-        // Debug: log subcategory info for perifericos
-        const perif = cats.find((c: any) => c.slug === 'perifericos')
-        if (perif) {
-          const subs = cats.filter((c: any) => c.parentId === perif.id)
-          console.log('[DEBUG] Periféricos:', perif.id, '| subcategories found:', subs.length, '| enabled type:', typeof perif.enabled, perif.enabled)
-          if (subs.length > 0) console.log('[DEBUG] First sub:', subs[0].name, subs[0].parentId, typeof subs[0].enabled, subs[0].enabled)
-        } else {
-          console.log('[DEBUG] Periféricos not found in categories')
-        }
+        // Debug: log subcategory info
+        console.log('[DEBUG pc-builder-slots] Total categories loaded:', cats.length)
+        const parents = cats.filter((c: any) => !c.parentId)
+        const children = cats.filter((c: any) => c.parentId)
+        console.log('[DEBUG pc-builder-slots] Parents:', parents.length, '| Children:', children.length)
+        // Log a few parent IDs
+        parents.slice(0, 5).forEach((p: any) => {
+          const subCount = cats.filter((c: any) => c.parentId === p.id).length
+          console.log(`[DEBUG pc-builder-slots] Parent "${p.name}" (id=${p.id}, slug=${p.slug}): ${subCount} children`)
+        })
       }
       setLoading(false)
     }).catch(() => {
@@ -455,8 +456,8 @@ export default function AdminArmaTuPC() {
                   </div>
                 </div>
 
-                {/* Subcategory filter — only shown when the category has subcategories */}
-                {hasSubcategories && (
+                {/* Subcategory filter — shown when category is a parent category */}
+                {parentCat && (
                   <div className="mt-3 pt-3 border-t border-gray-100">
                     <div className="flex items-center justify-between mb-2">
                       <Label className="text-xs text-gray-500 flex items-center gap-1">
@@ -472,29 +473,38 @@ export default function AdminArmaTuPC() {
                         </button>
                       )}
                     </div>
-                    <p className="text-xs text-gray-400 mb-2">
-                      {hasSubcategoryFilter
-                        ? 'Solo se mostrarán productos de las subcategorías seleccionadas.'
-                        : 'Sin seleccionar = se incluyen todas las subcategorías (comportamiento por defecto).'}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {subcategories.map(sub => {
-                        const isSelected = slot.includedSubcategorySlugs?.includes(sub.slug) ?? false
-                        return (
-                          <button
-                            key={sub.id}
-                            onClick={() => toggleSubcategory(idx, sub.slug)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition border ${
-                              isSelected
-                                ? 'bg-compucity-green-50 text-compucity-green border-compucity-green-200'
-                                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                            }`}
-                          >
-                            {sub.name}
-                          </button>
-                        )
-                      })}
-                    </div>
+                    {!hasSubcategories ? (
+                      <p className="text-xs text-amber-600 mb-2">
+                        Esta categoría no tiene subcategorías, o no se pudieron cargar.
+                        (ID: {parentCat.id})
+                      </p>
+                    ) : (
+                      <>
+                        <p className="text-xs text-gray-400 mb-2">
+                          {hasSubcategoryFilter
+                            ? 'Solo se mostrarán productos de las subcategorías seleccionadas.'
+                            : 'Sin seleccionar = se incluyen todas las subcategorías (comportamiento por defecto).'}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {subcategories.map(sub => {
+                            const isSelected = slot.includedSubcategorySlugs?.includes(sub.slug) ?? false
+                            return (
+                              <button
+                                key={sub.id}
+                                onClick={() => toggleSubcategory(idx, sub.slug)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition border ${
+                                  isSelected
+                                    ? 'bg-compucity-green-50 text-compucity-green border-compucity-green-200'
+                                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                }`}
+                              >
+                                {sub.name}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </CardContent>
