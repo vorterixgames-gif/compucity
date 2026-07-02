@@ -111,7 +111,17 @@ export default function AdminArmaTuPC() {
         setConfigSource(slotsData.source || 'default')
       }
       if (catData.ok) {
-        setCategories(catData.categories || [])
+        const cats = catData.categories || []
+        setCategories(cats)
+        // Debug: log subcategory info for perifericos
+        const perif = cats.find((c: any) => c.slug === 'perifericos')
+        if (perif) {
+          const subs = cats.filter((c: any) => c.parentId === perif.id)
+          console.log('[DEBUG] Periféricos:', perif.id, '| subcategories found:', subs.length, '| enabled type:', typeof perif.enabled, perif.enabled)
+          if (subs.length > 0) console.log('[DEBUG] First sub:', subs[0].name, subs[0].parentId, typeof subs[0].enabled, subs[0].enabled)
+        } else {
+          console.log('[DEBUG] Periféricos not found in categories')
+        }
       }
       setLoading(false)
     }).catch(() => {
@@ -121,7 +131,7 @@ export default function AdminArmaTuPC() {
 
   // Derived: parent categories (enabled, no parentId)
   const enabledCategories = useMemo(
-    () => categories.filter(c => c.enabled === 1 && !c.parentId),
+    () => categories.filter(c => Number(c.enabled) === 1 && !c.parentId),
     [categories]
   )
 
@@ -129,7 +139,7 @@ export default function AdminArmaTuPC() {
   const subcategoriesByParentId = useMemo(() => {
     const map = new Map<string, Category[]>()
     for (const c of categories) {
-      if (c.parentId && c.enabled === 1) {
+      if (c.parentId && Number(c.enabled) === 1) {
         if (!map.has(c.parentId)) map.set(c.parentId, [])
         map.get(c.parentId)!.push(c)
       }
