@@ -13,6 +13,23 @@ export async function GET(request: Request) {
     const limit = parseInt(searchParams.get('limit') || '20')
     const offset = (page - 1) * limit
 
+    // Sesión 51: soporte para ?id=X — devuelve un cliente específico por ID.
+    // Usado por /admin/pedidos al editar cliente vinculado a un pedido
+    // (el pedido solo tiene el snapshot de customerName/Email/Phone/Dni,
+    // necesitamos los campos completos del cliente: address, city, etc).
+    const idParam = searchParams.get('id')
+    if (idParam) {
+      const result = await db.execute({
+        sql: `SELECT id, name, email, phone, dni, address, city, province, postalCode, createdAt, updatedAt
+              FROM customers WHERE id = ?`,
+        args: [idParam],
+      })
+      if (result.rows.length === 0) {
+        return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
+      }
+      return NextResponse.json({ ok: true, customer: result.rows[0] })
+    }
+
     let customers: any[]
     let total: number
 

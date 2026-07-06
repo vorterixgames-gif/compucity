@@ -124,8 +124,10 @@ function detectNotebookGPUType(name: string): GPUType {
 
   // Dedicated GPU: NVIDIA RTX/GTX (including A-series like RTX A400, A2000)
   if (/\bRTX\s*[A-Z]?\d{3,4}/.test(upper) || /\bGTX\s*\d{3,4}/.test(upper)) return 'dedicated'
-  // Dedicated GPU: AMD Radeon RX
-  if (/\bRADEON\s*RX\s*\d{4}/.test(upper)) return 'dedicated'
+  // Dedicated GPU: AMD Radeon RX (sesión 51: RADEON opcional + 3-4 dígitos
+  // para soportar "RX 6550M", "RX 760M", "RX 770S" sin la palabra RADEON,
+  // y GPUs mobile de 3 dígitos como RX 760M)
+  if (/\b(?:RADEON\s+)?RX\s*\d{3,4}/.test(upper)) return 'dedicated'
   // Dedicated GPU: Intel Arc
   if (/\bARC\s*A?\d{3}/.test(upper)) return 'dedicated'
   // Dedicated GPU: VGA prefix (VGA512MB, VGA1G, VGA16G) or V-prefix (V1GB, V1G)
@@ -160,8 +162,8 @@ function isPcArmadasGamer(name: string): boolean {
   if (/\bARKHAM\b/.test(upper)) return true
   if (/\bGAMEMAX\b/.test(upper)) return true
   if (/\bXPG\b/.test(upper)) return true
-  // AMD Radeon RX (dedicated)
-  if (/\bRADEON\s*RX\s*\d{4}/.test(upper)) return true
+  // AMD Radeon RX (dedicated) — sesión 51: RADEON opcional + 3-4 dígitos
+  if (/\b(?:RADEON\s+)?RX\s*\d{3,4}/.test(upper)) return true
   // Intel Arc
   if (/\bARC\s*A?\d{3}/.test(upper)) return true
   return false

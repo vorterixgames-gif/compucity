@@ -203,6 +203,11 @@ export default async function CategoryPage({ params, searchParams }: Props) {
             saleEnd: (p as any).saleEnd ?? null,
             brandId: (p as any).brandId ?? null,
             brandName: (p as any).brandName ?? null,
+            // Sesión 51: pasar tags para que los filtros basados en tags
+            // (dedicated_gpu, integrated_gpu, etc.) funcionen correctamente.
+            // Sin esto, el componente recibe tags=undefined y siempre cae al
+            // fallback de regex del nombre, que no cubre todos los casos.
+            tags: (p as any).tags ?? [],
           }))}
           subcategories={subcategories}
           currentCategory={currentCategory ? { id: currentCategory.id, name: currentCategory.name, slug: currentCategory.slug } : null}
