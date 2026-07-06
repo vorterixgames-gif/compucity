@@ -268,18 +268,46 @@ export default function AdminPedidos() {
     setCustomerSaving(true)
     setEditCustomerError('')
     try {
-      const res = await fetch('/api/admin/customers', {
+      // 1. Actualizar el cliente en la tabla customers
+      const custRes = await fetch('/api/admin/customers', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(customerForm),
       })
-      const data = await res.json()
-      if (!res.ok || !data.ok) {
-        setEditCustomerError(data.error || 'Error al actualizar el cliente')
+      const custData = await custRes.json()
+      if (!custRes.ok || !custData.ok) {
+        setEditCustomerError(custData.error || 'Error al actualizar el cliente')
         return
       }
-      // Actualizar el snapshot del pedido en estado local para reflejar
-      // el cambio en la UI (name/email/phone/dni que se muestran en el pedido)
+
+      // 2. Sesión 51: actualizar también el snapshot del pedido en orders,
+      //    para que el pedido refleje los nuevos datos del cliente (Opción A:
+      //    siempre actualizar). Sin esto, el pedido muestra el nombre viejo
+      //    aunque el cliente se haya editado.
+      const orderRes = await fetch('/api/admin/orders', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: orderForCustomerEdit.id,
+          customerName: customerForm.name,
+          customerEmail: customerForm.email,
+          customerPhone: customerForm.phone,
+          customerDni: customerForm.dni,
+          shippingAddress: customerForm.address,
+          shippingCity: customerForm.city,
+          shippingProvince: customerForm.province,
+          shippingZip: customerForm.postalCode,
+        }),
+      })
+      const orderData = await orderRes.json()
+      if (!orderRes.ok || !orderData.ok) {
+        // El cliente se actualizó OK pero el snapshot del pedido no.
+        // Mostramos warning pero no revertimos el cambio del cliente.
+        setEditCustomerError('El cliente se actualizó pero hubo un error al actualizar el snapshot del pedido. Recargá la página.')
+        return
+      }
+
+      // 3. Actualizar el estado local del frontend
       setOrders(prev =>
         prev.map(o =>
           o.id === orderForCustomerEdit.id

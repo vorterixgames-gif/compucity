@@ -45,7 +45,14 @@ export async function PUT(request: NextRequest) {
     if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
     const body = await request.json()
-    const { id, status, trackingNumber, notes } = body
+    const {
+      id, status, trackingNumber, notes,
+      // Sesión 51: campos del snapshot del cliente en el pedido.
+      // Se actualizan cuando se edita el cliente vinculado desde /admin/pedidos
+      // para que el pedido refleje los datos actuales del cliente.
+      customerName, customerEmail, customerPhone, customerDni,
+      shippingAddress, shippingCity, shippingProvince, shippingZip,
+    } = body
 
     if (!id) {
       return NextResponse.json({ error: 'ID es requerido' }, { status: 400 })
@@ -58,6 +65,15 @@ export async function PUT(request: NextRequest) {
     if (status !== undefined) { fields.push('status = ?'); values.push(status) }
     if (trackingNumber !== undefined) { fields.push('trackingNumber = ?'); values.push(trackingNumber) }
     if (notes !== undefined) { fields.push('notes = ?'); values.push(notes) }
+    // Sesión 51: snapshot del cliente
+    if (customerName !== undefined) { fields.push('customerName = ?'); values.push(customerName) }
+    if (customerEmail !== undefined) { fields.push('customerEmail = ?'); values.push(customerEmail) }
+    if (customerPhone !== undefined) { fields.push('customerPhone = ?'); values.push(customerPhone) }
+    if (customerDni !== undefined) { fields.push('customerDni = ?'); values.push(customerDni) }
+    if (shippingAddress !== undefined) { fields.push('shippingAddress = ?'); values.push(shippingAddress) }
+    if (shippingCity !== undefined) { fields.push('shippingCity = ?'); values.push(shippingCity) }
+    if (shippingProvince !== undefined) { fields.push('shippingProvince = ?'); values.push(shippingProvince) }
+    if (shippingZip !== undefined) { fields.push('shippingZip = ?'); values.push(shippingZip) }
 
     if (fields.length === 0) {
       return NextResponse.json({ error: 'No hay campos para actualizar' }, { status: 400 })
