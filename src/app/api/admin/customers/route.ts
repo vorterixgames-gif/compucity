@@ -80,6 +80,82 @@ export async function GET(request: Request) {
   }
 }
 
+export async function PUT(request: Request) {
+  try {
+    const admin = await getCurrentAdmin()
+    if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+
+    const body = await request.json()
+    const { id, name, email, phone, dni, address, city, province, postalCode } = body
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID requerido' }, { status: 400 })
+    }
+
+    // Validaciones básicas
+    const trimmedName = typeof name === 'string' ? name.trim() : ''
+    const trimmedEmail = typeof email === 'string' ? email.trim() : ''
+
+    if (!trimmedName) {
+      return NextResponse.json({ error: 'El nombre es obligatorio' }, { status: 400 })
+    }
+    if (!trimmedEmail) {
+      return NextResponse.json({ error: 'El email es obligatorio' }, { status: 400 })
+    }
+    // Validación simple de formato de email
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      return NextResponse.json({ error: 'El email no tiene un formato válido' }, { status: 400 })
+    }
+
+    // Verificar que el cliente existe
+    const existing = await db.execute({
+      sql: 'SELECT id FROM customers WHERE id = ?',
+      args: [id],
+    })
+    if (existing.rows.length === 0) {
+      return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 })
+    }
+
+    // Verificar unicidad de email (excluir el propio cliente)
+    const emailConflict = await db.execute({
+      sql: 'SELECT id FROM customers WHERE email = ? AND id != ?',
+      args: [trimmedEmail, id],
+    })
+    if (emailConflict.rows.length > 0) {
+      return NextResponse.json({ error: 'Ya existe otro cliente con ese email' }, { status: 400 })
+    }
+
+    // UPDATE dinámico (mismo patrón que el PUT de orders)
+    const now = new Date().toISOString()
+    const fields: string[] = []
+    const values: any[] = []
+
+    fields.push('name = ?'); values.push(trimmedName)
+    fields.push('email = ?'); values.push(trimmedEmail)
+    // Los campos opcionales: si vienen undefined los dejamos como están, si vienen null/string los seteamos
+    if (phone !== undefined) { fields.push('phone = ?'); values.push(phone || null) }
+    if (dni !== undefined) { fields.push('dni = ?'); values.push(dni || null) }
+    if (address !== undefined) { fields.push('address = ?'); values.push(address || null) }
+    if (city !== undefined) { fields.push('city = ?'); values.push(city || null) }
+    if (province !== undefined) { fields.push('province = ?'); values.push(province || null) }
+    if (postalCode !== undefined) { fields.push('postalCode = ?'); values.push(postalCode || null) }
+
+    fields.push('updatedAt = ?')
+    values.push(now)
+    values.push(id)
+
+    await db.execute({
+      sql: `UPDATE customers SET ${fields.join(', ')} WHERE id = ?`,
+      args: values,
+    })
+
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    console.error('Error updating customer:', error)
+    return NextResponse.json({ error: 'Error del servidor' }, { status: 500 })
+  }
+}
+
 export async function DELETE(request: Request) {
   try {
     const admin = await getCurrentAdmin()

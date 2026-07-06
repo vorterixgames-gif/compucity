@@ -18,11 +18,20 @@ import {
   Copy,
   Check,
   MessageCircle,
+  Pencil,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Dialog,
   DialogContent,
@@ -83,6 +92,22 @@ export default function AdminClientes() {
   const [resetUrl, setResetUrl] = useState('')
   const [copied, setCopied] = useState(false)
   const [resetError, setResetError] = useState('')
+
+  // Edit customer state
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [customerToEdit, setCustomerToEdit] = useState<Customer | null>(null)
+  const [editForm, setEditForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    dni: '',
+    address: '',
+    city: '',
+    province: '',
+    postalCode: '',
+  })
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState('')
 
   const loadCustomers = useCallback(async (searchTerm: string = '', pageNum: number = 1) => {
     try {
@@ -169,6 +194,58 @@ export default function AdminClientes() {
     setCopied(false)
     setResetError('')
     setResetDialogOpen(true)
+  }
+
+  const openEditDialog = (e: React.MouseEvent, customer: Customer) => {
+    e.stopPropagation()
+    setCustomerToEdit(customer)
+    setEditForm({
+      name: customer.name || '',
+      email: customer.email || '',
+      phone: customer.phone || '',
+      dni: customer.dni || '',
+      address: customer.address || '',
+      city: customer.city || '',
+      province: customer.province || '',
+      postalCode: customer.postalCode || '',
+    })
+    setEditError('')
+    setEditDialogOpen(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!customerToEdit) return
+    setEditSaving(true)
+    setEditError('')
+    try {
+      const res = await fetch('/api/admin/customers', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: customerToEdit.id,
+          ...editForm,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.ok) {
+        setEditError(data.error || 'Error al actualizar el cliente')
+        return
+      }
+      // Actualizar en estado local
+      setCustomers(prev =>
+        prev.map(c =>
+          c.id === customerToEdit.id
+            ? { ...c, ...editForm, updatedAt: new Date().toISOString() }
+            : c
+        )
+      )
+      setEditDialogOpen(false)
+      setCustomerToEdit(null)
+    } catch {
+      setEditError('Error de conexión')
+    } finally {
+      setEditSaving(false)
+    }
   }
 
   const handleGenerateResetLink = async () => {
@@ -381,7 +458,16 @@ export default function AdminClientes() {
                       <div className="text-xs text-gray-400">
                         Registrado: {formatDate(customer.createdAt)} · Última actualización: {formatDate(customer.updatedAt)}
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-compucity-green hover:text-compucity-green-dark hover:bg-compucity-green-50"
+                          onClick={(e) => openEditDialog(e, customer)}
+                        >
+                          <Pencil className="w-4 h-4 mr-1" />
+                          Editar
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
@@ -434,6 +520,152 @@ export default function AdminClientes() {
           </Button>
         </div>
       )}
+
+      {/* Edit Customer Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar Cliente</DialogTitle>
+          </DialogHeader>
+          {customerToEdit && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="edit-name">Nombre y apellido *</Label>
+                  <Input
+                    id="edit-name"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    placeholder="Nombre completo"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-email">Email *</Label>
+                  <Input
+                    id="edit-email"
+                    type="email"
+                    value={editForm.email}
+                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                    placeholder="email@ejemplo.com"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-phone">Teléfono</Label>
+                  <Input
+                    id="edit-phone"
+                    value={editForm.phone}
+                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                    placeholder="Ej: 3548 40-2056"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-dni">DNI</Label>
+                  <Input
+                    id="edit-dni"
+                    value={editForm.dni}
+                    onChange={(e) => setEditForm({ ...editForm, dni: e.target.value })}
+                    placeholder="DNI (sin puntos)"
+                  />
+                </div>
+
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="edit-address">Dirección</Label>
+                  <Input
+                    id="edit-address"
+                    value={editForm.address}
+                    onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                    placeholder="Calle, número, piso, depto"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-city">Ciudad</Label>
+                  <Input
+                    id="edit-city"
+                    value={editForm.city}
+                    onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
+                    placeholder="Ciudad"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-province">Provincia</Label>
+                  <select
+                    id="edit-province"
+                    value={editForm.province}
+                    onChange={(e) => setEditForm({ ...editForm, province: e.target.value })}
+                    className="w-full h-10 border border-gray-300 rounded-md px-3 text-sm bg-white focus:outline-none focus:border-compucity-green focus:ring-1 focus:ring-compucity-green"
+                  >
+                    <option value="">Seleccionar provincia</option>
+                    <option value="Buenos Aires">Buenos Aires</option>
+                    <option value="CABA">Ciudad Autónoma de Buenos Aires</option>
+                    <option value="Catamarca">Catamarca</option>
+                    <option value="Chaco">Chaco</option>
+                    <option value="Chubut">Chubut</option>
+                    <option value="Córdoba">Córdoba</option>
+                    <option value="Corrientes">Corrientes</option>
+                    <option value="Entre Ríos">Entre Ríos</option>
+                    <option value="Formosa">Formosa</option>
+                    <option value="Jujuy">Jujuy</option>
+                    <option value="La Pampa">La Pampa</option>
+                    <option value="La Rioja">La Rioja</option>
+                    <option value="Mendoza">Mendoza</option>
+                    <option value="Misiones">Misiones</option>
+                    <option value="Neuquén">Neuquén</option>
+                    <option value="Río Negro">Río Negro</option>
+                    <option value="Salta">Salta</option>
+                    <option value="San Juan">San Juan</option>
+                    <option value="San Luis">San Luis</option>
+                    <option value="Santa Cruz">Santa Cruz</option>
+                    <option value="Santa Fe">Santa Fe</option>
+                    <option value="Santiago del Estero">Santiago del Estero</option>
+                    <option value="Tierra del Fuego">Tierra del Fuego</option>
+                    <option value="Tucumán">Tucumán</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="edit-postalCode">Código Postal</Label>
+                  <Input
+                    id="edit-postalCode"
+                    value={editForm.postalCode}
+                    onChange={(e) => setEditForm({ ...editForm, postalCode: e.target.value })}
+                    placeholder="CP"
+                  />
+                </div>
+              </div>
+
+              {editError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                  {editError}
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={editSaving}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveEdit}
+              className="bg-compucity-green hover:bg-compucity-green-dark"
+              disabled={editSaving || !editForm.name.trim() || !editForm.email.trim()}
+            >
+              {editSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                'Guardar cambios'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Reset Password Dialog */}
       <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>

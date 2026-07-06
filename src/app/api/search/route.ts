@@ -21,17 +21,22 @@ export async function GET(request: NextRequest) {
 
   try {
     // Paso 1: Query directa con LIKE + traer datos para cálculo de precios
-    // Seleccionamos columnas necesarias para calculateProductPrices
+    // Sesión 51: agregar JOIN con brands para buscar también por marca
+    // (ej: "Redragon" ahora encuentra productos cuyo name no tiene "Redragon"
+    // pero están asignados a esa marca vía brandId).
+    const searchTermLike = `%${searchTerm}%`
     const result = await db.execute({
-      sql: `SELECT id, name, slug, price, comparePrice, costPrice, images,
-                   categoryId, brandId, isActive, stock, markup, cashDiscount, ivaRate,
-                   internalTaxRate, salePrice, saleStart, saleEnd
-            FROM products
-            WHERE isActive = 1 AND stock > 0 AND name LIKE ?
-            ORDER BY CASE WHEN images IS NOT NULL AND images != '[]' THEN 0 ELSE 1 END,
-                     COALESCE(createdAt, updatedAt) DESC
+      sql: `SELECT p.id, p.name, p.slug, p.price, p.comparePrice, p.costPrice, p.images,
+                   p.categoryId, p.brandId, p.isActive, p.stock, p.markup, p.cashDiscount, p.ivaRate,
+                   p.internalTaxRate, p.salePrice, p.saleStart, p.saleEnd
+            FROM products p
+            LEFT JOIN brands b ON p.brandId = b.id
+            WHERE p.isActive = 1 AND p.stock > 0
+              AND (p.name LIKE ? OR p.sku LIKE ? OR b.name LIKE ?)
+            ORDER BY CASE WHEN p.images IS NOT NULL AND p.images != '[]' THEN 0 ELSE 1 END,
+                     COALESCE(p.createdAt, p.updatedAt) DESC
             LIMIT ?`,
-      args: [`%${searchTerm}%`, limit],
+      args: [searchTermLike, searchTermLike, searchTermLike, limit],
     })
 
     if (result.rows.length === 0) {

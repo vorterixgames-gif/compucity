@@ -338,15 +338,25 @@ async function _getProductsByCategoryRaw(slug: string): Promise<Product[]> {
 
   const categoryId = catRows[0].id
 
-  // Get subcategory IDs (only enabled children)
-  const subResult = await db.execute({
-    sql: 'SELECT id FROM categories WHERE parentId = ? AND enabled = 1',
-    args: [categoryId],
-  })
-  const subIds = (subResult.rows as any[]).map(r => r.id)
-
-  // Build query: products in this category OR any enabled subcategory
-  const allIds = [categoryId, ...subIds]
+  // Sesión 51: para 'notebooks' NO traer productos de subcategorías.
+  // Esto permite que la subcat 'memoria-ram-notebook' (SODIMM) aparezca como
+  // pill debajo de notebooks, pero que las SODIMM NO se mezclen con las
+  // notebooks en el listado principal. Las SODIMM solo se ven al hacer click
+  // en el pill "Memoria RAM Notebook".
+  // Para las demás categorías: mantener el comportamiento anterior (productos
+  // del padre + subcats habilitadas mezcladas).
+  let allIds: string[]
+  if (slug === 'notebooks') {
+    allIds = [categoryId]
+  } else {
+    // Get subcategory IDs (only enabled children)
+    const subResult = await db.execute({
+      sql: 'SELECT id FROM categories WHERE parentId = ? AND enabled = 1',
+      args: [categoryId],
+    })
+    const subIds = (subResult.rows as any[]).map(r => r.id)
+    allIds = [categoryId, ...subIds]
+  }
   const placeholders = allIds.map(() => '?').join(',')
 
   const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
@@ -425,41 +435,42 @@ export const getProductBySlug = unstable_cache(
 // el LIKE con % hace que el cache sea inútil (casi nunca se repite).
 // Se mantiene el revalidate del endpoint /api/search.
 export async function searchProducts(query: string, limit = 20): Promise<Product[]> {
-  // Sesión 49: optimización crítica de search.
-  // Estrategia: intentar primero búsqueda por prefijo (name LIKE 'query%') que
-  // puede usar índice en Turso. Si no hay resultados, hacer LIKE '%query%' como
-  // fallback. Esto evita el full table scan en la mayoría de las búsquedas.
-  // Además: SELECT solo columnas necesarias, sin ORDER BY complejo.
-  const searchTermPrefix = `${query}%`
-  const searchTermAny = `%${query}%`
+  // Sesión 51: fix bug de search Redragon/Samsung.
+  // ANTES (s49): intentaba primero LIKE 'query%' (prefijo) y solo si no había
+  // resultados hacía LIKE '%query%' como fallback. El bug: SQLite/Turso es
+  // case-insensitive, así que 'redragon%' encontraba los 3 productos que
+  // EMPIEZAN con "REDRAGON" y al haber >0 resultados NUNCA ejecutaba el
+  // fallback. Resultado: el usuario veía solo 3 de 26 productos Redragon
+  // y solo 2 de 27 Samsung.
+  //
+  // AHORA: una sola query con LIKE '%query%' (siempre encuentra todos los
+  // matches, sin importar la posición). Además busca por nombre de marca
+  // (JOIN con brands) para cubrir el caso en que el usuario busque por marca
+  // y el nombre del producto no la contenga explícitamente.
+  //
+  // Nota: el LIKE con % al inicio no usa índice en SQLite/Turso, así que
+  // siempre es un full scan. Con ~8K productos y un índice en isActive+stock
+  // la query igual es rápida (<200ms medido). Si en el futuro crece mucho
+  // conviene migrar a FTS5.
+  const searchTerm = `%${query}%`
 
   // Columnas necesarias para la UI de sugerencias y cálculo de precios
-  const selectCols = `id, name, slug, price, comparePrice, costPrice, images,
-                      categoryId, brandId, isActive, stock, markup, cashDiscount, ivaRate,
-                      internalTaxRate, salePrice, saleStart, saleEnd, sku, providerId`
+  const selectCols = `p.id, p.name, p.slug, p.price, p.comparePrice, p.costPrice, p.images,
+                      p.categoryId, p.brandId, p.isActive, p.stock, p.markup, p.cashDiscount, p.ivaRate,
+                      p.internalTaxRate, p.salePrice, p.saleStart, p.saleEnd, p.sku, p.providerId`
 
-  // Intento 1: búsqueda por prefijo (más rápida, potencialmente usa índice)
   let result
   try {
-    const prefixResult = await db.execute({
-      sql: `SELECT ${selectCols} FROM products
-            WHERE isActive = 1 AND stock > 0 AND name LIKE ?
-            ORDER BY COALESCE(createdAt, updatedAt) DESC LIMIT ?`,
-      args: [searchTermPrefix, limit],
+    result = await db.execute({
+      sql: `SELECT ${selectCols} FROM products p
+            LEFT JOIN brands b ON p.brandId = b.id
+            WHERE p.isActive = 1 AND p.stock > 0
+              AND (p.name LIKE ? OR p.sku LIKE ? OR b.name LIKE ?)
+            ORDER BY CASE WHEN p.images IS NOT NULL AND p.images != '[]' THEN 0 ELSE 1 END,
+                     COALESCE(p.createdAt, p.updatedAt) DESC
+            LIMIT ?`,
+      args: [searchTerm, searchTerm, searchTerm, limit],
     })
-    if (prefixResult.rows.length > 0) {
-      result = prefixResult
-    } else {
-      // Intento 2: LIKE en cualquier posición (más lento pero necesario)
-      const anyResult = await db.execute({
-        sql: `SELECT ${selectCols} FROM products
-              WHERE isActive = 1 AND stock > 0
-              AND (name LIKE ? OR sku LIKE ?)
-              ORDER BY COALESCE(createdAt, updatedAt) DESC LIMIT ?`,
-        args: [searchTermAny, searchTermAny, limit],
-      })
-      result = anyResult
-    }
   } catch (error) {
     console.error('searchProducts DB error:', error)
     return []
