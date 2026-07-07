@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-07-07 (sesión 51 — search Redragon/Samsung + SODIMM en notebooks + edición de clientes + filtro GPU)
+**Ultima actualizacion:** 2026-07-08 (sesión 51 dia 2 — filtros monitores/teclados-gamer/pendrives + editar items en pedidos + footer paulerostudio)
 
 ---
 
@@ -14,8 +14,8 @@
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
-- **Commit estable:** 8b083ba (fix: editar cliente desde pedidos actualiza snapshot del pedido s51)
-- **Commit actual:** 8b083ba
+- **Commit estable:** c446355 (feat: filtros monitores/teclados-gamer/pendrives + editar items en pedidos + footer paulerostudio s51 d2)
+- **Commit actual:** c446355
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 - **Sesiones totales:** 51
@@ -1151,6 +1151,28 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-07-08 (s51 dia 2):** Filtros monitores/teclados-gamer/pendrives + editar items en pedidos + footer paulerostudio. **Commit: c446355.** **6 cambios en esta tanda:**
+
+  (1) **PC Armadas — sacar filtro de tipo** — Removidos los 5 filtros de tipo (Gamer, Oficina, Diseño, Mini PC, AIO) a pedido del dueño. Solo quedan marca, procesador, RAM, GPU. **Archivo:** `src/components/ui-custom/CategoryProducts.tsx`.
+
+  (2) **Monitores — arreglar filtros de marca** — Bug: el matching de tags en `applyFilters` era case-sensitive y NO caía al regex del nombre si el producto tenía tags. Por eso filtros como Philips, LG, Teros, etc. no encontraban ningún producto (los tags reales eran `philips`, `lg`, `teros` en minúscula, pero los `value` de los filtros eran `PHILIPS`, `LG`, `TEROS` en mayúscula). Fix en `applyFilters`: matching case-insensitive + tolerancia a sufijos `_mon`/`_gam`/`_pc`/`_nb`/`_tec`/`_mou`/`_aur`/`_cam`/`_ext`/`_ref` (tags como `hp_mon` vs value `HP`) + fallback a regex del nombre siempre. Normalizados values a minúsculas (philips, lg, teros, asus, aoc, gamemax, eview, cx, dell, gigabyte, hikvision, hp, arkham, cooler_master, raptor, viewsonic, lenovo). Agregado filtro `Arkham` que faltaba. **Archivo:** `src/components/ui-custom/CategoryProducts.tsx`.
+
+  (3) **Teclados-gamer — agregar filtros nuevos** — Antes: `/categoria/teclados-gamer` NO tenía ningún filtro definido. El dueño reportó que no podía filtrar por Redragon. Marcas verificadas contra los 32 productos visibles con stock: Redragon (9), Razer (7), ASUS (5), HyperX (3), Logitech (2), Netmak (3), Xtrike (1), Havit (1), Multilaser (1). Validado: 32/32 productos matchean al menos un filtro, sin overlaps. **Archivo:** `src/components/ui-custom/CategoryProducts.tsx`.
+
+  (4) **Pendrives — agregar filtro ADATA** — 10 pendrives ADATA sincronizados desde Elit (7 con stock visible: UV240 32GB Red/White, UV240 64GB Black/Red/White, UV250 16GB/32GB). Antes no había filtro ADATA en pendrives, solo Kingston/Hiksemi/Lexar/SanDisk. **Bug secundario detectado:** el sync externo de Elit (`scripts/sync-elit-external.mjs` línea 213) NO crea productos nuevos, solo actualiza stock/precio de los existentes. Por eso los pendrives ADATA no aparecían — el dueño tuvo que hacer sync manual desde `/admin/proveedores` para que se crearan. Pendiente para futura sesión: modificar el sync externo para que cree productos nuevos automáticamente. **Archivos:** `src/components/ui-custom/CategoryProducts.tsx` (filtro), DB Turso (productos cargados vía sync manual).
+
+  (5) **Editar items en pedidos** — Antes: no se podían editar los productos de un pedido (nombre, cantidad, precio). Ahora: nuevo endpoint `PUT /api/admin/order-items` (actualiza name/price/quantity de un item del pedido) + nuevo endpoint `DELETE /api/admin/order-items?id=X`. `PUT /api/admin/orders` ampliado para aceptar `total` (sobreescribir manualmente). `/admin/pedidos`: botón "Editar" por cada item + Dialog con nombre/cantidad/precio + checkbox "Recalcular automáticamente" (suma de price×quantity de todos los items) + campo "Total manual" si se desactiva el checkbox. Total calculado en tiempo real mientras se edita el form. **Archivos:** `src/app/api/admin/order-items/route.ts` (nuevo), `src/app/api/admin/orders/route.ts` (PUT ampliado), `src/app/admin/pedidos/page.tsx` (botón + Dialog + handlers).
+
+  (6) **Footer — Powered by paulerostudio.com** — Texto discreto al lado del copyright en el bottom bar del footer: `© 2026 Compucity. Todos los derechos reservados. · Powered by paulerostudio.com`. Link a `https://www.paulerostudio.com/` con `target=_blank` y `rel=noopener noreferrer`. Hover verde compucity. **Archivo:** `src/components/layout/Footer.tsx`.
+
+  **Notas:** TypeScript 0 errores en archivos tocados. No se tocó la DB (los pendrives ADATA ya estaban cargados vía sync manual de Elit). **Token GitHub temporal (ghp_...) usado para el push. Debe ser revocado.**
+
+  **Pendientes detectados en esta sesión (no resueltos):**
+  - 13 categorías habilitadas con productos visibles que NO tienen filtros definidos: auriculares-gamers (80), mouse-gamer (70), accesorios (39), proyectores (35), kits-oficina (20), componentes-de-pc (14), hubs (10), conversores (9), conectividad-y-redes (7), adaptadores-bluetooth (4), laser (27), combos (1), pc-armadas (82 — pero esta ya tiene filtros marca/procesador/RAM/GPU).
+  - Sync externo de Elit no crea productos nuevos (solo actualiza existentes). Cada tanto hay que hacer sync manual desde el admin para traer productos nuevos.
+  - 2 teclados mal categorizados como cables (`Alargue Teclado Din5 D5m-5m 1.80 M` y `Cable P/teclado Atx Mini-din 6m/6m 1.8 Mts` en cat=teclados, deberían estar en cables-y-adaptadores).
+  - Pendrives ADATA tienen `brandId=NULL` (la detección automática de marcas no los agarró). Funciona igual porque el filtro usa regex del nombre, pero quedaría más consistente asignarles el brandId.
+
 - **2026-07-07 (s51):** Search Redragon/Samsung + SODIMM en notebooks + edición de clientes en admin + filtro GPU dedicada. **Commits: 58d6710 (3 fixes iniciales) + 16d0cff (editar cliente desde pedidos + fix GPU) + 8b083ba (snapshot del pedido).** **5 fixes en esta sesión:**
 
   (1) **Search Redragon/Samsung** — Bug: `searchProducts()` en queries.ts intentaba primero LIKE 'query%' (prefijo) y solo si no había resultados hacía LIKE '%query%' como fallback. Como SQLite/Turso es case-insensitive, 'redragon%' encontraba los 3 productos que empiezan con "REDRAGON" y al haber >0 resultados NUNCA ejecutaba el fallback. Resultado: 3 de 26 productos Redragon visibles, 2 de 27 Samsung. Fix: una sola query con LIKE '%query%' + JOIN con `brands` para buscar también por marca (productos cuyo `brandId` es Redragon aunque el `name` no lo diga explícitamente). Validado contra Turso: 3→20 resultados para "redragon", 2→20 para "samsung". **Archivos:** `src/lib/queries.ts` (searchProducts reescrita), `src/app/api/search/route.ts` (autocomplete del navbar con misma lógica).
