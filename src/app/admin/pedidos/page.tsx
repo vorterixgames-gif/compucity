@@ -610,40 +610,46 @@ export default function AdminPedidos() {
                       <div className="space-y-3">
                         <h4 className="font-semibold text-sm text-gray-700">Productos</h4>
                         <div className="bg-white rounded-lg border overflow-hidden">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead>Producto</TableHead>
-                                <TableHead className="text-center">Cant.</TableHead>
-                                <TableHead className="text-right">Precio</TableHead>
-                                <TableHead className="text-right">Subtotal</TableHead>
-                                <TableHead className="text-right">Acciones</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {order.items.map((item) => (
-                                <TableRow key={item.id}>
-                                  <TableCell className="text-sm">{item.name}</TableCell>
-                                  <TableCell className="text-center">{item.quantity}</TableCell>
-                                  <TableCell className="text-right text-sm">{formatARS(item.price)}</TableCell>
-                                  <TableCell className="text-right font-medium text-sm">
-                                    {formatARS(item.price * item.quantity)}
-                                  </TableCell>
-                                  <TableCell className="text-right">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="text-compucity-green hover:text-compucity-green-dark hover:bg-compucity-green-50 h-8 px-2"
-                                      onClick={(e) => openEditItemDialog(e, order, item)}
-                                    >
-                                      <Pencil className="w-3 h-3 mr-1" />
-                                      Editar
-                                    </Button>
-                                  </TableCell>
+                          {/* Sesión 51 d2: contenedor con overflow-x-auto para que la tabla
+                              scrollee horizontalmente en pantallas chicas o con zoom alto.
+                              Antes la columna "Acciones" quedaba cortada fuera de pantalla. */}
+                          <div className="overflow-x-auto">
+                            <Table className="min-w-[640px]">
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="min-w-[180px]">Producto</TableHead>
+                                  <TableHead className="text-center w-16">Cant.</TableHead>
+                                  <TableHead className="text-right w-28">Precio</TableHead>
+                                  <TableHead className="text-right w-32">Subtotal</TableHead>
+                                  <TableHead className="text-right w-24">Acciones</TableHead>
                                 </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
+                              </TableHeader>
+                              <TableBody>
+                                {order.items.map((item) => (
+                                  <TableRow key={item.id}>
+                                    <TableCell className="text-sm max-w-xs">{item.name}</TableCell>
+                                    <TableCell className="text-center">{item.quantity}</TableCell>
+                                    <TableCell className="text-right text-sm whitespace-nowrap">{formatARS(item.price)}</TableCell>
+                                    <TableCell className="text-right font-medium text-sm whitespace-nowrap">
+                                      {formatARS(item.price * item.quantity)}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-compucity-green hover:text-compucity-green-dark hover:bg-compucity-green-50 h-8 px-2"
+                                        onClick={(e) => openEditItemDialog(e, order, item)}
+                                        title="Editar producto"
+                                      >
+                                        <Pencil className="w-3 h-3 sm:mr-1" />
+                                        <span className="hidden sm:inline">Editar</span>
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
                           <div className="border-t p-3 flex justify-between items-center bg-gray-50">
                             <span className="font-semibold text-sm">Total</span>
                             <span className="font-bold text-lg">{formatARS(order.total)}</span>
