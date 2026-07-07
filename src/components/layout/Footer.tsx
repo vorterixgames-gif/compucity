@@ -127,8 +127,19 @@ export default function Footer() {
 
         {/* Bottom bar */}
         <div className="border-t border-gray-800 mt-10 pt-6 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <p className="text-xs text-gray-500">© {new Date().getFullYear()} Compucity. Todos los derechos reservados.</p>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3">
+              <p className="text-xs text-gray-500">© {new Date().getFullYear()} Compucity. Todos los derechos reservados.</p>
+              <span className="text-xs text-gray-600">·</span>
+              <a
+                href="https://www.paulerostudio.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-gray-500 hover:text-compucity-green transition"
+              >
+                Powered by paulerostudio.com
+              </a>
+            </div>
             {/* QR AFIP */}
             <a
               href="https://qr.afip.gob.ar/?qr=MpgSrqMfiMNgSgpjEYDCdA,,"

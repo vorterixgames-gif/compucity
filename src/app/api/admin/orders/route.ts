@@ -52,6 +52,9 @@ export async function PUT(request: NextRequest) {
       // para que el pedido refleje los datos actuales del cliente.
       customerName, customerEmail, customerPhone, customerDni,
       shippingAddress, shippingCity, shippingProvince, shippingZip,
+      // Sesión 51: total manual — permite sobreescribir el total calculado
+      // por si el cálculo automático no está bien (descuentos especiales, etc).
+      total,
     } = body
 
     if (!id) {
@@ -74,6 +77,14 @@ export async function PUT(request: NextRequest) {
     if (shippingCity !== undefined) { fields.push('shippingCity = ?'); values.push(shippingCity) }
     if (shippingProvince !== undefined) { fields.push('shippingProvince = ?'); values.push(shippingProvince) }
     if (shippingZip !== undefined) { fields.push('shippingZip = ?'); values.push(shippingZip) }
+    // Sesión 51: total manual
+    if (total !== undefined) {
+      const totalNum = Number(total)
+      if (isNaN(totalNum) || totalNum < 0) {
+        return NextResponse.json({ error: 'Total inválido' }, { status: 400 })
+      }
+      fields.push('total = ?'); values.push(totalNum)
+    }
 
     if (fields.length === 0) {
       return NextResponse.json({ error: 'No hay campos para actualizar' }, { status: 400 })

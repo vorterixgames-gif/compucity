@@ -142,6 +142,18 @@ export default function AdminPedidos() {
     postalCode: '',
   })
 
+  // Edit order item dialog (sesión 51)
+  // Permite editar nombre, cantidad y precio de cada item del pedido.
+  // También permite sobreescribir el total del pedido manualmente.
+  const [editItemDialogOpen, setEditItemDialogOpen] = useState(false)
+  const [itemSaving, setItemSaving] = useState(false)
+  const [editItemError, setEditItemError] = useState('')
+  const [itemEditing, setItemEditing] = useState<OrderItem | null>(null)
+  const [orderForItemEdit, setOrderForItemEdit] = useState<Order | null>(null)
+  const [itemForm, setItemForm] = useState({ name: '', quantity: 1, price: 0 })
+  const [autoRecalcTotal, setAutoRecalcTotal] = useState(true)
+  const [manualTotal, setManualTotal] = useState('')
+
   const loadOrders = useCallback(async () => {
     try {
       const res = await fetch('/api/admin/orders')
@@ -334,6 +346,129 @@ export default function AdminPedidos() {
     }
   }
 
+  // Sesión 51: editar item del pedido (nombre, cantidad, precio) + recalcular/sobreescribir total
+  const openEditItemDialog = (e: React.MouseEvent, order: Order, item: OrderItem) => {
+    e.stopPropagation()
+    setItemEditing(item)
+    setOrderForItemEdit(order)
+    setItemForm({
+      name: item.name,
+      quantity: item.quantity,
+      price: item.price,
+    })
+    setAutoRecalcTotal(true)
+    setManualTotal('')
+    setEditItemError('')
+    setEditItemDialogOpen(true)
+  }
+
+  // Total calculado en tiempo real mientras el admin edita el form
+  const computedTotal = orderForItemEdit
+    ? orderForItemEdit.items.reduce((sum, it) => {
+        // Reemplazar el item que se está editando con los valores del form
+        if (it.id === itemEditing?.id) {
+          return sum + (Number(itemForm.price) || 0) * (parseInt(String(itemForm.quantity), 10) || 0)
+        }
+        return sum + it.price * it.quantity
+      }, 0)
+    : 0
+
+  const handleSaveItemEdit = async () => {
+    if (!itemEditing || !orderForItemEdit) return
+    setItemSaving(true)
+    setEditItemError('')
+    try {
+      // 1. Actualizar el item en order_items
+      const qty = parseInt(String(itemForm.quantity), 10)
+      const price = Number(itemForm.price)
+      if (!itemForm.name.trim()) {
+        setEditItemError('El nombre es obligatorio')
+        setItemSaving(false)
+        return
+      }
+      if (isNaN(qty) || qty < 1) {
+        setEditItemError('La cantidad debe ser mayor o igual a 1')
+        setItemSaving(false)
+        return
+      }
+      if (isNaN(price) || price < 0) {
+        setEditItemError('El precio es inválido')
+        setItemSaving(false)
+        return
+      }
+
+      const itemRes = await fetch('/api/admin/order-items', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: itemEditing.id,
+          name: itemForm.name.trim(),
+          quantity: qty,
+          price: price,
+        }),
+      })
+      const itemData = await itemRes.json()
+      if (!itemRes.ok || !itemData.ok) {
+        setEditItemError(itemData.error || 'Error al actualizar el item')
+        setItemSaving(false)
+        return
+      }
+
+      // 2. Actualizar el total del pedido
+      let newTotal: number
+      if (autoRecalcTotal) {
+        newTotal = computedTotal
+      } else {
+        const manual = Number(manualTotal)
+        if (isNaN(manual) || manual < 0) {
+          setEditItemError('El total manual es inválido')
+          setItemSaving(false)
+          return
+        }
+        newTotal = manual
+      }
+
+      const orderRes = await fetch('/api/admin/orders', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: orderForItemEdit.id,
+          total: newTotal,
+        }),
+      })
+      const orderData = await orderRes.json()
+      if (!orderRes.ok || !orderData.ok) {
+        setEditItemError('Item actualizado pero error al actualizar el total. Recargá la página.')
+        setItemSaving(false)
+        return
+      }
+
+      // 3. Actualizar el estado local del frontend
+      setOrders(prev =>
+        prev.map(o =>
+          o.id === orderForItemEdit.id
+            ? {
+                ...o,
+                items: o.items.map(it =>
+                  it.id === itemEditing.id
+                    ? { ...it, name: itemForm.name.trim(), quantity: qty, price: price }
+                    : it
+                ),
+                total: newTotal,
+              }
+            : o
+        )
+      )
+      setEditItemDialogOpen(false)
+      setItemEditing(null)
+      setOrderForItemEdit(null)
+    } catch {
+      setEditItemError('Error de conexión')
+    } finally {
+      setItemSaving(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -482,6 +617,7 @@ export default function AdminPedidos() {
                                 <TableHead className="text-center">Cant.</TableHead>
                                 <TableHead className="text-right">Precio</TableHead>
                                 <TableHead className="text-right">Subtotal</TableHead>
+                                <TableHead className="text-right">Acciones</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -492,6 +628,17 @@ export default function AdminPedidos() {
                                   <TableCell className="text-right text-sm">{formatARS(item.price)}</TableCell>
                                   <TableCell className="text-right font-medium text-sm">
                                     {formatARS(item.price * item.quantity)}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="text-compucity-green hover:text-compucity-green-dark hover:bg-compucity-green-50 h-8 px-2"
+                                      onClick={(e) => openEditItemDialog(e, order, item)}
+                                    >
+                                      <Pencil className="w-3 h-3 mr-1" />
+                                      Editar
+                                    </Button>
                                   </TableCell>
                                 </TableRow>
                               ))}
@@ -809,6 +956,114 @@ export default function AdminPedidos() {
               disabled={customerSaving || customerLoading || !customerForm.name.trim() || !customerForm.email.trim()}
             >
               {customerSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                'Guardar cambios'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Order Item Dialog (sesión 51) */}
+      <Dialog open={editItemDialogOpen} onOpenChange={setEditItemDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Producto del Pedido</DialogTitle>
+          </DialogHeader>
+          {itemEditing && orderForItemEdit && (
+            <div className="space-y-4">
+              <p className="text-xs text-gray-500">
+                Pedido <span className="font-mono">#{orderForItemEdit.orderNumber}</span>
+              </p>
+
+              <div className="space-y-2">
+                <Label htmlFor="item-name">Nombre del producto *</Label>
+                <Input
+                  id="item-name"
+                  value={itemForm.name}
+                  onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
+                  placeholder="Nombre del producto"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="item-quantity">Cantidad *</Label>
+                  <Input
+                    id="item-quantity"
+                    type="number"
+                    min="1"
+                    value={itemForm.quantity}
+                    onChange={(e) => setItemForm({ ...itemForm, quantity: parseInt(e.target.value, 10) || 0 })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="item-price">Precio unitario (ARS) *</Label>
+                  <Input
+                    id="item-price"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={itemForm.price}
+                    onChange={(e) => setItemForm({ ...itemForm, price: Number(e.target.value) || 0 })}
+                  />
+                </div>
+              </div>
+
+              <div className="border-t pt-4 space-y-3">
+                <Label>Total del pedido</Label>
+                <div className="flex items-center gap-2">
+                  <input
+                    id="auto-recalc"
+                    type="checkbox"
+                    checked={autoRecalcTotal}
+                    onChange={(e) => setAutoRecalcTotal(e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  <label htmlFor="auto-recalc" className="text-sm cursor-pointer">
+                    Recalcular automáticamente ({formatARS(computedTotal)})
+                  </label>
+                </div>
+                {!autoRecalcTotal && (
+                  <div className="space-y-2">
+                    <Label htmlFor="manual-total">Total manual (ARS)</Label>
+                    <Input
+                      id="manual-total"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={manualTotal}
+                      onChange={(e) => setManualTotal(e.target.value)}
+                      placeholder="Ingresá el total que querés setear"
+                    />
+                    <p className="text-xs text-gray-500">
+                      Usá esto si el cálculo automático no es correcto (descuentos especiales, etc).
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {editItemError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                  {editItemError}
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditItemDialogOpen(false)} disabled={itemSaving}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveItemEdit}
+              className="bg-compucity-green hover:bg-compucity-green-dark"
+              disabled={itemSaving || !itemForm.name.trim()}
+            >
+              {itemSaving ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Guardando...

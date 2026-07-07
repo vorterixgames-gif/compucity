@@ -359,38 +359,40 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'type', label: 'Aire', value: 'AIR', matchFn: (n) => !/\bWATER\s*COOL\b|\bAIO\b|\bLIQUID\b|\bWATERFORCE\b/i.test(n) },
   ],
   'monitores': [
-    { key: 'brand', label: 'Asus', value: 'ASUS', matchFn: (n) => /\bASUS\b|\bROG\b|\bTUF\b|\bPROART\b/i.test(n) },
-    { key: 'brand', label: 'LG', value: 'LG', matchFn: (n) => /\bLG\b|\bULTRAGEAR\b/i.test(n) },
-    { key: 'brand', label: 'Dell', value: 'DELL', matchFn: (n) => /\bDELL\b/i.test(n) },
-    { key: 'brand', label: 'Gigabyte', value: 'GIGABYTE', matchFn: (n) => /\bGIGABYTE\b|\bAORUS\b|\bM\d{2,3}Q\b/i.test(n) },
-    { key: 'brand', label: 'AOC', value: 'AOC', matchFn: (n) => /\bAOC\b|\bAGON\b/i.test(n) },
-    { key: 'brand', label: 'Philips', value: 'PHILIPS', matchFn: (n) => /\bPHILIPS\b|\bEVNIA\b/i.test(n) },
-    { key: 'brand', label: 'Samsung', value: 'SAMSUNG', matchFn: (n) => /\bSAMSUNG\b|\bODYSSEY\b|\bVIEWFINITY\b/i.test(n) },
-    { key: 'brand', label: 'MSI', value: 'MSI', matchFn: (n) => /\bMSI\b/i.test(n) },
-    { key: 'brand', label: 'HP', value: 'HP', matchFn: (n) => /\bHP\b/i.test(n) },
-    { key: 'brand', label: 'Lenovo', value: 'LENOVO', matchFn: (n) => /\bLENOVO\b/i.test(n) },
-    { key: 'brand', label: 'Hikvision', value: 'HIKVISION', matchFn: (n) => /\bHIKVISION\b/i.test(n) },
-    { key: 'brand', label: 'Gamemax', value: 'GAMEMAX', matchFn: (n) => /\bGAMEMAX\b/i.test(n) },
-    { key: 'brand', label: 'Acer', value: 'ACER', matchFn: (n) => /\bACER\b/i.test(n) },
-    { key: 'brand', label: 'BenQ', value: 'BENQ', matchFn: (n) => /\bBENQ\b|\bZOWIE\b/i.test(n) },
-    { key: 'brand', label: 'ViewSonic', value: 'VIEWSONIC', matchFn: (n) => /\bVIEWSONIC\b/i.test(n) },
-    { key: 'brand', label: 'CX', value: 'CX', matchFn: (n) => /\bCX\b/i.test(n) },
-    { key: 'brand', label: 'Teros', value: 'TEROS', matchFn: (n) => /\bTEROS\b|\bTE-/i.test(n) },
-    { key: 'brand', label: 'Raptor', value: 'RAPTOR', matchFn: (n) => /\bRAPTOR\b/i.test(n) },
-    { key: 'brand', label: 'E-View', value: 'EVIEW', matchFn: (n) => /\bE[\s\-]?VIEW\b/i.test(n) },
-    { key: 'brand', label: 'Cooler Master', value: 'COOLERMASTER_MON', matchFn: (n) => /\bCOOLER\s*MASTER\b/i.test(n) },
+    { key: 'brand', label: 'Asus', value: 'asus', matchFn: (n) => /\bASUS\b|\bROG\b|\bTUF\b|\bPROART\b/i.test(n) },
+    { key: 'brand', label: 'LG', value: 'lg', matchFn: (n) => /\bLG\b|\bULTRAGEAR\b/i.test(n) },
+    { key: 'brand', label: 'Dell', value: 'dell', matchFn: (n) => /\bDELL\b/i.test(n) },
+    { key: 'brand', label: 'Gigabyte', value: 'gigabyte', matchFn: (n) => /\bGIGABYTE\b|\bAORUS\b|\bM\d{2,3}Q\b/i.test(n) },
+    { key: 'brand', label: 'AOC', value: 'aoc', matchFn: (n) => /\bAOC\b|\bAGON\b/i.test(n) },
+    { key: 'brand', label: 'Philips', value: 'philips', matchFn: (n) => /\bPHILIPS\b|\bEVNIA\b/i.test(n) },
+    { key: 'brand', label: 'Samsung', value: 'samsung', matchFn: (n) => /\bSAMSUNG\b|\bODYSSEY\b|\bVIEWFINITY\b/i.test(n) },
+    { key: 'brand', label: 'MSI', value: 'msi', matchFn: (n) => /\bMSI\b/i.test(n) },
+    { key: 'brand', label: 'HP', value: 'hp', matchFn: (n) => /\bHP\b/i.test(n) },
+    { key: 'brand', label: 'Lenovo', value: 'lenovo', matchFn: (n) => /\bLENOVO\b/i.test(n) },
+    { key: 'brand', label: 'Hikvision', value: 'hikvision', matchFn: (n) => /\bHIKVISION\b/i.test(n) },
+    { key: 'brand', label: 'Gamemax', value: 'gamemax', matchFn: (n) => /\bGAMEMAX\b/i.test(n) },
+    { key: 'brand', label: 'Acer', value: 'acer', matchFn: (n) => /\bACER\b/i.test(n) },
+    { key: 'brand', label: 'BenQ', value: 'benq', matchFn: (n) => /\bBENQ\b|\bZOWIE\b/i.test(n) },
+    { key: 'brand', label: 'ViewSonic', value: 'viewsonic', matchFn: (n) => /\bVIEWSONIC\b/i.test(n) },
+    { key: 'brand', label: 'CX', value: 'cx', matchFn: (n) => /\bCX\b/i.test(n) },
+    { key: 'brand', label: 'Teros', value: 'teros', matchFn: (n) => /\bTEROS\b|\bTE-/i.test(n) },
+    { key: 'brand', label: 'Raptor', value: 'raptor', matchFn: (n) => /\bRAPTOR\b/i.test(n) },
+    { key: 'brand', label: 'E-View', value: 'eview', matchFn: (n) => /\bE[\s\-]?VIEW\b/i.test(n) },
+    { key: 'brand', label: 'Cooler Master', value: 'cooler_master', matchFn: (n) => /\bCOOLER\s*MASTER\b/i.test(n) },
+    // Sesión 51: agregar Arkham (estaba en la DB como tag arkham_mon pero no había filtro)
+    { key: 'brand', label: 'Arkham', value: 'arkham', matchFn: (n) => /\bARKHAM\b/i.test(n) },
     { key: 'size', label: '19"', value: '19', matchFn: (n) => /\b19[\s\"\-\.]\d|\b19\s*PULGAD/i.test(n) && !/\b19\d{2,}\b/i.test(n) },
     { key: 'size', label: '22"', value: '22', matchFn: (n) => /\b22[\s\"\-\.]\d|\b22\s*PULGAD/i.test(n) && !/\b22\d{2,}\b/i.test(n) },
     { key: 'size', label: '24"', value: '24', matchFn: (n) => /\b24\b/i.test(n) },
     { key: 'size', label: '27"', value: '27', matchFn: (n) => /\b27\b/i.test(n) },
     { key: 'size', label: '32"+', value: '32', matchFn: (n) => /\b3[2-9]\b|\b4[0-9]\b/i.test(n) },
-    { key: 'hz', label: '100Hz', value: '100HZ', matchFn: (n) => /\b100\s*HZ\b|\b100HZ\b/i.test(n) },
-    { key: 'hz', label: '144Hz', value: '144HZ', matchFn: (n) => /\b144\s*HZ\b|\b144HZ\b/i.test(n) },
-    { key: 'hz', label: '165Hz', value: '165HZ', matchFn: (n) => /\b165\s*HZ\b|\b165HZ\b/i.test(n) },
-    { key: 'hz', label: '180Hz', value: '180HZ', matchFn: (n) => /\b180\s*HZ\b|\b180HZ\b/i.test(n) },
-    { key: 'resolution', label: 'Full HD', value: 'FHD', matchFn: (n) => /\bFULL\s*HD\b|\bFHD\b|\b1080\b/i.test(n) },
-    { key: 'resolution', label: 'QHD', value: 'QHD', matchFn: (n) => /\bQHD\b|\b2K\b|\b1440\b/i.test(n) },
-    { key: 'resolution', label: '4K / UHD', value: '4K', matchFn: (n) => /\b4K\b|\bUHD\b|\b2160\b/i.test(n) },
+    { key: 'hz', label: '100Hz', value: '100hz', matchFn: (n) => /\b100\s*HZ\b|\b100HZ\b/i.test(n) },
+    { key: 'hz', label: '144Hz', value: '144hz', matchFn: (n) => /\b144\s*HZ\b|\b144HZ\b/i.test(n) },
+    { key: 'hz', label: '165Hz', value: '165hz', matchFn: (n) => /\b165\s*HZ\b|\b165HZ\b/i.test(n) },
+    { key: 'hz', label: '180Hz', value: '180hz', matchFn: (n) => /\b180\s*HZ\b|\b180HZ\b/i.test(n) },
+    { key: 'resolution', label: 'Full HD', value: 'fhd', matchFn: (n) => /\bFULL\s*HD\b|\bFHD\b|\b1080\b/i.test(n) },
+    { key: 'resolution', label: 'QHD', value: 'qhd', matchFn: (n) => /\bQHD\b|\b2K\b|\b1440\b/i.test(n) },
+    { key: 'resolution', label: '4K / UHD', value: 'uhd', matchFn: (n) => /\b4K\b|\bUHD\b|\b2160\b/i.test(n) },
   ],
   'placas-de-red': [
     { key: 'brand', label: 'TP-Link', value: 'TPLINK', matchFn: (n) => /\bTP[\s\-]?LINK\b|\bARCHER\b|\bTL\s*W\b/i.test(n) },
@@ -477,6 +479,22 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'brand', label: 'Klipxtreme', value: 'KLIPXTREME_TEC', matchFn: (n) => /\bKLIPXTREME\b/i.test(n) },
     { key: 'brand', label: 'Dell', value: 'DELL_TEC', matchFn: (n) => /\bDELL\b/i.test(n) },
   ],
+  // Sesión 51: filtros para teclados-gamer (antes no existían — el dueño reportó
+  // que no podía filtrar por Redragon en /categoria/teclados-gamer).
+  // Marcas verificadas contra los 32 productos visibles con stock:
+  // Redragon (9), Razer (7), ASUS (5), HyperX (3), Logitech (2),
+  // Netmak (3), Xtrike (1), Havit (1), Multilaser (1).
+  'teclados-gamer': [
+    { key: 'brand', label: 'Redragon', value: 'REDRAGON_TG', matchFn: (n) => /\bREDRAGON\b/i.test(n) },
+    { key: 'brand', label: 'Razer', value: 'RAZER_TG', matchFn: (n) => /\bRAZER\b|\bBLACKWIDOW\b|\bHUNSTMAN\b|\bORNATA\b/i.test(n) },
+    { key: 'brand', label: 'ASUS', value: 'ASUS_TG', matchFn: (n) => /\bASUS\b|\bROG\b|\bTUF\b|\bSTRIX\b/i.test(n) },
+    { key: 'brand', label: 'HyperX', value: 'HYPERX_TG', matchFn: (n) => /\bHYPERX\b|\bALLOY\b/i.test(n) },
+    { key: 'brand', label: 'Logitech', value: 'LOGITECH_TG', matchFn: (n) => /\bLOGITECH\b/i.test(n) },
+    { key: 'brand', label: 'Netmak', value: 'NETMAK_TG', matchFn: (n) => /\bNETMAK\b|\bNM-/i.test(n) },
+    { key: 'brand', label: 'Xtrike', value: 'XTRIKE_TG', matchFn: (n) => /\bXTRIKE\b/i.test(n) },
+    { key: 'brand', label: 'Havit', value: 'HAVIT_TG', matchFn: (n) => /\bHAVIT\b/i.test(n) },
+    { key: 'brand', label: 'Multilaser', value: 'MULTILASER_TG', matchFn: (n) => /\bMULTILASER\b/i.test(n) },
+  ],
   'parlantes': [
     { key: 'brand', label: 'Genius', value: 'GENIUS', matchFn: (n) => /\bGENIUS\b/i.test(n) },
     { key: 'brand', label: 'JBL', value: 'JBL', matchFn: (n) => /\bJBL\b/i.test(n) },
@@ -520,6 +538,9 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'brand', label: 'Hiksemi', value: 'HIKSEMI', matchFn: (n) => /\bHIKSEMI\b/i.test(n) },
     { key: 'brand', label: 'Lexar', value: 'LEXAR', matchFn: (n) => /\bLEXAR\b|\bJUMPDRIVE\b/i.test(n) },
     { key: 'brand', label: 'SanDisk', value: 'SANDISK', matchFn: (n) => /\bSANDISK\b/i.test(n) },
+    // Sesión 51: agregado ADATA (10 pendrives ADATA sincronizados desde Elit,
+    // 7 con stock visible — UV240/UV250 en sus variantes de color)
+    { key: 'brand', label: 'ADATA', value: 'ADATA_PEN', matchFn: (n) => /\bADATA\b|\bXPG\b/i.test(n) },
   ],
   'discos-externos': [
     { key: 'brand', label: 'ADATA', value: 'ADATA', matchFn: (n) => /\bADATA\b|\bXPG\b/i.test(n) },
@@ -781,12 +802,8 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'type', label: '4 Bahías', value: '4BAY', matchFn: (n) => /\b4\s*X?\s*3\.5\b|\b4\s*BAH[ÍI]A/i.test(n) },
   ],
   'pc-armadas': [
-    // Tipo de PC — Gamer detection includes: RTX/GTX, VGA/V-prefix, GT models, gaming brands
-    { key: 'type', label: 'Gamer', value: 'gamer', matchFn: (n) => isPcArmadasGamer(n) },
-    { key: 'type', label: 'Oficina', value: 'oficina', matchFn: (n) => !isPcArmadasGamer(n) && !/\bMINI PC\b|\bSTICK PC\b|\bNUC\b|\bMELE\b|\bN100\b|\bAIO\b|\bALL[- ]?IN[- ]?ONE\b|\bDESIGN\b|\bDISE[ÑN]O\b|\bCREATOR\b|\bSTUDIO\b/i.test(n) && /\bSIST\.\b|\bKELYX\b|\bOFFICE\b|\bOFICINA\b|\bPC\b|\bCOMPUTADORA\b|\bDESKTOP\b/i.test(n) },
-    { key: 'type', label: 'Diseño', value: 'diseno', matchFn: (n) => /\bDESIGN\b|\bDISE[ÑN]O\b|\bCREATOR\b|\bSTUDIO\b/i.test(n) },
-    { key: 'type', label: 'Mini PC', value: 'mini_pc', matchFn: (n) => /\bMINI PC\b|\bSTICK PC\b|\bNUC\b|\bMELE\b|\bN100\b/i.test(n) },
-    { key: 'type', label: 'All in One', value: 'aio', matchFn: (n) => /\bAIO\b|\bALL[- ]?IN[- ]?ONE\b/i.test(n) },
+    // Sesión 51: removidos los filtros de tipo (Gamer, Oficina, Diseño, Mini PC, AIO)
+    // a pedido del dueño. Solo quedan marca, procesador, RAM, GPU.
     // Marca
     { key: 'brand', label: 'HP', value: 'hp', matchFn: (n) => /\bHP\b|\bZ1G\b|\bZ2G\b|\bOMEN\b|\bVICTUS\b|\bELITEDESK\b|\bPRODESK\b/i.test(n) },
     { key: 'brand', label: 'Lenovo', value: 'lenovo', matchFn: (n) => /\bLENOVO\b|\bTHINKCENTRE\b|\bIDEACENTRE\b|\bLEGION\b|\bLOQ\b/i.test(n) },
@@ -968,11 +985,26 @@ function applyCategoryFilters(products: ProductItem[], filters: Record<string, s
   return products.filter(product => {
     for (const [, options] of activeGroups) {
       const matchesGroup = options.some(opt => {
-        // If product has explicit tags, use tag matching first
-        if (product.tags && product.tags.length > 0) {
-          return product.tags.includes(opt.value)
+        // Sesión 51: matching robusto de tags + fallback a regex del nombre.
+        // Antes: si el producto tenía tags, SOLO se comparaba con tags.includes(opt.value)
+        // (case-sensitive). Si el tag era "philips" y el value "PHILIPS", no matcheaba,
+        // y NO caía al regex del nombre. Eso hacía que filtros de marcas en monitores
+        // (Philips, LG, Teros, etc.) no encontraran ningún producto.
+        // Ahora: probamos tags case-insensitive primero (con tolerancia a sufijos como
+        // "_mon" para monitores, "_gam" para auriculares gamer, etc.), y si no matchea,
+        // caemos al regex del nombre (que sí funciona).
+        const tags = product.tags ?? []
+        if (tags.length > 0) {
+          const valueLower = opt.value.toLowerCase()
+          // 1) match exacto case-insensitive
+          if (tags.some(t => String(t).toLowerCase() === valueLower)) return true
+          // 2) match sin sufijo _mon/_gam/_pc/_nb/_tec/_mou/_aur (tags como "hp_mon" vs value "HP")
+          const strippedValue = valueLower.replace(/_(mon|gam|pc|nb|tec|mou|aur|cam|tec|ext|ref)$/i, '')
+          if (strippedValue !== valueLower && tags.some(t => {
+            const tStripped = String(t).toLowerCase().replace(/_(mon|gam|pc|nb|tec|mou|aur|cam|tec|ext|ref)$/i, '')
+            return tStripped === strippedValue
+          })) return true
         }
-        // Fallback to regex name matching for products without tags
         return opt.matchFn(product.name, product)
       })
       if (!matchesGroup) return false
