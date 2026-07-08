@@ -31,10 +31,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const images: string[] = product.images ? JSON.parse(product.images) : []
-  const firstImage = images[0] || null
-  const imageUrl = firstImage
-    ? (firstImage.startsWith('http') ? firstImage : `https://www.compucityonline.com.ar${firstImage}`)
-    : 'https://www.compucityonline.com.ar/images/og-image.jpg'
+  // Sesión 51 d2: Opción B — usar siempre el og-image.jpg (con el logo de Compucity)
+  // como og:image para los productos, en vez de la imagen del producto.
+  // El dueño reportó: "el tema que me muestra el productos sin el logo de compucity".
+  // Antes: si el producto tenía imagen, se usaba esa sola (sin logo de marca).
+  // Ahora: siempre se usa og-image.jpg con el logo, igual que el home.
+  // La imagen del producto sigue usándose en: la página del producto (galería),
+  // el JSON-LD (structured data para Google), y los ProductCards del storefront.
+  const imageUrl = 'https://www.compucityonline.com.ar/images/og-image.jpg'
 
   const activeSale = getActiveSale(product as any)
   const displayPrice = activeSale !== null && activeSale < product.price ? activeSale : (product.comparePrice || product.price)
