@@ -76,7 +76,7 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "/images/og-image.jpg",
+        url: "/images/og-image-v2.jpg",
         width: 1200,
         height: 630,
         alt: "Compucity - Tu Mundo Digital - Tienda de Informática en La Falda, Córdoba",
@@ -88,7 +88,7 @@ export const metadata: Metadata = {
     title: "Compucity - Tu Mundo Digital",
     description:
       "Tienda online de notebooks, componentes y periféricos. Envíos a todo el país.",
-    images: ["/images/og-image.jpg"],
+    images: ["/images/og-image-v2.jpg"],
   },
   alternates: {
     canonical: SITE_URL,

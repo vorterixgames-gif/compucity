@@ -38,7 +38,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // Ahora: siempre se usa og-image.jpg con el logo, igual que el home.
   // La imagen del producto sigue usándose en: la página del producto (galería),
   // el JSON-LD (structured data para Google), y los ProductCards del storefront.
-  const imageUrl = 'https://www.compucityonline.com.ar/images/og-image.jpg'
+  const imageUrl = 'https://www.compucityonline.com.ar/images/og-image-v2.jpg'
 
   const activeSale = getActiveSale(product as any)
   const displayPrice = activeSale !== null && activeSale < product.price ? activeSale : (product.comparePrice || product.price)
