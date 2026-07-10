@@ -381,11 +381,21 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'brand', label: 'Cooler Master', value: 'cooler_master', matchFn: (n) => /\bCOOLER\s*MASTER\b/i.test(n) },
     // Sesión 51: agregar Arkham (estaba en la DB como tag arkham_mon pero no había filtro)
     { key: 'brand', label: 'Arkham', value: 'arkham', matchFn: (n) => /\bARKHAM\b/i.test(n) },
-    { key: 'size', label: '19"', value: '19', matchFn: (n) => /\b19[\s\"\-\.]\d|\b19\s*PULGAD/i.test(n) && !/\b19\d{2,}\b/i.test(n) },
-    { key: 'size', label: '22"', value: '22', matchFn: (n) => /\b22[\s\"\-\.]\d|\b22\s*PULGAD/i.test(n) && !/\b22\d{2,}\b/i.test(n) },
-    { key: 'size', label: '24"', value: '24', matchFn: (n) => /\b24\b/i.test(n) },
-    { key: 'size', label: '27"', value: '27', matchFn: (n) => /\b27\b/i.test(n) },
-    { key: 'size', label: '32"+', value: '32', matchFn: (n) => /\b3[2-9]\b|\b4[0-9]\b/i.test(n) },
+    // Sesión 51 d3: regex mejorada para pulgadas de monitores.
+    // Antes: /\b19[\s\"\-\.]\d/ — requería DÍGITO después del separador,
+    // por eso "Monitor 22 HP" (22 + espacio + letra) no matcheaba y el filtro
+    // de 22" devolvía 0 resultados.
+    // Ahora: busca "NN" + comilla (recta o tipográfica) O "NN" + espacio + no-dígito,
+    // con lookbehind (?<![0-9a-zA-Z]) para no matchear "E20" (parte de modelo).
+    // Incluye 21.5" como 22" y 23.5-23.9" como 24" (se venden como tales).
+    // Agregados filtros 20" y 25" que no existían.
+    { key: 'size', label: '19"', value: '19', matchFn: (n) => /(?<![0-9a-zA-Z])19(?:[.,]\d)?(?:["'""'']|\s(?!\d))/i.test(n) },
+    { key: 'size', label: '20"', value: '20', matchFn: (n) => /(?<![0-9a-zA-Z])20(?:[.,]\d)?(?:["'""'']|\s(?!\d))/i.test(n) },
+    { key: 'size', label: '22"', value: '22', matchFn: (n) => /(?<![0-9a-zA-Z])22(?:[.,]\d)?(?:["'""'']|\s(?!\d))/i.test(n) || /\b21[.,]5\s*["'""'']/i.test(n) },
+    { key: 'size', label: '24"', value: '24', matchFn: (n) => /(?<![0-9a-zA-Z])24(?:[.,]\d)?(?:["'""'']|\s(?!\d))/i.test(n) || /\b23[.,][5-9]\s*["'""'']/i.test(n) },
+    { key: 'size', label: '25"', value: '25', matchFn: (n) => /(?<![0-9a-zA-Z])25(?:[.,]\d)?(?:["'""'']|\s(?!\d))/i.test(n) },
+    { key: 'size', label: '27"', value: '27', matchFn: (n) => /(?<![0-9a-zA-Z])27(?:[.,]\d)?(?:["'""'']|\s(?!\d))/i.test(n) },
+    { key: 'size', label: '32"+', value: '32', matchFn: (n) => /(?<![0-9a-zA-Z])(?:3[2-9]|4[0-9])(?:[.,]\d)?(?:["'""'']|\s(?!\d))/i.test(n) },
     { key: 'hz', label: '100Hz', value: '100hz', matchFn: (n) => /\b100\s*HZ\b|\b100HZ\b/i.test(n) },
     { key: 'hz', label: '144Hz', value: '144hz', matchFn: (n) => /\b144\s*HZ\b|\b144HZ\b/i.test(n) },
     { key: 'hz', label: '165Hz', value: '165hz', matchFn: (n) => /\b165\s*HZ\b|\b165HZ\b/i.test(n) },
