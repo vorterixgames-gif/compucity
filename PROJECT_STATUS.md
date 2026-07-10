@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-07-08 (sesión 51 dia 2 — filtros monitores/teclados-gamer/pendrives + editar items en pedidos + footer paulerostudio)
+**Ultima actualizacion:** 2026-07-10 (sesión 51 dia 3 — filtros de pulgadas en monitores + OG image con logo + sync manual Invid)
 
 ---
 
@@ -14,8 +14,8 @@
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
-- **Commit estable:** c446355 (feat: filtros monitores/teclados-gamer/pendrives + editar items en pedidos + footer paulerostudio s51 d2)
-- **Commit actual:** c446355
+- **Commit estable:** c3dbbd5 (fix: filtros de pulgadas en monitores arreglados + nuevos 20 y 25 s51 d3)
+- **Commit actual:** c3dbbd5
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 - **Sesiones totales:** 51
@@ -1005,6 +1005,7 @@ createdAt TEXT, updatedAt TEXT
 | 2026-06-30 | Codigo fuente completo (tar.gz) | 3.3 MB | compucity_src_backup_2026-06-30.tar.gz (sin node_modules/.next/.git) |
 | 2026-06-30 | DB Turso completa (JSON) post-migración GH Actions | 54 MB | compucity_turso_backup_2026-06-30T15-33-05-751Z.json (9750 filas, 7824 productos) |
 | 2026-07-07 | DB Turso completa (JSON) pre-fix s51 | 58 MB | compucity_turso_backup_2026-07-06T23-08-35-689Z.json (10,035 filas, 7,944 productos, 16 tablas) |
+| 2026-07-10 | DB Turso completa (JSON) post s51 d3 | 61 MB | compucity_turso_backup_2026-07-10T15-11-20-035Z.json (10,394 filas, 8,186 productos, 16 tablas) |
 
 ### Backups remotos (GoFile)
 | Fecha | Tipo | Tamano | URL |
@@ -1151,6 +1152,25 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-07-10 (s51 dia 3):** Filtros de pulgadas en monitores + OG image con logo + sync manual Invid. **Commits: 63aea93 (og-image regenerado limpio con degradé) + 1046524 (og-image en productos) + a4ff5bb (og-image-v2 para forzar re-cacheo WhatsApp) + c3dbbd5 (filtros pulgadas monitores).** **5 cambios en esta tanda:**
+
+  (1) **OG image del home regenerada con logo real** — Bug: la imagen OG anterior tenía texto "Compucity - Tu Mundo Digital" con tipografía genérica, sin el logo real. El dueño reportó: "no sale con nuestro logo" al compartir links por WhatsApp. Fix: regenerar `public/images/og-image.jpg` desde cero con Python/PIL: fondo degradé verde (#1A3E2E arriba → #3A8B68 abajo), logo real centrado (procesado: "COMPU" en blanco sobre fondo oscuro, "CITY" e ícono en verde claro aclarado, "TU MUNDO DIGITAL" en blanco). Sin ilustraciones tech. 1200x630 px, 35 KB. Validado con VLM. **Archivo:** `public/images/og-image.jpg`.
+
+  (2) **OG image en páginas de producto** — Bug: cuando se compartía un link de producto por WhatsApp, la preview mostraba SOLO la imagen del producto, sin el logo de Compucity. El dueño reportó: "el tema que me muestra el productos sin el logo de compucity". Fix (Opción B): en `src/app/(tienda)/producto/[slug]/page.tsx`, `generateMetadata` ahora siempre usa `og-image.jpg` como `og:image`, sin importar si el producto tiene imagen propia. La imagen del producto sigue usándose en: galería de la página del producto, JSON-LD (structured data para Google), ProductCards del storefront. Solo cambia el meta tag `og:image` / `twitter:image` de las páginas de producto.
+
+  (3) **og-image-v2.jpg para forzar re-cacheo de WhatsApp** — Bug: aunque la imagen `og-image.jpg` se actualizó correctamente (deploy confirmado), WhatsApp seguía mostrando la imagen vieja porque cachea las previews por hasta 30 días basándose en la URL. Facebook Debugger con "Scrape Again" no funcionó (reporte del dueño). Fix: cambiar el nombre del archivo de `og-image.jpg` → `og-image-v2.jpg`. Esto cambia la URL del meta tag `og:image`, lo que fuerza a WhatsApp y Facebook a hacer fetch fresco. **Archivos:** `public/images/og-image-v2.jpg` (nuevo, mismo contenido que og-image.jpg), `src/app/layout.tsx` (meta tag del home apunta a v2), `src/app/(tienda)/producto/[slug]/page.tsx` (meta tag de producto apunta a v2).
+
+  (4) **Filtros de pulgadas en monitores arreglados** — Bug: el filtro de 22" en `/categoria/monitores` devolvía 0 productos aunque había 13 monitores de 22" visibles. Causa raíz: la regex `/\b22[\s\"\-\.]\d/` requería un DÍGITO después del separador, pero los nombres reales son "Monitor 22 HP", "Monitor 22 Dell", etc. (número + espacio + letra). Fix: regex reescrita desde cero usando lookbehind `(?<![0-9a-zA-Z])` para no matchear "E20" (parte de modelo), `NN(?:[.,]\d)?` para decimales como "24.5", y `(?:comillas|espacio no seguido de dígito)` para matchear "22\"", "22 Plano", "22 HP" pero no "2254G". Comillas incluye recta `"` y tipográficas `"` `" `' '`. Agregados filtros nuevos 20" (3 productos) y 25" (8 productos). 22" ahora incluye 21.5" (se vende como 22). 24" ahora incluye 23.5-23.9" (se vende como 24). Validación: cobertura 125/135 (92.6%), sin overlaps. **Archivo:** `src/components/ui-custom/CategoryProducts.tsx`.
+
+  (5) **Diagnóstico parlante Genius SP-915BT de Invid** — Bug reportado: "el artículo Parlante Genius SP-915BT (código 0418205) del proveedor Invid tiene stock pero no lo trae la API". Diagnóstico: el producto NO existe en la DB. Causa raíz: el sync externo de Invid (`scripts/sync-invid-external.mjs` línea 262: `if (!dbData) continue`) NO crea productos nuevos, solo actualiza stock/precio de los existentes (mismo bug que Elit detectado en s51 d2). El producto sí existe bajo Air Intra con SKUs 214514-7 (4 variantes), todas con stock=0. El SKU 0418205 de Invid nunca se sincronizó. **Solución:** el dueño debe hacer sync manual desde `/admin/proveedores` cada 2-3 semanas para traer productos nuevos (el sync manual SÍ crea y categoriza productos). **No se modificó código** — decisión del dueño: no modificar el sync externo para crear productos nuevos automáticamente (riesgo de categorización incorrecta). Se le envió texto explicativo al dueño.
+
+  **Pendientes detectados en esta sesión (no resueltos):**
+  - Sync externo de Invid (igual que Elit) no crea productos nuevos. El dueño debe hacer sync manual cada 2-3 semanas.
+  - 2 productos con "Monitor19" y "Monitor22" sin espacio entre palabra y número no matchean filtros de pulgadas (edge cases raros, 2 productos de 135).
+  - AOC 31.5" no matchea filtro 32"+ (la regex requiere número entero 32-49). Se podría agregar 31.5" como excepción pero es solo 3 productos.
+  - LG 26" y LG 28" no tienen filtro específico (4 productos). Se podría agregar pero no son comunes.
+  - WhatsApp cachea previews hasta 30 días — Facebook Debugger no funcionó, se usó truco de cambiar nombre del archivo a og-image-v2.jpg.
+
 - **2026-07-08 (s51 dia 2):** Filtros monitores/teclados-gamer/pendrives + editar items en pedidos + footer paulerostudio. **Commit: c446355.** **6 cambios en esta tanda:**
 
   (1) **PC Armadas — sacar filtro de tipo** — Removidos los 5 filtros de tipo (Gamer, Oficina, Diseño, Mini PC, AIO) a pedido del dueño. Solo quedan marca, procesador, RAM, GPU. **Archivo:** `src/components/ui-custom/CategoryProducts.tsx`.
