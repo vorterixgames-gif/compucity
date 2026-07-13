@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-07-10 (sesión 51 dia 3 — filtros de pulgadas en monitores + OG image con logo + sync manual Invid)
+**Ultima actualizacion:** 2026-07-14 (sesión 51 dia 4 — página Garantía y Devoluciones + textos legales en PDFs + lista negra de productos eliminados)
 
 ---
 
@@ -14,8 +14,8 @@
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
-- **Commit estable:** c3dbbd5 (fix: filtros de pulgadas en monitores arreglados + nuevos 20 y 25 s51 d3)
-- **Commit actual:** c3dbbd5
+- **Commit estable:** 2ee22c5 (feat: lista negra de productos eliminados para que el sync no los recreé s51 d4)
+- **Commit actual:** 2ee22c5
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 - **Sesiones totales:** 51
@@ -1152,6 +1152,26 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-07-14 (s51 dia 4):** Página Garantía y Devoluciones + textos legales en PDFs + lista negra de productos eliminados. **Commits: 740bb3c (garantía + PDFs) + 2ee22c5 (lista negra).** **7 cambios en esta tanda:**
+
+  (1) **Página nueva /garantia-y-devoluciones** — Creada en `src/app/(tienda)/garantia-y-devoluciones/page.tsx`. Contenido completo de la política de garantía y devoluciones extraída del PDF del dueño y formateado en HTML con secciones claras: plazo para cambio (10 días), motivos válidos, cambio sin/con defectos, devolución (ley 24.240), política de garantía, 12 meses de garantía local (PCs ensambladas, hardware, conectividad, memorias/pendrives), ¿debo abonar el envío?, gestión pasados los 10 días, exclusiones, consideraciones (monitores LCD píxeles, gabinetes/kits, notebooks, tablets). 3 cards destacadas con números clave (10 días, 12 meses, 48h hábiles). CTA con botones Contacto y WhatsApp. Metadata SEO completa. Estilo consistente con el sitio.
+
+  (2) **Link en el footer** — Agregado "Garantía y Devoluciones" en la sección "Información" del footer, junto a Arma tu PC, Contacto, Mis Pedidos. **Archivo:** `src/components/layout/Footer.tsx`.
+
+  (3) **Aviso en el checkout** — Texto chiquito debajo del botón "Enviar pedido por WhatsApp": "Al confirmar tu compra aceptás nuestra Política de Garantía y Devoluciones" con link a la página nueva (abre en pestaña nueva). **Archivo:** `src/app/(tienda)/checkout/page.tsx`.
+
+  (4) **Textos legales en el PDF de Arma tu PC** — Agregados 4 bloques después de la nota de 96hs: (a) nota sobre variación de marcas por stock (gris itálica, texto completo del dueño), (b) "POLITICA DE GARANTIA Y DEVOLUCIONES" con link clickeable a la página nueva (verde), (c) "ANTES DE ABONAR CONSULTA POR DISPONIBILIDAD DE STOCK" (rojo), (d) "PRECIOS VALIDOS HASTA EL DD/MM/AAAA INCLUSIVE" — fecha calculada automáticamente (presupuesto + 7 días). Control de espacio con addPage() si no entra. **Archivo:** `src/app/(tienda)/arma-tu-pc/page.tsx`.
+
+  (5) **Textos legales en el PDF del carrito** — Mismos 4 bloques que el PDF de Arma tu PC, aplicados a `generateCartPDF`. **Archivo:** `src/lib/generate-cart-pdf.ts`.
+
+  (6) **Lista negra de productos eliminados** — Bug: cuando el admin elimina un producto desde `/admin/productos`, el sync manual lo vuelve a crear porque busca por `providerSku` y al no encontrarlo lo trata como producto nuevo. El dueño reportó: "elimino productos de la bd pero cuando vuelve a consultar la api los agrega de nuevo". Solución: tabla `deleted_products` (migración #28 en `db.ts`). Antes del DELETE físico, si el producto tiene `providerId` + `providerSku`, se inserta registro en `deleted_products`. Las 5 funciones de sync manual cargan la lista negra al inicio (`loadDeletedBlacklist`) y chequean antes de cada INSERT (8 INSERTs protegidos = 100% cobertura). El sync externo (GitHub Actions) no se modifica (ya sabemos que no crea productos nuevos). **Archivos:** `src/lib/db.ts` (migración #28), `src/app/api/admin/products/route.ts` (DELETE modificado), `src/app/api/admin/suppliers/sync/route.ts` (helper + 5 funciones + 8 INSERTs).
+
+  (7) **OG image con logo real + og-image-v2** — (aplicado en commits anteriores del día 3 pero documentado acá por continuidad). Imagen OG del home regenerada con Python/PIL: degradé verde (#1A3E2E → #3A8B68), logo real centrado ("COMPU" en blanco, "CITY" e ícono en verde claro, tagline en blanco). 1200x630px, 35KB. Páginas de producto cambiadas para usar `og-image-v2.jpg` (mismo logo) en vez de la imagen del producto. Renombrado a `og-image-v2.jpg` para forzar re-cacheo de WhatsApp (Facebook Debugger no funcionó). **Archivos:** `public/images/og-image-v2.jpg`, `src/app/layout.tsx`, `src/app/(tienda)/producto/[slug]/page.tsx`.
+
+  **Pendientes detectados en esta sesión (no resueltos):**
+  - No hay interfaz visual para ver/restaurar productos eliminados de la lista negra. Si el dueño se equivoca eliminando, se restaura a mano desde la DB.
+  - WhatsApp cachea previews hasta 30 días. El truco de cambiar nombre del archivo a `og-image-v2.jpg` debería funcionar para links nuevos.
+
 - **2026-07-10 (s51 dia 3):** Filtros de pulgadas en monitores + OG image con logo + sync manual Invid. **Commits: 63aea93 (og-image regenerado limpio con degradé) + 1046524 (og-image en productos) + a4ff5bb (og-image-v2 para forzar re-cacheo WhatsApp) + c3dbbd5 (filtros pulgadas monitores).** **5 cambios en esta tanda:**
 
   (1) **OG image del home regenerada con logo real** — Bug: la imagen OG anterior tenía texto "Compucity - Tu Mundo Digital" con tipografía genérica, sin el logo real. El dueño reportó: "no sale con nuestro logo" al compartir links por WhatsApp. Fix: regenerar `public/images/og-image.jpg` desde cero con Python/PIL: fondo degradé verde (#1A3E2E arriba → #3A8B68 abajo), logo real centrado (procesado: "COMPU" en blanco sobre fondo oscuro, "CITY" e ícono en verde claro aclarado, "TU MUNDO DIGITAL" en blanco). Sin ilustraciones tech. 1200x630 px, 35 KB. Validado con VLM. **Archivo:** `public/images/og-image.jpg`.
