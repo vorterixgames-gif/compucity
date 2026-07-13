@@ -223,6 +223,29 @@ const CATEGORY_KEYWORD_MAP: { keywords: string[]; categorySlug: string; name: st
 ]
 
 /**
+ * Sesión 51 d4: Cargar lista negra de productos eliminados por el admin.
+ * Retorna un Set con los providerSku de productos eliminados para este proveedor.
+ * El sync manual usa esto para NO volver a crear productos que el admin borró.
+ */
+async function loadDeletedBlacklist(supplierId: string): Promise<Set<string>> {
+  try {
+    const result = await db.execute({
+      sql: 'SELECT providerSku FROM deleted_products WHERE providerId = ?',
+      args: [supplierId],
+    })
+    const blacklist = new Set<string>()
+    for (const row of result.rows as any[]) {
+      if (row.providerSku) blacklist.add(String(row.providerSku))
+    }
+    return blacklist
+  } catch (e) {
+    // Si la tabla no existe todavía (pre-migración), retornar set vacío
+    console.warn('Could not load deleted blacklist:', e)
+    return new Set()
+  }
+}
+
+/**
  * Build a category lookup from the database.
  * Returns slug -> id map, name -> id map, and parent info for subcategory logic.
  */
@@ -1011,6 +1034,7 @@ export async function syncInvid(supplier: any): Promise<SyncResult> {
     // Build category lookups
     const { slugToId, idToParentId, parentSlugToChildSlugs } = await buildCategoryLookup()
     const supplierMappings = await buildSupplierMappingLookup(supplier.id)
+    const deletedBlacklist = await loadDeletedBlacklist(supplier.id)
 
     // Step 1: Authenticate
     const authRes = await fetch(`${baseUrl}/api/v1/auth.php`, {
@@ -1135,6 +1159,11 @@ export async function syncInvid(supplier: any): Promise<SyncResult> {
             })
             updated++
           } else {
+            // Sesión 51 d4: no crear productos que el admin eliminó (lista negra)
+            if (deletedBlacklist.has(providerSku)) {
+              skipped++
+              continue
+            }
             // Create new product (only if it has a name and price)
             if (!product.TITLE || price <= 0) {
               skipped++
@@ -1437,6 +1466,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
     // Build category lookups
     const { slugToId, idToParentId, parentSlugToChildSlugs } = await buildCategoryLookup()
     const supplierMappings = await buildSupplierMappingLookup(supplier.id)
+    const deletedBlacklist = await loadDeletedBlacklist(supplier.id)
 
     // Pre-load existing products for this supplier (in-memory lookup for speed)
     // This avoids a SELECT query per product during the upsert phase
@@ -1733,8 +1763,8 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
                 args: [costPrice, sellingPrice, totalStock, stockByWarehouseJson, supplierCategory, categoryId, airIntraIsActive, now, existingProduct.id],
               }).then(() => { updated++ }).catch((err) => { console.error('Error updating Air Intra product:', err); errors++ })
             )
-          } else if (productName && providerSku) {
-            // INSERT new product
+          } else if (productName && providerSku && !deletedBlacklist.has(providerSku)) {
+            // INSERT new product (sesión 51 d4: saltear si está en lista negra)
             const newId = crypto.randomUUID()
             const formattedName = formatProductName(productName)
             let slug = generateSlug(formattedName)
@@ -1903,8 +1933,8 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
                   args: [costPrice, sellingPrice, totalStock, stockByWarehouseJson, isActive, now, existingProduct.id],
                 }).then(() => { sypUpdated++ }).catch((err) => { console.error('Error updating syp product:', err); errors++ })
               )
-            } else {
-              // Insert new product from syp
+            } else if (!deletedBlacklist.has(providerSku)) {
+              // Insert new product from syp (sesión 51 d4: saltear si está en lista negra)
               const newId = crypto.randomUUID()
               const formattedName = formatProductName(productName)
               let slug = generateSlug(formattedName)
@@ -2091,7 +2121,7 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
           args: [costPrice, sellingPrice, totalStock, stockByWarehouseJson, supplierCategory, categoryId, isActive, now, existingProduct.id],
         })
         return { action: 'updated' }
-      } else {
+      } else if (!deletedBlacklist.has(providerSku)) {
         const newId = crypto.randomUUID()
         const formattedName = formatProductName(productName)
         let slug = generateSlug(formattedName)
@@ -2117,6 +2147,8 @@ async function syncAirIntra(supplier: any): Promise<SyncResult> {
         existingBySku[providerSku] = { id: newId, slug }
         logger.debug(`[Air Intra] Recovery: added "${formattedName}" (SKU: ${providerSku})`)
         return { action: 'created' }
+      } else {
+        return { action: 'skipped' }
       }
     }
 
@@ -2551,6 +2583,7 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
     // Build category lookups
     const { slugToId, idToParentId, parentSlugToChildSlugs } = await buildCategoryLookup()
     const supplierMappings = await buildSupplierMappingLookup(supplier.id)
+    const deletedBlacklist = await loadDeletedBlacklist(supplier.id)
     logTime('category lookups built')
 
     // Pre-load existing products for this supplier (fresh for each batch)
@@ -2938,8 +2971,8 @@ async function syncAirIntraBatch(supplier: any, batch: AirIntraBatchParams): Pro
                 args: [costPrice, sellingPrice, totalStock, stockByWarehouseJson, supplierCategory, categoryId, airIntraIsActive, now, existingProduct.id],
               }).then(() => { updated++ }).catch((err) => { console.error('Error updating Air Intra product:', err); errors++ })
             )
-          } else if (productName && providerSku) {
-            // INSERT new product
+          } else if (productName && providerSku && !deletedBlacklist.has(providerSku)) {
+            // INSERT new product (sesión 51 d4: saltear si está en lista negra)
             const newId = crypto.randomUUID()
             const formattedName = formatProductName(productName)
             let slug = generateSlug(formattedName)
@@ -3053,7 +3086,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
     // Build category lookups
     const { slugToId, idToParentId, parentSlugToChildSlugs } = await buildCategoryLookup()
     const supplierMappings = await buildSupplierMappingLookup(supplier.id)
-
+    const deletedBlacklist = await loadDeletedBlacklist(supplier.id)
     // Pre-load existing products for syp/recovery dedup
     logger.debug('[Air Intra Finalize] Pre-loading existing products from DB...')
     const existingProductsResult = await db.execute({
@@ -3177,7 +3210,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
                   args: [costPrice, sellingPrice, totalStock, stockByWarehouseJson, isActive, now, existingProduct.id],
                 }).then(() => { sypUpdated++ }).catch((err) => { console.error('Error updating syp product:', err); errors++ })
               )
-            } else {
+            } else if (!deletedBlacklist.has(providerSku)) {
               const newId = crypto.randomUUID()
               const formattedName = formatProductName(productName)
               let slug = generateSlug(formattedName)
@@ -3336,7 +3369,7 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
           args: [costPrice, sellingPrice, totalStock, stockByWarehouseJson, supplierCategory, categoryId, isActive, now, existingProduct.id],
         })
         return { action: 'updated' }
-      } else {
+      } else if (!deletedBlacklist.has(providerSku)) {
         const newId = crypto.randomUUID()
         const formattedName = formatProductName(productName)
         let slug = generateSlug(formattedName)
@@ -3361,6 +3394,8 @@ async function syncAirIntraFinalize(supplier: any, batch: AirIntraBatchParams): 
         })
         existingBySku[providerSku] = { id: newId, slug }
         return { action: 'created' }
+      } else {
+        return { action: 'skipped' }
       }
     }
 
@@ -3544,7 +3579,7 @@ export async function syncElit(supplier: any): Promise<SyncResult> {
     // Build category lookups
     const { slugToId, idToParentId, parentSlugToChildSlugs } = await buildCategoryLookup()
     const supplierMappings = await buildSupplierMappingLookup(supplier.id)
-
+    const deletedBlacklist = await loadDeletedBlacklist(supplier.id)
     const userId = parseInt(supplier.apiUserId || '0')
     const token = supplier.apiToken || ''
 
@@ -3633,6 +3668,11 @@ export async function syncElit(supplier: any): Promise<SyncResult> {
             })
             updated++
           } else {
+            // Sesión 51 d4: no crear productos que el admin eliminó (lista negra)
+            if (deletedBlacklist.has(providerSku)) {
+              skipped++
+              continue
+            }
             if (!product.nombre) {
               skipped++
               continue

@@ -764,6 +764,35 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'ID es requerido' }, { status: 400 })
     }
 
+    // Sesión 51 d4: antes de eliminar, guardar en lista negra (deleted_products)
+    // para que el sync manual no vuelva a crear el producto.
+    // Solo aplica si el producto tiene providerId + providerSku (viene de un proveedor).
+    try {
+      const product = await db.execute({
+        sql: 'SELECT id, name, providerId, providerSku FROM products WHERE id = ?',
+        args: [id],
+      })
+      const pData = (product.rows as any[])[0]
+      if (pData && pData.providerId && pData.providerSku) {
+        await db.execute({
+          sql: `INSERT INTO deleted_products (id, providerId, providerSku, productId, name, deletedAt)
+                VALUES (?, ?, ?, ?, ?, ?)`,
+          args: [
+            crypto.randomUUID(),
+            pData.providerId,
+            pData.providerSku,
+            pData.id,
+            pData.name,
+            new Date().toISOString(),
+          ],
+        })
+      }
+    } catch (e) {
+      // Si falla el insert en deleted_products, no frenamos el DELETE.
+      // Mejor borrar y que vuelva a aparecer que no borrar nada.
+      console.error('Could not insert into deleted_products:', e)
+    }
+
     await db.execute({
       sql: 'DELETE FROM products WHERE id = ?',
       args: [id],

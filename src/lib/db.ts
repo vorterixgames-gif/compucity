@@ -493,4 +493,35 @@ export async function ensureMigrations() {
       console.warn('[migration] Could not add internalTaxRate column:', e)
     }
   }
+
+  // 28. Create deleted_products table (sesión 51 d4)
+  // Lista negra de productos eliminados por el admin para que el sync manual
+  // no los vuelva a crear. Cuando el admin elimina un producto, antes del
+  // DELETE físico se inserta un registro acá con providerId + providerSku.
+  // El sync manual carga esta lista al inicio y saltea los productos que
+  // están en la lista negra.
+  try {
+    await db.execute({ sql: 'SELECT id FROM deleted_products LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({
+        sql: `CREATE TABLE IF NOT EXISTS deleted_products (
+          id TEXT PRIMARY KEY,
+          providerId TEXT,
+          providerSku TEXT,
+          productId TEXT,
+          name TEXT,
+          deletedAt TEXT DEFAULT (datetime('now'))
+        )`,
+        args: [],
+      })
+      await db.execute({
+        sql: 'CREATE INDEX IF NOT EXISTS idx_deleted_products_provider_sku ON deleted_products(providerId, providerSku)',
+        args: [],
+      })
+      console.log('[migration] Created deleted_products table')
+    } catch (e) {
+      console.warn('[migration] Could not create deleted_products table:', e)
+    }
+  }
 }
