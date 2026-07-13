@@ -778,6 +778,13 @@ export default function CheckoutPage() {
                   {sending ? 'Guardando pedido...' : 'Enviar pedido por WhatsApp'}
                 </button>
               </div>
+              {/* Sesión 51 d4: aviso de política de garantía y devoluciones */}
+              <p className="mt-3 text-xs text-gray-500 text-center">
+                Al confirmar tu compra aceptás nuestra{' '}
+                <Link href="/garantia-y-devoluciones" className="text-compucity-green hover:underline" target="_blank">
+                  Política de Garantía y Devoluciones
+                </Link>
+              </p>
               {orderError && (
                 <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
                   <p className="text-sm text-red-700">{orderError}</p>

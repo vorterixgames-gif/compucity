@@ -102,6 +102,7 @@ export default function Footer() {
               <li><Link href="/arma-tu-pc" prefetch={false} className="text-sm text-gray-400 hover:text-compucity-green transition">Arma tu PC</Link></li>
               <li><Link href="/contacto" prefetch={false} className="text-sm text-gray-400 hover:text-compucity-green transition">Contacto</Link></li>
               <li><Link href="/mis-pedidos" prefetch={false} className="text-sm text-gray-400 hover:text-compucity-green transition">Mis Pedidos</Link></li>
+              <li><Link href="/garantia-y-devoluciones" prefetch={false} className="text-sm text-gray-400 hover:text-compucity-green transition">Garantía y Devoluciones</Link></li>
             </ul>
           </div>
 

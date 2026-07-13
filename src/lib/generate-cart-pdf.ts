@@ -157,6 +157,51 @@ export function generateCartPDF(items: CartPdfItem[], subtotal: number, couponCo
     y += 18
   }
 
+  // Sesión 51 d4: textos legales adicionales (cambios de marca, stock, validez de precios, garantía)
+  if (y > 220) {
+    doc.addPage()
+    y = 20
+  }
+
+  // 1. Nota sobre variación de marcas por stock
+  doc.setFontSize(7)
+  doc.setFont('helvetica', 'italic')
+  doc.setTextColor(100, 100, 100)
+  const marcasText = 'LAS MARCAS DE LOS COMPONENTES UTILIZADOS PUEDEN VARIAR DE ACUERDO A LA DISPONIBILIDAD DE STOCK EN LOS PROVEEDORES, SIN PERJUICIO DE LAS PRESTACIONES DE LOS PRESUPUESTADOS Y VALORES DE LOS MISMOS. EN CASO DE CAMBIO NECESARIO POR FALTA DE STOCK Y VARIACIÓN EN LAS PRESTACIONES DE LOS DISPONIBLES, COMPUCITY SE COMUNICARÁ PARA INFORMAR DEL HECHO Y SOLICITAR CONFORMIDAD DEL CAMBIO Y VARIACIONES EN EL PRECIO.'
+  const marcasLines = doc.splitTextToSize(marcasText, pageWidth - margin * 2)
+  doc.text(marcasLines, margin, y)
+  y += marcasLines.length * 3.5 + 4
+
+  // 2. Link a política de garantía y devoluciones
+  if (y > 280) { doc.addPage(); y = 20 }
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(58, 139, 104)
+  doc.text('POLITICA DE GARANTIA Y DEVOLUCIONES', margin, y)
+  y += 4
+  doc.setFont('helvetica', 'normal')
+  doc.setTextColor(80, 80, 80)
+  doc.textWithLink('https://www.compucityonline.com.ar/garantia-y-devoluciones', margin, y, {
+    url: 'https://www.compucityonline.com.ar/garantia-y-devoluciones'
+  })
+  y += 8
+
+  // 3. Antes de abonar consultar stock
+  if (y > 285) { doc.addPage(); y = 20 }
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(180, 60, 60)
+  doc.text('ANTES DE ABONAR CONSULTA POR DISPONIBILIDAD DE STOCK', margin, y)
+  y += 7
+
+  // 4. Validez de precios (7 días desde la fecha del presupuesto)
+  if (y > 285) { doc.addPage(); y = 20 }
+  const validezFecha = new Date()
+  validezFecha.setDate(validezFecha.getDate() + 7)
+  const validezStr = validezFecha.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(30, 30, 30)
+  doc.text(`PRECIOS VALIDOS HASTA EL ${validezStr} INCLUSIVE`, margin, y)
+  y += 8
+
   // Footer on every page
   const totalPages = doc.getNumberOfPages()
   for (let i = 1; i <= totalPages; i++) {
