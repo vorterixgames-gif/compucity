@@ -87,6 +87,26 @@ async function tursoBatch(statements) {
 }
 
 // ============================================
+// Lista negra de productos eliminados (sesión 52)
+// ============================================
+async function loadDeletedBlacklist(supplierId) {
+  try {
+    const result = await tursoExecute(
+      `SELECT providerSku FROM deleted_products WHERE providerId = '${supplierId}'`
+    )
+    const blacklist = new Set()
+    for (const row of result.rows) {
+      if (row.providerSku) blacklist.add(String(row.providerSku))
+    }
+    console.log(`  ✓ Lista negra: ${blacklist.size} productos eliminados para ${supplierId}`)
+    return blacklist
+  } catch (e) {
+    console.warn('  ⚠ Could not load deleted blacklist:', e.message)
+    return new Set()
+  }
+}
+
+// ============================================
 // Función principal
 // ============================================
 async function main() {
@@ -105,6 +125,10 @@ async function main() {
     console.error('✗ ELIT_USER_ID o ELIT_TOKEN no configurados')
     process.exit(1)
   }
+
+  // ─── 1b. Cargar lista negra de productos eliminados (sesión 52) ───
+  console.log('▸ Cargando lista negra de productos eliminados...')
+  const deletedBlacklist = await loadDeletedBlacklist(ELIT_SUPPLIER_ID)
 
   // ─── 1. Cargar productos Elit existentes en DB ───
   console.log('▸ Cargando productos Elit desde DB...')
@@ -210,7 +234,12 @@ async function main() {
 
   for (const [sku, apiData] of apiProducts) {
     const dbData = dbMap.get(sku)
-    if (!dbData) continue // producto nuevo — no se crea acá, solo en sync manual
+    if (!dbData) {
+      // Producto nuevo — no se crea acá, solo en sync manual.
+      // Sesión 52: log si está en la lista negra (para auditoría)
+      if (deletedBlacklist.has(sku)) console.log(`  ⛔ SKU ${sku} en lista negra, no se crearía`)
+      continue
+    }
 
     const stockChanged = apiData.stock !== Number(dbData.stock)
     const priceChanged = Math.abs(apiData.price - Number(dbData.price)) > 1

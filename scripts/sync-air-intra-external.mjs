@@ -309,6 +309,30 @@ async function tursoExecute(sql) {
   return { rows, cols }
 }
 
+// ============================================
+// Lista negra de productos eliminados (sesión 52)
+// ============================================
+// Carga los providerSku de productos que el admin eliminó manualmente
+// para que el sync de GitHub Actions no los vuelva a crear.
+// Consistente con loadDeletedBlacklist() en suppliers/sync/route.ts.
+async function loadDeletedBlacklist(supplierId) {
+  try {
+    const result = await tursoExecute(
+      `SELECT providerSku FROM deleted_products WHERE providerId = '${supplierId}'`
+    )
+    const blacklist = new Set()
+    for (const row of result.rows) {
+      if (row.providerSku) blacklist.add(String(row.providerSku))
+    }
+    console.log(`  ✓ Lista negra: ${blacklist.size} productos eliminados para ${supplierId}`)
+    return blacklist
+  } catch (e) {
+    // Si la tabla no existe todavía (pre-migración), retornar set vacío
+    console.warn('  ⚠ Could not load deleted blacklist:', e.message)
+    return new Set()
+  }
+}
+
 async function tursoBatch(statements) {
   // Turso pipeline soporta múltiples statements en 1 request
   const body = JSON.stringify({
@@ -475,8 +499,9 @@ async function main() {
 
   // ─── 2. Cargar productos existentes de Turso ───
   console.log('▸ Cargando productos existentes de Turso...')
+  const SUPPLIER_ID = 'air-intra-1780331633566'
   const existingResult = await tursoExecute(
-    "SELECT id, providerSku, costPrice, stock, price FROM products WHERE providerId = 'air-intra-1780331633566'"
+    `SELECT id, providerSku, costPrice, stock, price, categoryId FROM products WHERE providerId = '${SUPPLIER_ID}'`
   )
   const existingBySku = new Map()
   for (const row of existingResult.rows) {
@@ -484,15 +509,19 @@ async function main() {
   }
   console.log(`  ✓ ${existingBySku.size} productos existentes en DB`)
 
+  // ─── 2b. Cargar lista negra de productos eliminados (sesión 52) ───
+  console.log('▸ Cargando lista negra de productos eliminados...')
+  const deletedBlacklist = await loadDeletedBlacklist(SUPPLIER_ID)
+
   // ─── 3. Recorrer TODAS las páginas de Air Intra ───
   console.log('▸ Sincronizando productos...')
-  const SUPPLIER_ID = 'air-intra-1780331633566'
-  const SUPPLIER_MARKUP = 30
+  const SUPPLIER_MARKUP = 30  // ya definido SUPPLIER_ID arriba
   let totalFetched = 0
   let created = 0
   let updated = 0
   let skipped = 0
   let filteredByRubro = 0
+  let blacklisted = 0
   let errors = 0
   let allApiSkus = new Set()
 
@@ -668,6 +697,12 @@ async function main() {
           updated++
         }
       } else {
+        // Sesión 52: no crear productos que el admin eliminó (lista negra)
+        if (deletedBlacklist.has(providerSku)) {
+          blacklisted++
+          continue
+        }
+
         // INSERT (simplified — sin category mapping, se hace después desde el admin)
         const newId = crypto.randomUUID()
         const escapedName = productName.replace(/'/g, "''")
@@ -718,6 +753,7 @@ async function main() {
   console.log(`  Actualizados: ${updated}`)
   console.log(`  Saltados: ${skipped}`)
   console.log(`  Filtrados por rubro: ${filteredByRubro}`)
+  console.log(`  Bloqueados por lista negra: ${blacklisted}`)
   console.log(`  Errores: ${errors}`)
   console.log(`  Cotización Air Intra: $${exchangeRate}`)
   console.log('═'.repeat(70))

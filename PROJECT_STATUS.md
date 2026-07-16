@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-07-14 (sesión 51 dia 4 — página Garantía y Devoluciones + textos legales en PDFs + lista negra de productos eliminados)
+**Ultima actualizacion:** 2026-07-16 (sesión 52 — fix lista negra en scripts externos GitHub Actions)
 
 ---
 
@@ -1152,6 +1152,16 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-07-16 (s52):** Fix lista negra en scripts externos de GitHub Actions. **Commit: pendiente.** La lista negra de productos eliminados (tabla `deleted_products`, implementada en s51 d4) solo funcionaba en el sync manual (`suppliers/sync/route.ts`). Los 3 scripts externos que corren en GitHub Actions NO consultaban la lista negra, por lo que podían volver a crear productos que el admin había eliminado. Fix aplicado:
+
+  (1) **sync-air-intra-external.mjs** — Agregada función `loadDeletedBlacklist(supplierId)` que consulta `deleted_products` al inicio. Antes de cada INSERT de producto nuevo, verifica `deletedBlacklist.has(providerSku)` y lo saltea si está en la lista. Nuevo contador `blacklisted` en el resumen final. También se agregó `categoryId` al SELECT de productos existentes (ya se usaba en el UPDATE pero no se cargaba).
+
+  (2) **sync-elit-external.mjs** — Agregada `loadDeletedBlacklist()`. Hoy Elit solo hace UPDATE de productos existentes (no crea nuevos), pero se agregó logging de auditoría: si un SKU de la API está en la lista negra y no existe en la DB, se loguea `⛔ SKU xxx en lista negra, no se crearía`. Prevención para si en el futuro Elit empieza a crear productos.
+
+  (3) **sync-invid-external.mjs** — Idem Elit: `loadDeletedBlacklist()` + logging de auditoría. Mismo razonamiento preventivo.
+
+  **Nota:** El script de Air Intra es el único que realmente necesita el bloqueo porque es el único que hace INSERT de productos nuevos. Elit e Invid solo actualizan existentes, pero la protección queda por si cambian en el futuro.
+
 - **2026-07-14 (s51 dia 4):** Página Garantía y Devoluciones + textos legales en PDFs + lista negra de productos eliminados. **Commits: 740bb3c (garantía + PDFs) + 2ee22c5 (lista negra).** **7 cambios en esta tanda:**
 
   (1) **Página nueva /garantia-y-devoluciones** — Creada en `src/app/(tienda)/garantia-y-devoluciones/page.tsx`. Contenido completo de la política de garantía y devoluciones extraída del PDF del dueño y formateado en HTML con secciones claras: plazo para cambio (10 días), motivos válidos, cambio sin/con defectos, devolución (ley 24.240), política de garantía, 12 meses de garantía local (PCs ensambladas, hardware, conectividad, memorias/pendrives), ¿debo abonar el envío?, gestión pasados los 10 días, exclusiones, consideraciones (monitores LCD píxeles, gabinetes/kits, notebooks, tablets). 3 cards destacadas con números clave (10 días, 12 meses, 48h hábiles). CTA con botones Contacto y WhatsApp. Metadata SEO completa. Estilo consistente con el sitio.
