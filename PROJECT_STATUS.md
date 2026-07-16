@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-07-16 (sesión 52 — fix lista negra en scripts externos GitHub Actions)
+**Ultima actualizacion:** 2026-07-16 (sesión 53 — 138 productos de servidor pasados a lista negra)
 
 ---
 
@@ -18,7 +18,7 @@
 - **Commit actual:** 2ee22c5
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 51
+- **Sesiones totales:** 53
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1152,6 +1152,8 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-07-16 (s53):** 138 productos de servidor pasados a lista negra. La tabla `deleted_products` NO existía en la DB de producción (la migración #28 de `db.ts` nunca se ejecutó contra Turso). Se creó manualmente con `CREATE TABLE IF NOT EXISTS deleted_products (id TEXT PRIMARY KEY, providerId TEXT NOT NULL, providerSku TEXT NOT NULL, productId TEXT, name TEXT, deletedAt TEXT NOT NULL)`. Luego se insertaron 138 registros y se eliminaron de `products`. Productos eliminados: Dell PowerEdge (R570, R660XS, R440, R450, T160, T550), HPE ProLiant (DL145, DL320, DL345, DL360, DL380, ML110, ML350), HPE Synergy (12000 Frame, Composer2, Link Module), HPE Alletra 6000, Dell PowerVault/PowerStore/ME storage, HPE 3PAR, Dell networking óptica, HPE MSL LTO tape, controladoras HPE MR, risers/heatsinks/fans para servidores, Lenovo/Intel server risers/backplanes. DB: 8452 → 8314 productos (-138). Ningún producto de consumo afectado (notebooks Dell, monitores, workstations, NAS verificados intactos). Los scripts de GitHub Actions ya tenían `loadDeletedBlacklist()` del fix de s52, así que los SKUs no serán recreados.
+
 - **2026-07-16 (s52):** Fix lista negra en scripts externos de GitHub Actions. **Commit: pendiente.** La lista negra de productos eliminados (tabla `deleted_products`, implementada en s51 d4) solo funcionaba en el sync manual (`suppliers/sync/route.ts`). Los 3 scripts externos que corren en GitHub Actions NO consultaban la lista negra, por lo que podían volver a crear productos que el admin había eliminado. Fix aplicado:
 
   (1) **sync-air-intra-external.mjs** — Agregada función `loadDeletedBlacklist(supplierId)` que consulta `deleted_products` al inicio. Antes de cada INSERT de producto nuevo, verifica `deletedBlacklist.has(providerSku)` y lo saltea si está en la lista. Nuevo contador `blacklisted` en el resumen final. También se agregó `categoryId` al SELECT de productos existentes (ya se usaba en el UPDATE pero no se cargaba).
