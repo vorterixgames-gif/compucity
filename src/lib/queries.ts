@@ -435,41 +435,34 @@ export const getProductBySlug = unstable_cache(
 // el LIKE con % hace que el cache sea inútil (casi nunca se repite).
 // Se mantiene el revalidate del endpoint /api/search.
 export async function searchProducts(query: string, limit = 20): Promise<Product[]> {
-  // Sesión 51: fix bug de search Redragon/Samsung.
-  // ANTES (s49): intentaba primero LIKE 'query%' (prefijo) y solo si no había
-  // resultados hacía LIKE '%query%' como fallback. El bug: SQLite/Turso es
-  // case-insensitive, así que 'redragon%' encontraba los 3 productos que
-  // EMPIEZAN con "REDRAGON" y al haber >0 resultados NUNCA ejecutaba el
-  // fallback. Resultado: el usuario veía solo 3 de 26 productos Redragon
-  // y solo 2 de 27 Samsung.
+  // Sesión 55: eliminado LEFT JOIN brands + OR b.name LIKE.
+  // Ese JOIN causaba nested loop scan ~8300×112 = timeout 30s+ para términos
+  // populares como "notebook" o "redragon". El mismo fix que se aplicó en
+  // /api/search/route.ts (sesión 54).
   //
-  // AHORA: una sola query con LIKE '%query%' (siempre encuentra todos los
-  // matches, sin importar la posición). Además busca por nombre de marca
-  // (JOIN con brands) para cubrir el caso en que el usuario busque por marca
-  // y el nombre del producto no la contenga explícitamente.
+  // Justificación: casi todos los productos tienen la marca en el nombre
+  // (ej: "MOUSE REDRAGON M61", "NOTEBOOK SAMSUNG..."), así que LIKE '%term%'
+  // en p.name ya encuentra la mayoría de los resultados por marca.
+  // La única pérdida son productos cuyo nombre NO incluye la marca — caso raro.
   //
-  // Nota: el LIKE con % al inicio no usa índice en SQLite/Turso, así que
-  // siempre es un full scan. Con ~8K productos y un índice en isActive+stock
-  // la query igual es rápida (<200ms medido). Si en el futuro crece mucho
-  // conviene migrar a FTS5.
+  // Sin ORDER BY, SQLite puede hacer early termination con LIMIT → más rápido.
+  // Para la página completa de resultados (limit=200) sí queremos orden,
+  // así que lo aplicamos en memoria después del dedup (ver abajo).
   const searchTerm = `%${query}%`
 
-  // Columnas necesarias para la UI de sugerencias y cálculo de precios
   const selectCols = `p.id, p.name, p.slug, p.price, p.comparePrice, p.costPrice, p.images,
                       p.categoryId, p.brandId, p.isActive, p.stock, p.markup, p.cashDiscount, p.ivaRate,
-                      p.internalTaxRate, p.salePrice, p.saleStart, p.saleEnd, p.sku, p.providerId`
+                      p.internalTaxRate, p.salePrice, p.saleStart, p.saleEnd, p.sku, p.providerId,
+                      p.isFeatured, p.createdAt, p.updatedAt, p.tags`
 
   let result
   try {
     result = await db.execute({
       sql: `SELECT ${selectCols} FROM products p
-            LEFT JOIN brands b ON p.brandId = b.id
             WHERE p.isActive = 1 AND p.stock > 0
-              AND (p.name LIKE ? OR p.sku LIKE ? OR b.name LIKE ?)
-            ORDER BY CASE WHEN p.images IS NOT NULL AND p.images != '[]' THEN 0 ELSE 1 END,
-                     COALESCE(p.createdAt, p.updatedAt) DESC
+              AND (p.name LIKE ? OR p.sku LIKE ?)
             LIMIT ?`,
-      args: [searchTerm, searchTerm, searchTerm, limit],
+      args: [searchTerm, searchTerm, limit],
     })
   } catch (error) {
     console.error('searchProducts DB error:', error)
@@ -486,10 +479,20 @@ export async function searchProducts(query: string, limit = 20): Promise<Product
     getCategoryMarkupMap(),
   ])
 
-  const mapped4 = (result.rows as any[]).map(p =>
-    calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
-  ) as Product[]
-  return enrichWithBrandInfo(deduplicateProducts(mapped4))
+  const mapped4 = (result.rows as any[]).map(p => {
+    const calculated = calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
+    return { ...calculated, tags: p.tags ? JSON.parse(p.tags) : [] }
+  }) as Product[]
+
+  // Ordenar en memoria: primero los que tienen imagen, luego por fecha
+  const sorted = deduplicateProducts(mapped4).sort((a, b) => {
+    const aHasImg = a.images && a.images !== '[]' ? 0 : 1
+    const bHasImg = b.images && b.images !== '[]' ? 0 : 1
+    if (aHasImg !== bHasImg) return aHasImg - bHasImg
+    return new Date(b.createdAt || b.updatedAt || 0).getTime() - new Date(a.createdAt || a.updatedAt || 0).getTime()
+  })
+
+  return enrichWithBrandInfo(sorted)
 }
 
 async function _getTopProductsByCategorySlugRaw(slug: string, limit: number): Promise<Product[]> {

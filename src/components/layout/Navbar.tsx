@@ -34,9 +34,10 @@ interface SearchResult {
 // Búsqueda client-side: índice liviano cargado una vez por hora
 interface SearchIndexItem {
   id: string
-  n: string  // name
-  s: string  // slug
-  p: number  // price (calculated)
+  n: string         // name
+  s: string         // slug
+  p: number         // price (calculated)
+  i: string | null  // image (primera imagen para miniatura)
 }
 
 interface NavbarProps {
@@ -285,7 +286,7 @@ export default function Navbar() {
             slug: p.s,
             price: p.p,
             comparePrice: null,
-            images: [],
+            images: p.i ? [p.i] : [],
           }))
         setSearchResults(matches)
         setSearchDropdownOpen(true)

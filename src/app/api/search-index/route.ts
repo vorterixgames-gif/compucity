@@ -39,11 +39,21 @@ export async function GET() {
         : calculated.comparePrice && calculated.comparePrice < (calculated.price ?? 0)
           ? calculated.comparePrice
           : calculated.price
+      // Extraer la primera imagen para la miniatura del dropdown
+      let firstImage: string | null = null
+      if (calculated.images) {
+        try {
+          const imgs = JSON.parse(calculated.images)
+          if (Array.isArray(imgs) && imgs.length > 0) firstImage = imgs[0]
+        } catch {}
+      }
+
       return {
         id: calculated.id,
         n: calculated.name,           // n = name
         s: calculated.slug,           // s = slug
         p: effectivePrice,            // p = price (ya calculado)
+        i: firstImage,                // i = image (primera imagen para miniatura)
       }
     })
 
