@@ -470,6 +470,7 @@ export async function ensureMigrations() {
     'CREATE INDEX IF NOT EXISTS idx_products_slug ON products(slug)',
     'CREATE INDEX IF NOT EXISTS idx_products_providerId ON products(providerId)',
     'CREATE INDEX IF NOT EXISTS idx_products_isActive_stock ON products(isActive, stock)',
+    'CREATE INDEX IF NOT EXISTS idx_products_brandId ON products(brandId)',
     'CREATE INDEX IF NOT EXISTS idx_categories_parentId ON categories(parentId)',
   ]
   for (const idxSql of perfIndexes) {
