@@ -31,6 +31,15 @@ interface SearchResult {
   images: string[]
 }
 
+// Búsqueda client-side: índice liviano cargado una vez por hora
+interface SearchIndexItem {
+  id: string
+  n: string  // name
+  s: string  // slug
+  p: number  // price (calculated)
+  i: string  // first image
+}
+
 interface NavbarProps {
   categories: Category[]
 }
@@ -116,6 +125,10 @@ export default function Navbar() {
   const [searchLoading, setSearchLoading] = useState(false)
   const searchContainerRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Client-side search index — cargado una vez, cacheado en sessionStorage 1h
+  const searchIndexRef = useRef<SearchIndexItem[] | null>(null)
+  const searchIndexLoadingRef = useRef(false)
 
   useEffect(() => {
     if (lastAdded && lastAdded !== prevLastAdded.current) {
@@ -214,7 +227,43 @@ export default function Navbar() {
   }, [])
   // Eliminado el useEffect que hacía fetch a /api/brands
 
-  // Search autocomplete - debounced fetch
+  // Cargar índice de búsqueda client-side (una vez, cacheado en sessionStorage 1h)
+  const loadSearchIndex = useCallback(async () => {
+    if (searchIndexRef.current) return searchIndexRef.current
+    if (searchIndexLoadingRef.current) return null
+    searchIndexLoadingRef.current = true
+
+    try {
+      // Intentar sessionStorage cache primero
+      try {
+        const cached = sessionStorage.getItem('cc_search_idx')
+        if (cached) {
+          const d = JSON.parse(cached)
+          if (d.products && d.products.length > 0 && (Date.now() - d.cachedAt < 3600000)) {
+            searchIndexRef.current = d.products
+            return d.products
+          }
+        }
+      } catch {}
+
+      // Fetch fresco
+      const res = await fetch('/api/search-index')
+      const data = await res.json()
+      if (data.ok && data.products && data.products.length > 0) {
+        searchIndexRef.current = data.products
+        // Guardar en sessionStorage con TTL 1h
+        try { sessionStorage.setItem('cc_search_idx', JSON.stringify({ products: data.products, cachedAt: Date.now() })) } catch {}
+        return data.products
+      }
+    } catch (error) {
+      console.error('Error loading search index:', error)
+    } finally {
+      searchIndexLoadingRef.current = false
+    }
+    return null
+  }, [])
+
+  // Search autocomplete — client-side con fallback a /api/search
   const performSearch = useCallback(async (query: string) => {
     if (query.trim().length < 2) {
       setSearchResults([])
@@ -222,7 +271,30 @@ export default function Navbar() {
       return
     }
     setSearchLoading(true)
+
     try {
+      // INTENTO 1: búsqueda client-side (instantánea)
+      const index = await loadSearchIndex()
+      if (index && index.length > 0) {
+        const q = query.trim().toLowerCase()
+        const matches = index
+          .filter(p => p.n.toLowerCase().includes(q))
+          .slice(0, 6)
+          .map(p => ({
+            id: p.id,
+            name: p.n,
+            slug: p.s,
+            price: p.p,
+            comparePrice: null,
+            images: p.i ? [p.i] : [],
+          }))
+        setSearchResults(matches)
+        setSearchDropdownOpen(true)
+        setSearchLoading(false)
+        return
+      }
+
+      // INTENTO 2: fallback a /api/search (si el índice no cargó)
       const res = await fetch(`/api/search?q=${encodeURIComponent(query.trim())}`)
       const data = await res.json()
       if (data.ok) {
@@ -234,7 +306,7 @@ export default function Navbar() {
     } finally {
       setSearchLoading(false)
     }
-  }, [])
+  }, [loadSearchIndex])
 
   const handleSearchInputChange = (value: string) => {
     setSearchQuery(value)
