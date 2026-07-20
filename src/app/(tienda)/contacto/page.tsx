@@ -67,13 +67,19 @@ export default function ContactoPage() {
           </a>
         </div>
 
-        {/* Map placeholder */}
-        <div className="bg-gray-100 rounded-lg flex items-center justify-center min-h-[300px] border">
-          <div className="text-center text-gray-400">
-            <MapPin className="h-12 w-12 mx-auto mb-2" />
-            <p className="text-sm">Google Maps</p>
-            <p className="text-xs">Av. Sarmiento 462 - La Falda, Córdoba</p>
-          </div>
+        {/* Google Maps */}
+        <div className="rounded-lg overflow-hidden border min-h-[300px]">
+          <iframe
+            src="https://www.google.com/maps?q=Compucity+Av+Sarmiento+462+La+Falda+Cordoba+Argentina&output=embed"
+            width="100%"
+            height="300"
+            style={{ border: 0 }}
+            allowFullScreen
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            title="Ubicación de Compucity en Google Maps"
+            className="w-full min-h-[300px]"
+          />
         </div>
       </div>
     </div>
