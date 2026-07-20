@@ -41,10 +41,9 @@ export async function GET() {
           : calculated.price
       return {
         id: calculated.id,
-        n: calculated.name,           // n = name (abreviado para reducir tamaño)
+        n: calculated.name,           // n = name
         s: calculated.slug,           // s = slug
         p: effectivePrice,            // p = price (ya calculado)
-        i: calculated.images ? (() => { try { const imgs = JSON.parse(calculated.images); return imgs[0] || '' } catch { return '' } })() : '', // i = primera imagen
       }
     })
 

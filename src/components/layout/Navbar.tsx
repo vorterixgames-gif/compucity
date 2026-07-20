@@ -37,7 +37,6 @@ interface SearchIndexItem {
   n: string  // name
   s: string  // slug
   p: number  // price (calculated)
-  i: string  // first image
 }
 
 interface NavbarProps {
@@ -286,7 +285,7 @@ export default function Navbar() {
             slug: p.s,
             price: p.p,
             comparePrice: null,
-            images: p.i ? [p.i] : [],
+            images: [],
           }))
         setSearchResults(matches)
         setSearchDropdownOpen(true)
