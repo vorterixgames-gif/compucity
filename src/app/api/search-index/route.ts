@@ -5,8 +5,9 @@ import { getCategoryMarkupMap } from '@/lib/queries'
 
 // Search index: JSON con todos los productos activos para búsqueda client-side.
 // Los precios ya vienen calculados — el cliente solo filtra por nombre y muestra.
-// Cacheado 1 hora en CDN. Tamaño estimado: ~300KB sin comprimir, ~80KB gzipped.
-export const revalidate = 3600 // 1 hora
+// Cacheado 1 hora en CDN via Cache-Control headers.
+// Tamaño estimado: ~300KB sin comprimir, ~80KB gzipped para ~5000 productos.
+export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
