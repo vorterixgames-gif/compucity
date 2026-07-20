@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-07-16 (sesión 53 — 138 productos de servidor pasados a lista negra)
+**Ultima actualizacion:** 2026-07-21 (sesión 55 — performance search + admin + Google Maps contacto)
 
 ---
 
@@ -14,11 +14,11 @@
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
-- **Commit estable:** 2ee22c5 (feat: lista negra de productos eliminados para que el sync no los recreé s51 d4)
-- **Commit actual:** 2ee22c5
+- **Commit estable:** c942cd7 (feat: add Google Maps embed to contact page)
+- **Commit actual:** c942cd7
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 53
+- **Sesiones totales:** 55
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1152,6 +1152,8 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-07-21 (s55):** Performance de búsqueda + admin + Google Maps en contacto. **3 commits: 3f4cfc8, 6f08b2b, c942cd7.** (1) **Fix búsqueda lenta en /categoria/todos:** `searchProducts()` en `queries.ts` tenía `LEFT JOIN brands` + `OR b.name LIKE` que causaba nested loop scan (~8300×112 filas = timeout). Eliminado el JOIN y el OR, ORDER BY movido a memoria (SQLite puede hacer early termination con LIMIT cuando no hay ORDER BY). Sort en memoria después de dedup: productos con imagen primero, luego por fecha. (2) **Miniaturas en barra de búsqueda:** El endpoint `/api/search-index` no incluía imágenes. Agregado campo `i: firstImage` (primera imagen del producto extraída de `JSON.parse(calculated.images)`). En `Navbar.tsx`, mapeado `p.i` a `images: p.i ? [p.i] : []` para mostrar miniaturas en el dropdown de autocomplete. Tamaño del índice: ~150KB gzipped (sin imágenes base64, solo URLs). (3) **Admin lento — 3 causas raíz:** (a) `/api/admin/orders` cargaba TODOS los pedidos sin paginación → agregada paginación con LIMIT/OFFSET + count query en paralelo, filtros por status y búsqueda, order_items solo para los IDs de la página actual. (b) `/admin/proveedores` hacía doble fetch de suppliers (2 useEffects independientes) → segundo useEffect ahora usa `suppliers` del state + `cooldownChecked` ref. (c) `/admin/productos` fetch de dollarConfig redundante → `fetchDollarConfig` retorna early si ya está cargado. (4) **Índices DB:** Agregados 3 índices en `db.ts` migración: `idx_orders_createdAt` (orders.createdAt DESC), `idx_orders_status` (orders.status), `idx_order_items_orderId` (order_items.orderId). (5) **Google Maps en /contacto:** Agregado iframe embed de Google Maps con la dirección del local (Av. Sarmiento 462, La Falda, Córdoba). Layout 2 columnas: info contacto a la izquierda, mapa a la derecha. Mapa con `loading="lazy"` para performance. **Archivos modificados:** `src/lib/queries.ts`, `src/components/layout/Navbar.tsx`, `src/app/api/search-index/route.ts`, `src/app/api/admin/orders/route.ts`, `src/app/admin/pedidos/page.tsx`, `src/app/admin/proveedores/page.tsx`, `src/app/admin/productos/page.tsx`, `src/lib/db.ts`, `src/app/(tienda)/contacto/page.tsx`.
+
 - **2026-07-16 (s53):** 138 productos de servidor pasados a lista negra. La tabla `deleted_products` NO existía en la DB de producción (la migración #28 de `db.ts` nunca se ejecutó contra Turso). Se creó manualmente con `CREATE TABLE IF NOT EXISTS deleted_products (id TEXT PRIMARY KEY, providerId TEXT NOT NULL, providerSku TEXT NOT NULL, productId TEXT, name TEXT, deletedAt TEXT NOT NULL)`. Luego se insertaron 138 registros y se eliminaron de `products`. Productos eliminados: Dell PowerEdge (R570, R660XS, R440, R450, T160, T550), HPE ProLiant (DL145, DL320, DL345, DL360, DL380, ML110, ML350), HPE Synergy (12000 Frame, Composer2, Link Module), HPE Alletra 6000, Dell PowerVault/PowerStore/ME storage, HPE 3PAR, Dell networking óptica, HPE MSL LTO tape, controladoras HPE MR, risers/heatsinks/fans para servidores, Lenovo/Intel server risers/backplanes. DB: 8452 → 8314 productos (-138). Ningún producto de consumo afectado (notebooks Dell, monitores, workstations, NAS verificados intactos). Los scripts de GitHub Actions ya tenían `loadDeletedBlacklist()` del fix de s52, así que los SKUs no serán recreados.
 
 - **2026-07-16 (s52):** Fix lista negra en scripts externos de GitHub Actions. **Commit: pendiente.** La lista negra de productos eliminados (tabla `deleted_products`, implementada en s51 d4) solo funcionaba en el sync manual (`suppliers/sync/route.ts`). Los 3 scripts externos que corren en GitHub Actions NO consultaban la lista negra, por lo que podían volver a crear productos que el admin había eliminado. Fix aplicado:
