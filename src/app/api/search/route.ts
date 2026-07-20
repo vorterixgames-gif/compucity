@@ -9,12 +9,10 @@ import { getCategoryMarkupMap } from '@/lib/queries'
 // Ahora: 1 query LIKE + 3 queries config en paralelo + cálculo de precios para 6 productos.
 export const dynamic = 'force-dynamic'
 
-// Columnas que necesita la query de búsqueda (reutilizadas en ambas queries)
+// Columnas que necesita la query de búsqueda
 const SEARCH_SELECT = `p.id, p.name, p.slug, p.price, p.comparePrice, p.costPrice, p.images,
                        p.categoryId, p.brandId, p.isActive, p.stock, p.markup, p.cashDiscount, p.ivaRate,
                        p.internalTaxRate, p.salePrice, p.saleStart, p.saleEnd`
-const SEARCH_ORDER = `CASE WHEN p.images IS NOT NULL AND p.images != '[]' THEN 0 ELSE 1 END,
-                      COALESCE(p.createdAt, p.updatedAt) DESC`
 
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get('q')
@@ -31,18 +29,20 @@ export async function GET(request: NextRequest) {
 
     // Sesión 54: búsqueda paralela sin LEFT JOIN.
     // ANTES: LEFT JOIN brands + OR b.name LIKE causaba nested loop scan ~8300×112 = timeout.
-    // AHORA: 2 queries en paralelo + merge en JS. Cada query es simple y rápida:
-    //   1) LIKE en name/sku (full scan inevitable pero sin JOIN)
-    //   2) brandId IN (...) si hay marcas que coincidan (usa índice, rapidísimo)
-    // Ambas corren en paralelo, se mergear y toman los mejores 6.
-    const [nameResult, brandResult] = await Promise.all([
-      // Query 1: buscar por nombre o SKU (sin JOIN)
+    // AHORA: todo en paralelo con Promise.all. 3 fases en 1 sola:
+    //   1) LIKE en name/sku (sin JOIN, sin ORDER BY pesado)
+    //   2) buscar marcas que coincidan (tabla chica)
+    //   3) config de precios (dólar, markup, etc.)
+    // Luego: si hay marcas, busca productos por brandId (usa índice) y mergea.
+
+    const [nameResult, brandResult, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
+      // Query 1: buscar por nombre o SKU (sin JOIN, ORDER BY simplificado)
       db.execute({
         sql: `SELECT ${SEARCH_SELECT}
               FROM products p
               WHERE p.isActive = 1 AND p.stock > 0
                 AND (p.name LIKE ? OR p.sku LIKE ?)
-              ORDER BY ${SEARCH_ORDER}
+              ORDER BY p.createdAt DESC
               LIMIT ?`,
         args: [searchTermLike, searchTermLike, limit],
       }),
@@ -51,10 +51,15 @@ export async function GET(request: NextRequest) {
         sql: 'SELECT id FROM brands WHERE name LIKE ?',
         args: [searchTermLike],
       }),
+      // Config queries en paralelo con las de búsqueda
+      fetchDollarRate(),
+      getStoreConfigNumber('markup', 30),
+      getStoreConfigNumber('cash_discount', 10),
+      getCategoryMarkupMap(),
     ])
 
-    // Buscar productos por brandId si hay marcas que coincidan
-    let byBrandResult: any[] = []
+    // Buscar productos por brandId si hay marcas que coincidan (usa índice idx_products_brandId)
+    let byBrandRows: any[] = []
     const brandIds = (brandResult.rows as any[]).map(r => r.id)
     if (brandIds.length > 0) {
       const placeholders = brandIds.map(() => '?').join(',')
@@ -63,17 +68,17 @@ export async function GET(request: NextRequest) {
               FROM products p
               WHERE p.isActive = 1 AND p.stock > 0
                 AND p.brandId IN (${placeholders})
-              ORDER BY ${SEARCH_ORDER}
+              ORDER BY p.createdAt DESC
               LIMIT ?`,
         args: [...brandIds, limit],
       })
-      byBrandResult = brandProducts.rows as any[]
+      byBrandRows = brandProducts.rows as any[]
     }
 
     // Merge: productos por nombre primero (más relevantes), luego por marca, deduplicar por id
     const seen = new Set<string>()
     const merged: any[] = []
-    for (const row of [...(nameResult.rows as any[]), ...byBrandResult]) {
+    for (const row of [...(nameResult.rows as any[]), ...byBrandRows]) {
       if (!seen.has(row.id) && merged.length < limit) {
         seen.add(row.id)
         merged.push(row)
@@ -84,15 +89,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: true, products: [] })
     }
 
-    // Calcular precios con cotización actual (en paralelo con config)
-    const [dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
-      fetchDollarRate(),
-      getStoreConfigNumber('markup', 30),
-      getStoreConfigNumber('cash_discount', 10),
-      getCategoryMarkupMap(),
-    ])
-
-    // Aplicar calculateProductPrices a cada resultado
+    // Aplicar calculateProductPrices a cada resultado (config ya cargada)
     const products = merged.map((p) => {
       const calculated = calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
       return {
