@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 // Columnas que necesita la query de búsqueda
 const SEARCH_SELECT = `p.id, p.name, p.slug, p.price, p.comparePrice, p.costPrice, p.images,
                        p.categoryId, p.brandId, p.isActive, p.stock, p.markup, p.cashDiscount, p.ivaRate,
-                       p.internalTaxRate, p.salePrice, p.saleStart, p.saleEnd`
+                       p.internalTaxRate, p.salePrice, p.saleStart, p.saleEnd, p.createdAt`
 
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get('q')
@@ -27,22 +27,22 @@ export async function GET(request: NextRequest) {
   try {
     const searchTermLike = `%${searchTerm}%`
 
-    // Sesión 54: búsqueda paralela sin LEFT JOIN.
-    // ANTES: LEFT JOIN brands + OR b.name LIKE causaba nested loop scan ~8300×112 = timeout.
-    // AHORA: todo en paralelo con Promise.all. 3 fases en 1 sola:
-    //   1) LIKE en name/sku (sin JOIN, sin ORDER BY pesado)
-    //   2) buscar marcas que coincidan (tabla chica)
-    //   3) config de precios (dólar, markup, etc.)
-    // Luego: si hay marcas, busca productos por brandId (usa índice) y mergea.
+    // Sesión 54: búsqueda paralela sin LEFT JOIN, sin ORDER BY en LIKE.
+    // Clave: LIKE '%term%' SIN ORDER BY permite a SQLite devolver las primeras
+    // filas que encuentra (scan temprano con LIMIT), en vez de tener que escanear
+    // TODOS los matches para ordenarlos. Con LIMIT 6 y sin ORDER BY, SQLite
+    // puede cortar el scan apenas encuentra 6 filas.
+    //
+    // Para la query por brandId (indexada), sí podemos usar ORDER BY porque
+    // el índice hace que el sort sea eficiente.
 
     const [nameResult, brandResult, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
-      // Query 1: buscar por nombre o SKU (sin JOIN, ORDER BY simplificado)
+      // Query 1: buscar por nombre o SKU (SIN ORDER BY — early termination con LIMIT)
       db.execute({
         sql: `SELECT ${SEARCH_SELECT}
               FROM products p
               WHERE p.isActive = 1 AND p.stock > 0
                 AND (p.name LIKE ? OR p.sku LIKE ?)
-              ORDER BY p.createdAt DESC
               LIMIT ?`,
         args: [searchTermLike, searchTermLike, limit],
       }),
@@ -68,7 +68,6 @@ export async function GET(request: NextRequest) {
               FROM products p
               WHERE p.isActive = 1 AND p.stock > 0
                 AND p.brandId IN (${placeholders})
-              ORDER BY p.createdAt DESC
               LIMIT ?`,
         args: [...brandIds, limit],
       })
@@ -88,6 +87,14 @@ export async function GET(request: NextRequest) {
     if (merged.length === 0) {
       return NextResponse.json({ ok: true, products: [] })
     }
+
+    // Ordenar en JS: productos con imagen primero, luego por fecha
+    merged.sort((a, b) => {
+      const aImg = a.images && a.images !== '[]' && a.images !== '' ? 0 : 1
+      const bImg = b.images && b.images !== '[]' && b.images !== '' ? 0 : 1
+      if (aImg !== bImg) return aImg - bImg
+      return (b.createdAt || '').localeCompare(a.createdAt || '')
+    })
 
     // Aplicar calculateProductPrices a cada resultado (config ya cargada)
     const products = merged.map((p) => {
