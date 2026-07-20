@@ -8,6 +8,7 @@ import { getCategoryMarkupMap } from '@/lib/queries'
 // + calculateProductPrices + enrichWithBrandInfo + deduplicateProducts para 20 productos.
 // Ahora: 1 query LIKE + 3 queries config en paralelo + cálculo de precios para 6 productos.
 export const dynamic = 'force-dynamic'
+export const maxDuration = 30
 
 // Columnas que necesita la query de búsqueda
 const SEARCH_SELECT = `p.id, p.name, p.slug, p.price, p.comparePrice, p.costPrice, p.images,

@@ -243,7 +243,7 @@ export default function Navbar() {
     }
     debounceRef.current = setTimeout(() => {
       performSearch(value)
-    }, 300)
+    }, 500)
   }
 
   // Close search dropdown on click outside
