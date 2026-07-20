@@ -2,29 +2,62 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentAdmin } from '@/lib/admin-auth'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const admin = await getCurrentAdmin()
     if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
-    // Sesión 44: N+1 fix — antes hacía 1 query por order para obtener sus items
-    // (1 + N queries). Ahora traemos todo en 2 queries paralelas y armamos el
-    // map en memoria. Para 50 pedidos: 51 queries → 2 queries (96% reducción).
-    //
-    // Sesión 45 hotfix: la tabla order_items NO tiene columna createdAt.
-    // El ORDER BY createdAt DESC rompía con SQL_INPUT_ERROR, hacía que el
-    // Promise.all rechazara, el endpoint retornaba 500, y /admin/pedidos
-    // mostraba "No hay pedidos aún" aunque existieran. Cambiado a ORDER BY orderId.
-    const [ordersResult, itemsResult] = await Promise.all([
-      db.execute('SELECT * FROM orders ORDER BY createdAt DESC'),
-      db.execute('SELECT * FROM order_items ORDER BY orderId'),
+    // Sesión 55: paginación — antes cargaba TODAS las órdenes + TODOS los items
+    // sin LIMIT, transfiriendo tablas enteras por HTTP. Ahora paginamos.
+    const { searchParams } = new URL(request.url)
+    const page = Math.max(1, Number(searchParams.get('page')) || 1)
+    const limit = Math.min(100, Math.max(1, Number(searchParams.get('limit')) || 20))
+    const status = searchParams.get('status') || null
+    const search = searchParams.get('search') || null
+    const offset = (page - 1) * limit
+
+    // Build WHERE clause
+    const whereClauses: string[] = []
+    const whereArgs: any[] = []
+    if (status) {
+      whereClauses.push('status = ?')
+      whereArgs.push(status)
+    }
+    if (search) {
+      whereClauses.push('(orderNumber LIKE ? OR customerName LIKE ? OR customerEmail LIKE ?)')
+      const term = `%${search}%`
+      whereArgs.push(term, term, term)
+    }
+    const whereStr = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : ''
+
+    // Count + data en paralelo
+    const [countResult, ordersResult] = await Promise.all([
+      db.execute({
+        sql: `SELECT COUNT(*) as total FROM orders ${whereStr}`,
+        args: whereArgs,
+      }),
+      db.execute({
+        sql: `SELECT * FROM orders ${whereStr} ORDER BY createdAt DESC LIMIT ? OFFSET ?`,
+        args: [...whereArgs, limit, offset],
+      }),
     ])
 
-    // Agrupar items por orderId en memoria
-    const itemsByOrderId = new Map<string, any[]>()
-    for (const item of itemsResult.rows as any[]) {
-      if (!itemsByOrderId.has(item.orderId)) itemsByOrderId.set(item.orderId, [])
-      itemsByOrderId.get(item.orderId)!.push(item)
+    const total = (countResult.rows[0] as any)?.total ?? 0
+
+    // Solo traer items de las órdenes de esta página (no TODAS)
+    const orderIds = (ordersResult.rows as any[]).map(o => o.id)
+    let itemsByOrderId = new Map<string, any[]>()
+
+    if (orderIds.length > 0) {
+      const placeholders = orderIds.map(() => '?').join(',')
+      const itemsResult = await db.execute({
+        sql: `SELECT * FROM order_items WHERE orderId IN (${placeholders})`,
+        args: orderIds,
+      })
+      for (const item of itemsResult.rows as any[]) {
+        if (!itemsByOrderId.has(item.orderId)) itemsByOrderId.set(item.orderId, [])
+        itemsByOrderId.get(item.orderId)!.push(item)
+      }
     }
 
     const ordersWithItems = (ordersResult.rows as any[]).map(order => ({
@@ -32,7 +65,16 @@ export async function GET() {
       items: itemsByOrderId.get(order.id) || [],
     }))
 
-    return NextResponse.json({ ok: true, orders: ordersWithItems })
+    return NextResponse.json({
+      ok: true,
+      orders: ordersWithItems,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    })
   } catch (error) {
     console.error('Get orders error:', error)
     return NextResponse.json({ error: 'Error del servidor' }, { status: 500 })

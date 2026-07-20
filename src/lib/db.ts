@@ -472,6 +472,11 @@ export async function ensureMigrations() {
     'CREATE INDEX IF NOT EXISTS idx_products_isActive_stock ON products(isActive, stock)',
     'CREATE INDEX IF NOT EXISTS idx_products_brandId ON products(brandId)',
     'CREATE INDEX IF NOT EXISTS idx_categories_parentId ON categories(parentId)',
+    // Sesión 55: índices para orders y order_items — la página de pedidos del admin
+    // hacía ORDER BY createdAt DESC sin índice = full scan + sort cada vez.
+    'CREATE INDEX IF NOT EXISTS idx_orders_createdAt ON orders(createdAt DESC)',
+    'CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)',
+    'CREATE INDEX IF NOT EXISTS idx_order_items_orderId ON order_items(orderId)',
   ]
   for (const idxSql of perfIndexes) {
     try {

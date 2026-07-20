@@ -109,6 +109,10 @@ export default function AdminPedidos() {
   const [loading, setLoading] = useState(true)
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  // Paginación y filtros (sesión 55)
+  const [pagination, setPagination] = useState({ page: 1, limit: 20, total: 0, totalPages: 1 })
+  const [filterStatus, setFilterStatus] = useState<string>('')
+  const [searchTerm, setSearchTerm] = useState('')
 
   // Status update dialog
   const [statusDialogOpen, setStatusDialogOpen] = useState(false)
@@ -154,21 +158,31 @@ export default function AdminPedidos() {
   const [autoRecalcTotal, setAutoRecalcTotal] = useState(true)
   const [manualTotal, setManualTotal] = useState('')
 
-  const loadOrders = useCallback(async () => {
+  const loadOrders = useCallback(async (opts?: { page?: number; status?: string; search?: string }) => {
     try {
-      const res = await fetch('/api/admin/orders')
+      const p = opts?.page ?? pagination.page
+      const s = opts?.status ?? filterStatus
+      const q = opts?.search ?? searchTerm
+      const params = new URLSearchParams({ page: String(p), limit: '20' })
+      if (s) params.set('status', s)
+      if (q) params.set('search', q)
+      const res = await fetch(`/api/admin/orders?${params.toString()}`)
       const data = await res.json()
-      if (data.ok) setOrders(data.orders as Order[])
+      if (data.ok) {
+        setOrders(data.orders as Order[])
+        if (data.pagination) setPagination(data.pagination)
+      }
     } catch (error) {
       console.error('Error loading orders:', error)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [pagination.page, filterStatus, searchTerm])
 
   useEffect(() => {
-    loadOrders()
-  }, [loadOrders])
+    loadOrders({ page: 1 })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const toggleExpand = (orderId: string) => {
     setExpandedOrder(prev => prev === orderId ? null : orderId)
@@ -483,7 +497,7 @@ export default function AdminPedidos() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Pedidos</h1>
-          <p className="text-sm text-gray-500">{orders.length} pedidos en total</p>
+          <p className="text-sm text-gray-500">{pagination.total} pedidos en total</p>
         </div>
         <a
           href="/api/admin/export/emails"
@@ -494,6 +508,33 @@ export default function AdminPedidos() {
             Exportar Emails
           </Button>
         </a>
+      </div>
+
+      {/* Filtros (sesión 55) */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <Input
+          placeholder="Buscar por número, nombre o email..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') loadOrders({ search: searchTerm, page: 1 }) }}
+          className="sm:max-w-xs"
+        />
+        <Select value={filterStatus || 'all'} onValueChange={(v) => {
+          const newStatus = v === 'all' ? '' : v
+          setFilterStatus(newStatus)
+          loadOrders({ status: newStatus, page: 1 })
+        }}>
+          <SelectTrigger className="sm:w-44">
+            <SelectValue placeholder="Todos los estados" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los estados</SelectItem>
+            {statusOptions.map(s => (
+              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button variant="outline" onClick={() => loadOrders({ page: 1 })}>Buscar</Button>
       </div>
 
       {/* Orders Table */}
@@ -695,6 +736,36 @@ export default function AdminPedidos() {
               </Card>
             )
           })}
+        </div>
+      )}
+
+      {/* Paginación (sesión 55) */}
+      {pagination.totalPages > 1 && (
+        <div className="flex items-center justify-between py-2">
+          <p className="text-sm text-gray-500">
+            Mostrando {(pagination.page - 1) * pagination.limit + 1}-{Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pagination.page <= 1}
+              onClick={() => loadOrders({ page: pagination.page - 1 })}
+            >
+              Anterior
+            </Button>
+            <span className="flex items-center px-3 text-sm text-gray-600">
+              Página {pagination.page} de {pagination.totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={pagination.page >= pagination.totalPages}
+              onClick={() => loadOrders({ page: pagination.page + 1 })}
+            >
+              Siguiente
+            </Button>
+          </div>
         </div>
       )}
 

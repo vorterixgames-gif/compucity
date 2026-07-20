@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   Loader2,
   Truck,
@@ -226,17 +226,17 @@ export default function AdminProveedores() {
     loadSuppliers()
   }, [loadSuppliers])
 
-  // On mount: check if there's an active cooldown from a previous session
-  // (e.g. user closed the tab and reopened). We pick the first Air Intra
-  // supplier we can find to query the cooldown status.
+  // On mount: check if there's an active cooldown from a previous session.
+  // Sesión 55: reutiliza los suppliers ya cargados por loadSuppliers() en vez
+  // de hacer un segundo fetch completo a /api/admin/suppliers.
+  const cooldownChecked = useRef(false)
   useEffect(() => {
-    (async () => {
+    if (cooldownChecked.current || suppliers.length === 0) return
+    cooldownChecked.current = true
+    const airIntra = suppliers.find((s: Supplier) => s.apiType === 'air_intra')
+    if (!airIntra) return
+    ;(async () => {
       try {
-        const res = await fetch('/api/admin/suppliers?page=1')
-        const data = await res.json()
-        if (!data.ok) return
-        const airIntra = (data.suppliers || []).find((s: Supplier) => s.apiType === 'air_intra')
-        if (!airIntra) return
         const st = await fetch(`/api/admin/suppliers/sync?supplierId=${encodeURIComponent(airIntra.id)}`)
         if (!st.ok) return
         const stData = await st.json()
@@ -247,7 +247,7 @@ export default function AdminProveedores() {
         // best-effort — ignore
       }
     })()
-  }, [])
+  }, [suppliers])
 
   // Countdown effect: tick cooldownRemaining down every second until it hits 0.
   // When it reaches 0, clear the cooldown banner automatically.

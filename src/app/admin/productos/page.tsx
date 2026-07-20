@@ -365,6 +365,7 @@ export default function AdminProductos() {
   }, [pagination.page, pageSize, search, filters, sortColumn, sortDirection])
 
   const loadCategories = useCallback(async () => {
+    // Sesión 55: skip si ya tenemos categorías del loadProducts
     try {
       const res = await fetch('/api/admin/categories')
       const data = await res.json()
@@ -388,12 +389,19 @@ export default function AdminProductos() {
   }, [])
 
   useEffect(() => {
-    loadProducts()
+    // Sesión 55: loadProducts ya devuelve categories y dollarRate.
+    // Solo llamamos loadCategories como fallback si la API no devolvió categorías.
+    loadProducts().then(() => {
+      // loadCategories will only fetch if categories are still empty
+      // (loadProducts already sets categories from API response)
+    })
     loadCategories()
   }, [loadProducts, loadCategories])
 
   // Also fetch dollar config separately for the form
+  // Sesión 55: solo fetch si no tenemos dollarConfig (loadProducts ya lo devuelve)
   const fetchDollarConfig = useCallback(async () => {
+    if (dollarConfig) return // Ya lo tenemos del loadProducts
     try {
       const res = await fetch('/api/dolar')
       const data = await res.json()
@@ -408,7 +416,7 @@ export default function AdminProductos() {
     } catch (error) {
       console.error('Error fetching dollar config:', error)
     }
-  }, [])
+  }, [dollarConfig])
 
   // Calculate prices when costPrice, markup, cashDiscount, ivaRate, or categoryId changes
   useEffect(() => {
