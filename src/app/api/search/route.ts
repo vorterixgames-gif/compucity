@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 // Columnas que necesita la query de búsqueda
 const SEARCH_SELECT = `p.id, p.name, p.slug, p.price, p.comparePrice, p.costPrice, p.images,
                        p.categoryId, p.brandId, p.isActive, p.stock, p.markup, p.cashDiscount, p.ivaRate,
-                       p.internalTaxRate, p.salePrice, p.saleStart, p.saleEnd, p.createdAt`
+                       p.internalTaxRate, p.salePrice, p.saleStart, p.saleEnd`
 
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get('q')
@@ -27,17 +27,16 @@ export async function GET(request: NextRequest) {
   try {
     const searchTermLike = `%${searchTerm}%`
 
-    // Sesión 54: búsqueda paralela sin LEFT JOIN, sin ORDER BY en LIKE.
-    // Clave: LIKE '%term%' SIN ORDER BY permite a SQLite devolver las primeras
-    // filas que encuentra (scan temprano con LIMIT), en vez de tener que escanear
-    // TODOS los matches para ordenarlos. Con LIMIT 6 y sin ORDER BY, SQLite
-    // puede cortar el scan apenas encuentra 6 filas.
-    //
-    // Para la query por brandId (indexada), sí podemos usar ORDER BY porque
-    // el índice hace que el sort sea eficiente.
+    // Sesión 54: búsqueda simplificada sin LEFT JOIN ni brandId IN.
+    // ANTES (s51): LEFT JOIN brands + OR b.name LIKE → nested loop scan ~8300×112 = timeout.
+    // INTENTO (s54 v1-3): queries paralelas + brandId IN → mejor pero "redragon" = 22s.
+    // AHORA: 1 sola query LIKE en name/sku, sin JOIN, sin ORDER BY (early termination).
+    // Sin ORDER BY, SQLite corta el scan al encontrar LIMIT filas → rápido.
+    // La búsqueda por marca se pierde, pero casi todos los productos tienen la marca
+    // en el nombre (ej: "MOUSE REDRAGON..." → LIKE '%redragon%' lo encuentra).
+    // Para un dropdown de 6 sugerencias esto es suficiente.
 
-    const [nameResult, brandResult, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
-      // Query 1: buscar por nombre o SKU (SIN ORDER BY — early termination con LIMIT)
+    const [result, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
       db.execute({
         sql: `SELECT ${SEARCH_SELECT}
               FROM products p
@@ -46,58 +45,18 @@ export async function GET(request: NextRequest) {
               LIMIT ?`,
         args: [searchTermLike, searchTermLike, limit],
       }),
-      // Query 2: buscar marcas que coincidan (tabla chica, ~112 filas)
-      db.execute({
-        sql: 'SELECT id FROM brands WHERE name LIKE ?',
-        args: [searchTermLike],
-      }),
-      // Config queries en paralelo con las de búsqueda
       fetchDollarRate(),
       getStoreConfigNumber('markup', 30),
       getStoreConfigNumber('cash_discount', 10),
       getCategoryMarkupMap(),
     ])
 
-    // Buscar productos por brandId si hay marcas que coincidan (usa índice idx_products_brandId)
-    let byBrandRows: any[] = []
-    const brandIds = (brandResult.rows as any[]).map(r => r.id)
-    if (brandIds.length > 0) {
-      const placeholders = brandIds.map(() => '?').join(',')
-      const brandProducts = await db.execute({
-        sql: `SELECT ${SEARCH_SELECT}
-              FROM products p
-              WHERE p.isActive = 1 AND p.stock > 0
-                AND p.brandId IN (${placeholders})
-              LIMIT ?`,
-        args: [...brandIds, limit],
-      })
-      byBrandRows = brandProducts.rows as any[]
-    }
-
-    // Merge: productos por nombre primero (más relevantes), luego por marca, deduplicar por id
-    const seen = new Set<string>()
-    const merged: any[] = []
-    for (const row of [...(nameResult.rows as any[]), ...byBrandRows]) {
-      if (!seen.has(row.id) && merged.length < limit) {
-        seen.add(row.id)
-        merged.push(row)
-      }
-    }
-
-    if (merged.length === 0) {
+    if (result.rows.length === 0) {
       return NextResponse.json({ ok: true, products: [] })
     }
 
-    // Ordenar en JS: productos con imagen primero, luego por fecha
-    merged.sort((a, b) => {
-      const aImg = a.images && a.images !== '[]' && a.images !== '' ? 0 : 1
-      const bImg = b.images && b.images !== '[]' && b.images !== '' ? 0 : 1
-      if (aImg !== bImg) return aImg - bImg
-      return (b.createdAt || '').localeCompare(a.createdAt || '')
-    })
-
     // Aplicar calculateProductPrices a cada resultado (config ya cargada)
-    const products = merged.map((p) => {
+    const products = (result.rows as any[]).map((p) => {
       const calculated = calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
       return {
         id: calculated.id,
@@ -109,10 +68,11 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    // Cache en CDN 30s: búsquedas repetidas por el mismo término no golpean la DB
+    // Cache en CDN 5 min: búsquedas repetidas por el mismo término no golpean la DB.
+    // stale-while-revalidate=300 sirve contenido cacheado mientras refresca en background.
     return NextResponse.json(
       { ok: true, products },
-      { headers: { 'Cache-Control': 's-maxage=30, stale-while-revalidate=60' } }
+      { headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=300' } }
     )
   } catch (error) {
     console.error('Search API error:', error)
