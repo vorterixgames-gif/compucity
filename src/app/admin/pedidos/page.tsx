@@ -255,61 +255,81 @@ export default function AdminPedidos() {
   }
 
   // Sesión 51: editar cliente vinculado a un pedido
+  // FIX sesión 56: ahora funciona también para pedidos sin customerId (invitados).
+  // Si customerId existe → fetch del cliente completo + update customer + snapshot.
+  // Si customerId es null → editar solo el snapshot del pedido directamente.
   const openEditCustomerDialog = async (e: React.MouseEvent, order: Order) => {
     e.stopPropagation()
-    if (!order.customerId) return
     setOrderForCustomerEdit(order)
     setEditCustomerError('')
-    setCustomerLoading(true)
     setEditCustomerDialogOpen(true)
-    try {
-      // Fetch del cliente completo (el pedido solo tiene el snapshot)
-      const res = await fetch(`/api/admin/customers?id=${order.customerId}`)
-      const data = await res.json()
-      if (!res.ok || !data.customer) {
-        setEditCustomerError(data.error || 'No se pudo cargar el cliente')
-        return
+
+    if (order.customerId) {
+      // Cliente vinculado: fetch del registro completo
+      setCustomerLoading(true)
+      try {
+        const res = await fetch(`/api/admin/customers?id=${order.customerId}`)
+        const data = await res.json()
+        if (!res.ok || !data.customer) {
+          setEditCustomerError(data.error || 'No se pudo cargar el cliente')
+          return
+        }
+        const c = data.customer
+        setCustomerForm({
+          id: c.id || '',
+          name: c.name || '',
+          email: c.email || '',
+          phone: c.phone || '',
+          dni: c.dni || '',
+          address: c.address || '',
+          city: c.city || '',
+          province: c.province || '',
+          postalCode: c.postalCode || '',
+        })
+      } catch {
+        setEditCustomerError('Error de conexión al cargar el cliente')
+      } finally {
+        setCustomerLoading(false)
       }
-      const c = data.customer
-      setCustomerForm({
-        id: c.id || '',
-        name: c.name || '',
-        email: c.email || '',
-        phone: c.phone || '',
-        dni: c.dni || '',
-        address: c.address || '',
-        city: c.city || '',
-        province: c.province || '',
-        postalCode: c.postalCode || '',
-      })
-    } catch {
-      setEditCustomerError('Error de conexión al cargar el cliente')
-    } finally {
+    } else {
+      // Invitado (sin customerId): usar datos del snapshot del pedido
       setCustomerLoading(false)
+      setCustomerForm({
+        id: '',
+        name: order.customerName || '',
+        email: order.customerEmail || '',
+        phone: order.customerPhone || '',
+        dni: order.customerDni || '',
+        address: order.shippingAddress || '',
+        city: order.shippingCity || '',
+        province: order.shippingProvince || '',
+        postalCode: order.shippingZip || '',
+      })
     }
   }
 
   const handleSaveCustomerEdit = async () => {
-    if (!orderForCustomerEdit || !customerForm.id) return
+    if (!orderForCustomerEdit) return
     setCustomerSaving(true)
     setEditCustomerError('')
     try {
-      // 1. Actualizar el cliente en la tabla customers
-      const custRes = await fetch('/api/admin/customers', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(customerForm),
-      })
-      const custData = await custRes.json()
-      if (!custRes.ok || !custData.ok) {
-        setEditCustomerError(custData.error || 'Error al actualizar el cliente')
-        return
+      // Si el pedido tiene customerId → actualizar cliente en tabla customers + snapshot
+      // Si es invitado (sin customerId) → actualizar solo el snapshot del pedido
+      if (orderForCustomerEdit.customerId && customerForm.id) {
+        // 1a. Actualizar el cliente en la tabla customers
+        const custRes = await fetch('/api/admin/customers', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(customerForm),
+        })
+        const custData = await custRes.json()
+        if (!custRes.ok || !custData.ok) {
+          setEditCustomerError(custData.error || 'Error al actualizar el cliente')
+          return
+        }
       }
 
-      // 2. Sesión 51: actualizar también el snapshot del pedido en orders,
-      //    para que el pedido refleje los nuevos datos del cliente (Opción A:
-      //    siempre actualizar). Sin esto, el pedido muestra el nombre viejo
-      //    aunque el cliente se haya editado.
+      // 1b/2. Actualizar el snapshot del pedido en orders (siempre, para ambos casos)
       const orderRes = await fetch('/api/admin/orders', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -327,9 +347,7 @@ export default function AdminPedidos() {
       })
       const orderData = await orderRes.json()
       if (!orderRes.ok || !orderData.ok) {
-        // El cliente se actualizó OK pero el snapshot del pedido no.
-        // Mostramos warning pero no revertimos el cambio del cliente.
-        setEditCustomerError('El cliente se actualizó pero hubo un error al actualizar el snapshot del pedido. Recargá la página.')
+        setEditCustomerError('Error al actualizar el snapshot del pedido. Recargá la página.')
         return
       }
 
@@ -594,8 +612,7 @@ export default function AdminPedidos() {
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <h4 className="font-semibold text-sm text-gray-700">Datos del Cliente</h4>
-                          {order.customerId && (
-                            <Button
+                          <Button
                               variant="outline"
                               size="sm"
                               className="text-compucity-green hover:text-compucity-green-dark hover:bg-compucity-green-50"
@@ -604,7 +621,6 @@ export default function AdminPedidos() {
                               <Pencil className="w-4 h-4 mr-1" />
                               Editar cliente
                             </Button>
-                          )}
                         </div>
                         <div className="space-y-1 text-sm">
                           <p><span className="text-gray-500">Nombre:</span> {order.customerName}</p>
@@ -889,15 +905,18 @@ export default function AdminPedidos() {
       <Dialog open={editCustomerDialogOpen} onOpenChange={setEditCustomerDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Editar Cliente</DialogTitle>
+            <DialogTitle>
+                {orderForCustomerEdit?.customerId ? 'Editar Cliente' : 'Editar Datos del Cliente'}
+            </DialogTitle>
           </DialogHeader>
           {orderForCustomerEdit && (
             <div className="space-y-4">
               <p className="text-xs text-gray-500">
-                Editando cliente del pedido <span className="font-mono">#{orderForCustomerEdit.orderNumber}</span>
-                {orderForCustomerEdit.customerId && (
-                  <span className="ml-2 text-gray-400">(ID: {orderForCustomerEdit.customerId.slice(0, 8)}...)</span>
-                )}
+                Editando datos del pedido <span className="font-mono">#{orderForCustomerEdit.orderNumber}</span>
+                {orderForCustomerEdit.customerId
+                  ? <span className="ml-2 text-compucity-green">(cliente vinculado)</span>
+                  : <span className="ml-2 text-orange-500">(pedido de invitado — solo se editan los datos del pedido)</span>
+                }
               </p>
 
               {customerLoading ? (
