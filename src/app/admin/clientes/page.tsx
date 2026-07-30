@@ -377,6 +377,19 @@ export default function AdminClientes() {
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{customer.name}</p>
                       <p className="text-xs text-gray-500 truncate">{customer.email}</p>
+                      {(customer.address || customer.city || customer.province || customer.postalCode) && (
+                        <p className="text-xs text-gray-500 truncate flex items-center gap-1 mt-0.5">
+                          <MapPin className="w-3 h-3 flex-shrink-0 opacity-60" />
+                          <span className="truncate">
+                            {[
+                              customer.address,
+                              customer.city,
+                              customer.province,
+                              customer.postalCode && `CP ${customer.postalCode}`
+                            ].filter(Boolean).join(', ')}
+                          </span>
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-3 flex-shrink-0">

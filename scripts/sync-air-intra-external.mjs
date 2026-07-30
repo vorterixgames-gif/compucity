@@ -68,6 +68,7 @@ const ALLOWED_RUBROS = new Set([
   '001-0320',  // MONITORES
   '001-0330',  // MICROPROCESADORES
   '001-0332',  // FAN COOLER
+  '001-0340',  // KITS TECLADO+MOUSE (fix s56: estaba mapeado pero faltaba en ALLOWED_RUBROS, SKU 53287 no se sincronizaba)
   '001-0341',  // JOYSTICK
   '001-0351',  // AURICULARES Y MICROFONOS
   '001-0352',  // PLACAS VARIAS
