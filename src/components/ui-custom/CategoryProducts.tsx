@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { formatARS } from '@/lib/format'
 import { SlidersHorizontal, X, ChevronDown, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import ProductCard from './ProductCard'
@@ -1057,18 +1058,65 @@ export default function CategoryProducts({
   categoryName,
   searchQuery,
 }: Props) {
-  const [sort, setSort] = useState<SortOption>('price-asc')
-  const [priceMin, setPriceMin] = useState('')
-  const [priceMax, setPriceMax] = useState('')
-  const [onlyInStock, setOnlyInStock] = useState(false)
+  // Sesión 56: persistencia de filtros en URL.
+  // Los filtros se leen de la URL al montar (useSearchParams) y se sincronizan
+  // de vuelta a la URL cuando cambian (useEffect + router.replace). Esto permite
+  // que al navegar a un producto y volver con el botón atrás del navegador,
+  // los filtros se mantengan. También hace que las URLs sean shareable.
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Leer valores iniciales de la URL. Si no están, usar defaults.
+  // Solo se lee una vez al montar (useSearchParams es estático durante la sesión del componente).
+  const [sort, setSort] = useState<SortOption>(() => {
+    const s = searchParams.get('orden')
+    if (s && ['price-asc', 'price-desc', 'name-az', 'newest'].includes(s)) return s as SortOption
+    return 'price-asc'
+  })
+  const [priceMin, setPriceMin] = useState(() => searchParams.get('preciomin') ?? '')
+  const [priceMax, setPriceMax] = useState(() => searchParams.get('preciomax') ?? '')
+  const [onlyInStock, setOnlyInStock] = useState(() => searchParams.get('stock') === '1')
   const [filtersOpen, setFiltersOpen] = useState(false)
-  const [categoryFilters, setCategoryFilters] = useState<Record<string, string[]>>({})
+  const [categoryFilters, setCategoryFilters] = useState<Record<string, string[]>>(() => {
+    // Reconstruir categoryFilters desde la URL. Cada grupo de filtro es un query param.
+    // Ej: ?marca=logitech → { brand: ['logitech'] }
+    // Los grupos de filtros pueden ser cualquier key (brand, type, socket, ddr, etc.)
+    // así que recorremos todos los searchParams y reconstruimos.
+    const result: Record<string, string[]> = {}
+    // Map de query param keys a filter keys (necesario porque algunos grupos
+    // tendrían conflictos con 'q' que ya está reservado para búsqueda)
+    const PARAM_TO_KEY: Record<string, string> = {
+      marca: 'brand',
+      tipo: 'type',
+      socket: 'socket',
+      ddr: 'ddr',
+      capacidad: 'capacity',
+      pantalla: 'screen',
+      ram: 'ram',
+      procesador: 'processor',
+      gpu: 'gpu',
+      tamano: 'size',
+      resolucion: 'resolution',
+      frecuencia: 'frequency',
+      potencia: 'power',
+    }
+    for (const [param, value] of searchParams.entries()) {
+      const key = PARAM_TO_KEY[param]
+      if (key && value) {
+        result[key] = [value]
+      }
+    }
+    return result
+  })
   // Paginación client-side (sesion 43): 50 productos por página para no recargar
   // la UI con cientos de tarjetas de golpe. Las queries siguen trayendo todos los
   // productos de la categoría (cacheados 5 min por revalidate=300), pero el
   // renderizado es por página.
   const PRODUCTS_PER_PAGE = 50
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage] = useState(() => {
+    const p = parseInt(searchParams.get('pagina') ?? '1', 10)
+    return isNaN(p) || p < 1 ? 1 : p
+  })
 
   const hasCategoryFilters = Object.values(categoryFilters).some(v => v.length > 0)
   const hasActiveFilters = priceMin !== '' || priceMax !== '' || onlyInStock || hasCategoryFilters
@@ -1220,6 +1268,48 @@ export default function CategoryProducts({
   useEffect(() => {
     setCurrentPage(1)
   }, [sort, priceMin, priceMax, onlyInStock, categoryFilters, categorySlug])
+
+  // Sesión 56: sincronizar filtros → URL.
+  // Cuando cambian los filtros/orden/página, actualizamos la URL con router.replace
+  // para que el botón atrás del navegador mantenga los filtros. Usamos replace (no push)
+  // para no llenar el history con cada cambio de filtro.
+  // El searchQuery 'q' se preserva porque viene del server component.
+  useEffect(() => {
+    const params = new URLSearchParams()
+    // Preservar 'q' (búsqueda) si existe
+    const q = searchParams.get('q')
+    if (q) params.set('q', q)
+    // Filtros básicos
+    if (sort !== 'price-asc') params.set('orden', sort)
+    if (priceMin) params.set('preciomin', priceMin)
+    if (priceMax) params.set('preciomax', priceMax)
+    if (onlyInStock) params.set('stock', '1')
+    if (currentPage > 1) params.set('pagina', String(currentPage))
+    // Category filters (brand, type, socket, etc.) — mapear key → param en español
+    const KEY_TO_PARAM: Record<string, string> = {
+      brand: 'marca',
+      type: 'tipo',
+      socket: 'socket',
+      ddr: 'ddr',
+      capacity: 'capacidad',
+      screen: 'pantalla',
+      ram: 'ram',
+      processor: 'procesador',
+      gpu: 'gpu',
+      size: 'tamano',
+      resolution: 'resolucion',
+      frequency: 'frecuencia',
+      power: 'potencia',
+    }
+    for (const [key, values] of Object.entries(categoryFilters)) {
+      const param = KEY_TO_PARAM[key] || key
+      if (values.length > 0) params.set(param, values[0])
+    }
+    const queryString = params.toString()
+    const newUrl = queryString ? `?${queryString}` : window.location.pathname
+    router.replace(newUrl, { scroll: false })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sort, priceMin, priceMax, onlyInStock, categoryFilters, currentPage])
 
   const totalPages = Math.max(1, Math.ceil(filteredAndSorted.length / PRODUCTS_PER_PAGE))
   const safeCurrentPage = Math.min(currentPage, totalPages)
