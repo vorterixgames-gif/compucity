@@ -2,12 +2,16 @@
 
 import { useState } from 'react'
 import { useCart, AppliedCoupon } from '@/store/cart'
+import { useCartPriceRefresh } from '@/hooks/use-cart-price-refresh'
 import Link from 'next/link'
-import { Trash2, Minus, Plus, ShoppingBag, ArrowLeft, MessageCircle, Tag, X, Loader2, Download } from 'lucide-react'
+import { Trash2, Minus, Plus, ShoppingBag, ArrowLeft, MessageCircle, Tag, X, Loader2, Download, AlertCircle, RefreshCw } from 'lucide-react'
 import { generateCartPDF } from '@/lib/generate-cart-pdf'
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, totalPrice, clearCart, appliedCoupon, couponDiscount, applyCoupon, removeCoupon } = useCart()
+  // Sesión 56: refresh de precios. Solo refresca items con 5min–1h en carrito.
+  // Items con >1h disparan el banner showStaleWarning para que el usuario refresque a mano.
+  const { showStaleWarning, refreshing, manualRefresh } = useCartPriceRefresh()
   const [couponCode, setCouponCode] = useState('')
   const [couponLoading, setCouponLoading] = useState(false)
   const [couponError, setCouponError] = useState('')
@@ -80,6 +84,26 @@ export default function CartPage() {
         </Link>
         <h1 className="text-2xl font-bold text-gray-900">Carrito ({items.length} {items.length === 1 ? 'producto' : 'productos'})</h1>
       </div>
+
+      {/* Sesión 56: banner de aviso si hay items con >1h en el carrito */}
+      {showStaleWarning && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm text-amber-800">
+              Algunos productos llevan más de una hora en tu carrito. Los precios pueden haber cambiado.
+            </p>
+            <button
+              onClick={() => manualRefresh()}
+              disabled={refreshing}
+              className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-amber-800 hover:text-amber-900 disabled:opacity-50"
+            >
+              {refreshing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+              Refrescar precios
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid md:grid-cols-3 gap-8">
         {/* Items */}

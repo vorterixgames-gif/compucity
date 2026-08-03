@@ -10,6 +10,9 @@ export interface CartItem {
   image: string
   quantity: number
   slug: string
+  // Sesion 56: timestamp de cuando se agrego al carrito (o se refresco el precio).
+  // Opcional para no romper carritos viejos guardados en localStorage que no tienen este campo.
+  addedAt?: number
 }
 
 export interface AppliedCoupon {
@@ -33,6 +36,9 @@ interface CartStore {
   setLastAdded: (id: string | null) => void
   applyCoupon: (coupon: AppliedCoupon, discountAmount: number) => void
   removeCoupon: () => void
+  // Sesion 56: refresca precios de items existentes (no toca quantity, no toca cupon).
+  // Solo actualiza si el precio realmente cambio para evitar re-renders innecesarios.
+  refreshPrices: (updates: Array<{ id: string; price: number }>) => void
 }
 
 export const useCart = create<CartStore>()(
@@ -47,6 +53,8 @@ export const useCart = create<CartStore>()(
         const items = get().items
         const existing = items.find((i) => i.id === item.id)
         if (existing) {
+          // Si ya existe, solo incrementa cantidad. NO actualiza addedAt ni price
+          // (preserva el precio y timestamp original del item en carrito).
           set({
             items: items.map((i) =>
               i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
@@ -54,7 +62,7 @@ export const useCart = create<CartStore>()(
             lastAdded: item.id,
           })
         } else {
-          set({ items: [...items, { ...item, quantity: 1 }], lastAdded: item.id })
+          set({ items: [...items, { ...item, quantity: 1, addedAt: Date.now() }], lastAdded: item.id })
         }
         // Auto-clear lastAdded after 600ms
         setTimeout(() => {
@@ -91,6 +99,22 @@ export const useCart = create<CartStore>()(
       totalPrice: () => get().items.reduce((sum, i) => sum + i.price * i.quantity, 0),
       applyCoupon: (coupon, discountAmount) => set({ appliedCoupon: coupon, couponDiscount: discountAmount }),
       removeCoupon: () => set({ appliedCoupon: null, couponDiscount: 0 }),
+      // Sesion 56: refresca precios en batch. Solo actualiza price y addedAt,
+      // NO toca quantity, image, slug ni name (para no romper nada).
+      // Solo aplica el update si el precio realmente cambio (evita re-renders innecesarios).
+      refreshPrices: (updates) => {
+        const items = get().items
+        let changed = false
+        const newItems = items.map((i) => {
+          const u = updates.find((x) => x.id === i.id)
+          if (u && Math.abs(u.price - i.price) > 0.001) {
+            changed = true
+            return { ...i, price: u.price, addedAt: Date.now() }
+          }
+          return i
+        })
+        if (changed) set({ items: newItems })
+      },
     }),
     { name: 'compucity-cart' }
   )

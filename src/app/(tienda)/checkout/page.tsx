@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { formatARS } from '@/lib/format'
 import { useCart } from '@/store/cart'
-import { Truck, MapPin, MessageCircle, User, Phone, Mail, FileText, Package, Loader2, ChevronRight, ArrowLeft, LogIn, X, Eye, EyeOff, UserPlus, CheckCircle, Tag } from 'lucide-react'
+import { useCartPriceRefresh } from '@/hooks/use-cart-price-refresh'
+import { Truck, MapPin, MessageCircle, User, Phone, Mail, FileText, Package, Loader2, ChevronRight, ArrowLeft, LogIn, X, Eye, EyeOff, UserPlus, CheckCircle, Tag, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 
 interface LoggedInCustomer {
@@ -30,6 +31,10 @@ interface ShippingQuote {
 
 export default function CheckoutPage() {
   const { items, totalPrice, clearCart, appliedCoupon, couponDiscount } = useCart()
+  // Sesión 56: refresh de precios. En checkout solo mostramos aviso si hay items >1h.
+  // No mostramos botón de refresh acá (la UI de checkout ya tiene suficiente interacción).
+  // El backend igual recalcula precios al confirmar el pedido.
+  const { showStaleWarning } = useCartPriceRefresh()
   const [step, setStep] = useState<'data' | 'shipping'>('data')
   const [loggedInCustomer, setLoggedInCustomer] = useState<LoggedInCustomer | null>(null)
   const [customerData, setCustomerData] = useState({
@@ -435,6 +440,18 @@ export default function CheckoutPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Finalizar Pedido</h1>
+
+      {/* Sesión 56: aviso si hay items con >1h en el carrito.
+          En checkout no mostramos botón de refresh (la UI ya tiene suficiente interacción).
+          El backend recalcula precios al confirmar el pedido, así que el total final siempre es correcto. */}
+      {showStaleWarning && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-amber-800">
+            Algunos productos llevan más de una hora en tu carrito. Los precios se actualizarán al confirmar el pedido.
+          </p>
+        </div>
+      )}
 
       {/* Steps indicator */}
       <div className="flex items-center gap-2 mb-8">
