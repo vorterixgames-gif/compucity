@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-07-21 (sesión 55 — performance search + admin + Google Maps contacto)
+**Ultima actualizacion:** 2026-08-04 (sesión 56 — refresh carrito + filtros persistentes URL + filtros marca Gigabyte/Performance + SKU 53287)
 
 ---
 
@@ -14,11 +14,11 @@
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
-- **Commit estable:** c942cd7 (feat: add Google Maps embed to contact page)
-- **Commit actual:** c942cd7
+- **Commit estable:** aeac384 (feat: agregar marca Performance en filtros de PC Armadas)
+- **Commit actual:** aeac384
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 55
+- **Sesiones totales:** 56
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -717,7 +717,7 @@ scripts/check-critical-files.mjs           -- Verificacion pre-deploy
 
 ## Base de Datos (Turso)
 - **Host:** compucity-vorterixgames-gif.aws-us-east-1.turso.io
-- **Tablas (16):** products (~7,700), categories (73), brands (112), suppliers (6), orders (2), order_items (3), customers (3), product_images (1,548), dollar_rates (1), store_config (24), supplier_category_mappings (86), admins (1), banners (0), coupons (0), password_reset_tokens (2), rate_limits (1)
+- **Tablas (17):** products (~8,508), categories (79), brands (115), suppliers (9), orders (12), order_items (56), customers (8), product_images (2,166), dollar_rates (1), store_config (26), supplier_category_mappings (86), admins (1), banners (0), coupons (0), password_reset_tokens (2), rate_limits (1), deleted_products (490) — **datos backup s56 2026-08-03**
 
 ### Limites y Uso de Plataformas (actualizado sesion 45)
 | Plataforma | Recurso | Uso actual | Limite | Plan | % Uso | Estado |
@@ -1006,6 +1006,8 @@ createdAt TEXT, updatedAt TEXT
 | 2026-06-30 | DB Turso completa (JSON) post-migración GH Actions | 54 MB | compucity_turso_backup_2026-06-30T15-33-05-751Z.json (9750 filas, 7824 productos) |
 | 2026-07-07 | DB Turso completa (JSON) pre-fix s51 | 58 MB | compucity_turso_backup_2026-07-06T23-08-35-689Z.json (10,035 filas, 7,944 productos, 16 tablas) |
 | 2026-07-10 | DB Turso completa (JSON) post s51 d3 | 61 MB | compucity_turso_backup_2026-07-10T15-11-20-035Z.json (10,394 filas, 8,186 productos, 16 tablas) |
+| 2026-08-03 | DB Turso completa (JSON) post s56 | 69 MB | compucity_turso_backup_s56_2026-08-03T21-57-24-430Z.json (11,560 filas, 8,508 productos, 17 tablas) |
+| 2026-08-03 | Codigo fuente completo (tar.gz) post s56 | 3.3 MB | compucity_src_backup_s56_2026-08-03.tar.gz (sin node_modules/.next/.git) |
 
 ### Backups remotos (GoFile)
 | Fecha | Tipo | Tamano | URL |
@@ -1152,6 +1154,45 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-08-04 (s56):** Refresh carrito + filtros persistentes URL + filtros marca + SKU 53287. **5 commits: 8e622f1, 95a857b, cff8062, 044343c, aeac384.** **8 cambios en esta sesión:**
+
+  (1) **Dirección visible en listado de clientes** — `/admin/clientes` ahora muestra la dirección del cliente (calle, ciudad, provincia, CP) debajo del email en cada tarjeta, sin necesidad de expandir. **Archivo:** `src/app/admin/clientes/page.tsx`. Commit `8e622f1`.
+
+  (2) **Rubro 001-0340 en ALLOWED_RUBROS Air Intra** — El rubro `001-0340` (KITS TECLADO+MOUSE) tenía mapeo de categoría configurado pero faltaba en la lista de permitidos, por eso productos como SKU 53287 (TEC+MOUSE LOGITECH MK120) no se sincronizaban. Agregado a `ALLOWED_RUBROS` en `scripts/sync-air-intra-external.mjs`. Commit `8e622f1`.
+
+  (3) **Filtro Gigabyte en notebooks** — Agregado `{ key: 'brand', label: 'Gigabyte', value: 'gigabyte', matchFn: ... }` en `CATEGORY_FILTERS['notebooks']`. Commit `8e622f1`.
+
+  (4) **Fix regex Gigabyte** — La regex original `\bGIGABYTE\b|\bAORUS\b|\bAERO\b` matcheaba por error la **HP Pavilion Aero** (HP tiene línea "Pavilion Aero" de notebooks livianas). Sacado `\bAERO\b` (la línea Gigabyte Aero no existe en nuestra DB, verificado). Regex final: `\bGIGABYTE\b|\bAORUS\b`. **Archivo:** `src/components/ui-custom/CategoryProducts.tsx`. Commit `95a857b`.
+
+  (5) **Tag Gigabyte en admin notebooks** — Agregado `{ value: 'gigabyte', label: 'Gigabyte' }` a las opciones de marca de `notebooks` y `gamer-y-diseno` en `CATEGORY_TAG_GROUPS`. El `nameMatchesTag` para `gigabyte` ya existía con regex correcta, pero la opción no estaba en la lista visible del admin. **Archivo:** `src/lib/product-tags.ts`. Commit `95a857b`.
+
+  (6) **Refresh automático de precios del carrito** — Variante B + expiración de 1 hora. Items con <5 min en carrito: sin refresh (precio fresco). Items con 5min-1h: refresh silencioso al cargar `/carrito` o `/checkout`. Items con >1h: NO se refrescan + banner amarillo pidiendo al usuario que refresque a mano (evita generar requests para carritos abandonados). Nuevo hook `src/hooks/use-cart-price-refresh.ts` (Promise.allSettled + try/catch con console.error, no silent fail). `refreshPrices` en `cart.ts` solo actualiza price y addedAt, NO toca quantity/image/slug/name. `addedAt` opcional para no romper carritos viejos en localStorage. Reutiliza el endpoint `/api/products?id=X` que ya existe y ya está cacheado 5 min en CDN. **Archivos:** `src/store/cart.ts`, `src/hooks/use-cart-price-refresh.ts` (nuevo), `src/app/(tienda)/carrito/page.tsx`, `src/app/(tienda)/checkout/page.tsx`. Commit `cff8062`.
+
+  (7) **Persistencia de filtros en URL** — Los filtros de categoría (marca, tipo, socket, DDR, precio, stock, orden, página) ahora se persisten en la URL como query params. Antes: al navegar a un producto y volver con botón atrás, los filtros se perdían. Ahora: los filtros se guardan en la URL y se reconstruyen automáticamente. URLs shareable: `/categoria/notebooks?marca=gigabyte&pantalla=16`. `useState` inicializa desde `useSearchParams`, `useEffect` sincroniza cambios → URL con `router.replace` (no push, para no llenar history). `q` (búsqueda) se preserva. **Archivo:** `src/components/ui-custom/CategoryProducts.tsx`. Commit `044343c`.
+
+  (8) **Filtro Performance en PC Armadas** — Agregado `{ key: 'brand', label: 'Performance', value: 'performance', matchFn: (n) => /\bPERFORMANCE\b/i.test(n) }` en `CATEGORY_FILTERS['pc-armadas']` (storefront) + `{ value: 'performance', label: 'Performance' }` en `CATEGORY_TAG_GROUPS['pc-armadas']` (admin) + `case 'performance'` en `nameMatchesTag`. 18 PCs armadas con stock matchean el filtro hoy. **Archivos:** `src/components/ui-custom/CategoryProducts.tsx`, `src/lib/product-tags.ts`. Commit `aeac384`.
+
+  **Adicional (DB directa, sin deploy):** SKU 53287 (TEC+MOUSE LOGITECH MK120 USB BLACK LATINO) insertado manualmente en Turso vía script one-shot. Producto estaba en Air Intra pero no se sincronizaba por filtro de rubro (ver punto 2). Datos: costo USD 11.13, stock 223 (air:100, lug:100, ros:23), categoryId `ac551783-8734-4858-a316-d0a54701e437` (mapeo 001-0340). Script: `scripts/insert-sku-53287.mjs`.
+
+  **Backups completos post-sesión:**
+  - DB Turso: `compucity_turso_backup_s56_2026-08-03T21-57-24-430Z.json` (69 MB, 11,560 filas, 17 tablas)
+  - Código: `compucity_src_backup_s56_2026-08-03.tar.gz` (3.3 MB)
+
+  **QA completo post-deploy:** todas las páginas y APIs responden 200 OK, sin errores JS visibles. Categorías con filtros URL funcionando, `/carrito` y `/checkout` cargan sin errores, SKU 53287 visible en tienda y search, `/api/admin/upload` no se borró en ningún deploy.
+
+  **Reglas de seguridad respetadas:**
+  - No se tocaron: DB schema, endpoints existentes, queries SQL, `globals.css`, `tailwind.config.ts`, `HeroSection.tsx`, `ProductCard.tsx`
+  - `addedAt` opcional para no romper carritos viejos en localStorage
+  - `Promise.allSettled` + `try/catch` con `console.error` (no silent fail — lección s50)
+  - `/api/admin/upload/route.ts` restaurado manualmente en cada commit (bug recurrente del repo)
+  - TypeScript check pasó sin errores en archivos modificados
+  - `ranRef` previene doble ejecución en React StrictMode
+  - `router.replace` con `scroll: false` para no llenar history ni saltar al top
+
+  **Pendientes:**
+  - Revocar PAT de GitHub usado para los deploys (`ghp_...` — token temporal ya revocado post-deploy)
+  - Verificar manualmente (requiere login admin): que el formulario de productos muestre los checkboxes "Gigabyte" (notebooks) y "Performance" (pc-armadas), que la dirección se vea en `/admin/clientes`, que el botón "Editar cliente" en `/admin/pedidos` abra el dialog correcto
+
 - **2026-07-21 (s55):** Performance de búsqueda + admin + Google Maps en contacto. **3 commits: 3f4cfc8, 6f08b2b, c942cd7.** (1) **Fix búsqueda lenta en /categoria/todos:** `searchProducts()` en `queries.ts` tenía `LEFT JOIN brands` + `OR b.name LIKE` que causaba nested loop scan (~8300×112 filas = timeout). Eliminado el JOIN y el OR, ORDER BY movido a memoria (SQLite puede hacer early termination con LIMIT cuando no hay ORDER BY). Sort en memoria después de dedup: productos con imagen primero, luego por fecha. (2) **Miniaturas en barra de búsqueda:** El endpoint `/api/search-index` no incluía imágenes. Agregado campo `i: firstImage` (primera imagen del producto extraída de `JSON.parse(calculated.images)`). En `Navbar.tsx`, mapeado `p.i` a `images: p.i ? [p.i] : []` para mostrar miniaturas en el dropdown de autocomplete. Tamaño del índice: ~150KB gzipped (sin imágenes base64, solo URLs). (3) **Admin lento — 3 causas raíz:** (a) `/api/admin/orders` cargaba TODOS los pedidos sin paginación → agregada paginación con LIMIT/OFFSET + count query en paralelo, filtros por status y búsqueda, order_items solo para los IDs de la página actual. (b) `/admin/proveedores` hacía doble fetch de suppliers (2 useEffects independientes) → segundo useEffect ahora usa `suppliers` del state + `cooldownChecked` ref. (c) `/admin/productos` fetch de dollarConfig redundante → `fetchDollarConfig` retorna early si ya está cargado. (4) **Índices DB:** Agregados 3 índices en `db.ts` migración: `idx_orders_createdAt` (orders.createdAt DESC), `idx_orders_status` (orders.status), `idx_order_items_orderId` (order_items.orderId). (5) **Google Maps en /contacto:** Agregado iframe embed de Google Maps con la dirección del local (Av. Sarmiento 462, La Falda, Córdoba). Layout 2 columnas: info contacto a la izquierda, mapa a la derecha. Mapa con `loading="lazy"` para performance. **Archivos modificados:** `src/lib/queries.ts`, `src/components/layout/Navbar.tsx`, `src/app/api/search-index/route.ts`, `src/app/api/admin/orders/route.ts`, `src/app/admin/pedidos/page.tsx`, `src/app/admin/proveedores/page.tsx`, `src/app/admin/productos/page.tsx`, `src/lib/db.ts`, `src/app/(tienda)/contacto/page.tsx`.
 
 - **2026-07-16 (s53):** 138 productos de servidor pasados a lista negra. La tabla `deleted_products` NO existía en la DB de producción (la migración #28 de `db.ts` nunca se ejecutó contra Turso). Se creó manualmente con `CREATE TABLE IF NOT EXISTS deleted_products (id TEXT PRIMARY KEY, providerId TEXT NOT NULL, providerSku TEXT NOT NULL, productId TEXT, name TEXT, deletedAt TEXT NOT NULL)`. Luego se insertaron 138 registros y se eliminaron de `products`. Productos eliminados: Dell PowerEdge (R570, R660XS, R440, R450, T160, T550), HPE ProLiant (DL145, DL320, DL345, DL360, DL380, ML110, ML350), HPE Synergy (12000 Frame, Composer2, Link Module), HPE Alletra 6000, Dell PowerVault/PowerStore/ME storage, HPE 3PAR, Dell networking óptica, HPE MSL LTO tape, controladoras HPE MR, risers/heatsinks/fans para servidores, Lenovo/Intel server risers/backplanes. DB: 8452 → 8314 productos (-138). Ningún producto de consumo afectado (notebooks Dell, monitores, workstations, NAS verificados intactos). Los scripts de GitHub Actions ya tenían `loadDeletedBlacklist()` del fix de s52, así que los SKUs no serán recreados.
