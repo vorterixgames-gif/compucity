@@ -44,6 +44,7 @@ export const CATEGORY_TAG_GROUPS: Record<string, TagGroup[]> = {
         { value: 'kelyx', label: 'Kelyx' },
         { value: 'asus', label: 'ASUS' },
         { value: 'intel', label: 'Intel' },
+        { value: 'performance', label: 'Performance' },
         { value: 'arkham', label: 'Arkham' },
         { value: 'xpg', label: 'XPG' },
       ],
@@ -363,6 +364,7 @@ function nameMatchesTag(upperName: string, groupKey: string, tagValue: string): 
     case 'kelyx': return /\bKELYX\b/.test(upperName)
     case 'asus': return /\bASUS\b|\bROG\b|\bTUF\b|\bZENBOOK\b|\bVIVOBOOK\b|\bPN\d/.test(upperName)
     case 'intel': return /\bINTEL\b|\bNUC\b|\bCORE\b/.test(upperName)
+    case 'performance': return /\bPERFORMANCE\b/.test(upperName)
     case 'arkham': return /\bARKHAM\b/.test(upperName)
     case 'xpg': return /\bXPG\b/.test(upperName)
     // Brands - Notebooks extra

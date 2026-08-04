@@ -825,6 +825,7 @@ const CATEGORY_FILTERS: Record<string, CategoryFilterOption[]> = {
     { key: 'brand', label: 'Kelyx', value: 'kelyx', matchFn: (n) => /\bKELYX\b/i.test(n) },
     { key: 'brand', label: 'ASUS', value: 'asus', matchFn: (n) => /\bASUS\b|\bROG\b|\bTUF\b|\bPN\d/i.test(n) },
     { key: 'brand', label: 'Intel', value: 'intel', matchFn: (n) => /\bINTEL\b|\bNUC\b/i.test(n) },
+    { key: 'brand', label: 'Performance', value: 'performance', matchFn: (n) => /\bPERFORMANCE\b/i.test(n) },
     // Procesador
     { key: 'processor', label: 'Core i9 / Ultra 9', value: 'i9', matchFn: (n) => /\bI9\b|\bCORE\s*9\b|\bCORE\s*ULTRA\s*9\b/i.test(n) },
     { key: 'processor', label: 'Core i7 / Ultra 7', value: 'i7', matchFn: (n) => /\bI7\b|\bCORE\s*7\b|\bCORE\s*ULTRA\s*7\b|\bU7[- ]?\d/i.test(n) },
