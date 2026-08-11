@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-08-04 (sesión 56 — refresh carrito + filtros persistentes URL + filtros marca Gigabyte/Performance + SKU 53287)
+**Ultima actualizacion:** 2026-08-11 (sesión 56 continuación — fix sync Invid rate limit + SKU 0418605 + monitoreo productos stale)
 
 ---
 
@@ -14,8 +14,8 @@
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
-- **Commit estable:** aeac384 (feat: agregar marca Performance en filtros de PC Armadas)
-- **Commit actual:** aeac384
+- **Commit estable:** 2d2535b (feat: monitoreo de productos stale en panel admin)
+- **Commit actual:** 2d2535b
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
 - **Sesiones totales:** 56
@@ -1154,6 +1154,46 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-08-11 (s56 continuación):** Fix sync Invid rate limit + SKU 0418605 + monitoreo productos stale. **3 commits: 32e13fb, 2d2535b, (docs pendiente)** + 1 fix DB directa. **4 cambios en esta tanda:**
+
+  (1) **Fix SKU 0418605 (DB directa, sin deploy)** — VGA Gigabyte GeForce RTX 5070 EAGLE OC ICE SFF 12G White (SKU Invid 0418605) tenía precio desactualizado en DB: costPrice=USD 756.67 cuando el precio real en API Invid es USD 912.06. Diferencia de USD 155 (20% más barato en nuestra web). Causa raíz: el sync de Invid no llegaba a este producto por bug de rate limit (ver punto 2). Fix aplicado vía script one-shot `scripts/fix-sku-0418605.mjs`: UPDATE en products con costPrice=912.06, price=1185.678 (costo+30% markup), stock=3 (BAJO STOCK según API), ivaRate=10.5 (10.5% según API, antes era null). Datos confirmados vía endpoint directo `GET /api/v1/articulo.php?id=0418605` con token JWT de la cuenta `pmariavirgina`.
+
+  (2) **Fix crítico sync Invid — rate limit + offset persistente** — **Commit `32e13fb`.** El sync de Invid (`scripts/sync-invid-external.mjs`) tenía 2 bugs graves que causaban que productos después del offset 5000 NUNCA se sincronizaran:
+    - **Bug 1:** No manejaba HTTP 429 (rate limit). Invid tiene límite de 50 req/hora por usuario. 50 req × 100 productos/req = 5000 productos por ventana. Cuando el sync se quedaba sin cupo, hacía `break` y cortaba sin guardar progreso.
+    - **Bug 2:** No guardaba el offset entre corridas. Cada cron arrancaba desde offset 0 otra vez. Los mismos productos del offset 0-5000 se sincronizaban 4 veces al día, los del offset 5000+ NUNCA se reachaban.
+    - **Causa del bug reportado:** SKU 0418605 estaba después del offset 5000. Precio en DB: USD 756.67 (viejo, hacía meses que no se actualizaba). Precio real API: USD 912.06.
+    - **Fix aplicado:**
+      1. Guardar offset en `store_config` (clave `invid_sync_offset`) — cada corrida arranca desde el último offset guardado
+      2. Manejar HTTP 429 leyendo headers `retry-after`, `x-ratelimit-remaining`, `x-ratelimit-reset` — guarda offset actual antes de salir
+      3. Al llegar al final del catálogo, resetea offset a 0 para empezar de nuevo
+      4. Log claro del estado final (completado / pausado por rate limit / error)
+    - **Cobertura esperada:** 50 req/hora × 100 productos = 5000 productos/hora × 4 corridas/día = 20,000 productos/día. Catálogo Invid ~5000-10000 productos → sync completo en 1-2 días. Antes del fix: productos del offset 5000+ JAMÁS se sincronizaban.
+    - **Verificación post-deploy:** workflow_dispatch run #170 → success. Offset guardado: 4800 (sync se cortó por rate limit y guardó progreso). 22 productos Invid actualizados en la última hora.
+
+  (3) **Monitoreo de productos stale en panel admin** — **Commit `2d2535b`.** Sistema de detección temprana para productos que no se actualizan hace más de 7 días. Permite detectar problemas de sync ANTES de que lleguen al cliente (como el bug del SKU 0418605).
+    - **NUEVO endpoint `GET /api/admin/stale-products`:** query productos con `updatedAt < datetime('now', '-7 days')`. Incluye TODOS los productos (con y sin proveedor). Devuelve count total + listado de hasta 500 productos (los más viejos primero). Auth requerida.
+    - **Banner en dashboard `/admin`:** llama al endpoint al cargar. Si hay productos stale (count > 0), muestra banner amarillo arriba de todo con botón "Ver detalle". Si el fetch falla, no rompe el dashboard (catch con console.error).
+    - **Dialog con tabla de productos stale:** columnas producto/SKU/proveedor/stock/estado/última actualización. Link en el nombre → `/admin/productos?search=...` para editar. Badge Activo/Inactivo. Stock en rojo si es 0. Aviso al pie si el listado está truncado (>500 productos).
+    - **Verificación post-deploy:** 3,686 productos stale detectados en producción (43% del catálogo). Productos más viejos del 27 de mayo 2026 (más de 2 meses sin actualizar). El número va a bajar en los próximos 1-2 días a medida que el sync arreglado recorra todo el catálogo de Invid.
+    - **Archivos:** `src/app/api/admin/stale-products/route.ts` (NUEVO, 83 líneas), `src/app/admin/page.tsx` (edición quirúrgica: imports + state + 2 funciones + banner + dialog).
+
+  (4) **Documento técnico para soporte Invid** — El dueño fue contactado por Invid pidiendo captura del código de implementación de la API. Se armó documento Markdown en `/home/z/my-project/download/invid-api-codigo-para-soporte.md` con: (a) autenticación contra `/api/v1/auth.php`, (b) consulta paginada con `/api/v1/articulo.php?offset=N`, (c) procesamiento de cada producto (campos `ID`, `PRICE`, `STOCK_STATUS`), (d) listado de campos usados, (e) 3 preguntas puntuales para Invid: ¿login y paginación correctos? / ¿campo `PRICE` es el correcto para precio? / ¿`STOCK_STATUS` es la forma correcta de obtener stock o deberíamos usar el campo numérico `STOCK`? **Importante:** el documento NO menciona el bug del rate limit ni el SKU 0418605 — solo muestra el código tal cual y pide confirmación. Estrategia: si Invid dice que está bien, cerramos el tema; si dicen que usemos otro campo, lo ajustamos. **NO mandar el documento técnico completo anterior** (`invid-api-integration-tech-doc.md`) que tenía la sección "Diferencia entre API y portal web" — ese era comprometedor porque afirmaba que la API devolvía precios distintos (falso, la API devuelve el precio correcto, el problema era nuestro bug de sync).
+
+  **Lecciones aprendidas esta sesión:**
+
+  - **API Invid rate limit es 50 req/hora por usuario** (no por IP). Confirmado vía headers `x-ratelimit-limit: 50`, `x-ratelimit-remaining`, `x-ratelimit-reset`. Documentación Swagger: https://invidcomputers.com/api/swagger (OpenAPI spec en `/api/openapi.yaml`).
+  - **Endpoint directo por ID existe y NO se usaba:** `GET /api/v1/articulo.php?id=XXXX` devuelve un producto puntual con 1 solo request. La documentación Swagger lo confirma: "Si se envia `id`, se ignora `offset` y se devuelve ese articulo puntional". Consumo 1 request en lugar de paginar todo el catálogo.
+  - **JWT de Invid incluye campo `stock`:** `"stock":"Y"` = tiene permiso para ver campo `STOCK` numérico real. `"stock":"N"` = sin permiso, solo `STOCK_STATUS` texto. La cuenta `pmariavirgina` tiene `"stock":"N"`.
+  - **Campos adicionales que NO usamos pero existen en la API:** `FINAL_PRICE` (precio final con IVA + impuestos internos), `IVA_PERCENT`, `IVA_VALUE`, `INTERNAL_TAX_PERCENT`, `INTERNAL_TAX_VALUE`, `STOCK` (numérico, requiere permiso), `CATEGORIES` (array con categoría padre).
+  - **Credenciales Invid confirmadas:** usuario `pmariavirgina`, customer_id `27301194302`, contraseña `Pivetta_M` (subida a GitHub Secrets como `INVID_USER` e `INVID_PASS`). Login por portal web usa CUIT+contraseña distinta (no la misma cuenta que la API).
+  - **Regla de oro para sync de proveedores con rate limit:** siempre guardar el offset/progreso entre corridas. Si el rate limit es de N req/hora y el catálogo es mayor a N×pageSize, sin offset persistente hay productos que NUNCA se sincronizan.
+
+  **Pendientes:**
+  - Esperar respuesta de Invid al documento técnico enviado — si sugieren usar otros campos, ajustar sync
+  - Monitorear que el offset `invid_sync_offset` avance bien en los próximos días (debería llegar a 0 en 1-2 días cuando complete el catálogo)
+  - El número de productos stale (3,686 hoy) debería bajar significativamente en 1-2 días
+  - Revocar PAT de GitHub usado para los deploys (`ghp_...`)
+
 - **2026-08-04 (s56):** Refresh carrito + filtros persistentes URL + filtros marca + SKU 53287. **5 commits: 8e622f1, 95a857b, cff8062, 044343c, aeac384.** **8 cambios en esta sesión:**
 
   (1) **Dirección visible en listado de clientes** — `/admin/clientes` ahora muestra la dirección del cliente (calle, ciudad, provincia, CP) debajo del email en cada tarjeta, sin necesidad de expandir. **Archivo:** `src/app/admin/clientes/page.tsx`. Commit `8e622f1`.
