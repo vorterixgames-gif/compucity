@@ -12,6 +12,8 @@ import {
   Plus,
   ArrowRight,
   Loader2,
+  AlertTriangle,
+  X,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -24,6 +26,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface DashboardStats {
   totalProducts: number
@@ -47,6 +55,19 @@ interface RecentOrder {
   total: number
   status: string
   createdAt: string
+}
+
+interface StaleProduct {
+  id: string
+  name: string
+  sku: string
+  providerSku: string | null
+  providerId: string | null
+  providerName: string
+  stock: number
+  costPrice: number
+  isActive: number
+  updatedAt: string
 }
 
 const statusMap: Record<string, { label: string; color: string }> = {
@@ -79,9 +100,15 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([])
   const [loading, setLoading] = useState(true)
+  // Sesión 56: banner de productos stale (sin actualizar hace más de 7 días)
+  const [staleCount, setStaleCount] = useState<number | null>(null)
+  const [staleProducts, setStaleProducts] = useState<StaleProduct[]>([])
+  const [staleDialogOpen, setStaleDialogOpen] = useState(false)
+  const [staleLoading, setStaleLoading] = useState(false)
 
   useEffect(() => {
     loadStats()
+    loadStaleCount()
   }, [])
 
   const loadStats = async () => {
@@ -99,6 +126,39 @@ export default function AdminDashboard() {
     }
   }
 
+  // Sesión 56: solo carga el count para mostrar el banner.
+  // El listado completo se carga solo cuando el usuario hace click en "Ver detalle".
+  const loadStaleCount = async () => {
+    try {
+      const res = await fetch('/api/admin/stale-products')
+      const data = await res.json()
+      if (data.ok) {
+        setStaleCount(data.staleCount)
+      }
+    } catch (error) {
+      console.error('Error loading stale count:', error)
+      // No bloquear el dashboard si esto falla — solo ocultamos el banner
+    }
+  }
+
+  // Carga el listado completo para mostrar en el diálogo
+  const loadStaleDetail = async () => {
+    setStaleLoading(true)
+    try {
+      const res = await fetch('/api/admin/stale-products')
+      const data = await res.json()
+      if (data.ok) {
+        setStaleProducts(data.staleProducts || [])
+        setStaleCount(data.staleCount)
+        setStaleDialogOpen(true)
+      }
+    } catch (error) {
+      console.error('Error loading stale detail:', error)
+    } finally {
+      setStaleLoading(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -109,6 +169,38 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Sesión 56: Banner de productos stale (sin actualizar hace más de 7 días).
+          Solo se muestra si hay productos stale (staleCount > 0).
+          Si el fetch falla (staleCount === null), no se muestra nada. */}
+      {staleCount !== null && staleCount > 0 && (
+        <div className="p-4 bg-amber-50 border border-amber-300 rounded-lg flex items-start gap-3">
+          <AlertTriangle className="h-6 w-6 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <h3 className="font-semibold text-amber-900">
+              {staleCount} {staleCount === 1 ? 'producto no se actualiza' : 'productos no se actualizan'} hace más de 7 días
+            </h3>
+            <p className="text-sm text-amber-800 mt-1">
+              Esto puede indicar que algún proveedor dejó de sincronizar, un producto se movió de posición
+              en el catálogo, o hay un problema con el sync. Revisá el listado para detectar el problema.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2 border-amber-400 text-amber-800 hover:bg-amber-100"
+              onClick={loadStaleDetail}
+              disabled={staleLoading}
+            >
+              {staleLoading ? (
+                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+              ) : (
+                <ArrowRight className="w-4 h-4 mr-1" />
+              )}
+              Ver detalle
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
         <Card>
@@ -293,6 +385,86 @@ export default function AdminDashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Sesión 56: Diálogo con el listado completo de productos stale */}
+      <Dialog open={staleDialogOpen} onOpenChange={setStaleDialogOpen}>
+        <DialogContent className="max-w-5xl max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600" />
+              Productos sin actualizar hace más de 7 días
+              <Badge variant="secondary" className="bg-amber-100 text-amber-800 ml-2">
+                {staleCount} total
+              </Badge>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="overflow-x-auto flex-1">
+            {staleProducts.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                <p>No hay productos para mostrar</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="min-w-[250px]">Producto</TableHead>
+                    <TableHead className="min-w-[120px]">SKU</TableHead>
+                    <TableHead className="min-w-[140px]">Proveedor</TableHead>
+                    <TableHead className="text-center">Stock</TableHead>
+                    <TableHead className="text-center">Estado</TableHead>
+                    <TableHead className="text-right">Última actualización</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {staleProducts.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell>
+                        <Link
+                          href={`/admin/productos?search=${encodeURIComponent(p.name.substring(0, 30))}`}
+                          className="text-gray-900 hover:text-compucity-green hover:underline"
+                        >
+                          {p.name}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {p.providerSku || p.sku || '-'}
+                      </TableCell>
+                      <TableCell className="text-sm text-gray-600">
+                        {p.providerName}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className={Number(p.stock) === 0 ? 'text-red-600 font-medium' : ''}>
+                          {p.stock}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {p.isActive === 1 ? (
+                          <Badge variant="secondary" className="bg-green-100 text-green-800">
+                            Activo
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="bg-gray-100 text-gray-600">
+                            Inactivo
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right text-sm text-gray-500">
+                        {formatDate(p.updatedAt)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+          {staleCount > staleProducts.length && (
+            <div className="mt-2 text-xs text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
+              ⚠ Mostrando los {staleProducts.length} productos más antiguos. Hay {staleCount - staleProducts.length} más.
+              Considerá hacer un sync manual desde /admin/proveedores para actualizarlos.
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
