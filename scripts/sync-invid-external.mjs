@@ -198,13 +198,57 @@ async function main() {
   console.log(`  ✓ ${dbMap.size} productos en DB`)
 
   // ─── 3. Fetch paginado de la API de Invid ───
+  // SESIÓN 56 FIX CRÍTICO: Rate limit de Invid es 50 req/hora por usuario.
+  // Antes, el sync empezaba siempre desde offset 0 y al quedarse sin rate limit
+  // cortaba sin guardar progreso → productos después del offset 5000 NUNCA se sincronizaban.
+  //
+  // Ahora: guardamos el offset en store_config (clave 'invid_sync_offset').
+  // Cada corrida arranca desde el último offset guardado y continúa desde ahí.
+  // Cuando llega al final del catálogo (página vacía o sin next_page_url),
+  // resetea el offset a 0 para empezar de nuevo desde el principio.
+  //
+  // Con 50 req/hora × 100 productos/req = 5000 productos/hora.
+  // 4 corridas/día (cada 6h) × 5000 = 20,000 productos/día.
+  // Catálogo Invid ~5000-10000 productos → sync completo en 1-2 días.
   console.log('▸ Obteniendo productos desde API Invid...')
+
+  // Cargar offset guardado
+  let startOffset = 0
+  try {
+    const offsetResult = await tursoExecute(
+      `SELECT value FROM store_config WHERE key = 'invid_sync_offset'`
+    )
+    if (offsetResult.rows.length > 0 && offsetResult.rows[0].value) {
+      startOffset = parseInt(offsetResult.rows[0].value, 10) || 0
+      console.log(`  ✓ Offset guardado encontrado: ${startOffset} (continuando desde ahí)`)
+    } else {
+      console.log(`  ✓ Sin offset guardado, empezando desde 0`)
+    }
+  } catch (e) {
+    console.warn(`  ⚠ No se pudo cargar offset guardado: ${e.message}. Empezando desde 0.`)
+  }
+
   const apiProducts = new Map()
-  let offset = 0
+  let offset = startOffset
   const pageSize = 100
   let totalFetched = 0
   let emptyPageCount = 0
   const MAX_EMPTY_PAGES = 3
+  let rateLimited = false
+  let reachedEnd = false
+
+  async function saveOffset(off) {
+    try {
+      // UPSERT: insertar o actualizar
+      await tursoExecute(
+        `INSERT INTO store_config (key, value) VALUES ('invid_sync_offset', ?)
+         ON CONFLICT(key) DO UPDATE SET value = ?`,
+        [String(off), String(off)]
+      )
+    } catch (e) {
+      console.warn(`  ⚠ No se pudo guardar offset ${off}: ${e.message}`)
+    }
+  }
 
   while (true) {
     try {
@@ -212,6 +256,19 @@ async function main() {
       const resp = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       })
+
+      // SESIÓN 56 FIX: manejar 429 (rate limit) guardando el progreso
+      if (resp.status === 429) {
+        const retryAfter = parseInt(resp.headers.get('retry-after') || '60', 10)
+        const remaining = resp.headers.get('x-ratelimit-remaining') || '?'
+        const reset = resp.headers.get('x-ratelimit-reset')
+        console.log(`\n  ⏳ Rate limit alcanzado en offset ${offset}`)
+        console.log(`     Remaining: ${remaining}/50, reset en ${retryAfter}s`)
+        console.log(`     Guardando offset ${offset} para continuar en la próxima corrida...`)
+        await saveOffset(offset)
+        rateLimited = true
+        break
+      }
 
       if (!resp.ok) {
         console.error(`  ✗ HTTP ${resp.status} at offset ${offset}`)
@@ -240,6 +297,7 @@ async function main() {
         emptyPageCount++
         if (emptyPageCount >= MAX_EMPTY_PAGES) {
           console.log(`\n  ✓ ${MAX_EMPTY_PAGES} páginas vacías consecutivas — fin del catálogo`)
+          reachedEnd = true
           break
         }
         offset += pageSize
@@ -259,19 +317,35 @@ async function main() {
         apiProducts.set(sku, { stock, price, costPrice })
       }
 
-      process.stdout.write(`\r  API: ${totalFetched} productos procesados`)
+      process.stdout.write(`\r  API: ${totalFetched} productos procesados (offset ${offset})    `)
 
       if (products.length < pageSize) {
+        // Última página — fin del catálogo
+        reachedEnd = true
         break
       }
       offset += pageSize
     } catch (err) {
       console.error(`\n  ✗ Error en offset ${offset}: ${err.message}`)
+      // Guardar progreso antes de salir
+      await saveOffset(offset)
       break
     }
   }
   console.log('\n')
-  console.log(`  ✓ ${apiProducts.size} productos válidos en API`)
+  console.log(`  ✓ ${apiProducts.size} productos válidos en API (fetched ${totalFetched} en esta corrida)`)
+
+  // SESIÓN 56 FIX: manejar el offset al finalizar
+  if (reachedEnd) {
+    console.log(`  ✓ Fin del catálogo alcanzado. Reseteando offset a 0 para próxima corrida.`)
+    await saveOffset(0)
+  } else if (rateLimited) {
+    console.log(`  ⏳ Sync pausado por rate limit. Continuará desde offset ${offset} en la próxima corrida.`)
+  } else {
+    // Sync terminó por otra razón (error, etc.) — guardar offset para continuar
+    await saveOffset(offset)
+    console.log(`  ℹ Offset guardado en ${offset} para próxima corrida.`)
+  }
 
   // ─── 4. Comparar y armar updates ───
   const now = new Date().toISOString()
@@ -369,6 +443,13 @@ async function main() {
   console.log(`  Updates aplicados: ${updates.length}`)
   console.log(`  0 → con stock: ${wasZeroNowGt}`)
   console.log(`  con stock → 0: ${wasGtNowZero}`)
+  if (reachedEnd) {
+    console.log(`  Offset: reseteado a 0 (fin del catálogo)`)
+  } else if (rateLimited) {
+    console.log(`  Offset guardado: ${offset} (continuará en próxima corrida)`)
+  } else {
+    console.log(`  Offset guardado: ${offset}`)
+  }
   console.log('═'.repeat(70))
 }
 
