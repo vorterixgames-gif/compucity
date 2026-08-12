@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { fetchDollarRate, getStoreConfigNumber, calculateProductPrices } from '@/lib/dollar'
-import { getCategoryMarkupMap } from '@/lib/queries'
+import { getCategoryMarkupMap, deduplicateProducts } from '@/lib/queries'
 
 // Search endpoint: query directa + cálculo de precios solo para los 6 resultados.
 // Antes usaba searchProducts() que hacía 2 queries LIKE secuenciales + 3 queries de config
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   }
 
   const searchTerm = q.trim()
-  const limit = 6
+  const limit = 12 // FIX s57: sobrefetch (abajo se deduplica y se recorta a 6)
 
   try {
     const searchTermLike = `%${searchTerm}%`
@@ -65,14 +65,30 @@ export async function GET(request: NextRequest) {
         slug: calculated.slug,
         price: calculated.price,
         comparePrice: calculated.comparePrice,
+        costPrice: p.costPrice ?? null, // FIX s57: requerido por deduplicateProducts (fallback)
+        stock: p.stock ?? 0, // FIX s57: requerido por deduplicateProducts (el SQL ya filtra stock > 0)
         images: calculated.images ? (() => { try { return JSON.parse(calculated.images) } catch { return [] } })() : [],
       }
     })
 
     // Cache en CDN 5 min: búsquedas repetidas por el mismo término no golpean la DB.
     // stale-while-revalidate=300 sirve contenido cacheado mientras refresca en background.
+    // FIX s57: aplicar el mismo dedup que la pagina de resultados (searchProducts)
+    // para que el dropdown no muestre productos que desaparecen al hacer Enter.
+    // Caso "1120": 2x Impresora Epson M1120 (2 proveedores) en el dropdown, 1 en la pagina.
+    const suggestions = deduplicateProducts(products)
+      .slice(0, 6)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        slug: p.slug,
+        price: p.price,
+        comparePrice: p.comparePrice,
+        images: p.images,
+      }))
+
     return NextResponse.json(
-      { ok: true, products },
+      { ok: true, products: suggestions },
       { headers: { 'Cache-Control': 's-maxage=300, stale-while-revalidate=300' } }
     )
   } catch (error) {
