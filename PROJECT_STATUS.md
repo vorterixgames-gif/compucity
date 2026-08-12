@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-08-11 (sesión 56 continuación — fix sync Invid rate limit + SKU 0418605 + monitoreo productos stale)
+**Ultima actualizacion:** 2026-08-12 (sesión 57 — fix búsqueda "1120": dedup por precio final + dropdown consistente con resultados)
 
 ---
 
@@ -14,11 +14,11 @@
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
-- **Commit estable:** 2d2535b (feat: monitoreo de productos stale en panel admin)
-- **Commit actual:** 2d2535b
+- **Commit estable:** 4c2cdd9 (fix: dedup de búsqueda por precio final + dropdown consistente)
+- **Commit actual:** 4c2cdd9
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 56
+- **Sesiones totales:** 57
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1017,7 +1017,7 @@ createdAt TEXT, updatedAt TEXT
 
 ### Backup Git
 - **GitHub:** https://github.com/vorterixgames-gif/compucity (repo completo)
-- **Ultimo commit:** ce9c4e9 (feat: agregar sección de planes de cuota en configuración)
+- **Ultimo commit:** 4c2cdd9 (fix: dedup de búsqueda por precio final + dropdown consistente)
 - **Tags:** v-seo-optimized (commit c5b7458)
 
 ### Script de backup automatico
@@ -1154,6 +1154,18 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-08-12 (s57):** Fix búsqueda "1120" — dropdown mostraba 2 impresoras y al hacer Enter aparecía solo 1. **2 commits: c95b389, 4c2cdd9.** **2 cambios en esta tanda:**
+
+  (1) **Dedup conservaba la variante MÁS CARA (bug)** — La búsqueda "1120" matcheaba 3 productos activos con stock: 2x "Impresora Epson Monocromatica M1120 Sist Cont de Tinta Wifi" (el MISMO producto de 2 proveedores: imagen propia $389.267 stock 4 | Invid $419.226 stock 10) + Botella Epson T534120-al Negro $52.874. `searchProducts()` agrupa por nombre normalizado en `deduplicateProducts()` y conserva solo uno — pero el sort usaba `costPrice` (USD), no el precio final ARS. Invid convierte ARS→USD en su sync, así que su costo USD resulta menor aunque el precio final sea mayor: se conservaba la variante de $419.226 y se ocultaba la de $389.267. El cliente perdía la oferta más barata. Fix: el comparador de `deduplicateProducts()` (`src/lib/queries.ts`) ahora usa el precio FINAL calculado por `calculateProductPrices()` (`price`), con fallback a `costPrice` cuando no existe. Cambio retrocompatible (campo `price` opcional en la generic, ningún otro caller se rompe).
+
+  (2) **Dropdown inconsistente con la página de resultados** — `/api/search` (query directa s54) NO deduplicaba: el navbar mostraba las 2 impresoras + la botella, y al hacer Enter (`/categoria/todos?q=1120`) aparecía solo 1. Fix en `src/app/api/search/route.ts`: LIMIT SQL 6→12 (sobrefetch), aplicar el mismo `deduplicateProducts()` y recortar a 6 sugerencias. Dropdown y página de resultados ahora coinciden. Sin cambios en SELECT (regla #5 respetada: costPrice/stock ya estaban en SEARCH_SELECT), sin cambios de schema.
+
+  **Validación en producción (post-deploy de Vercel):** `curl "https://www.compucityonline.com.ar/api/search?q=1120&v=2"` → debe devolver 2 productos (impresora M1120 $389K + botella). `/categoria/todos?q=1120` → "2 productos" con la impresora de $389K (antes mostraba la de $419K). El `&v=2` bypasea el cache CDN de 5 min del endpoint.
+
+  **Pendientes:**
+  - **Revocar el PAT de GitHub usado para este push** — el token fue pegado en texto plano en el chat, está comprometido. Revocar en GitHub → Settings → Developer settings → Personal access tokens y generar uno nuevo si hace falta
+  - Regresiones de búsqueda: verificar que el dropdown coincida con la página de resultados para "notebook", "mouse", "redragon"
+
 - **2026-08-11 (s56 continuación):** Fix sync Invid rate limit + SKU 0418605 + monitoreo productos stale. **3 commits: 32e13fb, 2d2535b, (docs pendiente)** + 1 fix DB directa. **4 cambios en esta tanda:**
 
   (1) **Fix SKU 0418605 (DB directa, sin deploy)** — VGA Gigabyte GeForce RTX 5070 EAGLE OC ICE SFF 12G White (SKU Invid 0418605) tenía precio desactualizado en DB: costPrice=USD 756.67 cuando el precio real en API Invid es USD 912.06. Diferencia de USD 155 (20% más barato en nuestra web). Causa raíz: el sync de Invid no llegaba a este producto por bug de rate limit (ver punto 2). Fix aplicado vía script one-shot `scripts/fix-sku-0418605.mjs`: UPDATE en products con costPrice=912.06, price=1185.678 (costo+30% markup), stock=3 (BAJO STOCK según API), ivaRate=10.5 (10.5% según API, antes era null). Datos confirmados vía endpoint directo `GET /api/v1/articulo.php?id=0418605` con token JWT de la cuenta `pmariavirgina`.
