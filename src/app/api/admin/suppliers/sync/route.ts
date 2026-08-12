@@ -1060,8 +1060,35 @@ export async function syncInvid(supplier: any): Promise<SyncResult> {
 
     const token = authData.access_token
 
-    // Step 2: Fetch all products (paginated)
+    // Step 2: Fetch products (paginado)
+    // FIX s58: el rate limit de Invid es 50 req/hora por usuario y el catalogo
+    // (~5000-10000 productos) no entra en una sola corrida. El progreso se
+    // persiste en store_config['invid_sync_offset'] (compartido con el sync de GitHub Actions).
     let offset = 0
+    try {
+      const offsetRes = await db.execute({
+        sql: `SELECT value FROM store_config WHERE key = 'invid_sync_offset'`,
+        args: [],
+      })
+      const savedOffset = (offsetRes.rows[0] as any)?.value
+      if (savedOffset) offset = parseInt(savedOffset, 10) || 0
+    } catch (e) {
+      console.error('syncInvid: no se pudo leer invid_sync_offset:', e)
+    }
+    const startOffset = offset
+
+    const saveInvidOffset = async (off: number) => {
+      try {
+        await db.execute({
+          sql: `INSERT INTO store_config (key, value) VALUES ('invid_sync_offset', ?)
+                ON CONFLICT(key) DO UPDATE SET value = ?`,
+          args: [String(off), String(off)],
+        })
+      } catch (e) {
+        console.error('syncInvid: no se pudo guardar offset', off, e)
+      }
+    }
+
     const pageSize = 100
     let hasMore = true
     let totalFetched = 0
@@ -1074,6 +1101,19 @@ export async function syncInvid(supplier: any): Promise<SyncResult> {
       const productsRes = await fetch(`${baseUrl}/api/v1/articulo.php?offset=${offset}`, {
         headers: { 'Authorization': `Bearer ${token}` },
       })
+
+      // FIX s58: 429 = rate limit (50 req/hora). Guardar progreso y devolver exito
+      // parcial en vez de error: la proxima sincronizacion continua desde aca.
+      if (productsRes.status === 429) {
+        await saveInvidOffset(offset)
+        result.ok = true
+        result.total = totalFetched
+        result.created = created
+        result.updated = updated
+        result.skipped = skipped
+        result.message = `Rate limit de Invid alcanzado (50 pedidos/hora) en offset ${offset}. Se procesaron ${totalFetched} productos (${created} nuevos, ${updated} actualizados). El progreso quedo guardado: la proxima sincronizacion continua desde aca.`
+        return result
+      }
 
       if (!productsRes.ok) {
         result.message = `Error fetching products from Invid: ${productsRes.status}`
@@ -1220,6 +1260,9 @@ export async function syncInvid(supplier: any): Promise<SyncResult> {
       }
 
       offset += pageSize
+      // FIX s58: persistir progreso tras cada pagina para no perderlo si el
+      // request se corta por timeout de Vercel (60s).
+      await saveInvidOffset(offset)
       // If we got less than pageSize, we've reached the end
       if (products.length < pageSize) {
         hasMore = false
@@ -1239,7 +1282,9 @@ export async function syncInvid(supplier: any): Promise<SyncResult> {
     result.updated = updated
     result.skipped = skipped
     result.errors = errors
-    result.message = `Sincronización completada: ${totalFetched} productos procesados, ${created} nuevos, ${updated} actualizados, ${skipped} sin precio omitidos`
+    // FIX s58: se recorrio el catalogo hasta el final -> resetear offset a 0
+    await saveInvidOffset(0)
+    result.message = `Sincronización completada: ${totalFetched} productos procesados desde offset ${startOffset} (${created} nuevos, ${updated} actualizados, ${skipped} sin precio omitidos). Catálogo recorrido hasta el final: la próxima vez empieza de nuevo desde el principio.`
 
   } catch (error: any) {
     result.message = `Error de conexión con Invid: ${error.message}`
