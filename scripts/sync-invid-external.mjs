@@ -30,7 +30,7 @@ const TURSO_HTTP = TURSO_URL.replace('libsql://', 'https://') + '/v2/pipeline'
 async function tursoExecute(sql, args = []) {
   const body = JSON.stringify({
     requests: [
-      { type: 'execute', stmt: { sql, args: args.map(a => a === null || a === undefined ? { type: 'null' } : { type: 'text', value: String(a) })) } },
+      { type: 'execute', stmt: { sql, args: args.map(a => a === null || a === undefined ? { type: 'null' } : { type: 'text', value: String(a) }) } },
       { type: 'close' },
     ],
   })
@@ -63,7 +63,7 @@ async function tursoBatch(statements) {
     requests: [
       ...statements.map(s => ({
         type: 'execute',
-        stmt: { sql: s.sql, args: (s.args || []).map(a => a === null || a === undefined ? { type: 'null' } : { type: 'text', value: String(a) })) }
+        stmt: { sql: s.sql, args: (s.args || []).map(a => a === null || a === undefined ? { type: 'null' } : { type: 'text', value: String(a) }) }
       })),
       { type: 'close' },
     ],
