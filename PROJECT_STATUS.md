@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-08-12 (sesión 58 — fix error 429 en sync manual de Invid: rate limit + offset compartido)
+**Ultima actualizacion:** 2026-08-12 (sesión 59 — cron de GitHub ahora crea productos nuevos de Invid y Elit)
 
 ---
 
@@ -14,11 +14,11 @@
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
-- **Commit estable:** 58ac6f5 (fix: sync manual Invid maneja rate limit 429 + offset compartido)
-- **Commit actual:** 58ac6f5
+- **Commit estable:** e1d9349 (feat: cron Invid+Elit crea productos nuevos)
+- **Commit actual:** e1d9349
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 58
+- **Sesiones totales:** 59
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1017,7 +1017,7 @@ createdAt TEXT, updatedAt TEXT
 
 ### Backup Git
 - **GitHub:** https://github.com/vorterixgames-gif/compucity (repo completo)
-- **Ultimo commit:** 58ac6f5 (fix: sync manual Invid maneja rate limit 429 + offset compartido)
+- **Ultimo commit:** e1d9349 (feat: cron Invid+Elit crea productos nuevos)
 - **Tags:** v-seo-optimized (commit c5b7458)
 
 ### Script de backup automatico
@@ -1154,6 +1154,28 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-08-12 (s59): El cron de GitHub Actions ahora CREA productos nuevos de Invid + Elit** (revierte decisión de s51 d3). **4 commits: 04f18f5 (feat Invid), e95110c (feat Elit), a427b5f + e1d9349 (fix syntax).** Validación: run manual 31626081086 → ambos jobs SUCCESS.
+
+  **Contexto:** el dueño señaló que el cron solo actualizaba precios y no traía productos nuevos (decisión s51 d3: los syncs externos no creaban productos por riesgo de categorización incorrecta; había que hacer sync manual cada 2-3 semanas). El dueño aprobó revertirlo con categorización segura: categoría solo si hay mapeo configurado, nunca inventada.
+
+  **Cambios en `scripts/sync-invid-external.mjs` y `scripts/sync-elit-external.mjs`:**
+  (1) **Creación de productos nuevos** — el bloque `if (!dbData) continue` ahora crea el producto: mismo INSERT que el sync manual (18 columnas, `ivaRate` NULL explícito — lección s45), specs (Marca/Part Number en Invid; Marca/EAN/Garantía en Elit), imágenes (`IMAGE_URL` Invid / array `imagenes` Elit), descripción y comparePrice (`FINAL_PRICE`/`pvp_usd` × markup). Nombre desde `TITLE` (Invid) / `nombre` (Elit); categoría del proveedor desde RUBRO/CATEGORIA/GRUPO/FAMILY/CATEGORY (Invid) y `categoria > sub_categoria` (Elit), igual que el sync manual.
+  (2) **Categorización segura** — carga `supplier_category_mappings` del proveedor al inicio; si la categoría del proveedor tiene mapeo → crea con esa categoría; si no → `categoryId NULL` (cola "Sin categoría" del admin). Invid tiene 85 mapeos; Elit tiene 0 (van todos a "sin categoría" hasta configurar mapeos).
+  (3) **Lista negra efectiva (s52)** — los SKUs en `deleted_products` ahora se bloquean de verdad (antes solo se logueaban): en la corrida de validación bloqueó 3 de Elit y 2 de Invid.
+  (4) **Slugs con protección de colisión** — `generateSlug()` (misma lógica que `src/lib/format-product.ts`) + sufijo `-2`, `-3` si el slug ya existe (se cargan los ~8,870 slugs existentes al inicio).
+  (5) **Soporte de NULL en `tursoExecute`/`tursoBatch`** — antes todos los args se convertían con `String()` (un NULL quedaba como el texto 'null'); ahora se envía `{type: 'null'}`. Sin esto no se podía pasar ivaRate/categoryId/comparePrice NULL. Cambio retrocompatible (ninguna llamada existente pasaba null).
+  (6) **INSERTs en batches de 50** con fallback individual si el batch falla (mismo patrón que los updates).
+
+  **Resultados de la corrida de validación (run 31626081086, 18:07 UTC):** Elit → 1,702 fetched, 158 updates, **6 productos nuevos creados** (0 errores), 3 en lista negra bloqueados. Invid → retomó desde offset 5,000 (mecanismo s56 intacto), 933 fetched, 4 updates, **83 productos nuevos creados** (0 errores), 2 en lista negra, offset reseteado a 0 (fin del catálogo ≈ 5,933 productos). Conteos en admin post-sync: Invid 1,679 → 1,763 activos, Elit 1,909 → 1,916 activos.
+
+  **Hotfix misma sesión:** el primer push (04f18f5 + e95110c) salió con un SyntaxError (paréntesis de más en el manejo de NULLs) → run 31625733294 falló → corregido en a427b5f + e1d9349 → run 31626081086 success.
+
+  **Impacto:** los productos nuevos ahora llegan solos con el cron: Elit cubre su catálogo completo en cada corrida (6h); Invid rota el catálogo completo cada ~1 día (4 corridas × 50 páginas por el rate limit de 50 req/hora). El sync manual del admin queda como herramienta para casos puntuales. $0 Vercel (todo corre en GitHub Actions, minutos dentro del free tier).
+
+  **Pendientes:**
+  - Configurar mapeos de categoría para Elit en /admin/proveedores (hoy 0 mapeos → los productos nuevos de Elit caen en "Sin categoría")
+  - Revocar el PAT de GitHub usado para los deploys (pendiente desde s57/s58)
+
 - **2026-08-12 (s58):** Fix error 429 en el sync manual de Invid desde el admin. **1 commit: 58ac6f5.** **1 cambio:**
 
   (1) **Sync manual de Invid no manejaba el rate limit (bug)** — El dueño reportó "Error fetching products from Invid: 429" al tocar Sincronizar en `/admin/proveedores`. Causa raíz: la API de Invid tiene rate limit de **50 req/hora por usuario** y el catálogo tiene más de 5000 productos (100 productos/request → un ciclo completo necesita 50+ requests). El sync externo de GitHub Actions ya manejaba esto desde s56 (offset persistente en `store_config['invid_sync_offset']`), pero el sync manual del admin (`syncInvid()` en `src/app/api/admin/suppliers/sync/route.ts`) arrancaba SIEMPRE desde offset 0, no manejaba 429 (devolvía error crudo) y no guardaba progreso: cada intento desperdiciaba la cuota horaria re-procesando los primeros 5000 productos y moría en el offset 5000. Fix en `syncInvid()`: (a) arranca desde el offset guardado en `store_config` (progreso compartido con el cron de GitHub Actions), (b) ante HTTP 429 guarda el offset y devuelve éxito parcial con mensaje explicativo en vez de error, (c) guarda el offset tras cada página procesada (resistente al timeout de 60s de Vercel Hobby), (d) al llegar al final del catálogo resetea el offset a 0 para el próximo ciclo. Sin cambios de SELECT ni schema (regla #5): solo se usan las columnas key/value de `store_config` que ya existen (mismo UPSERT que usa el script externo).
