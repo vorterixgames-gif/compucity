@@ -277,6 +277,10 @@ async function main() {
          ON CONFLICT(key) DO UPDATE SET value = ?`,
         [cycleNow, cycleNow]
       )
+      await tursoExecute(
+        `INSERT INTO store_config (key, value) VALUES ('invid_cycle_armed', '1')
+         ON CONFLICT(key) DO UPDATE SET value = '1'`
+      )
       console.log('  ✓ Ciclo nuevo de catálogo iniciado (offset 0)')
     } catch (e) {
       console.warn(`  ⚠ No se pudo resetear el acumulado del ciclo: ${e.message}`)
@@ -419,6 +423,11 @@ async function main() {
     )
 
     if (reachedEnd) {
+      const armedRes = await tursoExecute(`SELECT value FROM store_config WHERE key = 'invid_cycle_armed'`)
+      const armed = armedRes.rows[0] && armedRes.rows[0].value === '1'
+      if (!armed) {
+        console.log('  ℹ Catálogo completado pero acumulado no armado (primera vuelta post-deploy) — no se desactiva nada, se arma el próximo ciclo')
+      }
       const startRes = await tursoExecute(`SELECT value FROM store_config WHERE key = 'invid_cycle_start'`)
       const cycleStart = (startRes.rows[0] && startRes.rows[0].value) || '2000-01-01'
       const ghosts = []
@@ -429,7 +438,7 @@ async function main() {
           ghosts.push(row)
         }
       }
-      if (ghosts.length > 0) {
+      if (armed && ghosts.length > 0) {
         const nowG = new Date().toISOString()
         const gStmts = ghosts.map(g => ({
           sql: `UPDATE products SET stock = 0, updatedAt = ? WHERE id = ?`,
@@ -447,13 +456,19 @@ async function main() {
         console.log(`  ⚠ ${ghosts.length} productos de Invid ya NO están en el catálogo → stock=0 (fantasmas)`)
         for (const g of ghosts.slice(0, 30)) console.log(`     - SKU ${g.providerSku}`)
       }
-      if (nullSkuConStock > 0) {
+      if (armed && nullSkuConStock > 0) {
         console.log(`  ℹ ${nullSkuConStock} productos Invid sin providerSku con stock (no se pueden validar contra la API)`)
       }
       await tursoExecute(
         `INSERT INTO store_config (key, value) VALUES ('invid_cycle_skus', '[]')
          ON CONFLICT(key) DO UPDATE SET value = '[]'`
       )
+      if (armed) {
+        await tursoExecute(
+          `INSERT INTO store_config (key, value) VALUES ('invid_cycle_armed', '0')
+           ON CONFLICT(key) DO UPDATE SET value = '0'`
+        )
+      }
     }
   } catch (e) {
     console.warn(`  ⚠ Detección de productos fantasma: ${e.message}`)
