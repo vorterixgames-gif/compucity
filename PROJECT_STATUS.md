@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-08-12 (sesión 59 — cron de GitHub ahora crea productos nuevos de Invid y Elit)
+**Ultima actualizacion:** 2026-08-12 (sesión 60 — Invid: detección de productos fantasma sacados del catálogo)
 
 ---
 
@@ -14,11 +14,11 @@
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
-- **Commit estable:** e1d9349 (feat: cron Invid+Elit crea productos nuevos)
-- **Commit actual:** e1d9349
+- **Commit estable:** f237ef2 (feat: Invid desactiva productos sacados del catálogo)
+- **Commit actual:** f237ef2
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 59
+- **Sesiones totales:** 60
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1017,7 +1017,7 @@ createdAt TEXT, updatedAt TEXT
 
 ### Backup Git
 - **GitHub:** https://github.com/vorterixgames-gif/compucity (repo completo)
-- **Ultimo commit:** e1d9349 (feat: cron Invid+Elit crea productos nuevos)
+- **Ultimo commit:** f237ef2 (feat: Invid desactiva productos sacados del catálogo)
 - **Tags:** v-seo-optimized (commit c5b7458)
 
 ### Script de backup automatico
@@ -1154,6 +1154,26 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-08-12 (s60): Invid — detección de "productos fantasma" (sacados del catálogo) y pase a stock=0.** **2 commits: fc65b33 (feat) + f237ef2 (guard armed).**
+
+  **Contexto:** el dueño reportó "los precios de Invid no se actualizan" con capturas: el admin mostraba 5 RTX 5050 de Invid y el portal de Invid solo 3. Diagnóstico: los 3 solapados SÍ están actualizados (costo en DB = precio del portal: 0417872 $466.38, 0418265 $468.18, 0418069 $483.08). Los 2 de más en nuestro admin (MSI Shadow 2x OC 0418098 $322.71 con updatedAt 06-27, Gigabyte Windforce OC 0418266 $329.85 con updatedAt 06-30) están CONGELADOS desde junio: Invid los habría sacado del catálogo y ningún sync los desactivaba — el sync solo toca lo que encuentra en la API. Muestreo de 550 productos Invid: 92 (17%) con stock>0 y updatedAt anterior a 08-01 (la mayoría son productos sin cambios, pero el patrón de fantasma existe). También hay productos Invid con providerSku NULL que nunca se re-validan contra la API.
+
+  **Cambio en `scripts/sync-invid-external.mjs`:**
+  (1) Tracking de SKUs vistos por ciclo de catálogo completo: claves nuevas en store_config `invid_cycle_skus` (JSON acumulador por corrida), `invid_cycle_start` (timestamp de inicio del ciclo) y `invid_cycle_armed` ('1' cuando el acumulado arrancó limpio desde offset 0).
+  (2) Al alcanzar el fin del catálogo (`reachedEnd`) con el ciclo armado: productos Invid con providerSku no-null, stock>0, NO vistos en el ciclo y updatedAt < cycle_start → `stock = 0` (batches de 100 con fallback individual). No se toca isActive ni se borra el producto: si Invid lo vuelve a listar, el update path le repone stock solo (self-healing).
+  (3) Productos con providerSku NULL no se tocan (no se pueden validar contra la API) — se loguea el conteo para revisión.
+  (4) Guard `armed` (commit f237ef2): evita desactivar masivamente en el primer ciclo incompleto post-deploy (el acumulado recién empieza a juntarse desde la primera corrida que arranca en offset 0). Sin este guard, el primer `reachedEnd` habría comparado contra un acumulado vacío y puesto stock=0 a ~5000 productos.
+  (5) Resumen del log ahora incluye `Fantasmas (Invid los sacó del catálogo) stock→0: N`.
+
+  **Validación:** run 31650711888 (23:23 UTC, código fc65b33) → success sin errores: retomó offset 5000, 429 inmediato (cuota consumida por el run 23:18), líneas nuevas del resumen OK. El guard f237ef2 entra en vigencia con el cron de 00:00.
+
+  **Timeline esperado:** corrida 06:00 UTC completa el catálogo sin armed (no desactiva nada) → corrida ~12:00 arranca ciclo armado → corrida ~18:00 completa el ciclo → primera detección de fantasmas ~08-13 18:00 UTC. Si 0418098/0418266 ya no están en la API, pasan a stock=0 solos.
+
+  **Pendientes:**
+  - Confirmar con el dueño si 0418098 (MSI Shadow) y 0418266 (Gigabyte Windforce) existen en el portal de Invid (¿página 2 de su búsqueda?) — si existen, quedan como están tras el ciclo; si no, se desactivan solos
+  - Revisar productos Invid con providerSku NULL (el log los cuenta)
+  - Revocar el PAT de GitHub (pendiente desde s57)
+
 - **2026-08-12 (s59): El cron de GitHub Actions ahora CREA productos nuevos de Invid + Elit** (revierte decisión de s51 d3). **4 commits: 04f18f5 (feat Invid), e95110c (feat Elit), a427b5f + e1d9349 (fix syntax).** Validación: run manual 31626081086 → ambos jobs SUCCESS.
 
   **Contexto:** el dueño señaló que el cron solo actualizaba precios y no traía productos nuevos (decisión s51 d3: los syncs externos no creaban productos por riesgo de categorización incorrecta; había que hacer sync manual cada 2-3 semanas). El dueño aprobó revertirlo con categorización segura: categoría solo si hay mapeo configurado, nunca inventada.
