@@ -129,7 +129,7 @@ function normalizeProductName(name: string): string {
  * 1. Primero elige el más barato que tenga stock
  * 2. Si ninguno tiene stock, elige el más barato
  */
-export function deduplicateProducts<T extends { name: string; costPrice: number | null; stock: number }>(products: T[]): T[] {
+export function deduplicateProducts<T extends { name: string; costPrice: number | null; stock: number; price?: number | null }>(products: T[]): T[] {
   if (products.length <= 1) return products
 
   const groups = new Map<string, T[]>()
@@ -152,9 +152,14 @@ export function deduplicateProducts<T extends { name: string; costPrice: number 
       const aHasStock = a.stock > 0 ? 1 : 0
       const bHasStock = b.stock > 0 ? 1 : 0
       if (aHasStock !== bHasStock) return bHasStock - aHasStock // stock first
-      const aCost = a.costPrice ?? 0
-      const bCost = b.costPrice ?? 0
-      return aCost - bCost // cheapest first
+      // FIX s57: comparar por precio FINAL calculado (ARS), no por costPrice (USD).
+      // El costPrice USD no es comparable entre proveedores con conversiones distintas
+      // (Invid convierte ARS->USD en su sync): caso real Epson M1120, el dedup conservaba
+      // la variante de $419K y ocultaba la de $389K. searchProducts() ya pasa objetos con
+      // `price` calculado por calculateProductPrices(); costPrice queda como fallback.
+      const aPrice = a.price ?? a.costPrice ?? 0
+      const bPrice = b.price ?? b.costPrice ?? 0
+      return aPrice - bPrice // cheapest final price first
     })
 
     result.push(sorted[0]) // Keep only the best one
