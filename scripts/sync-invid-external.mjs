@@ -224,7 +224,7 @@ async function main() {
   // ─── 2. Cargar productos Invid existentes en DB ───
   console.log('▸ Cargando productos Invid desde DB...')
   const dbResult = await tursoExecute(
-    'SELECT id, providerSku, stock, price, costPrice FROM products WHERE providerId = ?',
+    'SELECT id, providerSku, stock, price, costPrice, updatedAt FROM products WHERE providerId = ?',
     [INVID_SUPPLIER_ID]
   )
   const dbMap = new Map()
@@ -262,6 +262,25 @@ async function main() {
     }
   } catch (e) {
     console.warn(`  ⚠ No se pudo cargar offset guardado: ${e.message}. Empezando desde 0.`)
+  }
+
+  // SESIÓN 60: si arrancamos desde offset 0 es un ciclo nuevo → resetear acumulado
+  if (startOffset === 0) {
+    try {
+      const cycleNow = new Date().toISOString()
+      await tursoExecute(
+        `INSERT INTO store_config (key, value) VALUES ('invid_cycle_skus', '[]')
+         ON CONFLICT(key) DO UPDATE SET value = '[]'`
+      )
+      await tursoExecute(
+        `INSERT INTO store_config (key, value) VALUES ('invid_cycle_start', ?)
+         ON CONFLICT(key) DO UPDATE SET value = ?`,
+        [cycleNow, cycleNow]
+      )
+      console.log('  ✓ Ciclo nuevo de catálogo iniciado (offset 0)')
+    } catch (e) {
+      console.warn(`  ⚠ No se pudo resetear el acumulado del ciclo: ${e.message}`)
+    }
   }
 
   const apiProducts = new Map()
@@ -383,10 +402,68 @@ async function main() {
     console.log(`  ℹ Offset guardado en ${offset} para próxima corrida.`)
   }
 
+  // ─── SESIÓN 60: acumular SKUs vistos; al completar el catálogo, ───
+  // ─── poner stock=0 a los productos que Invid sacó del catálogo ───
+  try {
+    const accResult = await tursoExecute(`SELECT value FROM store_config WHERE key = 'invid_cycle_skus'`)
+    let seenSkus = new Set()
+    if (accResult.rows.length > 0 && accResult.rows[0].value) {
+      try { seenSkus = new Set(JSON.parse(accResult.rows[0].value)) } catch (e) { seenSkus = new Set() }
+    }
+    for (const sku of apiProducts.keys()) seenSkus.add(sku)
+    const mergedSkus = JSON.stringify([...seenSkus])
+    await tursoExecute(
+      `INSERT INTO store_config (key, value) VALUES ('invid_cycle_skus', ?)
+       ON CONFLICT(key) DO UPDATE SET value = ?`,
+      [mergedSkus, mergedSkus]
+    )
+
+    if (reachedEnd) {
+      const startRes = await tursoExecute(`SELECT value FROM store_config WHERE key = 'invid_cycle_start'`)
+      const cycleStart = (startRes.rows[0] && startRes.rows[0].value) || '2000-01-01'
+      const ghosts = []
+      let nullSkuConStock = 0
+      for (const [sku, row] of dbMap) {
+        if (!row.providerSku) { if (Number(row.stock) > 0) nullSkuConStock++; continue }
+        if (!seenSkus.has(sku) && Number(row.stock) > 0 && (row.updatedAt || '') < cycleStart) {
+          ghosts.push(row)
+        }
+      }
+      if (ghosts.length > 0) {
+        const nowG = new Date().toISOString()
+        const gStmts = ghosts.map(g => ({
+          sql: `UPDATE products SET stock = 0, updatedAt = ? WHERE id = ?`,
+          args: [nowG, g.id],
+        }))
+        for (let i = 0; i < gStmts.length; i += 100) {
+          const batch = gStmts.slice(i, i + 100)
+          try {
+            await tursoBatch(batch)
+          } catch (e) {
+            for (const s of batch) { try { await tursoExecute(s.sql, s.args) } catch (e2) {} }
+          }
+        }
+        ghostCount = ghosts.length
+        console.log(`  ⚠ ${ghosts.length} productos de Invid ya NO están en el catálogo → stock=0 (fantasmas)`)
+        for (const g of ghosts.slice(0, 30)) console.log(`     - SKU ${g.providerSku}`)
+      }
+      if (nullSkuConStock > 0) {
+        console.log(`  ℹ ${nullSkuConStock} productos Invid sin providerSku con stock (no se pueden validar contra la API)`)
+      }
+      await tursoExecute(
+        `INSERT INTO store_config (key, value) VALUES ('invid_cycle_skus', '[]')
+         ON CONFLICT(key) DO UPDATE SET value = '[]'`
+      )
+    }
+  } catch (e) {
+    console.warn(`  ⚠ Detección de productos fantasma: ${e.message}`)
+  }
+
   // ─── 4. Comparar y armar updates ───
   const now = new Date().toISOString()
   const updates = []
   const creations = [] // SESIÓN 59: productos nuevos a crear
+  let ghostCount = 0 // SESIÓN 60: productos que Invid sacó del catálogo
   let createdApplied = 0 // SESIÓN 59
   let blacklistedCount = 0 // SESIÓN 59
   let skippedNewCount = 0 // SESIÓN 59
@@ -548,6 +625,7 @@ async function main() {
   console.log(`  Productos fetched: ${totalFetched}`)
   console.log(`  Updates aplicados: ${updates.length}`)
   console.log(`  Productos nuevos: ${createdApplied} creados (${blacklistedCount} en lista negra, ${skippedNewCount} sin título/precio)`)
+  console.log(`  Fantasmas (Invid los sacó del catálogo) stock→0: ${ghostCount}`)
   console.log(`  0 → con stock: ${wasZeroNowGt}`)
   console.log(`  con stock → 0: ${wasGtNowZero}`)
   if (reachedEnd) {
