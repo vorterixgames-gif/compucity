@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-08-12 (sesión 57 — fix búsqueda "1120": dedup por precio final + dropdown consistente con resultados)
+**Ultima actualizacion:** 2026-08-12 (sesión 58 — fix error 429 en sync manual de Invid: rate limit + offset compartido)
 
 ---
 
@@ -14,11 +14,11 @@
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
-- **Commit estable:** 4c2cdd9 (fix: dedup de búsqueda por precio final + dropdown consistente)
-- **Commit actual:** 4c2cdd9
+- **Commit estable:** 58ac6f5 (fix: sync manual Invid maneja rate limit 429 + offset compartido)
+- **Commit actual:** 58ac6f5
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 57
+- **Sesiones totales:** 58
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1017,7 +1017,7 @@ createdAt TEXT, updatedAt TEXT
 
 ### Backup Git
 - **GitHub:** https://github.com/vorterixgames-gif/compucity (repo completo)
-- **Ultimo commit:** 4c2cdd9 (fix: dedup de búsqueda por precio final + dropdown consistente)
+- **Ultimo commit:** 58ac6f5 (fix: sync manual Invid maneja rate limit 429 + offset compartido)
 - **Tags:** v-seo-optimized (commit c5b7458)
 
 ### Script de backup automatico
@@ -1154,6 +1154,17 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-08-12 (s58):** Fix error 429 en el sync manual de Invid desde el admin. **1 commit: 58ac6f5.** **1 cambio:**
+
+  (1) **Sync manual de Invid no manejaba el rate limit (bug)** — El dueño reportó "Error fetching products from Invid: 429" al tocar Sincronizar en `/admin/proveedores`. Causa raíz: la API de Invid tiene rate limit de **50 req/hora por usuario** y el catálogo tiene más de 5000 productos (100 productos/request → un ciclo completo necesita 50+ requests). El sync externo de GitHub Actions ya manejaba esto desde s56 (offset persistente en `store_config['invid_sync_offset']`), pero el sync manual del admin (`syncInvid()` en `src/app/api/admin/suppliers/sync/route.ts`) arrancaba SIEMPRE desde offset 0, no manejaba 429 (devolvía error crudo) y no guardaba progreso: cada intento desperdiciaba la cuota horaria re-procesando los primeros 5000 productos y moría en el offset 5000. Fix en `syncInvid()`: (a) arranca desde el offset guardado en `store_config` (progreso compartido con el cron de GitHub Actions), (b) ante HTTP 429 guarda el offset y devuelve éxito parcial con mensaje explicativo en vez de error, (c) guarda el offset tras cada página procesada (resistente al timeout de 60s de Vercel Hobby), (d) al llegar al final del catálogo resetea el offset a 0 para el próximo ciclo. Sin cambios de SELECT ni schema (regla #5): solo se usan las columnas key/value de `store_config` que ya existen (mismo UPSERT que usa el script externo).
+
+  **Validación en producción (post-deploy):** POST `/api/admin/suppliers/sync` con el supplier Invid → HTTP 200 en 3.5s con mensaje "Rate limit de Invid alcanzado (50 pedidos/hora) en offset 5000... El progreso quedó guardado: la próxima sincronización continúa desde acá". Confirmado el escenario del bug: la cuota horaria estaba agotada (la había consumido el intento fallido anterior del dueño con el código viejo) y el nuevo código retomó desde el offset guardado (5000) y respondió correctamente en vez de fallar.
+
+  **Nota de uso para el dueño:** el sync manual de Invid ahora funciona por tandas de hasta 5000 productos (lo que permite la cuota horaria). Si se toca Sincronizar justo después del cron (00/06/12/18 UTC) o de otro sync reciente, puede responder "rate limit, 0 procesados": es esperado, la cuota se va recargando con el correr de la hora. El offset es compartido con el cron de GitHub Actions; entre los dos cubren el catálogo completo en 1-2 días (igual que desde s56). Para traer productos NUEVOS de Invid sigue siendo necesario el sync manual (el cron solo actualiza existentes), pero ahora cada clic avanza el ciclo en vez de chocar contra el mismo error.
+
+  **Pendientes:**
+  - Revocar el PAT de GitHub usado para los deploys (el token de s57 sigue activo)
+
 - **2026-08-12 (s57):** Fix búsqueda "1120" — dropdown mostraba 2 impresoras y al hacer Enter aparecía solo 1. **2 commits: c95b389, 4c2cdd9.** **2 cambios en esta tanda:**
 
   (1) **Dedup conservaba la variante MÁS CARA (bug)** — La búsqueda "1120" matcheaba 3 productos activos con stock: 2x "Impresora Epson Monocromatica M1120 Sist Cont de Tinta Wifi" (el MISMO producto de 2 proveedores: imagen propia $389.267 stock 4 | Invid $419.226 stock 10) + Botella Epson T534120-al Negro $52.874. `searchProducts()` agrupa por nombre normalizado en `deduplicateProducts()` y conserva solo uno — pero el sort usaba `costPrice` (USD), no el precio final ARS. Invid convierte ARS→USD en su sync, así que su costo USD resulta menor aunque el precio final sea mayor: se conservaba la variante de $419.226 y se ocultaba la de $389.267. El cliente perdía la oferta más barata. Fix: el comparador de `deduplicateProducts()` (`src/lib/queries.ts`) ahora usa el precio FINAL calculado por `calculateProductPrices()` (`price`), con fallback a `costPrice` cuando no existe. Cambio retrocompatible (campo `price` opcional en la generic, ningún otro caller se rompe).
