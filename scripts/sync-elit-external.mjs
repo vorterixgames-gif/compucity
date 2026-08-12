@@ -32,7 +32,7 @@ const TURSO_HTTP = TURSO_URL.replace('libsql://', 'https://') + '/v2/pipeline'
 async function tursoExecute(sql, args = []) {
   const body = JSON.stringify({
     requests: [
-      { type: 'execute', stmt: { sql, args: args.map(a => ({ type: 'text', value: String(a) })) } },
+      { type: 'execute', stmt: { sql, args: args.map(a => a === null || a === undefined ? { type: 'null' } : { type: 'text', value: String(a) })) } },
       { type: 'close' },
     ],
   })
@@ -66,7 +66,7 @@ async function tursoBatch(statements) {
     requests: [
       ...statements.map(s => ({
         type: 'execute',
-        stmt: { sql: s.sql, args: (s.args || []).map(a => ({ type: 'text', value: String(a) })) }
+        stmt: { sql: s.sql, args: (s.args || []).map(a => a === null || a === undefined ? { type: 'null' } : { type: 'text', value: String(a) })) }
       })),
       { type: 'close' },
     ],
@@ -126,9 +126,45 @@ async function main() {
     process.exit(1)
   }
 
+  // SESIÓN 59: generación de slugs (misma lógica que src/lib/format-product.ts)
+  function generateSlug(name) {
+    return String(name)
+      .toLowerCase()
+      .replace(/[áàäâ]/g, 'a').replace(/[éèëê]/g, 'e').replace(/[íìïî]/g, 'i')
+      .replace(/[óòöô]/g, 'o').replace(/[úùüû]/g, 'u').replace(/[ñ]/g, 'n')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .substring(0, 120)
+  }
+
   // ─── 1b. Cargar lista negra de productos eliminados (sesión 52) ───
   console.log('▸ Cargando lista negra de productos eliminados...')
   const deletedBlacklist = await loadDeletedBlacklist(ELIT_SUPPLIER_ID)
+
+  // ─── SESIÓN 59: mapeos de categoría + slugs (para crear productos nuevos) ───
+  console.log('▸ Cargando mapeos de categoría y slugs existentes...')
+  const categoryMappings = new Map()
+  try {
+    const mapResult = await tursoExecute(
+      `SELECT supplierCategory, storeCategoryId FROM supplier_category_mappings WHERE supplierId = ?`,
+      [ELIT_SUPPLIER_ID]
+    )
+    for (const row of mapResult.rows) {
+      if (row.supplierCategory && row.storeCategoryId) categoryMappings.set(String(row.supplierCategory), row.storeCategoryId)
+    }
+    console.log(`  ✓ ${categoryMappings.size} mapeos de categoría para Elit`)
+  } catch (e) {
+    console.warn(`  ⚠ No se pudieron cargar mapeos: ${e.message}. Los productos nuevos se crearán sin categoría.`)
+  }
+
+  const existingSlugs = new Set()
+  try {
+    const slugResult = await tursoExecute('SELECT slug FROM products')
+    for (const row of slugResult.rows) if (row.slug) existingSlugs.add(row.slug)
+    console.log(`  ✓ ${existingSlugs.size} slugs existentes cargados`)
+  } catch (e) {
+    console.warn(`  ⚠ No se pudieron cargar slugs: ${e.message}`)
+  }
 
   // ─── 1. Cargar productos Elit existentes en DB ───
   console.log('▸ Cargando productos Elit desde DB...')
@@ -194,7 +230,7 @@ async function main() {
           const costPrice = parseFloat(p.precio || '0')
           if (costPrice <= 0) continue
           const price = costPrice * (1 + MARKUP / 100)
-          apiProducts.set(sku, { stock, price, costPrice })
+          apiProducts.set(sku, { stock, price, costPrice, raw: p })
         }
 
         success = true
@@ -227,6 +263,10 @@ async function main() {
   // ─── 3. Comparar y armar updates ───
   const now = new Date().toISOString()
   const updates = []
+  const creations = [] // SESIÓN 59: productos nuevos a crear
+  let createdApplied = 0 // SESIÓN 59
+  let blacklistedCount = 0 // SESIÓN 59
+  let skippedNewCount = 0 // SESIÓN 59
   let stockChangedCount = 0
   let priceChangedCount = 0
   let wasZeroNowGt = 0
@@ -235,9 +275,52 @@ async function main() {
   for (const [sku, apiData] of apiProducts) {
     const dbData = dbMap.get(sku)
     if (!dbData) {
-      // Producto nuevo — no se crea acá, solo en sync manual.
-      // Sesión 52: log si está en la lista negra (para auditoría)
-      if (deletedBlacklist.has(sku)) console.log(`  ⛔ SKU ${sku} en lista negra, no se crearía`)
+      // SESIÓN 59: producto nuevo — se crea automáticamente (antes: solo sync manual).
+      // La lista negra tiene prioridad (sesión 52).
+      if (deletedBlacklist.has(sku)) {
+        blacklistedCount++
+        continue
+      }
+      const raw = apiData.raw || {}
+      const name = String(raw.nombre || '').trim()
+      if (!name || apiData.costPrice <= 0) { skippedNewCount++; continue }
+      try {
+        const supplierCategory = (raw.categoria && raw.sub_categoria)
+          ? `${raw.categoria} > ${raw.sub_categoria}`
+          : String(raw.categoria || raw.rubro || raw.familia || raw.grupo || raw.linea || '')
+        // Categoría SOLO si hay mapeo configurado; si no, NULL (cola "Sin categoría" del admin)
+        const categoryId = categoryMappings.get(supplierCategory) || null
+        let slug = generateSlug(name) || String(sku).toLowerCase()
+        if (existingSlugs.has(slug)) {
+          let suffix = 2
+          while (existingSlugs.has(`${slug}-${suffix}`) && suffix < 100) suffix++
+          slug = `${slug}-${suffix}`
+        }
+        existingSlugs.add(slug)
+        const specs = {}
+        if (raw.marca) specs['Marca'] = String(raw.marca)
+        if (raw.ean) specs['EAN'] = String(raw.ean)
+        if (raw.garantia) specs['Garantía'] = String(raw.garantia)
+        const images = Array.isArray(raw.imagenes) && raw.imagenes.length > 0 ? JSON.stringify(raw.imagenes) : '[]'
+        const pvpUsd = parseFloat(raw.pvp_usd || '0')
+        creations.push({
+          id: crypto.randomUUID(),
+          name,
+          slug,
+          description: String(raw.descripcion || ''),
+          price: apiData.price,
+          comparePrice: pvpUsd > 0 ? pvpUsd * (1 + MARKUP / 100) : null,
+          costPrice: apiData.costPrice,
+          sku,
+          stock: apiData.stock,
+          images,
+          specs: JSON.stringify(specs),
+          categoryId,
+          supplierCategory,
+        })
+      } catch (e) {
+        console.error(`  ✗ Error preparando producto nuevo ${sku}: ${e.message}`)
+      }
       continue
     }
 
@@ -299,6 +382,32 @@ async function main() {
     console.log(`  ✓ Aplicados: ${applied}, Errores: ${errors}`)
   }
 
+  // ─── SESIÓN 59: aplicar creaciones en batches de 50 ───
+  if (creations.length > 0) {
+    console.log(`\n▸ Creando ${creations.length} productos nuevos...`)
+    let createErrors = 0
+    for (let i = 0; i < creations.length; i += 50) {
+      const batch = creations.slice(i, i + 50)
+      const stmts = batch.map(c => ({
+        sql: `INSERT INTO products (id, name, slug, description, price, comparePrice, costPrice, sku, stock, isActive, isFeatured, images, specs, providerId, providerSku, categoryId, supplierCategory, ivaRate)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?, ?, ?, ?, NULL)`,
+        args: [c.id, c.name, c.slug, c.description, c.price, c.comparePrice, c.costPrice, c.sku, c.stock, c.images, c.specs, ELIT_SUPPLIER_ID, c.sku, c.categoryId, c.supplierCategory],
+      }))
+      try {
+        await tursoBatch(stmts)
+        createdApplied += batch.length
+        process.stdout.write(`\r  Creados: ${createdApplied}/${creations.length}`)
+      } catch (e) {
+        console.error(`\n  Batch de creación error: ${e.message}. Probando individual...`)
+        for (const stmt of stmts) {
+          try { await tursoExecute(stmt.sql, stmt.args); createdApplied++ } catch (e2) { createErrors++; console.error(`    ✗ SKU ${stmt.args[7]}: ${e2.message}`) }
+        }
+      }
+    }
+    console.log('\n')
+    console.log(`  ✓ Productos nuevos creados: ${createdApplied}, errores: ${createErrors}`)
+  }
+
   // ─── 5. Actualizar lastSyncAt ───
   try {
     await tursoExecute(
@@ -319,6 +428,7 @@ async function main() {
   console.log(`  Tiempo: ${elapsed}s`)
   console.log(`  Productos fetched: ${totalFetched}`)
   console.log(`  Updates aplicados: ${updates.length}`)
+  console.log(`  Productos nuevos: ${createdApplied} creados (${blacklistedCount} en lista negra, ${skippedNewCount} sin nombre/precio)`)
   console.log(`  0 → con stock: ${wasZeroNowGt}`)
   console.log(`  con stock → 0: ${wasGtNowZero}`)
   console.log('═'.repeat(70))
