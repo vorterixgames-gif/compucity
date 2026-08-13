@@ -105,6 +105,9 @@ export default function AdminDashboard() {
   const [staleProducts, setStaleProducts] = useState<StaleProduct[]>([])
   const [staleDialogOpen, setStaleDialogOpen] = useState(false)
   const [staleLoading, setStaleLoading] = useState(false)
+  // SESIÓN 62: filtro por proveedor en el diálogo de stale ('' = principales)
+  const [staleProvider, setStaleProvider] = useState<string>('')
+  const [dialogCount, setDialogCount] = useState<number | null>(null)
 
   useEffect(() => {
     loadStats()
@@ -142,14 +145,15 @@ export default function AdminDashboard() {
   }
 
   // Carga el listado completo para mostrar en el diálogo
-  const loadStaleDetail = async () => {
+  const loadStaleDetail = async (provider?: string) => {
     setStaleLoading(true)
+    const prov = provider ?? staleProvider
     try {
-      const res = await fetch('/api/admin/stale-products')
+      const res = await fetch(`/api/admin/stale-products?provider=${encodeURIComponent(prov)}`)
       const data = await res.json()
       if (data.ok) {
         setStaleProducts(data.staleProducts || [])
-        setStaleCount(data.staleCount)
+        setDialogCount(data.staleCount)
         setStaleDialogOpen(true)
       }
     } catch (error) {
@@ -182,6 +186,9 @@ export default function AdminDashboard() {
             <p className="text-sm text-amber-800 mt-1">
               Esto puede indicar que algún proveedor dejó de sincronizar, un producto se movió de posición
               en el catálogo, o hay un problema con el sync. Revisá el listado para detectar el problema.
+            </p>
+            <p className="text-xs text-amber-700 mt-1">
+              Se cuentan productos CON stock de Air Intra, Elit, Invid, Eikon y BACKUP. En el detalle podés filtrar por proveedor o ver todos.
             </p>
             <Button
               variant="outline"
@@ -394,10 +401,31 @@ export default function AdminDashboard() {
               <AlertTriangle className="h-5 w-5 text-amber-600" />
               Productos sin actualizar hace más de 7 días
               <Badge variant="secondary" className="bg-amber-100 text-amber-800 ml-2">
-                {staleCount} total
+                {dialogCount ?? staleCount} en el filtro actual
               </Badge>
             </DialogTitle>
           </DialogHeader>
+          {/* SESIÓN 62: filtro por proveedor */}
+          <div className="flex items-center gap-2 pb-2">
+            <label className="text-sm text-gray-600 whitespace-nowrap">Proveedor:</label>
+            <select
+              className="border border-gray-300 rounded-md px-2 py-1.5 text-sm bg-white"
+              value={staleProvider}
+              disabled={staleLoading}
+              onChange={(e) => {
+                setStaleProvider(e.target.value)
+                loadStaleDetail(e.target.value)
+              }}
+            >
+              <option value="">Principales (Air Intra, Elit, Invid, Eikon, BACKUP)</option>
+              <option value="all">Todos (incluye manuales)</option>
+              <option value="Air Intra">Air Intra</option>
+              <option value="Elit">Elit</option>
+              <option value="Invid Computers">Invid Computers</option>
+              <option value="Eikon">Eikon</option>
+              <option value="BACKUP">BACKUP</option>
+            </select>
+          </div>
           <div className="overflow-x-auto flex-1">
             {staleProducts.length === 0 ? (
               <div className="text-center py-8 text-gray-400">
@@ -457,9 +485,9 @@ export default function AdminDashboard() {
               </Table>
             )}
           </div>
-          {staleCount > staleProducts.length && (
+          {(dialogCount ?? 0) > staleProducts.length && (
             <div className="mt-2 text-xs text-amber-700 bg-amber-50 p-2 rounded border border-amber-200">
-              ⚠ Mostrando los {staleProducts.length} productos más antiguos. Hay {staleCount - staleProducts.length} más.
+              ⚠ Mostrando los {staleProducts.length} productos más antiguos. Hay {(dialogCount ?? 0) - staleProducts.length} más.
               Considerá hacer un sync manual desde /admin/proveedores para actualizarlos.
             </div>
           )}
