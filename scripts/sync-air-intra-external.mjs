@@ -743,13 +743,17 @@ async function main() {
   }
 
   // ─── SESIÓN 64: fantasmas Air Intra — rubro permitido pero ya no están en la API ───
-  if (seenSkus.size >= Math.max(200, existingBySku.size * 0.5)) {
-    const ghosts = []
-    for (const [sku, row] of existingBySku) {
-      const rubroRow = String(row.supplierCategory || '').trim()
-      if (!ALLOWED_RUBROS.has(rubroRow)) continue // rubro excluido: no se toca (diseño s43)
-      if (Number(row.stock) > 0 && !seenSkus.has(sku)) ghosts.push(row)
-    }
+  const ghosts = []
+  let allowedDb = 0
+  for (const [sku, row] of existingBySku) {
+    const rubroRow = String(row.supplierCategory || '').trim()
+    if (!ALLOWED_RUBROS.has(rubroRow)) continue // rubro excluido: no se toca (diseño s43)
+    allowedDb++
+    if (Number(row.stock) > 0 && !seenSkus.has(sku)) ghosts.push(row)
+  }
+  // Sanity check contra el total de DB con rubro permitido (no contra toda la DB,
+  // porque ~la mitad de los productos tienen rubros excluidos por diseño)
+  if (seenSkus.size >= Math.max(200, allowedDb * 0.5)) {
     if (ghosts.length > 0) {
       const nowG = new Date().toISOString()
       const gStmts = ghosts.map(g => ({ sql: `UPDATE products SET stock = 0, updatedAt = ? WHERE id = ?`, args: [nowG, g.id] }))
@@ -761,7 +765,7 @@ async function main() {
       for (const g of ghosts.slice(0, 30)) console.log(`     - SKU ${g.providerSku}`)
     }
   } else {
-    console.log(`  ⚠ Catálogo Air Intra sospechosamente chico (${seenSkus.size} vistos vs ${existingBySku.size} en DB) — se omite detección de fantasmas`)
+    console.log(`  ⚠ Catálogo Air Intra sospechosamente chico (${seenSkus.size} vistos vs ${allowedDb} con rubro permitido en DB) — se omite detección de fantasmas`)
   }
 
   // ─── 4. Actualizar lastSyncAt ───
