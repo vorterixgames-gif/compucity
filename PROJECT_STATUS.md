@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-08-13 (sesión 61 — tags para discos SSD/HDD en el formulario de edición)
+**Ultima actualizacion:** 2026-08-13 (sesión 62 — stale products del dashboard: solo con stock + proveedores principales + filtro)
 
 ---
 
@@ -14,11 +14,11 @@
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
-- **Commit estable:** 18149fe (feat: tags para discos SSD/HDD en admin)
-- **Commit actual:** 18149fe
+- **Commit estable:** e5f5715 (feat: stale products con stock + filtro por proveedor)
+- **Commit actual:** e5f5715
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 61
+- **Sesiones totales:** 62
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1017,7 +1017,7 @@ createdAt TEXT, updatedAt TEXT
 
 ### Backup Git
 - **GitHub:** https://github.com/vorterixgames-gif/compucity (repo completo)
-- **Ultimo commit:** 18149fe (feat: tags para discos SSD/HDD en admin)
+- **Ultimo commit:** e5f5715 (feat: stale products con stock + filtro por proveedor)
 - **Tags:** v-seo-optimized (commit c5b7458)
 
 ### Script de backup automatico
@@ -1154,6 +1154,16 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-08-13 (s62): Stale products del dashboard — nuevo criterio + filtro por proveedor.** **2 commits: 0e2f4b8 (API) + e5f5715 (dashboard).**
+
+  **Contexto:** el dueño pidió que el cartel de "productos sin actualizar hace más de 7 días" deje de contar productos sin stock y cargas manuales, que solo incluya Air Intra, Elit, Invid, Eikon y BACKUP, y que agregue filtros por proveedor.
+
+  **Cambios en `/api/admin/stale-products/route.ts`:** (1) `AND p.stock > 0` en las 2 queries (count + listado); (2) por defecto `s.name IN ('Air Intra', 'Elit', 'Invid Computers', 'Eikon', 'BACKUP')` (el count ahora también hace LEFT JOIN suppliers); (3) params nuevos: `?provider=all` muestra todo (incluye manuales y otros proveedores), `?provider=<nombre exacto>` filtra por proveedor (parameterizado, sin riesgo de inyección).
+
+  **Cambios en `src/app/admin/page.tsx`:** select de proveedor en el diálogo (opciones: Principales = default, Todos, y cada uno de los 5) que recarga el listado al cambiar; nota en el banner explicando el criterio; el badge del diálogo y el aviso de truncado usan el count del filtro activo (`dialogCount`), mientras el banner sigue mostrando el criterio default.
+
+  **Validación en producción:** default (principales con stock) = 1,426 = 714 Air Intra + 549 Invid + 134 Eikon + 28 BACKUP + 1 Elit (la suma cierra exacta); `all` = 1,667 (agrega Sin proveedor, Office Insumos, METODOS). Antes del cambio el cartel contaba ~1,667+ sin distinguir stock ni proveedor.
+
 - **2026-08-13 (s61): Tags para discos SSD y HDD en el formulario de edición del admin.** **1 commit: 18149fe.**
 
   **Contexto:** el dueño estaba editando discos (cambio de categoría) y no veía la sección "Tags (Filtros)". Esa sección es context-aware: solo aparece si la categoría del producto tiene grupos definidos en `CATEGORY_TAG_GROUPS` (antes: 9 categorías — pc-armadas, notebooks, gamer-y-diseno, memorias-ram + 2 subcats, placas-de-video, motherboards, microprocesadores). Los discos no estaban.
