@@ -429,6 +429,27 @@ async function main() {
     console.log(`  ✓ lastSeenAt marcado en ${seenWritten} productos verificados`)
   }
 
+  // ─── SESIÓN 64: fantasmas Elit — el catálogo completo se ve en cada corrida ───
+  if (apiProducts.size >= Math.max(100, dbMap.size * 0.5)) {
+    const ghosts = []
+    for (const [sku, row] of dbMap) {
+      if (!row.providerSku) continue
+      if (Number(row.stock) > 0 && !apiProducts.has(sku)) ghosts.push(row)
+    }
+    if (ghosts.length > 0) {
+      const nowG = new Date().toISOString()
+      const gStmts = ghosts.map(g => ({ sql: `UPDATE products SET stock = 0, updatedAt = ? WHERE id = ?`, args: [nowG, g.id] }))
+      for (let i = 0; i < gStmts.length; i += 100) {
+        const batch = gStmts.slice(i, i + 100)
+        try { await tursoBatch(batch) } catch (e) { for (const s of batch) { try { await tursoExecute(s.sql, s.args) } catch (e2) {} } }
+      }
+      console.log(`  ⚠ ${ghosts.length} productos de Elit ya NO están en el catálogo → stock=0 (fantasmas)`)
+      for (const g of ghosts.slice(0, 30)) console.log(`     - SKU ${g.providerSku}`)
+    }
+  } else {
+    console.log(`  ⚠ Catálogo Elit sospechosamente chico (${apiProducts.size} vs ${dbMap.size} en DB) — se omite detección de fantasmas`)
+  }
+
   // ─── 5. Actualizar lastSyncAt ───
   try {
     await tursoExecute(
