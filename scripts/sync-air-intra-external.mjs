@@ -502,12 +502,13 @@ async function main() {
   console.log('▸ Cargando productos existentes de Turso...')
   const SUPPLIER_ID = 'air-intra-1780331633566'
   const existingResult = await tursoExecute(
-    `SELECT id, providerSku, costPrice, stock, price, categoryId FROM products WHERE providerId = '${SUPPLIER_ID}'`
+    `SELECT id, providerSku, costPrice, stock, price, categoryId, supplierCategory FROM products WHERE providerId = '${SUPPLIER_ID}'`
   )
   const existingBySku = new Map()
   for (const row of existingResult.rows) {
     if (row.providerSku) existingBySku.set(row.providerSku, row)
   }
+  const seenSkus = new Set() // SESIÓN 64: SKUs con rubro permitido vistos en esta corrida
   console.log(`  ✓ ${existingBySku.size} productos existentes en DB`)
 
   // ─── 2b. Cargar lista negra de productos eliminados (sesión 52) ───
@@ -643,6 +644,7 @@ async function main() {
         filteredByRubro++
         continue
       }
+      seenSkus.add(providerSku) // SESIÓN 64
 
       const productName = p.descrip || p.descripcion || p.titulo || ''
       if (!productName) { skipped++; continue }
@@ -738,6 +740,28 @@ async function main() {
     if (products.length > 0) {
       await new Promise(r => setTimeout(r, 2000))
     }
+  }
+
+  // ─── SESIÓN 64: fantasmas Air Intra — rubro permitido pero ya no están en la API ───
+  if (seenSkus.size >= Math.max(200, existingBySku.size * 0.5)) {
+    const ghosts = []
+    for (const [sku, row] of existingBySku) {
+      const rubroRow = String(row.supplierCategory || '').trim()
+      if (!ALLOWED_RUBROS.has(rubroRow)) continue // rubro excluido: no se toca (diseño s43)
+      if (Number(row.stock) > 0 && !seenSkus.has(sku)) ghosts.push(row)
+    }
+    if (ghosts.length > 0) {
+      const nowG = new Date().toISOString()
+      const gStmts = ghosts.map(g => ({ sql: `UPDATE products SET stock = 0, updatedAt = ? WHERE id = ?`, args: [nowG, g.id] }))
+      for (let i = 0; i < gStmts.length; i += 100) {
+        const batch = gStmts.slice(i, i + 100)
+        try { await tursoBatch(batch) } catch (e) { for (const s of batch) { try { await tursoExecute(s.sql, s.args) } catch (e2) {} } }
+      }
+      console.log(`  ⚠ ${ghosts.length} productos de Air Intra con rubro permitido ya NO están en la API → stock=0 (fantasmas)`)
+      for (const g of ghosts.slice(0, 30)) console.log(`     - SKU ${g.providerSku}`)
+    }
+  } else {
+    console.log(`  ⚠ Catálogo Air Intra sospechosamente chico (${seenSkus.size} vistos vs ${existingBySku.size} en DB) — se omite detección de fantasmas`)
   }
 
   // ─── 4. Actualizar lastSyncAt ───
