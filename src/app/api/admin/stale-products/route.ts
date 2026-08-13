@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     const countRes = await db.execute({
       sql: `SELECT COUNT(*) as count FROM products p
             LEFT JOIN suppliers s ON p.providerId = s.id
-            WHERE p.updatedAt < datetime('now', '-${STALE_DAYS} days')
+            WHERE COALESCE(p.lastSeenAt, p.updatedAt) < datetime('now', '-${STALE_DAYS} days')
               AND p.stock > 0 ${providerClause}`,
       args,
     })
@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
               s.name AS providerName
             FROM products p
             LEFT JOIN suppliers s ON p.providerId = s.id
-            WHERE p.updatedAt < datetime('now', '-${STALE_DAYS} days')
+            WHERE COALESCE(p.lastSeenAt, p.updatedAt) < datetime('now', '-${STALE_DAYS} days')
               AND p.stock > 0 ${providerClause}
             ORDER BY p.updatedAt ASC
             LIMIT ${MAX_RESULTS}`,
