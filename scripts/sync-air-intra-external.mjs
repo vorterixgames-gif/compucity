@@ -672,6 +672,10 @@ async function main() {
 
       const existing = existingBySku.get(providerSku)
       if (existing) {
+        // SESIÓN 63: marcar que el sync verificó este producto en esta corrida
+        batchStmts.push(
+          `UPDATE products SET lastSeenAt = '${new Date().toISOString()}' WHERE id = '${existing.id}'`
+        )
         // UPDATE
         const needsUpdate =
           Math.abs(costPrice - parseFloat(existing.costPrice || 0)) > 0.01 ||
