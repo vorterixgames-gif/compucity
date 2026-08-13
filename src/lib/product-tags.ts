@@ -317,6 +317,46 @@ export const CATEGORY_TAG_GROUPS: Record<string, TagGroup[]> = {
       ],
     },
   ],
+
+  // SESIÓN 61: tags para discos (antes la sección "Tags (Filtros)" no aparecía al editar discos).
+  // Los values coinciden con los filtros de tienda en CategoryProducts.tsx (match case-insensitive),
+  // así los tags asignados acá alimentan los filtros existentes de /categoria/discos-ssd y discos-hdd.
+  'discos-ssd': [
+    {
+      key: 'type',
+      label: 'Tipo',
+      options: [
+        { value: 'nvme', label: 'M.2 / NVMe' },
+        { value: 'sata', label: 'SATA' },
+      ],
+    },
+    {
+      key: 'capacity',
+      label: 'Capacidad',
+      options: [
+        { value: 'upto256', label: 'Hasta 256GB' },
+        { value: '480-512', label: '480-512GB' },
+        { value: '960-1tb', label: '960GB-1TB' },
+        { value: '2tb', label: '2TB' },
+        { value: '4tbplus', label: '4TB+' },
+      ],
+    },
+  ],
+
+  'discos-hdd': [
+    {
+      key: 'capacity',
+      label: 'Capacidad',
+      options: [
+        { value: '1tb', label: '1TB' },
+        { value: '2tb', label: '2TB' },
+        { value: '4tb', label: '4TB' },
+        { value: '6-8tb', label: '6-8TB' },
+        { value: '10-12tb', label: '10-12TB' },
+        { value: '16tbplus', label: '16TB+' },
+      ],
+    },
+  ],
 }
 
 /**
@@ -437,6 +477,24 @@ function nameMatchesTag(upperName: string, groupKey: string, tagValue: string): 
     case 'am5': return /\bAM5\b|\bB650\b|\bB850\b|\bB840\b|\bA620\b|\bX870\b|\bX670E?\b/.test(upperName)
     case 'lga1700': return /\b1700\b|\bB760\b|\bH610\b|\bB660\b|\bH670\b|\bZ690\b|\bZ790\b/.test(upperName)
     case 'lga1851': return /\b1851\b|\bB860\b|\bZ890\b|\bH810\b/.test(upperName)
+
+    // SESIÓN 61: SSD tipo
+    case 'nvme': return /\bNVME\b|\bM\.?2\b|\bPCIE\b|\bGEN\s*[345]\b/.test(upperName)
+    case 'sata': return /\bSATA\b/.test(upperName) && !/\bNVME\b|\bM\.?2\b/.test(upperName)
+
+    // SESIÓN 61: SSD capacidad
+    case 'upto256': return /\b(120|128|240|256)\s*G[B]?\b/.test(upperName)
+    case '480-512': return /\b(480|500|512|600)\s*G[B]?\b/.test(upperName)
+    case '960-1tb': return /\b(960|1000|1024)\s*G[B]?\b|\b1\s*TB\b/.test(upperName)
+    case '2tb': return /\b2\s*TB\b|\b(1920|2000|2048)\s*G[B]?\b/.test(upperName)
+    case '4tbplus': return /\b([4-9]|[1-9]\d)\s*TB\b/.test(upperName)
+
+    // SESIÓN 61: HDD capacidad
+    case '1tb': return /\b1\s*TB\b|\b(960|1000|1024)\s*G[B]?\b/.test(upperName)
+    case '4tb': return /\b4\s*TB\b/.test(upperName)
+    case '6-8tb': return /\b[68]\s*TB\b/.test(upperName)
+    case '10-12tb': return /\b(10|12)\s*TB\b/.test(upperName)
+    case '16tbplus': return /\b(1[68]|[2-9]\d)\s*TB\b/.test(upperName)
 
     default: return false
   }
