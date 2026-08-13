@@ -263,6 +263,7 @@ async function main() {
   // ─── 3. Comparar y armar updates ───
   const now = new Date().toISOString()
   const updates = []
+  const seenIds = [] // SESIÓN 63: ids verificados para lastSeenAt
   const creations = [] // SESIÓN 59: productos nuevos a crear
   let createdApplied = 0 // SESIÓN 59
   let blacklistedCount = 0 // SESIÓN 59
@@ -324,6 +325,7 @@ async function main() {
       continue
     }
 
+    seenIds.push(dbData.id) // SESIÓN 63
     const stockChanged = apiData.stock !== Number(dbData.stock)
     const priceChanged = Math.abs(apiData.price - Number(dbData.price)) > 1
 
@@ -406,6 +408,25 @@ async function main() {
     }
     console.log('\n')
     console.log(`  ✓ Productos nuevos creados: ${createdApplied}, errores: ${createErrors}`)
+  }
+
+  // ─── SESIÓN 63: marcar lastSeenAt de los productos verificados ───
+  if (seenIds.length > 0) {
+    const nowSeen = new Date().toISOString()
+    let seenWritten = 0
+    for (let i = 0; i < seenIds.length; i += 100) {
+      const batch = seenIds.slice(i, i + 100).map(id => ({
+        sql: `UPDATE products SET lastSeenAt = ? WHERE id = ?`,
+        args: [nowSeen, id],
+      }))
+      try {
+        await tursoBatch(batch)
+        seenWritten += batch.length
+      } catch (e) {
+        for (const s of batch) { try { await tursoExecute(s.sql, s.args); seenWritten++ } catch (e2) {} }
+      }
+    }
+    console.log(`  ✓ lastSeenAt marcado en ${seenWritten} productos verificados`)
   }
 
   // ─── 5. Actualizar lastSyncAt ───
