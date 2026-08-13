@@ -188,7 +188,7 @@ export default function AdminDashboard() {
               en el catálogo, o hay un problema con el sync. Revisá el listado para detectar el problema.
             </p>
             <p className="text-xs text-amber-700 mt-1">
-              Se cuentan productos CON stock de Air Intra, Elit, Invid, Eikon y BACKUP. En el detalle podés filtrar por proveedor o ver todos.
+              Se cuentan productos CON stock que el sync NO verificó en los últimos 7 días (el proveedor lo sacó del catálogo, rubro no permitido o sin SKU). En el detalle podés filtrar por proveedor o ver todos.
             </p>
             <Button
               variant="outline"
@@ -399,7 +399,7 @@ export default function AdminDashboard() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-amber-600" />
-              Productos sin actualizar hace más de 7 días
+              Productos que el sync no verifica hace más de 7 días
               <Badge variant="secondary" className="bg-amber-100 text-amber-800 ml-2">
                 {dialogCount ?? staleCount} en el filtro actual
               </Badge>
