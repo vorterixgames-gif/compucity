@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentAdmin } from '@/lib/admin-auth'
 
@@ -13,15 +13,32 @@ import { getCurrentAdmin } from '@/lib/admin-auth'
 const STALE_DAYS = 7
 const MAX_RESULTS = 500 // límite de seguridad para no devolver miles de filas
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const admin = await getCurrentAdmin()
     if (!admin) return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
 
+    // SESIÓN 62: solo productos CON stock, y por defecto solo proveedores
+    // principales (Air Intra, Elit, Invid, Eikon, BACKUP).
+    // ?provider=all  -> todos (incluye cargas manuales)
+    // ?provider=<nombre exacto> -> filtra por proveedor
+    const provider = (request.nextUrl.searchParams.get('provider') || '').trim()
+    let providerClause = `AND s.name IN ('Air Intra', 'Elit', 'Invid Computers', 'Eikon', 'BACKUP')`
+    const args: (string | number)[] = []
+    if (provider === 'all') {
+      providerClause = ''
+    } else if (provider !== '') {
+      providerClause = 'AND s.name = ?'
+      args.push(provider)
+    }
+
     // Query 1: count total de productos stale (para mostrar el número en el banner)
     const countRes = await db.execute({
-      sql: `SELECT COUNT(*) as count FROM products WHERE updatedAt < datetime('now', '-${STALE_DAYS} days')`,
-      args: [],
+      sql: `SELECT COUNT(*) as count FROM products p
+            LEFT JOIN suppliers s ON p.providerId = s.id
+            WHERE p.updatedAt < datetime('now', '-${STALE_DAYS} days')
+              AND p.stock > 0 ${providerClause}`,
+      args,
     })
     const totalCount = (countRes.rows as any[])[0]?.count ?? 0
 
@@ -51,9 +68,10 @@ export async function GET() {
             FROM products p
             LEFT JOIN suppliers s ON p.providerId = s.id
             WHERE p.updatedAt < datetime('now', '-${STALE_DAYS} days')
+              AND p.stock > 0 ${providerClause}
             ORDER BY p.updatedAt ASC
             LIMIT ${MAX_RESULTS}`,
-      args: [],
+      args,
     })
 
     const staleProducts = (listRes.rows as any[]).map((row) => ({
