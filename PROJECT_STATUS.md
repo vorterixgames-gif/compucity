@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-08-12 (sesión 60 — Invid: detección de productos fantasma sacados del catálogo)
+**Ultima actualizacion:** 2026-08-13 (sesión 61 — tags para discos SSD/HDD en el formulario de edición)
 
 ---
 
@@ -14,11 +14,11 @@
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
-- **Commit estable:** f237ef2 (feat: Invid desactiva productos sacados del catálogo)
-- **Commit actual:** f237ef2
+- **Commit estable:** 18149fe (feat: tags para discos SSD/HDD en admin)
+- **Commit actual:** 18149fe
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 60
+- **Sesiones totales:** 61
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1017,7 +1017,7 @@ createdAt TEXT, updatedAt TEXT
 
 ### Backup Git
 - **GitHub:** https://github.com/vorterixgames-gif/compucity (repo completo)
-- **Ultimo commit:** f237ef2 (feat: Invid desactiva productos sacados del catálogo)
+- **Ultimo commit:** 18149fe (feat: tags para discos SSD/HDD en admin)
 - **Tags:** v-seo-optimized (commit c5b7458)
 
 ### Script de backup automatico
@@ -1154,6 +1154,21 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-08-13 (s61): Tags para discos SSD y HDD en el formulario de edición del admin.** **1 commit: 18149fe.**
+
+  **Contexto:** el dueño estaba editando discos (cambio de categoría) y no veía la sección "Tags (Filtros)". Esa sección es context-aware: solo aparece si la categoría del producto tiene grupos definidos en `CATEGORY_TAG_GROUPS` (antes: 9 categorías — pc-armadas, notebooks, gamer-y-diseno, memorias-ram + 2 subcats, placas-de-video, motherboards, microprocesadores). Los discos no estaban.
+
+  **Cambios en `src/lib/product-tags.ts`:**
+  (1) Grupo `'discos-ssd'` en CATEGORY_TAG_GROUPS: Tipo (M.2/NVMe, SATA) + Capacidad (Hasta 256GB, 480-512GB, 960GB-1TB, 2TB, 4TB+). Los `value` coinciden con los filtros de tienda de `CategoryProducts.tsx` ('NVME', 'SATA', 'upto256', '480-512', '960-1tb', '2tb', '4tbplus') → los tags asignados alimentan los filtros existentes (match tag-first case-insensitive + fallback regex, s51 d2).
+  (2) Grupo `'discos-hdd'`: Capacidad (1TB, 2TB, 4TB, 6-8TB, 10-12TB, 16TB+) con los mismos values que los filtros de tienda.
+  (3) Cases nuevos en `nameMatchesTag` para el botón "Detectar automáticamente": nvme (NVMe/M.2/PCIe/Gen3-5), sata (SATA sin NVMe en el nombre), y capacidades por regex de rangos GB/TB ('2tb' compartido SSD+HDD — sin colisión porque autoDetectTags solo itera los grupos de la categoría en edición).
+
+  **Sin cambios en la tienda:** los filtros de /categoria/discos-ssd y discos-hdd ya funcionaban por matchFn (regex); los tags agregan el match primario más preciso. No se tocó CategoryProducts.tsx ni admin/productos/page.tsx (la sección aparece sola porque getTagGroupsForCategory ahora devuelve grupos para discos).
+
+  **Pendientes:**
+  - Agregar tags a más categorías si el dueño lo necesita (mismo patrón: grupo en CATEGORY_TAG_GROUPS + cases en nameMatchesTag)
+  - Revocar el PAT de GitHub (pendiente desde s57)
+
 - **2026-08-12 (s60): Invid — detección de "productos fantasma" (sacados del catálogo) y pase a stock=0.** **2 commits: fc65b33 (feat) + f237ef2 (guard armed).**
 
   **Contexto:** el dueño reportó "los precios de Invid no se actualizan" con capturas: el admin mostraba 5 RTX 5050 de Invid y el portal de Invid solo 3. Diagnóstico: los 3 solapados SÍ están actualizados (costo en DB = precio del portal: 0417872 $466.38, 0418265 $468.18, 0418069 $483.08). Los 2 de más en nuestro admin (MSI Shadow 2x OC 0418098 $322.71 con updatedAt 06-27, Gigabyte Windforce OC 0418266 $329.85 con updatedAt 06-30) están CONGELADOS desde junio: Invid los habría sacado del catálogo y ningún sync los desactivaba — el sync solo toca lo que encuentra en la API. Muestreo de 550 productos Invid: 92 (17%) con stock>0 y updatedAt anterior a 08-01 (la mayoría son productos sin cambios, pero el patrón de fantasma existe). También hay productos Invid con providerSku NULL que nunca se re-validan contra la API.
