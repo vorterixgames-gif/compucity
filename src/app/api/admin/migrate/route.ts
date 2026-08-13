@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, ensureMigrations } from '@/lib/db'
 import { getCurrentAdmin, verifyToken } from '@/lib/admin-auth'
 
 /**
@@ -21,6 +21,10 @@ export async function POST(request: NextRequest) {
     if (!isAdminByCookie && !isAdminByKey) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
+
+    // SESIÓN 63: correr todas las migraciones pendientes de db.ts
+    // (incluye la columna lastSeenAt de la migración #29)
+    await ensureMigrations()
 
     const migrations: string[] = []
 
