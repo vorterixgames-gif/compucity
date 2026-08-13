@@ -530,4 +530,20 @@ export async function ensureMigrations() {
       console.warn('[migration] Could not create deleted_products table:', e)
     }
   }
+
+  // 29. Columna lastSeenAt en products (sesión 63)
+  // Marca la última vez que el sync vio el producto en la API del proveedor,
+  // aunque no haya habido cambios de precio/stock. El dashboard stale usa
+  // COALESCE(lastSeenAt, updatedAt) para mostrar solo productos que el sync
+  // realmente NO está viendo (proveedor lo sacó, rubro no permitido, sin SKU).
+  try {
+    await db.execute({ sql: 'SELECT lastSeenAt FROM products LIMIT 1', args: [] })
+  } catch {
+    try {
+      await db.execute({ sql: 'ALTER TABLE products ADD COLUMN lastSeenAt TEXT' })
+      console.log('[migration] Added lastSeenAt column to products')
+    } catch (e) {
+      console.warn('[migration] Could not add lastSeenAt column:', e)
+    }
+  }
 }
