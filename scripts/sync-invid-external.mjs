@@ -288,6 +288,7 @@ async function main() {
   }
 
   const apiProducts = new Map()
+  const seenIds = [] // SESIÓN 63: ids verificados para lastSeenAt
   let offset = startOffset
   const pageSize = 100
   let totalFetched = 0
@@ -497,7 +498,7 @@ async function main() {
   const now = new Date().toISOString()
   const updates = []
   const creations = [] // SESIÓN 59: productos nuevos a crear
-  const seenIds = [] // SESIÓN 63: ids verificados para lastSeenAt
+  // (seenIds se declara arriba, junto a apiProducts)
   let ghostCount = 0 // SESIÓN 60: productos que Invid sacó del catálogo
   let createdApplied = 0 // SESIÓN 59
   let blacklistedCount = 0 // SESIÓN 59
