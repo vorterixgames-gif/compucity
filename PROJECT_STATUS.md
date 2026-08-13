@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-08-13 (sesión 63 — lastSeenAt: el cartel stale muestra solo productos que el sync realmente no ve)
+**Ultima actualizacion:** 2026-08-13 (sesión 64 — detección de fantasmas extendida a Elit y Air Intra)
 
 ---
 
@@ -14,11 +14,11 @@
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
-- **Commit estable:** 0ce2f4c (fix: lastSeenAt Invid + banner stale real)
-- **Commit actual:** 0ce2f4c
+- **Commit estable:** 740a957 (feat: fantasmas Elit + Air Intra)
+- **Commit actual:** 740a957
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 63
+- **Sesiones totales:** 64
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1017,7 +1017,7 @@ createdAt TEXT, updatedAt TEXT
 
 ### Backup Git
 - **GitHub:** https://github.com/vorterixgames-gif/compucity (repo completo)
-- **Ultimo commit:** 0ce2f4c (fix: lastSeenAt Invid + banner stale real)
+- **Ultimo commit:** 740a957 (feat: fantasmas Elit + Air Intra)
 - **Tags:** v-seo-optimized (commit c5b7458)
 
 ### Script de backup automatico
@@ -1154,6 +1154,18 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-08-13 (s64): Detección de productos fantasma extendida a Elit y Air Intra.** Commits: `83169f2` (Air), `14a8652` (fix sanity check Air), `740a957` (Elit).
+
+  **Contexto:** en s63 el dueño preguntó si el problema de fantasmas (s60, Invid) aplicaba a todos los proveedores. Sí aplica a los 3 con sync automático (ningún sync desactivaba productos que el proveedor sacó del catálogo), pero el fix solo existía para Invid. Se aprobó extenderlo a Elit y Air Intra con el criterio acordado.
+
+  **Elit (`sync-elit-external.mjs`):** como cada corrida ve el catálogo completo, "producto de Elit con stock>0 que no apareció en la API" = fantasma → `stock=0` en batches de 100. Sanity check: si la API devuelve menos de la mitad de los productos de la DB, se omite la detección (protección contra catálogos parciales por glitch). **Validado en vivo (run 31714425395): "⚠ 1 productos de Elit ya NO están en el catálogo → stock=0"** — coincide exactamente con el "Elit: 1" del cartel stale de s63.
+
+  **Air Intra (`sync-air-intra-external.mjs`):** mismo patrón con el matiz acordado: solo son fantasmas los productos cuyo rubro ESTÁ en `ALLOWED_RUBROS` y desaparecieron de la API. Los de rubro excluido no se tocan (son excluidos por diseño desde s43, no fantasmas). Se agrega `seenSkus` (SKUs con rubro permitido vistos en la corrida) y `supplierCategory` al SELECT de existentes. Sanity check contra `allowedDb` (DB con rubro permitido), no contra toda la DB (fix `14a8652`: ~la mitad de la DB tiene rubros excluidos y el check original siempre fallaría).
+
+  **Estado de validación:** Elit ✔ en vivo. Air: run de validación en curso/lento por latencia del proveedor (se confirma en el próximo cron). Invid: el job de esta tanda falló por caída del lado de Invid (`HTTP 525` SSL handshake de Cloudflare en auth, 3 intentos) — misma clase de incidente que el 08-08 (503 Module not enabled); el cron de 18:00 UTC reintenta solo.
+
+  **Pendientes:** revocar PAT de GitHub (histórico); revisar los 13 de Air Intra del cartel stale (rubros excluidos — decidir si se agregan a ALLOWED_RUBROS).
+
 - **2026-08-13 (s63): Columna `lastSeenAt` + el cartel stale muestra solo lo que el sync REALMENTE no ve.** Feature implementado en tanda paralela (migración #29 en `db.ts` + `ensureMigrations()` en `/api/admin/migrate` + 3 scripts externos + `stale-products` API con `COALESCE(lastSeenAt, updatedAt)`) + hotfixes de esta sesión: `070f0dd` y `0ce2f4c`.
 
   **Contexto:** el dueño reportó que el cartel de "productos sin actualizar hace 7+ días" mostraba ~1,426 productos aunque los cron corren siempre: la mayoría simplemente NO CAMBIÓ en el proveedor (updatedAt = último cambio, no última verificación). Se aprobó el fix propuesto en s62: trackear "última vez que el sync vio el producto en la API" aunque no haya cambios.
