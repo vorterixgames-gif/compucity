@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-08-13 (sesión 62 — stale products del dashboard: solo con stock + proveedores principales + filtro)
+**Ultima actualizacion:** 2026-08-13 (sesión 63 — lastSeenAt: el cartel stale muestra solo productos que el sync realmente no ve)
 
 ---
 
@@ -14,11 +14,11 @@
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
-- **Commit estable:** e5f5715 (feat: stale products con stock + filtro por proveedor)
-- **Commit actual:** e5f5715
+- **Commit estable:** 0ce2f4c (fix: lastSeenAt Invid + banner stale real)
+- **Commit actual:** 0ce2f4c
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 62
+- **Sesiones totales:** 63
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1017,7 +1017,7 @@ createdAt TEXT, updatedAt TEXT
 
 ### Backup Git
 - **GitHub:** https://github.com/vorterixgames-gif/compucity (repo completo)
-- **Ultimo commit:** e5f5715 (feat: stale products con stock + filtro por proveedor)
+- **Ultimo commit:** 0ce2f4c (fix: lastSeenAt Invid + banner stale real)
 - **Tags:** v-seo-optimized (commit c5b7458)
 
 ### Script de backup automatico
@@ -1154,6 +1154,18 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-08-13 (s63): Columna `lastSeenAt` + el cartel stale muestra solo lo que el sync REALMENTE no ve.** Feature implementado en tanda paralela (migración #29 en `db.ts` + `ensureMigrations()` en `/api/admin/migrate` + 3 scripts externos + `stale-products` API con `COALESCE(lastSeenAt, updatedAt)`) + hotfixes de esta sesión: `070f0dd` y `0ce2f4c`.
+
+  **Contexto:** el dueño reportó que el cartel de "productos sin actualizar hace 7+ días" mostraba ~1,426 productos aunque los cron corren siempre: la mayoría simplemente NO CAMBIÓ en el proveedor (updatedAt = último cambio, no última verificación). Se aprobó el fix propuesto en s62: trackear "última vez que el sync vio el producto en la API" aunque no haya cambios.
+
+  **Cambios:** (1) `lastSeenAt TEXT` en products (migración #29, aplicada en producción vía `POST /api/admin/migrate`). (2) Los 3 scripts externos marcan `lastSeenAt` en cada producto verificado en la API aunque no cambie: Air Intra inline por producto, Elit e Invid en batches de 100 después del compare loop. (3) El endpoint stale y el banner usan `COALESCE(lastSeenAt, updatedAt)`.
+
+  **Hotfixes (esta sesión):** (a) `070f0dd` — en sync-invid `seenIds` estaba declarado después de su primer uso → `ReferenceError: Cannot access 'seenIds' before initialization` (run 31707097102 falló). (b) `0ce2f4c` — el bloque que escribe lastSeenAt estaba ubicado ANTES del compare loop que llena `seenIds` → nunca escribía nada (job "success" sin efecto). Movido después de compare/updates. Validado run 31712650017: "✓ lastSeenAt marcado en 478 productos verificados", 8 updates, 0 errores.
+
+  **Resultado en el banner (default = 5 principales con stock):** 1,426 → **456**. Desglose restante: Air Intra 13 (rubros fuera de ALLOWED_RUBROS o edge cases), Elit 1, Invid 280 (pendiente el resto de la rotación — el cron 18:00 UTC completa el catálogo), Eikon 134 + BACKUP 28 (sin sync automático: quedan como señal correcta), y en "Todos" (697) se suman cargas manuales sin proveedor.
+
+  **Pendientes:** revisar los 13 de Air Intra después del cron de 18:00 UTC (agregar rubros a ALLOWED_RUBROS si son vendibles); revocar PAT de GitHub (pendiente histórico).
+
 - **2026-08-13 (s62): Stale products del dashboard — nuevo criterio + filtro por proveedor.** **2 commits: 0e2f4b8 (API) + e5f5715 (dashboard).**
 
   **Contexto:** el dueño pidió que el cartel de "productos sin actualizar hace más de 7 días" deje de contar productos sin stock y cargas manuales, que solo incluya Air Intra, Elit, Invid, Eikon y BACKUP, y que agregue filtros por proveedor.
