@@ -640,6 +640,10 @@ async function main() {
       // Filtro de rubros (sesión 43 día 4): solo sincronizar productos
       // cuyo rubro está en la lista de permitidos.
       const rubro = String(p.rubro || p.grupo || '').trim()
+      // DEBUG TEMPORAL (s66): identificar el rubro del SKU 214348 que no sincroniza
+      if (providerSku === '214348') {
+        console.log(`  🔍 DEBUG SKU 214348 encontrado en página: rubro=[${rubro}] precio=${p.precio} stock=${(p.air?.disponible||0)+(p.lug?.disponible||0)+(p.ros?.disponible||0)+(p.cba?.disponible||0)+(p.mza?.disponible||0)}`)
+      }
       if (!ALLOWED_RUBROS.has(rubro)) {
         filteredByRubro++
         continue
