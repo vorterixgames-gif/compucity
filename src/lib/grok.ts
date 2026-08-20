@@ -14,10 +14,10 @@ const GROQ_BASE_URL = 'https://api.groq.com/openai/v1'
 // rompía los chatbots de la web y el generate-description. Ahora probamos una
 // lista de modelos en orden hasta que uno responda.
 const GROQ_MODELS = [
-  'openai/gpt-oss-120b',
   'meta-llama/llama-4-scout-17b-16e-instruct',
-  'llama-3.3-70b-versatile',
   'llama-3.1-8b-instant',
+  'openai/gpt-oss-120b',
+  'llama-3.3-70b-versatile',
 ]
 
 interface ChatMessage {
@@ -97,7 +97,10 @@ async function groqFallback(options: ChatOptions): Promise<ChatResult> {
     if (response.ok) {
       const data = await response.json()
       const content = data?.choices?.[0]?.message?.content ?? null
-      return { content, raw: data }
+      if (content) return { content, raw: data }
+      lastError = `Groq devolvió contenido vacío (${model})`
+      console.warn(`[groqFallback] ${lastError}, probando siguiente...`)
+      continue
     }
 
     const errorText = await response.text().catch(() => 'Unknown error')
