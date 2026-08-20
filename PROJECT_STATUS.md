@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-08-13 (sesión 64 — detección de fantasmas extendida a Elit y Air Intra)
+**Ultima actualizacion:** 2026-08-13 (sesión 65 — restaurado generate-description + fix modelos Groq)
 
 ---
 
@@ -14,11 +14,11 @@
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
-- **Commit estable:** 740a957 (feat: fantasmas Elit + Air Intra)
-- **Commit actual:** 740a957
+- **Commit estable:** 9f5591b (fix: generate-description + fallback modelos Groq)
+- **Commit actual:** 9f5591b
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 64
+- **Sesiones totales:** 65
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1017,7 +1017,7 @@ createdAt TEXT, updatedAt TEXT
 
 ### Backup Git
 - **GitHub:** https://github.com/vorterixgames-gif/compucity (repo completo)
-- **Ultimo commit:** 740a957 (feat: fantasmas Elit + Air Intra)
+- **Ultimo commit:** 9f5591b (fix: generate-description + fallback modelos Groq)
 - **Tags:** v-seo-optimized (commit c5b7458)
 
 ### Script de backup automatico
@@ -1154,6 +1154,16 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-08-13 (s65): Restaurado "Generar con IA" (descripciones de producto) + fix de modelos Groq que rompía toda la IA de la web.** Commits: `11d0921` (route restaurada), `41294e5` + `fd1f337` + `3150505` (fallback de modelos Groq + debug), `9f5591b` (maxTokens 350).
+
+  **Contexto:** el dueño pidió probar generar descripciones con IA y aclaró "ya tenemos una IA en la web". Investigación: (a) la web tiene chatbots (pc-assistant / notebook-assistant) que usan `grokChat` (`src/lib/grok.ts`: z-ai-web-dev-sdk primario, Groq fallback; en producción usa Groq porque ZAI no está configurado); (b) la feature de descripciones con IA YA existía (tasks 4-5-6 del 2026-03-04, worklog en `agent-ctx/4-5-6-ai-description.md`) con botón "Generar con IA" en el admin de productos — pero el endpoint `/api/generate-description/route.ts` se HABÍA PERDIDO del repo (404; bug recurrente de archivos que desaparecen, mismo patrón que el upload route); (c) Groq retiró el modelo `llama-3.3-70b-versatile` (404 model_not_found) → TODA la IA de la web (chatbots + botón) estaba rota aunque el botón siguiera en el UI.
+
+  **Cambios:** (1) `src/app/api/generate-description/route.ts` restaurado: auth de admin, flag `ai_enabled` de store_config, flujos single (`{productId}`), batch (`{productIds}`, hasta 10) y auto-batch (`{batch:true}` → hasta 10 activos sin descripción), prompt en español (2-4 frases, sin emojis/precios/markdown, sin inventar specs), guarda `description` + `updatedAt`, usa `grokChat`. (2) `src/lib/grok.ts`: lista `GROQ_MODELS` con fallback en orden (llama-4-scout → llama-3.1-8b-instant → gpt-oss-120b → llama-3.3-70b), contenido vacío o 404 pasa al siguiente modelo, y el error final incluye el detalle de cada intento. (3) maxTokens 350 para evitar corte a media frase.
+
+  **Validación en producción:** POST /api/generate-description con la RTX 5050 INNO3D Twin X2 → ok:true y descripción completa guardada en DB ("...Ideal para armar una PC gamer de entrada o actualizar un equipo existente."). El botón "Generar con IA" del admin vuelve a funcionar y los chatbots de la web recuperan servicio con el mismo fallback de modelos.
+
+  **Pendientes:** correr auto-batch (`{batch:true}`) repetidas veces para llenar el catálogo sin descripción (10 por llamada); revocar PAT de GitHub (histórico).
+
 - **2026-08-13 (s64): Detección de productos fantasma extendida a Elit y Air Intra.** Commits: `83169f2` (Air), `14a8652` (fix sanity check Air), `740a957` (Elit).
 
   **Contexto:** en s63 el dueño preguntó si el problema de fantasmas (s60, Invid) aplicaba a todos los proveedores. Sí aplica a los 3 con sync automático (ningún sync desactivaba productos que el proveedor sacó del catálogo), pero el fix solo existía para Invid. Se aprobó extenderlo a Elit y Air Intra con el criterio acordado.
