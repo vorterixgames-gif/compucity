@@ -10,7 +10,15 @@
 // a Groq porque ZAI no está configurada, así que nunca se carga el SDK.
 
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1'
-const GROQ_MODEL = 'llama-3.3-70b-versatile'
+// SESIÓN 65: Groq retiró llama-3.3-70b-versatile (404 model_not_found) y eso
+// rompía los chatbots de la web y el generate-description. Ahora probamos una
+// lista de modelos en orden hasta que uno responda.
+const GROQ_MODELS = [
+  'openai/gpt-oss-120b',
+  'meta-llama/llama-4-scout-17b-16e-instruct',
+  'llama-3.3-70b-versatile',
+  'llama-3.1-8b-instant',
+]
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant'
@@ -68,29 +76,40 @@ async function groqFallback(options: ChatOptions): Promise<ChatResult> {
 
   const { messages, temperature = 0.3, maxTokens = 800, signal } = options
 
-  const response = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: GROQ_MODEL,
-      messages,
-      temperature,
-      max_tokens: maxTokens,
-    }),
-    signal,
-  })
+  // SESIÓN 65: fallback entre modelos si Groq devuelve 404 (modelo retirado)
+  let lastError = ''
+  for (const model of GROQ_MODELS) {
+    const response = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature,
+        max_tokens: maxTokens,
+      }),
+      signal,
+    })
 
-  if (!response.ok) {
+    if (response.ok) {
+      const data = await response.json()
+      const content = data?.choices?.[0]?.message?.content ?? null
+      return { content, raw: data }
+    }
+
     const errorText = await response.text().catch(() => 'Unknown error')
-    throw new Error(`Groq API error ${response.status}: ${errorText}`)
+    lastError = `Groq API error ${response.status} (${model}): ${errorText}`
+    // Si el modelo no existe / sin acceso, probar el siguiente
+    if (response.status === 404 || errorText.includes('model_not_found') || errorText.includes('does not exist')) {
+      console.warn(`[groqFallback] modelo ${model} no disponible, probando siguiente...`)
+      continue
+    }
+    throw new Error(lastError)
   }
-
-  const data = await response.json()
-  const content = data?.choices?.[0]?.message?.content ?? null
-  return { content, raw: data }
+  throw new Error(lastError || 'Groq: ningún modelo disponible')
 }
 
 /**
