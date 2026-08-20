@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-08-13 (sesión 66 — alta manual SKU 214348 ASUS X870 + descripción IA)
+**Ultima actualizacion:** 2026-08-20 (sesión 67 — rubro 001-0331 motherboards X870 en ALLOWED_RUBROS + recategorización; decisión: resto queda filtrado)
 
 ---
 
@@ -14,11 +14,11 @@
 - **Estado:** EN PRODUCCION (Vercel auto-deploy desde GitHub main)
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
-- **Commit estable:** 9f5591b (fix: generate-description + fallback modelos Groq)
-- **Commit actual:** 9f5591b
+- **Commit estable:** b32d7f3 (fix: rubro 001-0331 + id Motherboards vigente)
+- **Commit actual:** b32d7f3
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 66
+- **Sesiones totales:** 67
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1017,7 +1017,7 @@ createdAt TEXT, updatedAt TEXT
 
 ### Backup Git
 - **GitHub:** https://github.com/vorterixgames-gif/compucity (repo completo)
-- **Ultimo commit:** 9f5591b (fix: generate-description + fallback modelos Groq)
+- **Ultimo commit:** b32d7f3 (fix: rubro 001-0331 + id Motherboards vigente)
 - **Tags:** v-seo-optimized (commit c5b7458)
 
 ### Script de backup automatico
@@ -1154,6 +1154,16 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-08-20 (s67): Motherboards X870 de Air Intra no sincronizaban — rubro 001-0331 agregado a ALLOWED_RUBROS + recategorización. Decisión del dueño: el resto queda filtrado.** Commits: `9d08e90` + `b32d7f3`.
+
+  **Contexto:** el dueño reportó 7 motherboards X870/X870E de Air Intra que estaban en el portal pero no en el catálogo (SKUs 214348, 216918, 216091, 214349, 218444, 214350, 218445). Causa raíz: mismo caso que SKU 53287 de s56 — el rubro `001-0331` no estaba en `ALLOWED_RUBROS` del script `scripts/sync-air-intra-external.mjs` (la lista de s43 quedó vieja: Air Intra re-etiquetó productos con códigos nuevos y rubros con nombre). El cron los veía en la API y los descartaba por filtro.
+
+  **Fix:** (1) `9d08e90`: `001-0331` agregado a `ALLOWED_RUBROS` → el cron ahora crea/actualiza esas motherboards solo. (2) `b32d7f3`: el mapeo `001-0331` apuntaba a un id de categoría viejo (`50aed4ad-61dd-4d9b-...`); corregido al id vigente de Motherboards `50aed4ad-61dd-4e5d-ad30-2aae7a32504e`. (3) 88 productos con rubro 001-0331 recategorizados a Motherboards vía PUT admin (el sync manual los había metido en "Memoria RAM PC" por keyword "DDR5" en el nombre). (4) SKU 214348 ya había sido dado de alta manual en s66 con descripción generada por IA.
+
+  **Efecto secundario documentado:** para traer las motherboards se disparó un sync manual batched (que NO aplica filtro de rubros) y entraron ~1,500 productos adicionales con rubros fuera de `ALLOWED_RUBROS` (Air Intra migró a rubros con nombre: "Hardware > Motherboards" 178, "Auriculares"/"Audio > Auriculares" 251, "Consumibles HP" 235, "Almacenamiento > Discos Internos SSD" 85, etc.). Esos productos están publicados pero el cron NO los actualiza (rubro no permitido) → precios quedan congelados hasta que se decida qué hacer con ellos.
+
+  **Decisión del dueño (20/8):** NO ampliar `ALLOWED_RUBROS` con otros rubros. Solo interesa el fix de motherboards; el resto queda como estaba (filtrado). Pendiente abierto: si se quiere, dar de baja los ~1,500 que entraron de más con el sync manual (requiere identificarlos con cuidado para no tocar productos preexistentes de syncs manuales anteriores).
+
 - **2026-08-13 (s66): Alta manual del SKU 214348 (ASUS PRIME X870-P WIFI) que no se sincronizaba + descripción generada con la IA restaurada.** Sin commits de código (alta de datos vía API admin).
 
   **Contexto:** el dueño reportó que el SKU 214348 (MB ASUS AM5 PRIME X870-P WIFI DDR5 BOX ATX, EAN 90MB1IS0-MVAAY0, neto USD 250.18, stock 17: Ros 1 + Cba 1 + Lug 15) figura en el portal de Air Intra pero no en nuestro catálogo. Verificado vía admin API: no existe en la DB (ni activo ni inactivo). Causa raíz no confirmada al 100% (las credenciales de la API de Air Intra están en env vars de Vercel, no accesibles): candidatos (a) rubro fuera de `ALLOWED_RUBROS` (mismo caso que SKU 53287 de s56) o (b) presente en `deleted_products` por una eliminación vieja.
