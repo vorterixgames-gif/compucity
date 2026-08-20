@@ -66,7 +66,8 @@ const ALLOWED_RUBROS = new Set([
   '001-0305',  // WEBCAMS
   '001-0306',  // VIDEO PORTEROS
   '001-0320',  // MONITORES
-  '001-0330',  // MICROPROCESADORES
+  '001-0330',
+  '001-0331', // SESIÓN 67: motherboards AM5 X870/X870E (era el rubro de las MB que no sincronizaban)  // MICROPROCESADORES
   '001-0332',  // FAN COOLER
   '001-0340',  // KITS TECLADO+MOUSE (fix s56: estaba mapeado pero faltaba en ALLOWED_RUBROS, SKU 53287 no se sincronizaba)
   '001-0341',  // JOYSTICK
