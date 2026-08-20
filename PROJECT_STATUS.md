@@ -1161,7 +1161,7 @@ bash scripts/pre-change-safeguard.sh
   **Resolución:** alta vía `POST /api/admin/products` con `providerId` "Air Intra" + `providerSku` 214348 (para que el sync lo adopte y le actualice precio/stock), categoryId motherboards, costPrice 250.18, stock 17, specs completos (socket AM5, chipset X870, DDR5 hasta 192GB/8000+ MT/s, PCIe 5.0 x16, 4× M.2, Wi-Fi 7 + BT 5.4, 2× USB4 40Gbps, ATX) y **descripción generada con la IA** (`POST /api/generate-description` — validación end-to-end de la feature restaurada en s65: "La placa base ASUS PRIME X870‑P WIFI está diseñada para usuarios que buscan un rendimiento de última generación..."). Precio de lista resultante ~$470.008. Slug: `motherboard-asus-prime-x870-p-wifi-am5-ddr5-atx`. ID: `c4a8ccc1-a865-403b-bf67-5b3929a1e4c0`.
 
   **Pendientes:**
-  - Verificar en el próximo sync de Air Intra (cron 12h o botón manual) que el 214348 reciba actualizaciones de precio/stock. Si NO se actualiza: confirmar si es rubro (agregarlo a `ALLOWED_RUBROS` en `scripts/sync-air-intra-external.mjs`, patrón s56) o lista negra (sacarlo de `deleted_products`)
+  - VERIFICADO (2026-08-20): el sync de Air Intra adoptó el 214348 — updatedAt fresco (17:36 UTC) y costo/stock coinciden con el proveedor (250.18 / 17). No hizo falta tocar `ALLOWED_RUBROS` ni `deleted_products`
   - Correr auto-batch de descripciones IA (`{batch:true}`, 10 por llamada) para llenar el catálogo sin descripción
   - Revocar PAT de GitHub (pendiente histórico)
 
