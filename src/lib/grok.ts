@@ -78,6 +78,7 @@ async function groqFallback(options: ChatOptions): Promise<ChatResult> {
 
   // SESIÓN 65: fallback entre modelos si Groq devuelve 404 (modelo retirado)
   let lastError = ''
+  const attempts: string[] = []
   for (const model of GROQ_MODELS) {
     const response = await fetch(`${GROQ_BASE_URL}/chat/completions`, {
       method: 'POST',
@@ -99,6 +100,7 @@ async function groqFallback(options: ChatOptions): Promise<ChatResult> {
       const content = data?.choices?.[0]?.message?.content ?? null
       if (content) return { content, raw: data }
       lastError = `Groq devolvió contenido vacío (${model})`
+      attempts.push(`${model}: contenido vacío`)
       console.warn(`[groqFallback] ${lastError}, probando siguiente...`)
       continue
     }
@@ -107,12 +109,14 @@ async function groqFallback(options: ChatOptions): Promise<ChatResult> {
     lastError = `Groq API error ${response.status} (${model}): ${errorText}`
     // Si el modelo no existe / sin acceso, probar el siguiente
     if (response.status === 404 || errorText.includes('model_not_found') || errorText.includes('does not exist')) {
+      attempts.push(`${model}: 404/no existe`)
       console.warn(`[groqFallback] modelo ${model} no disponible, probando siguiente...`)
       continue
     }
-    throw new Error(lastError)
+    attempts.push(`${model}: HTTP ${response.status}`)
+    throw new Error(lastError + ' | attempts: ' + attempts.join(' → '))
   }
-  throw new Error(lastError || 'Groq: ningún modelo disponible')
+  throw new Error((lastError || 'Groq: ningún modelo disponible') + ' | attempts: ' + attempts.join(' → '))
 }
 
 /**
