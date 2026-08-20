@@ -185,7 +185,7 @@ const RUBRO_TO_CATEGORY = {
 
   '001-0330': 'b4211f62-d18d-430e-a918-8dadafde4723',
 
-  '001-0331': '50aed4ad-61dd-4d9b-8337-3e69f5163847',
+  '001-0331': '50aed4ad-61dd-4e5d-ad30-2aae7a32504e', // id vigente de Motherboards (el anterior era una categoria vieja)
 
   '001-0332': '57b1e5cc-59e6-49f0-a9d1-b3f388c19b79',
 
