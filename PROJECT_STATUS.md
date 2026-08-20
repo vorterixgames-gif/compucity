@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-08-13 (sesión 65 — restaurado generate-description + fix modelos Groq)
+**Ultima actualizacion:** 2026-08-13 (sesión 66 — alta manual SKU 214348 ASUS X870 + descripción IA)
 
 ---
 
@@ -18,7 +18,7 @@
 - **Commit actual:** 9f5591b
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 65
+- **Sesiones totales:** 66
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1154,6 +1154,17 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-08-13 (s66): Alta manual del SKU 214348 (ASUS PRIME X870-P WIFI) que no se sincronizaba + descripción generada con la IA restaurada.** Sin commits de código (alta de datos vía API admin).
+
+  **Contexto:** el dueño reportó que el SKU 214348 (MB ASUS AM5 PRIME X870-P WIFI DDR5 BOX ATX, EAN 90MB1IS0-MVAAY0, neto USD 250.18, stock 17: Ros 1 + Cba 1 + Lug 15) figura en el portal de Air Intra pero no en nuestro catálogo. Verificado vía admin API: no existe en la DB (ni activo ni inactivo). Causa raíz no confirmada al 100% (las credenciales de la API de Air Intra están en env vars de Vercel, no accesibles): candidatos (a) rubro fuera de `ALLOWED_RUBROS` (mismo caso que SKU 53287 de s56) o (b) presente en `deleted_products` por una eliminación vieja.
+
+  **Resolución:** alta vía `POST /api/admin/products` con `providerId` "Air Intra" + `providerSku` 214348 (para que el sync lo adopte y le actualice precio/stock), categoryId motherboards, costPrice 250.18, stock 17, specs completos (socket AM5, chipset X870, DDR5 hasta 192GB/8000+ MT/s, PCIe 5.0 x16, 4× M.2, Wi-Fi 7 + BT 5.4, 2× USB4 40Gbps, ATX) y **descripción generada con la IA** (`POST /api/generate-description` — validación end-to-end de la feature restaurada en s65: "La placa base ASUS PRIME X870‑P WIFI está diseñada para usuarios que buscan un rendimiento de última generación..."). Precio de lista resultante ~$470.008. Slug: `motherboard-asus-prime-x870-p-wifi-am5-ddr5-atx`. ID: `c4a8ccc1-a865-403b-bf67-5b3929a1e4c0`.
+
+  **Pendientes:**
+  - Verificar en el próximo sync de Air Intra (cron 12h o botón manual) que el 214348 reciba actualizaciones de precio/stock. Si NO se actualiza: confirmar si es rubro (agregarlo a `ALLOWED_RUBROS` en `scripts/sync-air-intra-external.mjs`, patrón s56) o lista negra (sacarlo de `deleted_products`)
+  - Correr auto-batch de descripciones IA (`{batch:true}`, 10 por llamada) para llenar el catálogo sin descripción
+  - Revocar PAT de GitHub (pendiente histórico)
+
 - **2026-08-13 (s65): Restaurado "Generar con IA" (descripciones de producto) + fix de modelos Groq que rompía toda la IA de la web.** Commits: `11d0921` (route restaurada), `41294e5` + `fd1f337` + `3150505` (fallback de modelos Groq + debug), `9f5591b` (maxTokens 350).
 
   **Contexto:** el dueño pidió probar generar descripciones con IA y aclaró "ya tenemos una IA en la web". Investigación: (a) la web tiene chatbots (pc-assistant / notebook-assistant) que usan `grokChat` (`src/lib/grok.ts`: z-ai-web-dev-sdk primario, Groq fallback; en producción usa Groq porque ZAI no está configurado); (b) la feature de descripciones con IA YA existía (tasks 4-5-6 del 2026-03-04, worklog en `agent-ctx/4-5-6-ai-description.md`) con botón "Generar con IA" en el admin de productos — pero el endpoint `/api/generate-description/route.ts` se HABÍA PERDIDO del repo (404; bug recurrente de archivos que desaparecen, mismo patrón que el upload route); (c) Groq retiró el modelo `llama-3.3-70b-versatile` (404 model_not_found) → TODA la IA de la web (chatbots + botón) estaba rota aunque el botón siguiera en el UI.
