@@ -73,7 +73,7 @@ async function generateFor(p: ProductRow): Promise<string> {
       { role: 'user', content: buildUserPrompt(p) },
     ],
     temperature: 0.7,
-    maxTokens: 200,
+    maxTokens: 350,
   })
   const text = (result.content || '').trim()
   if (!text) throw new Error('La IA devolvió una descripción vacía')
