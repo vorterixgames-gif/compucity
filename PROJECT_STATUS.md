@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-08-21 (sesión 69 — reactivación de Elit/Invid desactivados por bug de filtro en limpieza s68)
+**Ultima actualizacion:** 2026-08-21 (sesión 70 — endpoint bulk-activate + reactivación completa Elit/Invid)
 
 ---
 
@@ -18,7 +18,7 @@
 - **Commit actual:** b32d7f3
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 69
+- **Sesiones totales:** 70
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1154,6 +1154,16 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-08-21 (s70): Endpoint `bulk-activate` + reactivación COMPLETA de Elit/Invid (reporte recurrente del dueño).** Commit: `06054af` (nuevo endpoint).
+
+  **Contexto:** el dueño reportó por 2da vez que "todos los productos de Elit e Invid, aunque tengan stock, figuran desactivados". La causa de fondo era la sobre-desactivación de s68 (param `supplier=` no filtra). Los intentos de reactivación con scripts background N PUTs no terminaban (sandbox mata procesos largos + N PUTs lento).
+
+  **Fix:** nuevo endpoint `src/app/api/admin/bulk-activate/route.ts` (admin-auth) que hace UN solo `UPDATE products SET isActive=1 WHERE isActive=0 AND providerId IN (...)` server-side (milisegundos, sin N calls). Body `{ providerIds: [...] }`; si vacío, reactiva todos los inactivos excepto Air Intra. Se llamó con `[elit, invid]`.
+
+  **Verificado:** muestra de 600 productos por proveedor → 0 inactivos. Elit e Invid quedan 100% activos (los `stock<=0` siguen ocultos por el filtro global de stock, como corresponde). Air Intra conserva sus desactivaciones intencionales (rubro fuera de lista).
+
+  **Lección:** para cambios masivos de un campo, hacer UN UPDATE server-side (endpoint propio), no N PUTs desde un script externo lento/fragil.
+
 - **2026-08-21 (s69): Reactivación de productos Elit/Invid desactivados por bug de filtro en la limpieza de s68.** Sin commits de código (cambio de datos vía API admin).
 
   **Fix:** script background idempotente que reactivó (`isActive=1`) TODOS los productos desactivados de proveedores distintos a Air Intra (Elit, Invid y otros). Los de Air Intra quedaron como estaban (esa desactivación sí era intencional por rubro). Verificado: las mothers Elit/Invid con stock vuelven a `isActive=1` y aparecen en la tienda (el filtro global de stock ya oculta `stock<=0`).
