@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-08-20 (sesión 67 — rubro 001-0331 motherboards X870 en ALLOWED_RUBROS + recategorización; decisión: resto queda filtrado)
+**Ultima actualizacion:** 2026-08-21 (sesión 69 — reactivación de Elit/Invid desactivados por bug de filtro en limpieza s68)
 
 ---
 
@@ -18,7 +18,7 @@
 - **Commit actual:** b32d7f3
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 67
+- **Sesiones totales:** 69
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1154,6 +1154,20 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-08-21 (s69): Reactivación de productos Elit/Invid desactivados por bug de filtro en la limpieza de s68.** Sin commits de código (cambio de datos vía API admin).
+
+  **Fix:** script background idempotente que reactivó (`isActive=1`) TODOS los productos desactivados de proveedores distintos a Air Intra (Elit, Invid y otros). Los de Air Intra quedaron como estaban (esa desactivación sí era intencional por rubro). Verificado: las mothers Elit/Invid con stock vuelven a `isActive=1` y aparecen en la tienda (el filtro global de stock ya oculta `stock<=0`).
+
+  **Lección aprendida:** (1) Los params `supplier=` y `category=` del API admin NO filtran el listado (recorren todo) — para limpiezas por proveedor hay que filtrar por `providerId`/`providerName` del lado del cliente. (2) Antes de una desactivación masiva, hacer dry-run con conteo acotado y verificar el filtro real.
+
+- **2026-08-20 (s68): Limpieza de Air Intra con rubro fuera de ALLOWED_RUBROS (decisión del dueño: quedarse solo con las mothers X870) + incidente de sobre-desactivación.** Sin commits de código (cambio de datos vía API admin).
+
+  **Contexto:** tras s67, el dueño decidió quedarse solo con las mothers visibles (rubro 001-0331) y sacar el resto que estaba filtrado (~2.400 productos Air Intra con rubro fuera de `ALLOWED_RUBROS`, incluidos ~1.600 que entraron de más con el sync manual de s67).
+
+  **Ejecución:** script background desactivó (`isActive=0`) los productos Air Intra con rubro fuera de la lista.
+
+  **Bug (reportado por el dueño):** el script usaba el param `supplier=` para acotar el recorrido, pero ese param NO filtra (igual que `category=`). Recorrió TODOS los proveedores y desactivó cualquier producto con `supplierCategory` no vacío fuera de la lista de Air Intra — alcanzó a Elit/Invid (varias con stock). Reporte: "hay productos que aún teniendo stock están desactivados". Resuelto en s69.
+
 - **2026-08-20 (s67): Motherboards X870 de Air Intra no sincronizaban — rubro 001-0331 agregado a ALLOWED_RUBROS + recategorización. Decisión del dueño: el resto queda filtrado.** Commits: `9d08e90` + `b32d7f3`.
 
   **Contexto:** el dueño reportó 7 motherboards X870/X870E de Air Intra que estaban en el portal pero no en el catálogo (SKUs 214348, 216918, 216091, 214349, 218444, 214350, 218445). Causa raíz: mismo caso que SKU 53287 de s56 — el rubro `001-0331` no estaba en `ALLOWED_RUBROS` del script `scripts/sync-air-intra-external.mjs` (la lista de s43 quedó vieja: Air Intra re-etiquetó productos con códigos nuevos y rubros con nombre). El cron los veía en la API y los descartaba por filtro.
