@@ -180,6 +180,8 @@ export default function AdminProveedores() {
   const [syncingId, setSyncingId] = useState<string | null>(null)
   const [syncResult, setSyncResult] = useState<{ ok: boolean; message: string } | null>(null)
   const [syncProgress, setSyncProgress] = useState<{ current: number; total: number } | null>(null)
+  // Sesión 71: estado de la sync de Air Intra en GitHub Actions (barra de progreso)
+  const [ghSync, setGhSync] = useState<{ running: boolean; startedAt: number; done: 'success' | 'failure' | 'timeout' | null; elapsed: number } | null>(null)
   // Cooldown state: when > 0, sync button is disabled and a countdown is shown.
   // Set when the server returns a RATE_LIMITED_COOLDOWN message.
   const [cooldownRemaining, setCooldownRemaining] = useState(0)
@@ -431,6 +433,8 @@ export default function AdminProveedores() {
           ok: true,
           message: ghData.message || 'Sync disparada en GitHub Actions. Va a tardar ~5 minutos.',
         })
+        // Sesión 71: arrancar barra de progreso + poll de estado de GitHub Actions
+        setGhSync({ running: true, startedAt: Date.now(), done: null, elapsed: 0 })
         setSyncingId(null)
         setSyncProgress(null)
         return
@@ -452,6 +456,34 @@ export default function AdminProveedores() {
       setSyncProgress(null)
     }
   }
+
+  // Sesión 71: poll del estado de la sync de Air Intra en GitHub Actions
+  useEffect(() => {
+    if (!ghSync?.running) return
+    const startedAt = ghSync.startedAt
+    const tick = setInterval(() => {
+      setGhSync(prev => (prev && prev.running ? { ...prev, elapsed: Math.floor((Date.now() - prev.startedAt) / 1000) } : prev))
+    }, 1000)
+    const poll = setInterval(async () => {
+      try {
+        const d = await safeFetchJson('/api/admin/suppliers/sync-status?workflow=sync-air-intra.yml', { method: 'GET' })
+        if (!d?.ok || !d?.run) return
+        const runAt = new Date(d.run.createdAt).getTime()
+        if (runAt < startedAt - 3000) return // todavía no apareció el run disparado
+        if (d.run.status === 'completed') {
+          const okRun = d.run.conclusion === 'success'
+          setGhSync(prev => (prev ? { ...prev, running: false, done: okRun ? 'success' : 'failure' } : prev))
+          setSyncResult({ ok: okRun, message: okRun ? 'Sync de Air Intra finalizada correctamente en GitHub Actions.' : 'La sync de Air Intra falló en GitHub Actions. Revisá el workflow.' })
+          loadSuppliers(search, page)
+        }
+      } catch {}
+    }, 5000)
+    const stop = setTimeout(() => {
+      setGhSync(prev => (prev && prev.running ? { ...prev, running: false, done: 'timeout' } : prev))
+    }, 10 * 60 * 1000)
+    return () => { clearInterval(tick); clearInterval(poll); clearTimeout(stop) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ghSync?.running, ghSync?.startedAt])
 
   // Test connection handler
   // Helper: detect RATE_LIMITED_COOLDOWN marker in server response, extract
@@ -722,6 +754,25 @@ export default function AdminProveedores() {
               style={{ width: syncProgress.total > 0 ? `${(syncProgress.current / syncProgress.total) * 100}%` : '100%' }}
             />
           </div>
+        </div>
+      )}
+      {/* Sesión 71: barra de progreso de la sync de Air Intra en GitHub Actions */}
+      {ghSync && (ghSync.running || ghSync.done) && (
+        <div className={`flex items-center gap-3 p-3 rounded-lg text-sm border ${
+          ghSync.done === 'success' ? 'bg-green-50 text-green-700 border-green-200'
+          : ghSync.done === 'failure' ? 'bg-red-50 text-red-700 border-red-200'
+          : ghSync.done === 'timeout' ? 'bg-amber-50 text-amber-800 border-amber-200'
+          : 'bg-blue-50 text-blue-700 border-blue-200'
+        }`}>
+          {ghSync.running ? <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" /> : ghSync.done === 'success' ? <CheckCircle className="w-4 h-4 flex-shrink-0" /> : <AlertTriangle className="w-4 h-4 flex-shrink-0" />}
+          <span className="flex-shrink-0">
+            {ghSync.running ? `Sincronizando en GitHub... ${ghSync.elapsed}s` : ghSync.done === 'success' ? 'Sync finalizada OK' : ghSync.done === 'failure' ? 'La sync falló' : 'No se pudo confirmar'}
+          </span>
+          <div className="flex-1 h-2 bg-blue-100 rounded-full overflow-hidden">
+            <div className={`h-full rounded-full transition-all duration-500 ${ghSync.done === 'success' ? 'bg-green-500' : ghSync.done === 'failure' ? 'bg-red-500' : 'bg-blue-500'}`}
+              style={{ width: ghSync.done ? '100%' : `${Math.min(95, (ghSync.elapsed / 300) * 100)}%` }} />
+          </div>
+          <button onClick={() => setGhSync(null)} className="ml-auto text-current opacity-60 hover:opacity-100">✕</button>
         </div>
       )}
       {syncResult && !cooldownRemaining && (
