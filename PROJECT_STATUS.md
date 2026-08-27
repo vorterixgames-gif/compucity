@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-08-21 (sesión 70 — endpoint bulk-activate + reactivación completa Elit/Invid)
+**Ultima actualizacion:** 2026-08-27 (sesión 71 — barra de progreso + estado en vivo para sync Air Intra)
 
 ---
 
@@ -15,10 +15,10 @@
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
 - **Commit estable:** b32d7f3 (fix: rubro 001-0331 + id Motherboards vigente)
-- **Commit actual:** b32d7f3
+- **Commit actual:** 36f819f
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 70
+- **Sesiones totales:** 71
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1154,7 +1154,17 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
-- **2026-08-21 (s70): Endpoint `bulk-activate` + reactivación COMPLETA de Elit/Invid (reporte recurrente del dueño).** Commit: `06054af` (nuevo endpoint).
+- **2026-08-27 (s71): Barra de progreso + estado en vivo para la sync de Air Intra (GitHub Actions). Commits: `5651f6d` (endpoint) + `36f819f` (frontend).
+
+  **Contexto:** el dueño pidió "una barra de progreso para ver si terminó o no la sync". La sync de Air Intra se dispara vía GitHub Actions (fire-and-forget, ~5 min) y antes no había forma de saber si terminó; el botón solo mostraba "disparada, tarda ~5 min".
+
+  **Backend:** nuevo `GET /api/admin/suppliers/sync-status?workflow=sync-air-intra.yml` (admin-auth). Usa `GH_ACTIONS_TOKEN` (ya existente) para leer el último run del workflow y devuelve `{ ok, run: { id, status, conclusion, createdAt, updatedAt } }`. Siempre HTTP 200 con `ok:false` en errores para que el frontend no truene. Verificado en producción: sin auth → 401; con auth → devuelve último run (completed/success).
+
+  **Frontend (`src/app/admin/proveedores/page.tsx`):** nuevo estado `ghSync` + `useEffect` que, al disparar la sync de Air Intra, muestra una barra de progreso y pollea `sync-status` cada 5s (más un tick de 1s para el contador de segundos). La barra se llena en ~300s estimados (tope 95%) y salta a 100% al completar. Estados: `running` (azul, "Sincronizando en GitHub... Xs"), `success` (verde, "Sync finalizada OK"), `failure` (rojo, "La sync falló"), `timeout` (ámbar, "No se pudo confirmar" a los 10 min). Al completar en success refresca la lista de proveedores (`loadSuppliers`). Botón ✕ para cerrar. Solo aplica a Air Intra (Elit/Invid son sync síncronas que ya devuelven resultado).
+
+  **Reglas respetadas:** ediciones quirúrgicas en proveedores/page.tsx (4 inserciones: estado, useEffect, arranque en handleSync, banner UI); no se tocó CSS/paleta; endpoint nuevo con auth; verificado deploy en producción (401 sin auth, 200 con auth).
+
+2026-08-21 (s70): Endpoint `bulk-activate` + reactivación COMPLETA de Elit/Invid (reporte recurrente del dueño).** Commit: `06054af` (nuevo endpoint).
 
   **Contexto:** el dueño reportó por 2da vez que "todos los productos de Elit e Invid, aunque tengan stock, figuran desactivados". La causa de fondo era la sobre-desactivación de s68 (param `supplier=` no filtra). Los intentos de reactivación con scripts background N PUTs no terminaban (sandbox mata procesos largos + N PUTs lento).
 
