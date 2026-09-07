@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-08-27 (sesión 71 — barra de progreso + estado en vivo para sync Air Intra)
+**Ultima actualizacion:** 2026-09-07 (sesión 72 — fix Invid stock 0: Invid cambió valores de STOCK_STATUS)
 
 ---
 
@@ -15,10 +15,10 @@
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
 - **Commit estable:** b32d7f3 (fix: rubro 001-0331 + id Motherboards vigente)
-- **Commit actual:** 36f819f
+- **Commit actual:** ae3abfa
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 71
+- **Sesiones totales:** 72
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1154,7 +1154,25 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
-- **2026-08-27 (s71): Barra de progreso + estado en vivo para la sync de Air Intra (GitHub Actions). Commits: `5651f6d` (endpoint) + `36f819f` (frontend).
+- **2026-09-07 (s72): FIX Invid "todos los productos con stock 0" — Invid cambió los valores de STOCK_STATUS. Commits: 3314e51 (debug temporal) + 27ca490 (fix) + ae3abfa (cleanup).
+
+  **Reporte del dueño:** "el proveedor de invid da todos los productos con stock 0".
+
+  **Causa raíz:** la API de Invid CAMBIÓ los valores de `STOCK_STATUS`. Antes devolvía `STOCK OK / BAJO STOCK / SIN STOCK`; ahora devuelve `DISPONIBLE / MENOS DE 10 UNIDADES / STOCK BAJO`. La función `parseInvidStock()` en `scripts/sync-invid-external.mjs` no reconocía los valores nuevos y caía al `return 0` final → TODOS los productos parseaban stock 0. Como el sync rota el catálogo por offset (rate limit 50 req/h), fue ceroando el stock de todos los productos a medida que los tocaba.
+
+  **Diagnóstico:** se agregó debug temporal (muestra cruda + histograma de STOCK_STATUS) al job de GitHub Actions. Histograma real: `{"MENOS DE 10 UNIDADES":4428, "STOCK BAJO":197, "DISPONIBLE":375}` — confirmó el cambio de valores.
+
+  **Fix (27ca490):** `parseInvidStock()` ahora acepta: `DISPONIBLE`→10, `STOCK BAJO`/`MENOS DE 10 UNIDADES`→3, `NO DISPONIBLE`→0 (además de los valores viejos para compatibilidad).
+
+  **Restauración del stock:** el stock se restaura solo a medida que la rotación de offsets vuelve a tocar cada producto (limitado por rate limit 50 req/h de Invid). Corridas tras el fix: 15:00 → "0 → con stock: 471"; 15:04 → "0 → con stock: 432" (total 903 restaurados). El resto se restaura en las corridas siguientes (cron cada 6h) hasta cubrir todo el catálogo.
+
+  **Hallazgo secundario (pendiente de decisión):** Invid ahora devuelve `PRICE:"0.00"` para un subconjunto grande de productos (descatalogados o precio a consultar). Esos productos son salteados por la regla de s45 (`costPrice<=0 → continue`), así que su stock NO se restaura (quedan congelados). Opciones: (a) dejarlos como está (probablemente descatalogados, correcto ocultarlos), o (b) actualizarles el stock manteniendo el costo viejo. Requiere decisión del dueño.
+
+  **Cleanup (ae3abfa):** removido el debug temporal (samples/keys); se dejó el histograma de STOCK_STATUS como alerta temprana si Invid vuelve a cambiar los valores.
+
+  **Regla agregada:** si un proveedor cambia los VALORES (no los nombres) de sus campos de stock, el sync lo ceroa silenciosamente. El histograma de STOCK_STATUS en el log del job ahora lo hace visible inmediatamente.
+
+2026-08-27 (s71): Barra de progreso + estado en vivo para la sync de Air Intra (GitHub Actions). Commits: `5651f6d` (endpoint) + `36f819f` (frontend).
 
   **Contexto:** el dueño pidió "una barra de progreso para ver si terminó o no la sync". La sync de Air Intra se dispara vía GitHub Actions (fire-and-forget, ~5 min) y antes no había forma de saber si terminó; el botón solo mostraba "disparada, tarda ~5 min".
 
