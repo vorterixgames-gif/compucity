@@ -289,8 +289,7 @@ async function main() {
   }
 
   const apiProducts = new Map()
-  const statusHistogram = {} // SESIÓN 72 debug: diagnóstico stock 0
-  let loggedValid = false
+  const statusHistogram = {} // SESIÓN 72: histograma de STOCK_STATUS (alerta si Invid cambia los valores)
   const seenIds = [] // SESIÓN 63: ids verificados para lastSeenAt
   let offset = startOffset
   const pageSize = 100
@@ -371,14 +370,6 @@ async function main() {
       for (const p of products) {
         totalFetched++
         // SESIÓN 72 DEBUG (temporal): muestra cruda + histograma de STOCK_STATUS
-        if (totalFetched === 1) {
-          console.log('  PRODUCT KEYS: ' + Object.keys(p).join(', '))
-          console.log('  SAMPLE RAW PRODUCT: ' + JSON.stringify(p).substring(0, 700))
-        }
-        if (!loggedValid && parseFloat(p.PRICE || '0') > 0) {
-          loggedValid = true
-          console.log('  SAMPLE VALID (PRICE>0): ' + JSON.stringify(p).substring(0, 700))
-        }
         {
           const ss = String(p.STOCK_STATUS ?? p.stock_status ?? p.STOCK ?? p.stock ?? '').toUpperCase().trim()
           statusHistogram[ss || '(vacío)'] = (statusHistogram[ss || '(vacío)'] || 0) + 1
