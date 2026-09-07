@@ -288,6 +288,7 @@ async function main() {
   }
 
   const apiProducts = new Map()
+  const statusHistogram = {} // SESIÓN 72 debug: diagnóstico stock 0
   const seenIds = [] // SESIÓN 63: ids verificados para lastSeenAt
   let offset = startOffset
   const pageSize = 100
@@ -367,6 +368,14 @@ async function main() {
 
       for (const p of products) {
         totalFetched++
+        // SESIÓN 72 DEBUG (temporal): muestra cruda + histograma de STOCK_STATUS
+        if (totalFetched === 1) {
+          console.log('  SAMPLE RAW PRODUCT: ' + JSON.stringify(p).substring(0, 700))
+        }
+        {
+          const ss = String(p.STOCK_STATUS ?? p.stock_status ?? p.STOCK ?? p.stock ?? '').toUpperCase().trim()
+          statusHistogram[ss || '(vacío)'] = (statusHistogram[ss || '(vacío)'] || 0) + 1
+        }
         // Invid usa campos UPPERCASE (fix sesión 45)
         const sku = p.ID || p.codigo_alfa || p.sku || ''
         if (!sku) continue
@@ -393,6 +402,7 @@ async function main() {
     }
   }
   console.log('\n')
+  console.log('  STOCK_STATUS histogram: ' + JSON.stringify(statusHistogram))
   console.log(`  ✓ ${apiProducts.size} productos válidos en API (fetched ${totalFetched} en esta corrida)`)
 
   // SESIÓN 56 FIX: manejar el offset al finalizar
