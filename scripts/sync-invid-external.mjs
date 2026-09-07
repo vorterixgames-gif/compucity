@@ -290,6 +290,7 @@ async function main() {
 
   const apiProducts = new Map()
   const statusHistogram = {} // SESIÓN 72: histograma de STOCK_STATUS (alerta si Invid cambia los valores)
+  const price0ByCat = {}; const price0Samples = {}; let price0Count = 0 // SESIÓN 73 debug temporal
   const seenIds = [] // SESIÓN 63: ids verificados para lastSeenAt
   let offset = startOffset
   const pageSize = 100
@@ -378,7 +379,14 @@ async function main() {
         const sku = p.ID || p.codigo_alfa || p.sku || ''
         if (!sku) continue
         const costPrice = parseFloat(p.PRICE || p.precio || p.pvp || p.price || '0')
-        if (costPrice <= 0) continue
+        // SESIÓN 73 DEBUG (temporal): caracterizar los productos con PRICE=0
+        if (costPrice <= 0) {
+          const cat = String(p.CATEGORY || (Array.isArray(p.CATEGORIES) ? p.CATEGORIES.join('/') : p.CATEGORIES) || '(sin cat)')
+          price0ByCat[cat] = (price0ByCat[cat] || 0) + 1
+          if ((price0Samples[cat] = price0Samples[cat] || []).length < 3) price0Samples[cat].push(`${p.ID}: ${String(p.TITLE || '').substring(0, 45)}`)
+          price0Count++
+          continue
+        }
         const stock = parseInvidStock(p.STOCK_STATUS)
         const price = costPrice * (1 + MARKUP / 100)
         apiProducts.set(sku, { stock, price, costPrice, raw: p })
@@ -401,6 +409,11 @@ async function main() {
   }
   console.log('\n')
   console.log('  STOCK_STATUS histogram: ' + JSON.stringify(statusHistogram))
+  console.log('  PRICE=0 total: ' + price0Count)
+  console.log('  PRICE=0 por categoria (top 15): ' + JSON.stringify(Object.entries(price0ByCat).sort((a, b) => b[1] - a[1]).slice(0, 15)))
+  for (const [cat, arr] of Object.entries(price0Samples).sort((a, b) => (price0ByCat[b[0]] || 0) - (price0ByCat[a[0]] || 0)).slice(0, 12)) {
+    console.log('    [' + cat + '] ' + arr.join(' | '))
+  }
   console.log(`  ✓ ${apiProducts.size} productos válidos en API (fetched ${totalFetched} en esta corrida)`)
 
   // SESIÓN 56 FIX: manejar el offset al finalizar
