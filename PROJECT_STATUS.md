@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-09-07 (sesión 72 — fix Invid stock 0: Invid cambió valores de STOCK_STATUS)
+**Ultima actualizacion:** 2026-09-07 (sesión 74 — Invid restaura stock de productos con PRICE=0 usando último costo conocido)
 
 ---
 
@@ -15,10 +15,10 @@
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
 - **Commit estable:** b32d7f3 (fix: rubro 001-0331 + id Motherboards vigente)
-- **Commit actual:** ae3abfa
+- **Commit actual:** 6a436ec
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 72
+- **Sesiones totales:** 74
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1154,7 +1154,19 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
-- **2026-09-07 (s72): FIX Invid "todos los productos con stock 0" — Invid cambió los valores de STOCK_STATUS. Commits: 3314e51 (debug temporal) + 27ca490 (fix) + ae3abfa (cleanup).
+- **2026-09-07 (s74): FIX Invid "tiene stock en el portal de Invid pero no en el nuestro" — restaurar stock de productos con PRICE=0 usando el último costo conocido. Commit: 6a436ec.
+
+  **Reporte del dueño:** "veo que tiene stock en la página de Invid pero no en la nuestra" (ej: SKU 0417303).
+
+  **Causa raíz confirmada (código):** la API de Invid devuelve `PRICE:"0.00"` para un subconjunto grande de productos (~1241 en el tramo 4000-5987) aunque en el portal del dueño (sesión logueada) sí muestran precio y stock. El sync tenía `if (costPrice <= 0) continue` (regla de seguridad de s45 para no publicar precio 0), que salteaba el producto COMPLETO → nunca se actualizaba su stock → quedaba congelado en 0 aunque `STOCK_STATUS` dijera DISPONIBLE / MENOS DE 10 UNIDADES. Por eso "Invid tiene stock y nosotros no".
+
+  **Fix (6a436ec) en `scripts/sync-invid-external.mjs`:** (1) en la rama `costPrice <= 0`, además del debug de s73, guardar `price0Stock.set(sku, parseInvidStock(p.STOCK_STATUS))`. (2) Después del loop principal de updates, un pase de restauración: para cada sku de `price0Stock` que exista en la DB y tenga `costPrice > 0` conocido, pushear un update con `stock` = valor parseado de STOCK_STATUS y `price` = último costPrice conocido × (1+markup) — NUNCA precio 0 ni inventado. Si el producto no existe en la DB o no tiene costo conocido, se sigue salteando (no se crea).
+
+  **Validación (run 34143604225):** "Stock restaurado de PRICE=0 (costo conocido): 463", "0 → con stock: 736", "Updates aplicados: 736". Verificado en DB: SKU 0417303 → stock 10, isActive 1, cost 15.04, updatedAt 2026-09-07 16:32; SKU 0418252 → stock 3, isActive 1. El resto del catálogo se restaura en las corridas siguientes a medida que la rotación lo cubre.
+
+  **Regla agregada:** cuando un proveedor manda precio 0 pero stock válido, NO saltear el producto entero: restaurar stock con el último costo conocido y mantener el precio anterior. Solo saltear creación de productos nuevos sin precio.
+
+2026-09-07 (s72): FIX Invid "todos los productos con stock 0" — Invid cambió los valores de STOCK_STATUS. Commits: 3314e51 (debug temporal) + 27ca490 (fix) + ae3abfa (cleanup).
 
   **Reporte del dueño:** "el proveedor de invid da todos los productos con stock 0".
 
