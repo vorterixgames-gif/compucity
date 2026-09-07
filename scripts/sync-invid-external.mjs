@@ -108,9 +108,10 @@ async function loadDeletedBlacklist(supplierId) {
 function parseInvidStock(stockStatus) {
   if (!stockStatus) return 0
   const status = String(stockStatus).toUpperCase().trim()
-  if (status === 'STOCK OK' || status === 'EN STOCK') return 10
-  if (status === 'BAJO STOCK') return 3
-  if (status === 'SIN STOCK' || status === 'OUT OF STOCK') return 0
+  // SESIÓN 72: Invid cambió los valores de STOCK_STATUS (ahora DISPONIBLE / MENOS DE 10 UNIDADES / STOCK BAJO)
+  if (status === 'STOCK OK' || status === 'EN STOCK' || status === 'DISPONIBLE') return 10
+  if (status === 'BAJO STOCK' || status === 'STOCK BAJO' || status === 'MENOS DE 10 UNIDADES') return 3
+  if (status === 'SIN STOCK' || status === 'OUT OF STOCK' || status === 'NO DISPONIBLE') return 0
   return 0
 }
 
@@ -289,6 +290,7 @@ async function main() {
 
   const apiProducts = new Map()
   const statusHistogram = {} // SESIÓN 72 debug: diagnóstico stock 0
+  let loggedValid = false
   const seenIds = [] // SESIÓN 63: ids verificados para lastSeenAt
   let offset = startOffset
   const pageSize = 100
@@ -370,7 +372,12 @@ async function main() {
         totalFetched++
         // SESIÓN 72 DEBUG (temporal): muestra cruda + histograma de STOCK_STATUS
         if (totalFetched === 1) {
+          console.log('  PRODUCT KEYS: ' + Object.keys(p).join(', '))
           console.log('  SAMPLE RAW PRODUCT: ' + JSON.stringify(p).substring(0, 700))
+        }
+        if (!loggedValid && parseFloat(p.PRICE || '0') > 0) {
+          loggedValid = true
+          console.log('  SAMPLE VALID (PRICE>0): ' + JSON.stringify(p).substring(0, 700))
         }
         {
           const ss = String(p.STOCK_STATUS ?? p.stock_status ?? p.STOCK ?? p.stock ?? '').toUpperCase().trim()
