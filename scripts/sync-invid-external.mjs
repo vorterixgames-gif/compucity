@@ -291,6 +291,7 @@ async function main() {
   const apiProducts = new Map()
   const statusHistogram = {} // SESIÓN 72: histograma de STOCK_STATUS (alerta si Invid cambia los valores)
   const price0ByCat = {}; const price0Samples = {}; let price0Count = 0 // SESIÓN 73 debug temporal
+  const price0Stock = new Map() // SESIÓN 74: stock de productos con PRICE=0
   const seenIds = [] // SESIÓN 63: ids verificados para lastSeenAt
   let offset = startOffset
   const pageSize = 100
@@ -385,6 +386,8 @@ async function main() {
           price0ByCat[cat] = (price0ByCat[cat] || 0) + 1
           if ((price0Samples[cat] = price0Samples[cat] || []).length < 3) price0Samples[cat].push(`${p.ID}: ${String(p.TITLE || '').substring(0, 45)}`)
           price0Count++
+          // SESIÓN 74: guardar el stock aunque el precio venga 0, para restaurarlo después
+          price0Stock.set(sku, parseInvidStock(p.STOCK_STATUS))
           continue
         }
         const stock = parseInvidStock(p.STOCK_STATUS)
@@ -579,6 +582,22 @@ async function main() {
       if (priceChanged) priceChangedCount++
     }
   }
+
+  // SESIÓN 74: restaurar stock de productos a los que Invid les manda PRICE=0 pero que
+  // en el portal sí tienen stock. Usamos el último costPrice conocido de la DB (no
+  // publicamos precio 0 ni inventado); solo actualizamos el stock desde STOCK_STATUS.
+  let price0Restored = 0
+  for (const [sku, stock] of price0Stock) {
+    const dbData = dbMap.get(sku)
+    if (!dbData) continue
+    const dbCost = Number(dbData.costPrice)
+    if (!(dbCost > 0)) continue
+    if (Number(dbData.stock) === stock) continue
+    updates.push({ id: dbData.id, stock, price: dbCost * (1 + MARKUP / 100), costPrice: dbCost, sku })
+    price0Restored++
+    if (Number(dbData.stock) === 0 && stock > 0) wasZeroNowGt++
+  }
+  if (price0Restored > 0) console.log(`  - Stock restaurado de PRICE=0 (costo conocido): ${price0Restored}`)
 
   console.log(`\n=== RESUMEN ===`)
   console.log(`Productos en API: ${apiProducts.size}`)
