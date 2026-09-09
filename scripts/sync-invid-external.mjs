@@ -106,13 +106,15 @@ async function loadDeletedBlacklist(supplierId) {
 // Mapear STOCK_STATUS (texto) a número
 // Consistente con cron de Vercel (syncInvidStock en /api/cron/sync/route.ts)
 function parseInvidStock(stockStatus) {
-  if (!stockStatus) return 0
+  // SESIÓN 77: valor faltante = desconocido -> null (no tocar el stock), NUNCA 0
+  if (!stockStatus) return null
   const status = String(stockStatus).toUpperCase().trim()
   // SESIÓN 72: Invid cambió los valores de STOCK_STATUS (ahora DISPONIBLE / MENOS DE 10 UNIDADES / STOCK BAJO)
   if (status === 'STOCK OK' || status === 'EN STOCK' || status === 'DISPONIBLE') return 10
   if (status === 'BAJO STOCK' || status === 'STOCK BAJO' || status === 'MENOS DE 10 UNIDADES') return 3
   if (status === 'SIN STOCK' || status === 'OUT OF STOCK' || status === 'NO DISPONIBLE') return 0
-  return 0
+  // SESIÓN 77: valor desconocido -> null = "no sé", no tocar el stock (evita ola de cero)
+  return null
 }
 
 // SESIÓN 59: generación de slugs (misma lógica que src/lib/format-product.ts)
@@ -390,7 +392,9 @@ async function main() {
           if ((price0Samples[cat] = price0Samples[cat] || []).length < 3) price0Samples[cat].push(`${p.ID}: ${String(p.TITLE || '').substring(0, 45)}`)
           price0Count++
           // SESIÓN 74: guardar el stock aunque el precio venga 0, para restaurarlo después
-          price0Stock.set(sku, parseInvidStock(p.STOCK_STATUS))
+          // SESIÓN 77: solo si el STOCK_STATUS es conocido (null = no tocar)
+          const p0s = parseInvidStock(p.STOCK_STATUS)
+          if (p0s !== null) price0Stock.set(sku, p0s)
           continue
         }
         const stock = parseInvidStock(p.STOCK_STATUS)
@@ -572,13 +576,14 @@ async function main() {
     }
 
     seenIds.push(dbData.id) // SESIÓN 63
-    const stockChanged = apiData.stock !== Number(dbData.stock)
+    // SESIÓN 77: si el STOCK_STATUS vino desconocido (null), NO cambiamos el stock
+    const stockChanged = apiData.stock !== null && apiData.stock !== undefined && apiData.stock !== Number(dbData.stock)
     const priceChanged = Math.abs(apiData.price - Number(dbData.price)) > 1
 
     if (stockChanged || priceChanged) {
       updates.push({
         id: dbData.id,
-        stock: apiData.stock,
+        stock: (apiData.stock !== null && apiData.stock !== undefined) ? apiData.stock : Number(dbData.stock),
         price: apiData.price,
         costPrice: apiData.costPrice,
         sku
