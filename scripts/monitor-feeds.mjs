@@ -14,7 +14,7 @@ const TURSO_URL = process.env.TURSO_URL || 'libsql://compucity-vorterixgames-gif
 const TURSO_TOKEN = process.env.TURSO_TOKEN || ''
 const TURSO_HTTP = TURSO_URL.replace('libsql://', 'https://') + '/v2/pipeline'
 const INVID_BASE = 'https://www.invidcomputers.com'
-const AIR_BASE = process.env.AIR_INTRA_BASE || 'https://www.airintra.com.ar'
+const AIR_BASE = process.env.AIR_INTRA_BASE || 'https://api.air-intra.com/v2'
 const KNOWN_INVID_STATUS = ['STOCK OK','EN STOCK','DISPONIBLE','BAJO STOCK','STOCK BAJO','MENOS DE 10 UNIDADES','SIN STOCK','OUT OF STOCK','NO DISPONIBLE']
 
 async function tursoQuery(sql, args = []) {
@@ -40,10 +40,10 @@ async function checkInvid() {
   if (!authRes.ok) { failures.push(`Invid auth HTTP ${authRes.status}`); return }
   const auth = await authRes.json()
   if (!auth.access_token) { failures.push('Invid auth sin access_token'); return }
-  const pRes = await fetch(`${INVID_BASE}/api/v1/productos.php?offset=0&limit=100`, { headers: { Authorization: `Bearer ${auth.access_token}` } })
+  const pRes = await fetch(`${INVID_BASE}/api/v1/articulo.php?offset=0`, { headers: { Authorization: `Bearer ${auth.access_token}` } })
   if (!pRes.ok) { failures.push(`Invid productos HTTP ${pRes.status}`); return }
   const items = await pRes.json()
-  const arr = Array.isArray(items) ? items : (items.data || items.productos || [])
+  const arr = Array.isArray(items) ? items : (items.data || items.productos || items.articulos || [])
   if (!arr.length) { warnings.push('Invid devolvió 0 productos en muestra'); }
   const hist = {}
   let priceGt0 = 0
@@ -90,13 +90,13 @@ async function fullReconcile() {
   const supplierStock = new Map()
   let offset = 0
   while (offset < 6000) {
-    const pRes = await fetch(`${INVID_BASE}/api/v1/productos.php?offset=${offset}&limit=500`, { headers: { Authorization: `Bearer ${auth.access_token}` } })
+    const pRes = await fetch(`${INVID_BASE}/api/v1/articulo.php?offset=${offset}`, { headers: { Authorization: `Bearer ${auth.access_token}` } })
     if (!pRes.ok) break
     const arr = await pRes.json()
-    const list = Array.isArray(arr) ? arr : (arr.data || [])
+    const list = Array.isArray(arr) ? arr : (arr.data || arr.articulos || [])
     if (!list.length) break
     for (const p of list) supplierStock.set(String(p.ID), String(p.STOCK_STATUS || '').toUpperCase())
-    offset += 500
+    offset += list.length
     await new Promise(r => setTimeout(r, 1200))
   }
   const dbStocked = await tursoQuery(`SELECT providerSku FROM products WHERE providerId='8c7b9e2c-c004-4f70-9e17-abda903395af' AND stock>0 AND isActive=1`)
