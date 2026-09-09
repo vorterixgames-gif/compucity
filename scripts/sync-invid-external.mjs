@@ -415,6 +415,12 @@ async function main() {
   }
   console.log('\n')
   console.log('  STOCK_STATUS histogram: ' + JSON.stringify(statusHistogram))
+  // SESIÓN 76: alertar si aparecen valores de STOCK_STATUS que no conocemos (drift del feed)
+  const KNOWN_STATUS = ['STOCK OK','EN STOCK','DISPONIBLE','BAJO STOCK','STOCK BAJO','MENOS DE 10 UNIDADES','SIN STOCK','OUT OF STOCK','NO DISPONIBLE']
+  const unknownStatus = Object.keys(statusHistogram).filter(k => !KNOWN_STATUS.includes(k))
+  if (unknownStatus.length > 0) {
+    console.log('  ⚠ STOCK_STATUS DESCONOCIDO detectado: ' + unknownStatus.join(', ') + ' — el feed de Invid cambió; revisar parseInvidStock. Estos se mapean a 0 por defecto.')
+  }
   console.log('  PRICE=0 total: ' + price0Count)
   console.log('  PRICE=0 por categoria (top 15): ' + JSON.stringify(Object.entries(price0ByCat).sort((a, b) => b[1] - a[1]).slice(0, 15)))
   for (const [cat, arr] of Object.entries(price0Samples).sort((a, b) => (price0ByCat[b[0]] || 0) - (price0ByCat[a[0]] || 0)).slice(0, 12)) {
@@ -611,6 +617,19 @@ async function main() {
   console.log(`    * 0 → con stock: ${wasZeroNowGt}`)
   console.log(`    * con stock → 0: ${wasGtNowZero}`)
   console.log(`  - Price cambió > $1: ${priceChangedCount}`)
+
+  // SESIÓN 76: CIRCUIT BREAKER — si esta corrida quiere poner en 0 una fracción grande de
+  // los productos con stock, es señal de que el feed cambió mal (ola de cero de s72).
+  // Descartamos esos ceros para no vaciar el catálogo y alertamos fuerte.
+  const stockedTotal = [...dbMap.values()].filter(r => Number(r.stock) > 0).length
+  const zeroingOfStocked = updates.filter(u => u.stock === 0 && dbMap.get(u.sku) && Number(dbMap.get(u.sku).stock) > 0).length
+  const ZERO_THRESHOLD = Math.max(50, Math.round(stockedTotal * 0.25))
+  if (zeroingOfStocked > ZERO_THRESHOLD) {
+    const before = updates.length
+    const filtered = updates.filter(u => !(u.stock === 0 && dbMap.get(u.sku) && Number(dbMap.get(u.sku).stock) > 0))
+    updates.splice(0, updates.length, ...filtered)
+    console.log('\n  ⚠⚠ CIRCUIT BREAKER: la corrida intentaba poner en 0 ' + zeroingOfStocked + ' productos con stock (umbral ' + ZERO_THRESHOLD + '). Se descartaron ' + (before - updates.length) + ' ceros para no vaciar el catálogo por un cambio del feed. REVISAR STOCK_STATUS de Invid.')
+  }
 
   // ─── 5. Aplicar updates en batches de 50 ───
   if (updates.length === 0) {
