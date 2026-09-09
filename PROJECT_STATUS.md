@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-09-07 (sesión 74 — Invid restaura stock de productos con PRICE=0 usando último costo conocido)
+**Ultima actualizacion:** 2026-09-09 (sesión 77 — prevención de drift de feeds: delisted-list, circuit breaker, mapeo seguro y monitor diario)
 
 ---
 
@@ -15,10 +15,10 @@
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
 - **Commit estable:** b32d7f3 (fix: rubro 001-0331 + id Motherboards vigente)
-- **Commit actual:** 6a436ec
+- **Commit actual:** e4993bc
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 74
+- **Sesiones totales:** 77
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1154,6 +1154,20 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-09-09 (s77): Prevención de drift de feeds de proveedores (capas 2-4 del plan anti-"problemas de este tipo").** Commits: 555be29 (capa 2), 91b4f2b + 7c53667 (capas 3-4), e4993bc (fix endpoints monitor). Todo en GitHub Actions → $0 Vercel.
+
+  **Capa 2 — mapeo seguro (555be29):** `parseInvidStock()` ahora devuelve `null` para valores de `STOCK_STATUS` desconocidos o vacíos (antes devolvía 0). `null` = "no sé" → el sync NO toca el stock de ese producto (mantiene el anterior). Solo `SIN STOCK`/`NO DISPONIBLE`/`OUT OF STOCK` explícitos ponen 0. El loop de updates y el restore de PRICE=0 (s74) respetan `null`. Esto cierra de raíz la "ola de cero" de s72: si Invid vuelve a cambiar los textos, el catálogo no se vacía.
+
+  **Capa 3 — monitor diario de contratos (91b4f2b + 7c53667):** nuevo `scripts/monitor-feeds.mjs` + workflow `.github/workflows/monitor-feeds.yml` (cron 13:00 UTC + workflow_dispatch). Valida: auth OK de Invid y Air Intra; histograma de `STOCK_STATUS` de Invid contra set conocido (si aparece valor nuevo → FAIL); ratio PRICE>0 (warn si <5%); frescura de `lastSyncAt` de los 3 proveedores (warn si >12/24h). Si hay FAIL → el job falla → GitHub Actions manda mail automático. Validado en vivo (run 34416518992): "Monitor OK: sin drift", histograma {MENOS DE 10:64, STOCK BAJO:19, DISPONIBLE:17}, ratio 37%, frescura 3.1h/3.1h/6.9h.
+
+  **Capa 4 — reconciliación (en el mismo monitor, flag FULL_RECONCILE=1):** modo manual (workflow_dispatch con full_reconcile=1) que fetcha el catálogo completo de Invid y cruza contra nuestra DB: lista productos nuestros con stock>0 que Invid ya no tiene o dice SIN STOCK (el caso Kingston de s75). Si el mismatch supera 30 → FAIL + mail. No corre diario para no gastar el rate limit de Invid (50 req/h).
+
+  **Regla agregada:** los feeds de proveedores son contratos que cambian sin aviso. Toda lectura de un campo de texto/estado debe tener (a) valor conocido → actuar, (b) valor desconocido → no tocar + alertar, y (c) un monitor diario que detecte el drift antes de que corrompa el catálogo.
+
+- **2026-09-08 (s76): Circuit breaker anti "ola de cero" + alerta de STOCK_STATUS desconocido en sync Invid.** Commit: 4e3688f. En `scripts/sync-invid-external.mjs`: (1) antes de aplicar updates, si la corrida intenta poner stock=0 a más del 25% de los productos con stock (o >50), DESCARTA esos ceros y loguea "⚠ CIRCUIT BREAKER" (evita vaciar el catálogo si el feed cambia mal, como pasó en s72). (2) Alerta si el histograma de STOCK_STATUS trae valores fuera del set conocido ("el feed de Invid cambió; revisar parseInvidStock"). Complementa a s77 (capa 2) como red de seguridad.
+
+- **2026-09-08 (s75): Lista INVID_DELISTED_SKUS para no re-publicar descatalogados.** Commit: cbff9ff. Los Kingston NVMe 500 (0416836/0417561) están descatalogados en la página de Invid pero su API los devuelve con PRICE=0 y un STOCK_STATUS de stock; el restore de s74 los re-publicaba y se vendió algo inexistente. Se zeroeó su stock y se agregaron a `INVID_DELISTED_SKUS` en el sync: el restore de PRICE=0 los saltea. NO es blacklist permanente: si Invid los repone con PRICE>0 entran por el camino normal del sync y reaparecen solos (la lista solo frena el atajo de restore PRICE=0).
+
 - **2026-09-07 (s74): FIX Invid "tiene stock en el portal de Invid pero no en el nuestro" — restaurar stock de productos con PRICE=0 usando el último costo conocido. Commit: 6a436ec.
 
   **Reporte del dueño:** "veo que tiene stock en la página de Invid pero no en la nuestra" (ej: SKU 0417303).
