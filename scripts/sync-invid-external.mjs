@@ -292,6 +292,9 @@ async function main() {
   const statusHistogram = {} // SESIÓN 72: histograma de STOCK_STATUS (alerta si Invid cambia los valores)
   const price0ByCat = {}; const price0Samples = {}; let price0Count = 0 // SESIÓN 73 debug temporal
   const price0Stock = new Map() // SESIÓN 74: stock de productos con PRICE=0
+  // SESIÓN 75: SKUs que Invid YA NO publica en su página (la API los devuelve con PRICE=0
+  // pero no están a la venta). NO restaurarles stock aunque el STOCK_STATUS diga que sí.
+  const INVID_DELISTED_SKUS = new Set(['0416836', '0417561'])
   const seenIds = [] // SESIÓN 63: ids verificados para lastSeenAt
   let offset = startOffset
   const pageSize = 100
@@ -588,6 +591,7 @@ async function main() {
   // publicamos precio 0 ni inventado); solo actualizamos el stock desde STOCK_STATUS.
   let price0Restored = 0
   for (const [sku, stock] of price0Stock) {
+    if (INVID_DELISTED_SKUS.has(sku)) continue // SESIÓN 75: delistado, no restaurar
     const dbData = dbMap.get(sku)
     if (!dbData) continue
     const dbCost = Number(dbData.costPrice)
