@@ -1,0 +1,38 @@
+name: Monitor Feeds (contratos + reconciliación)
+
+# SESIÓN 77 (capas 3-4): valida diariamente que los feeds de proveedores no hayan
+# cambiado de forma que rompa el catálogo. Corre en GitHub Actions ($0 Vercel).
+# Si detecta drift → el job falla → GitHub Actions manda mail automáticamente.
+# Disparo manual con FULL_RECONCILE=1 para reconciliación completa Invid.
+
+on:
+  schedule:
+    - cron: '0 13 * * *'   # 13:00 UTC = 10:00 AR
+  workflow_dispatch:
+    inputs:
+      full_reconcile:
+        description: 'Reconciliación completa Invid (1/0)'
+        required: false
+        default: '0'
+
+permissions:
+  contents: read
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    env:
+      TURSO_URL: ${{ secrets.TURSO_URL }}
+      TURSO_TOKEN: ${{ secrets.TURSO_TOKEN }}
+      INVID_USER: ${{ secrets.INVID_USER }}
+      INVID_PASS: ${{ secrets.INVID_PASS }}
+      AIR_INTRA_USER: ${{ secrets.AIR_INTRA_USER }}
+      AIR_INTRA_PASS: ${{ secrets.AIR_INTRA_PASS }}
+      FULL_RECONCILE: ${{ github.event.inputs.full_reconcile || '0' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Correr monitor de feeds
+        run: node scripts/monitor-feeds.mjs
