@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-09-09 (sesión 77 — prevención de drift de feeds: delisted-list, circuit breaker, mapeo seguro y monitor diario)
+**Ultima actualizacion:** 2026-09-09 (sesión 78 — revalidación de stock al momento del pedido, multi-proveedor)
 
 ---
 
@@ -15,10 +15,10 @@
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
 - **Commit estable:** b32d7f3 (fix: rubro 001-0331 + id Motherboards vigente)
-- **Commit actual:** e4993bc
+- **Commit actual:** 4d2e3e9
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 77
+- **Sesiones totales:** 78
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1154,6 +1154,18 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-09-09 (s78): Revalidación de stock al momento del pedido (propuesta 2), aplicada a TODOS los proveedores (Air Intra, Invid, Elit).** Commits: 8267ef1 (lib), 362db22 (endpoint), 4d2e3e9 (orders).
+
+  **Nuevo `src/lib/order-stock-check.ts`:** función `checkItemsStock(items)` agnóstica al proveedor: lee cada producto (stock, isActive, providerId, updatedAt, lastSeenAt) y devuelve por ítem un estado: `ok` / `no_stock` (stock DB < pedido) / `inactive` (desactivado) / `missing` (no existe) / `stale` (el dato del proveedor es más viejo que su intervalo de sync + 6h de gracia: Air Intra 12h, Invid/Elit 6h). No consulta la API del proveedor en vivo por pedido (no hay endpoint por-SKU y los rate limits de Invid 50/h y Air Intra lo harían inviable en checkout); revalida contra el dato más fresco que el sync ya dejó en DB (stock + lastSeenAt), que es el mismo dato reconciliado por las capas s72-s77.
+
+  **Nuevo endpoint `POST /api/check-stock`:** público y liviano; recibe `{items:[{productId,quantity}]}` y devuelve `{results, warnings}`. Verificado en producción: Kingston NVMe 500 (stock 0) → `no_stock` con nota "Stock insuficiente en invid (hay 0, se pidieron 1)"; un producto Air Intra stock 0 → `no_stock` air-intra. Permite al checkout (o al admin) mostrar advertencias antes de confirmar.
+
+  **`POST /api/orders` (4d2e3e9):** antes de crear el pedido corre `checkItemsStock`. Si algún ítem es `no_stock` / `missing` / `inactive` → **rechaza el pedido con HTTP 409** y devuelve `stockWarnings` (evita vender algo que el proveedor no tiene, el caso Kingston de s75). Los estados `stale` NO bloquean (solo serían advertencia) para no perder ventas por sync apenas demorado. Si `checkItemsStock` lanza excepción, se loguea y NO bloquea (no romper checkout por un check).
+
+  **Cobertura multi-proveedor:** la lógica usa `providerId` de cada producto y el intervalo de sync de cada proveedor, así que aplica igual a Air Intra, Invid y Elit sin código por proveedor.
+
+  **Relación con capas anteriores:** este check atrapa stock-0/desactivados/faltantes/dato-viejo al momento del pedido. El caso "descatalogado pero la API aún lo devuelve con stock" (Kingston) lo cubren las capas s75 (lista delistados) + s77 (monitor + reconciliación), porque la DB ya los tiene en stock 0. Pendiente opcional: banner de advertencia en `/checkout` que llame a `/api/check-stock` antes de abrir WhatsApp (hoy el 409 del orders ya lo frena y muestra error).
+
 - **2026-09-09 (s77): Prevención de drift de feeds de proveedores (capas 2-4 del plan anti-"problemas de este tipo").** Commits: 555be29 (capa 2), 91b4f2b + 7c53667 (capas 3-4), e4993bc (fix endpoints monitor). Todo en GitHub Actions → $0 Vercel.
 
   **Capa 2 — mapeo seguro (555be29):** `parseInvidStock()` ahora devuelve `null` para valores de `STOCK_STATUS` desconocidos o vacíos (antes devolvía 0). `null` = "no sé" → el sync NO toca el stock de ese producto (mantiene el anterior). Solo `SIN STOCK`/`NO DISPONIBLE`/`OUT OF STOCK` explícitos ponen 0. El loop de updates y el restore de PRICE=0 (s74) respetan `null`. Esto cierra de raíz la "ola de cero" de s72: si Invid vuelve a cambiar los textos, el catálogo no se vacía.
