@@ -455,7 +455,7 @@ async function main() {
         console.error(`  ✗ Login HTTP ${loginRes.status} — ${errText.substring(0, 200)}`)
         if (attempt < LOGIN_MAX_RETRIES) {
           console.log(`  ⏳ Esperando ${LOGIN_RETRY_DELAY_MS / 1000}s antes de reintentar...`)
-          await new Promise(r => setTimeout(r, LOGIN_RETRY_DELAY_MS))
+          await new Promise(r => setTimeout(r, Math.min(LOGIN_RETRY_DELAY_MS * Math.pow(2, attempt - 1), 120_000)))
           continue
         }
         console.error(`✗ Login falló después de ${LOGIN_MAX_RETRIES} intentos. Abortando.`)
@@ -470,7 +470,7 @@ async function main() {
       if (jsonStart === -1) {
         console.error(`  ✗ Login: respuesta sin JSON — ${loginCleaned.substring(0, 200)}`)
         if (attempt < LOGIN_MAX_RETRIES) {
-          await new Promise(r => setTimeout(r, LOGIN_RETRY_DELAY_MS))
+          await new Promise(r => setTimeout(r, Math.min(LOGIN_RETRY_DELAY_MS * Math.pow(2, attempt - 1), 120_000)))
           continue
         }
         process.exit(1)
@@ -479,7 +479,7 @@ async function main() {
       if (!loginData.token) {
         console.error(`  ✗ Login: sin token en respuesta — ${JSON.stringify(loginData).substring(0, 200)}`)
         if (attempt < LOGIN_MAX_RETRIES) {
-          await new Promise(r => setTimeout(r, LOGIN_RETRY_DELAY_MS))
+          await new Promise(r => setTimeout(r, Math.min(LOGIN_RETRY_DELAY_MS * Math.pow(2, attempt - 1), 120_000)))
           continue
         }
         process.exit(1)
@@ -491,7 +491,7 @@ async function main() {
     } catch (err) {
       console.error(`  ✗ Login error: ${err.message}`)
       if (attempt < LOGIN_MAX_RETRIES) {
-        await new Promise(r => setTimeout(r, LOGIN_RETRY_DELAY_MS))
+        await new Promise(r => setTimeout(r, Math.min(LOGIN_RETRY_DELAY_MS * Math.pow(2, attempt - 1), 120_000)))
         continue
       }
       console.error(`✗ Login falló después de ${LOGIN_MAX_RETRIES} intentos. Abortando.`)
@@ -548,7 +548,9 @@ async function main() {
         if (!res.ok) {
           const errText = await res.text().catch(() => '')
           if (errText.includes('Too many queries') || errText.includes('error_id":403')) {
-            const wait = 90 + retryCount * 60
+            // SESIÓN 79 (opción 1): respetar Retry-After si viene; si no, backoff exponencial
+            const raSecs = parseFloat(res.headers.get('retry-after') || '0')
+            const wait = raSecs > 0 ? Math.min(raSecs, 300) : Math.min(90 * Math.pow(2, retryCount), 600)
             console.log(`    ⏳ Rate limited. Esperando ${wait}s (intento ${retryCount + 1}/${MAX_RETRIES})...`)
             await new Promise(r => setTimeout(r, wait * 1000))
             // Re-login
