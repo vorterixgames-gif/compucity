@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { checkItemsStock } from '@/lib/order-stock-check'
 import { db } from '@/lib/db'
 import { getCurrentCustomer } from '@/lib/customer-auth'
 import { fetchDollarRate, getStoreConfigNumber, calculateProductPrices, CategoryMarkup } from '@/lib/dollar'
@@ -105,6 +106,23 @@ export async function POST(request: NextRequest) {
     // ── Sesión 45 QA Fase 1: obtener customerId desde la cookie ──
     const customer = await getCurrentCustomer()
     const customerId = customer?.id || null
+
+    // ── SESIÓN 78 (propuesta 2): revalidar stock al momento del pedido, multi-proveedor ──
+    // Revalida cada ítem contra el dato más fresco de su proveedor (Air Intra / Invid / Elit).
+    // Si algún ítem no se puede cumplir (sin stock / no existe / desactivado), se rechaza el
+    // pedido ANTES de crearlo (evita vender algo que el proveedor no tiene, caso Kingston s75).
+    try {
+      const stockResults = await checkItemsStock(items.map((i: any) => ({ productId: String(i.productId || ''), quantity: Number(i.quantity) || 1 })))
+      const hardBlocks = stockResults.filter(r => r.status === 'no_stock' || r.status === 'missing' || r.status === 'inactive')
+      if (hardBlocks.length > 0) {
+        return NextResponse.json(
+          { error: 'Stock no disponible al momento del pedido. Revisá los productos marcados.', stockWarnings: hardBlocks },
+          { status: 409 }
+        )
+      }
+    } catch (e) {
+      console.error('[orders] checkItemsStock falló (no bloqueante):', e)
+    }
 
     // Generar ID y número de pedido
     const id = crypto.randomUUID()
