@@ -720,6 +720,28 @@ async function main() {
     console.error(`  ✗ No se pudo actualizar lastSyncAt: ${e.message}`)
   }
 
+  // ─── 6.5 Stats de corrida (supplier_sync_stats) — SESIÓN 79 (opción 3) ───
+  // Guardo métricas de la corrida para historial/visibilidad en el admin.
+  // CREATE IF NOT EXISTS auto (la tabla puede no existir aún); try/catch = no bloqueante.
+  try {
+    await tursoExecute(`CREATE TABLE IF NOT EXISTS supplier_sync_stats (
+      id TEXT PRIMARY KEY, supplierId TEXT NOT NULL, supplierName TEXT, runAt TEXT NOT NULL,
+      durationSec REAL, fetched INTEGER, updatesApplied INTEGER, created INTEGER, blacklisted INTEGER,
+      ghostsZeroed INTEGER, zeroToStock INTEGER, stockToZero INTEGER, price0 INTEGER, unknownStatus INTEGER,
+      offsetEnd INTEGER, reachedEnd INTEGER, rateLimited INTEGER, status TEXT
+    )`, [])
+    const knownSt = ['STOCK OK','EN STOCK','DISPONIBLE','BAJO STOCK','STOCK BAJO','MENOS DE 10 UNIDADES','SIN STOCK','OUT OF STOCK','NO DISPONIBLE']
+    const unknownCount = Object.keys(statusHistogram).filter(k => !knownSt.includes(k)).length
+    await tursoExecute(
+      `INSERT INTO supplier_sync_stats (id, supplierId, supplierName, runAt, durationSec, fetched, updatesApplied, created, blacklisted, ghostsZeroed, zeroToStock, stockToZero, price0, unknownStatus, offsetEnd, reachedEnd, rateLimited, status)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [ `stats-invid-${Date.now()}`, INVID_SUPPLIER_ID, 'Invid Computers', now, Number(elapsed || 0), totalFetched, updates.length, createdApplied, blacklistedCount, ghostCount, wasZeroNowGt, wasGtNowZero, price0Count, unknownCount, offset, reachedEnd ? 1 : 0, rateLimited ? 1 : 0, 'ok' ]
+    )
+    console.log('  ✓ stats de corrida guardados en supplier_sync_stats')
+  } catch (e) {
+    console.error(`  ⚠ No se pudieron guardar stats (no bloqueante): ${e.message}`)
+  }
+
   // ─── 7. Resumen final ───
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
   console.log()
