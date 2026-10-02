@@ -250,9 +250,11 @@ export async function GET(request: NextRequest) {
       })
 
       const products = deduplicateProducts((result.rows as any[]).map(p => {
-        const catMarkup = p.categoryId ? catMarkupMap.get(p.categoryId) : null
-        const calculated = calculateProductPrices(p, dollar.rate, markup, cashDiscount, catMarkup)
-        return calculated
+        // SESIÓN 81: el precio GUARDADO es la fuente única de verdad
+        // (manual = lo cargó el dueño; proveedor = lo refresca el sync con el dólar).
+        // Antes el Arma tu PC recalculaba en vivo y mostraba un precio distinto al de
+        // ficha/buscador (caso Kingdian 255.231 vs 219.891). Ahora devuelve el guardado.
+        return { ...p, _calculated: false }
       })).filter(p => !isExcludedFromBuilder(slot, p.name))
 
       // Parse compatibility filters from query params
