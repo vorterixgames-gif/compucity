@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-09-09 (sesión 78 — revalidación de stock al momento del pedido, multi-proveedor)
+**Ultima actualizacion:** 2026-10-02 (sesión 81 — Arma tu PC unificado al precio guardado; precio manual es autoritativo)
 
 ---
 
@@ -15,10 +15,10 @@
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
 - **Commit estable:** b32d7f3 (fix: rubro 001-0331 + id Motherboards vigente)
-- **Commit actual:** 4d2e3e9
+- **Commit actual:** 473c37f
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 78
+- **Sesiones totales:** 81
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1154,6 +1154,18 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-10-02 (s81): Arma tu PC unificado al precio guardado; el precio de carga manual es autoritativo.** Commit: 473c37f.
+
+  **Caso:** la RAM manual Kingdian mostraba $219.891 en ficha y buscador (precio guardado en la columna price) pero $255.231 en el Arma tu PC, que recalculaba en vivo con calculateProductPrices (dólar/markup que no coincidían con el guardado). El dueño veía "un precio distinto según dónde lo busques".
+
+  **Decisión de negocio:** para productos manuales el precio correcto es **el que cargó el dueño en el alta**; el precio guardado pasa a ser la fuente única de verdad (manual = lo puso el dueño; proveedor = lo refresca el sync con el dólar cada 6-12h).
+
+  **Fix (473c37f) en src/app/api/pc-builder/route.ts:** el mapeo de productos del slot deja de devolver calculateProductPrices(...) y devuelve la fila con su precio guardado ({ ...p, _calculated: false }). Así ficha, buscador y Arma tu PC muestran el mismo precio. El cache del endpoint es s-maxage=300, así que el cambio se ve a los ~5 min.
+
+  **Descartado:** la idea de s80 de refrescar precios manuales al cálculo (scripts/refresh-manual-prices.mjs) NO se commiteó (el PAT estaba caído) y queda descartada por contradecir esta decisión: habría sobrescrito el precio del dueño con el calculado.
+
+  **Rotación de PAT:** el PAT viejo de GitHub devolvía 401 (revocado/vencido); se rotó a uno nuevo para este commit. El viejo queda inutilizado. Pendiente: cargar el nuevo como secret GH_ACTIONS_TOKEN si corresponde y no commitearlo nunca.
+
 - **2026-09-09 (s78): Revalidación de stock al momento del pedido (propuesta 2), aplicada a TODOS los proveedores (Air Intra, Invid, Elit).** Commits: 8267ef1 (lib), 362db22 (endpoint), 4d2e3e9 (orders).
 
   **Nuevo `src/lib/order-stock-check.ts`:** función `checkItemsStock(items)` agnóstica al proveedor: lee cada producto (stock, isActive, providerId, updatedAt, lastSeenAt) y devuelve por ítem un estado: `ok` / `no_stock` (stock DB < pedido) / `inactive` (desactivado) / `missing` (no existe) / `stale` (el dato del proveedor es más viejo que su intervalo de sync + 6h de gracia: Air Intra 12h, Invid/Elit 6h). No consulta la API del proveedor en vivo por pedido (no hay endpoint por-SKU y los rate limits de Invid 50/h y Air Intra lo harían inviable en checkout); revalida contra el dato más fresco que el sync ya dejó en DB (stock + lastSeenAt), que es el mismo dato reconciliado por las capas s72-s77.
