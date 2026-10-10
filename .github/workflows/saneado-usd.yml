@@ -1,0 +1,24 @@
+name: Saneado precios USD (one-shot)
+
+# SESIÓN 82: corrige precios guardados en magnitud USD (filas de proveedor).
+# One-shot, se dispara manualmente. Loguea cada cambio para revertir si hiciera falta.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  saneado:
+    runs-on: ubuntu-latest
+    env:
+      TURSO_URL: ${{ secrets.TURSO_URL }}
+      TURSO_TOKEN: ${{ secrets.TURSO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Saneado precios USD
+        run: node scripts/saneado-usd-prices.mjs
