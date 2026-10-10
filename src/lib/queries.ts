@@ -289,7 +289,7 @@ async function _getAllActiveProductsRaw(limit: number): Promise<Product[]> {
   ])
 
   const mapped = (result.rows as any[]).map(p =>
-    calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
+    withSavedPrice(p, calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null))
   ) as Product[]
   return enrichWithBrandInfo(deduplicateProducts(mapped))
 }
@@ -318,7 +318,7 @@ async function _getFeaturedProductsRaw(): Promise<Product[]> {
   ])
 
   const mapped2 = (result.rows as any[]).map(p =>
-    calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
+    withSavedPrice(p, calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null))
   ) as Product[]
   return enrichWithBrandInfo(deduplicateProducts(mapped2))
 }
@@ -383,7 +383,7 @@ async function _getProductsByCategoryRaw(slug: string): Promise<Product[]> {
   ])
 
   const mapped3 = (result.rows as any[]).map(p => {
-    const calculated = calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
+    const calculated = withSavedPrice(p, calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null))
     return { ...calculated, tags: p.tags ? JSON.parse(p.tags) : [] }
   }) as Product[]
   return enrichWithBrandInfo(deduplicateProducts(mapped3))
@@ -491,7 +491,7 @@ export async function searchProducts(query: string, limit = 20): Promise<Product
   ])
 
   const mapped4 = (result.rows as any[]).map(p => {
-    const calculated = calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
+    const calculated = withSavedPrice(p, calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null))
     return { ...calculated, tags: p.tags ? JSON.parse(p.tags) : [] }
   }) as Product[]
 
@@ -566,7 +566,7 @@ async function _getTopProductsByCategorySlugRaw(slug: string, limit: number): Pr
     }
 
     return deduplicateProducts(selected.map(p =>
-      calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
+      withSavedPrice(p, calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null))
     ) as Product[])
   }
 
@@ -585,7 +585,7 @@ async function _getTopProductsByCategorySlugRaw(slug: string, limit: number): Pr
   ])
 
   const mapped5 = (result.rows as any[]).map(p =>
-    calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
+    withSavedPrice(p, calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null))
   ) as Product[]
   return enrichWithBrandInfo(deduplicateProducts(mapped5))
 }
@@ -619,4 +619,15 @@ export async function getStoreConfig(key: string): Promise<string | null> {
   })
   const rows = result.rows as any[]
   return rows[0]?.value ?? null
+}
+
+
+// SESIÓN 83 (Opción A): fuente única de verdad = precio GUARDADO sano.
+// Si el price guardado está en magnitud USD (ratio price/cost < 100, p.ej. por un
+// sync viejo), caemos al precio calculado ARS. Hoisted: se usa en todos los listados
+// (home, categorías, destacados, relacionados, search) para que coincidan con la
+// ficha y el Arma tu PC.
+function withSavedPrice(p: any, calculated: any) {
+  const sane = !((Number(p.costPrice) > 0) && (Number(p.price) > 0) && (Number(p.price) / Number(p.costPrice) < 100))
+  return sane ? { ...calculated, price: p.price, comparePrice: p.comparePrice } : calculated
 }
