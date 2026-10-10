@@ -422,10 +422,11 @@ async function _getProductBySlugRaw(slug: string): Promise<Product | null> {
   // SESIÓN 83 (Opción A): el precio GUARDADO es la fuente única de verdad.
   // La ficha muestra price/comparePrice guardados (igual que Arma tu PC y buscador),
   // no el recálculo en vivo que deriva con el dólar en productos manuales.
+  const savedSane = !((Number(rows[0].costPrice) > 0) && (Number(rows[0].price) > 0) && (Number(rows[0].price) / Number(rows[0].costPrice) < 100))
   return {
     ...row,
-    price: rows[0].price,
-    comparePrice: rows[0].comparePrice,
+    price: savedSane ? rows[0].price : row.price,
+    comparePrice: savedSane ? rows[0].comparePrice : row.comparePrice,
     category: row.categoryName ? {
       id: row.categoryId,
       name: row.categoryName,
