@@ -63,8 +63,9 @@ export async function GET(request: NextRequest) {
         id: calculated.id,
         name: calculated.name,
         slug: calculated.slug,
-        price: calculated.price,
-        comparePrice: calculated.comparePrice,
+        // SESIÓN 83 (Opción A): precio guardado como fuente única (igual que ficha y Arma tu PC)
+        price: p.price,
+        comparePrice: p.comparePrice,
         costPrice: p.costPrice ?? null, // FIX s57: requerido por deduplicateProducts (fallback)
         stock: p.stock ?? 0, // FIX s57: requerido por deduplicateProducts (el SQL ya filtra stock > 0)
         images: calculated.images ? (() => { try { return JSON.parse(calculated.images) } catch { return [] } })() : [],
