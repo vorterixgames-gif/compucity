@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-10-02 (sesión 81 — Arma tu PC unificado al precio guardado; precio manual es autoritativo)
+**Ultima actualizacion:** 2026-10-10 (sesión 83 — Opción A: precio guardado como fuente única en ficha/buscador/Arma tu PC + guard sanidad USD)
 
 ---
 
@@ -15,10 +15,10 @@
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
 - **Commit estable:** b32d7f3 (fix: rubro 001-0331 + id Motherboards vigente)
-- **Commit actual:** 473c37f
+- **Commit actual:** 1c9d3d0
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 81
+- **Sesiones totales:** 83
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1154,6 +1154,20 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-10-10 (s83): Opción A implementada — el precio GUARDADO es fuente única en ficha, buscador y Arma tu PC + guard de sanidad USD.** Commits: 2885a18 (queries ficha), f98dfb1 (search), 1fd6283 + 20184f5 + 1c9d3d0 (guards sanidad). Se apoya en s81 (builder usa guardado) y s82 (saneado USD).
+
+  **Decisión:** todas las vistas de precio leen la columna `price` guardada (manual = lo puso el dueño; proveedor = lo refresca el sync / saneado), en vez de recalcular en vivo con calculateProductPrices. Esto elimina la discrepancia ficha vs Arma tu PC (Kingdian 219.891 vs 218.752 por drift de dólar).
+
+  **Causa raíz descubierta en el camino:** los scripts de sync (Air Intra/Invid/Elit) escriben en la columna `price` un valor en **magnitud USD** (costo × markup, sin dólar ni IVA). Históricamente eso no se veía porque todas las vistas recalculaban ARS en vivo; al pasar a leer el guardado (s81/s83) quedó expuesto. s82 (workflow saneado-usd, run 38091550932) reescribió **10.774 filas de proveedor** a ARS (dólar 1535).
+
+  **Guard de sanidad (s83):** en ficha (getProductBySlugRaw), buscador y Arma tu PC, el precio guardado solo se usa si es "sano" (`price/costPrice >= 100`, es decir ARS). Si el guardado está en magnitud USD (p.ej. porque un sync lo sobrescribió después del saneado), se cae al calculado ARS. Así nunca se muestra un precio en dólares aunque el sync vuelva a escribir USD.
+
+  **Verificado en producción:** Kingdian = 219.891 en ficha, buscador y Arma tu PC (iguales). Mother A68HM (proveedor) = 65.198 ARS en Arma tu PC (antes 44,62 USD).
+
+  **Pendientes conocidos (no tocados para no romper):**
+  1. Los scripts de sync siguen escribiendo `price` en magnitud USD. Con el guard, el display nunca lo muestra (cae a calculado), pero la columna guardada de proveedor queda fea hasta el próximo saneado. Fix recomendado: que los sync guarden ARS (costo × (1+IVA+int)/100 × (1+markup)/100 × dólar).
+  2. Los listados (home/categorías, getProductsByCategory etc.) todavía recalculan en vivo; para productos MANUALES puede haber un drift chico entre el card del listado (calculado) y la ficha (guardado). Extender el guard/guardado a esas queries es el paso siguiente si se quiere consistencia total.
+
 - **2026-10-02 (s81): Arma tu PC unificado al precio guardado; el precio de carga manual es autoritativo.** Commit: 473c37f.
 
   **Caso:** la RAM manual Kingdian mostraba $219.891 en ficha y buscador (precio guardado en la columna price) pero $255.231 en el Arma tu PC, que recalculaba en vivo con calculateProductPrices (dólar/markup que no coincidían con el guardado). El dueño veía "un precio distinto según dónde lo busques".
