@@ -254,7 +254,10 @@ export async function GET(request: NextRequest) {
         // (manual = lo cargó el dueño; proveedor = lo refresca el sync con el dólar).
         // Antes el Arma tu PC recalculaba en vivo y mostraba un precio distinto al de
         // ficha/buscador (caso Kingdian 255.231 vs 219.891). Ahora devuelve el guardado.
-        return { ...p, _calculated: false }
+        // SESIÓN 83: guard de sanidad — si el price guardado está en magnitud USD
+        // (ratio < 100), recalcular ARS; si no, usar el guardado (fuente única).
+        const savedSane = !((Number(p.costPrice) > 0) && (Number(p.price) > 0) && (Number(p.price) / Number(p.costPrice) < 100))
+        return savedSane ? { ...p, _calculated: false } : calculateProductPrices(p, dollar.rate, markup, cashDiscount, catMarkup)
       })).filter(p => !isExcludedFromBuilder(slot, p.name))
 
       // Parse compatibility filters from query params
