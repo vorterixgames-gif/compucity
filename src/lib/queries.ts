@@ -419,8 +419,13 @@ async function _getProductBySlugRaw(slug: string): Promise<Product | null> {
 
   const row = calculateProductPrices(rows[0], dollar.rate, markup, cashDiscount, catMarkup)
 
+  // SESIÓN 83 (Opción A): el precio GUARDADO es la fuente única de verdad.
+  // La ficha muestra price/comparePrice guardados (igual que Arma tu PC y buscador),
+  // no el recálculo en vivo que deriva con el dólar en productos manuales.
   return {
     ...row,
+    price: rows[0].price,
+    comparePrice: rows[0].comparePrice,
     category: row.categoryName ? {
       id: row.categoryId,
       name: row.categoryName,
