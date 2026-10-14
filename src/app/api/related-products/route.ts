@@ -49,7 +49,10 @@ export async function GET(request: NextRequest) {
 
     const deduped = deduplicateProducts((result.rows as any[]).map((p) => {
       const catMarkup = p.categoryId ? catMarkupMap.get(p.categoryId) : null
-      return calculateProductPrices(p, dollar.rate, markup, cashDiscount, catMarkup)
+      const calculated = calculateProductPrices(p, dollar.rate, markup, cashDiscount, catMarkup)
+    // SESIÓN 85 (Opción A): relacionados con precio GUARDADO (fuente única) + guard USD
+    const sane = !((Number(p.costPrice) > 0) && (Number(p.price) > 0) && (Number(p.price) / Number(p.costPrice) < 100))
+    return sane ? { ...calculated, price: p.price, comparePrice: p.comparePrice } : calculated
     }))
 
     const products = deduped.map((calculated) => {
