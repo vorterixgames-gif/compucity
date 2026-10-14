@@ -46,8 +46,11 @@ export async function GET(request: NextRequest) {
         id: product.id,
         name: product.name,
         slug: product.slug,
-        price: product.price,
-        comparePrice: product.comparePrice,
+        // SESIÓN 85 (Opción A): el /api/products (usado por el refresh del carrito) debe
+        // devolver el precio GUARDADO, igual que ficha/buscador/builder, para que el
+        // carrito no muestre un precio distinto al de la página. Guard sanidad USD.
+        price: ((Number(rows[0].costPrice) > 0) && (Number(rows[0].price) > 0) && (Number(rows[0].price) / Number(rows[0].costPrice) < 100)) ? product.price : rows[0].price,
+        comparePrice: ((Number(rows[0].costPrice) > 0) && (Number(rows[0].price) > 0) && (Number(rows[0].price) / Number(rows[0].costPrice) < 100)) ? product.comparePrice : rows[0].comparePrice,
         images: product.images,
         stock: product.stock,
         salePrice: product.salePrice ?? null,
