@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
 
     const placeholders = productIds.map(() => '?').join(',')
     const productsResult = await db.execute({
-      sql: `SELECT id, name, stock, isActive, costPrice, markup, cashDiscount, ivaRate, salePrice, saleStart, saleEnd, categoryId
+      sql: `SELECT id, name, stock, isActive, costPrice, price, markup, cashDiscount, ivaRate, salePrice, saleStart, saleEnd, categoryId
             FROM products WHERE id IN (${placeholders})`,
       args: productIds,
     })
@@ -201,11 +201,17 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      // Determinar precio a cobrar: si hay oferta activa, usarla; sino, precio de lista
+      // SESIÓN 84 (Opción A): el precio a cobrar es el GUARDADO (el mismo que el cliente
+      // vio en toda la tienda), no el recalculado con el dólar del instante. Así el total
+      // del pedido coincide con lo mostrado (evita el "doble precio" en manuales).
+      // Guard de sanidad: si el guardado está en magnitud USD, caemos al calculado ARS.
+      const savedSane = !((Number(product.costPrice) > 0) && (Number(product.price) > 0) && (Number(product.price) / Number(product.costPrice) < 100))
+      const basePrice = savedSane ? Number(product.price) : calculated.price
+      // Determinar precio a cobrar: si hay oferta activa, usarla; sino, precio base
       const activeSale = getActiveSale(calculated as any)
-      const realPrice = activeSale !== null && activeSale < calculated.price
+      const realPrice = activeSale !== null && activeSale < basePrice
         ? activeSale
-        : calculated.price
+        : basePrice
 
       validatedItems.push({
         productId: item.productId,
