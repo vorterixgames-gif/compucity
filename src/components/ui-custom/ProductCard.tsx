@@ -31,10 +31,10 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
   // Check if there's an active sale
   const activeSale = getActiveSale({ price, comparePrice, salePrice, saleStart, saleEnd })
   const isOnSale = activeSale !== null && activeSale < price
-  const hasCashDiscount = comparePrice && comparePrice < price && !isOnSale
+  const hasCashDiscount = false // SESIÓN 88: solo precio de lista (se quita la línea EFECTIVO)
 
   // Determine cart price: sale price > cash price > list price
-  const cartPrice = isOnSale ? activeSale : (comparePrice && comparePrice < price ? comparePrice : price)
+  const cartPrice = isOnSale ? activeSale : price // SESIÓN 88: carrito al precio de lista
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault()
