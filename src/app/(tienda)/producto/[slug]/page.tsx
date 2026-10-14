@@ -146,14 +146,12 @@ export default async function ProductPage({ params }: Props) {
             {(() => {
               const activeSale = getActiveSale(product as any)
               const isOnSale = activeSale !== null && activeSale < product.price
-              const hasCashDiscount = product.comparePrice && product.comparePrice < product.price && !isOnSale
+              const hasCashDiscount = false // SESIÓN 88: solo precio de lista (se quita EFECTIVO)
 
               if (isOnSale) {
                 const discountPercent = Math.round((1 - activeSale! / product.price) * 100)
                 // Calculate cash price from sale price as base
-                const saleCashPrice = (product.comparePrice && product.comparePrice < product.price)
-                  ? Math.ceil(activeSale! * (product.comparePrice / product.price))
-                  : null
+                const saleCashPrice = null // SESIÓN 88: sin línea EFECTIVO incluso en oferta
                 return (
                   <>
                     <div className="flex items-center gap-2">
