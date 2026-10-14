@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-10-10 (sesión 83 — Opción A: precio guardado como fuente única en ficha/buscador/Arma tu PC + guard sanidad USD)
+**Ultima actualizacion:** 2026-10-10 (sesión 86 — Arma tu PC muestra solo precio de lista; efectivo únicamente con descuento real)
 
 ---
 
@@ -15,10 +15,10 @@
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
 - **Commit estable:** b32d7f3 (fix: rubro 001-0331 + id Motherboards vigente)
-- **Commit actual:** 1c9d3d0
+- **Commit actual:** d05f1d7
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 83
+- **Sesiones totales:** 86
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1154,6 +1154,18 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-10-10 (s86): Arma tu PC muestra SOLO precio de lista; el "precio en efectivo" aparece únicamente si hay un descuento efectivo real.** Commit: d05f1d7.
+
+  **Motivo:** el dueño veía "Precio de lista" y "Precio en efectivo" duplicados en el Arma tu PC aunque no haya ninguna promoción cargada (cash_discount global = 0, entonces efectivo == lista y la segunda línea era redundante).
+
+  **Cambios en src/app/(tienda)/arma-tu-pc/page.tsx:**
+  1. Resumen de componentes (mobile y desktop): la línea por componente ahora dice "Lista: $X" (antes "Efectivo: $X" incluso sin descuento).
+  2. Mensaje de WhatsApp: envía un único "💰 Total: $lista"; la línea "Total en efectivo" solo se agrega si totalPrice < totalListPrice (descuento real).
+  3. PDF: el bloque verde "Precio en efectivo" solo se imprime si totalPrice < totalListPrice; sin descuento el PDF muestra únicamente "Precio de lista".
+  4. Los totales del resumen y las líneas por producto en el listado YA eran condicionales (solo muestran efectivo si comparePrice < price), no se tocaron.
+
+  **Resultado:** sin promoción cargada, en todo el Arma tu PC (resumen, WhatsApp, PDF) se ve un solo precio: el de lista. Si algún día se carga un descuento efectivo (global o individual), el precio en efectivo vuelve a aparecer como línea destacada (comportamiento correcto).
+
 - **2026-10-10 (s83): Opción A implementada — el precio GUARDADO es fuente única en ficha, buscador y Arma tu PC + guard de sanidad USD.** Commits: 2885a18 (queries ficha), f98dfb1 (search), 1fd6283 + 20184f5 + 1c9d3d0 (guards sanidad). Se apoya en s81 (builder usa guardado) y s82 (saneado USD).
 
   **Decisión:** todas las vistas de precio leen la columna `price` guardada (manual = lo puso el dueño; proveedor = lo refresca el sync / saneado), en vez de recalcular en vivo con calculateProductPrices. Esto elimina la discrepancia ficha vs Arma tu PC (Kingdian 219.891 vs 218.752 por drift de dólar).
