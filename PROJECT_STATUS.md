@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-10-14 (sesión 87 — comparePrice normalizado: todos los productos sin descuento muestran un único precio de lista)
+**Ultima actualizacion:** 2026-10-14 (sesión 88 — ficha y cards muestran SOLO precio de lista; se elimina la línea EFECTIVO)
 
 ---
 
@@ -15,10 +15,10 @@
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
 - **Commit estable:** b32d7f3 (fix: rubro 001-0331 + id Motherboards vigente)
-- **Commit actual:** 2341d43
+- **Commit actual:** 3fa49a0
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 87
+- **Sesiones totales:** 88
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1154,6 +1154,18 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-10-14 (s88): Ficha de producto y ProductCard muestran SOLO el precio de lista; se elimina la línea "EFECTIVO" en toda la tienda.** Commits: 0bcb8b2 (ProductCard), 3fa49a0 (ficha).
+
+  **Motivo:** el dueño reportó que aún veía dos precios en algunos productos (ej. CABLE NOGANET HDMI 4K 5M: "EFECTIVO $5.240 / Precio de lista $5.677"). Eso eran productos con comparePrice < price (descuento efectivo individual o dato viejo). La instrucción: "que quede solo el precio de lista".
+
+  **Cambios:**
+  1. `ProductCard.tsx`: `hasCashDiscount = false` (nunca rama EFECTIVO) y `cartPrice = isOnSale ? activeSale : price` (el carrito suma al precio de lista, coherente con orders s84). La rama OFERTA (salePrice) se conserva.
+  2. `producto/[slug]/page.tsx`: `hasCashDiscount = false` y `saleCashPrice = null` → la ficha muestra un único precio de lista; la rama OFERTA (salePrice + badge + lista tachado) se conserva sin la línea EFECTIVO.
+
+  **Verificado en producción:** /producto/cable-noganet-hdmi-4k-1-4-5m-bolsa muestra un único $5.677; sin "EFECTIVO" y sin "Precio de lista". Con s87 (comparePrice=price) + s88 (sin rama EFECTIVO), TODOS los productos muestran un solo precio de lista en ficha, cards, home, categorías, buscador, Arma tu PC, carrito, PDF y WhatsApp. Las ofertas (salePrice) siguen mostrándose con badge OFERTA y lista tachado.
+
+  **Nota:** los 67 productos con cashDiscount individual conservan el valor en DB pero ya no se muestra como precio efectivo (decisión del dueño: solo precio de lista).
+
 - **2026-10-14 (s87): comparePrice normalizado — TODOS los productos sin descuento efectivo muestran un único precio (lista) en toda la tienda.** Commits: 615e290 (script), 2341d43 (workflow). Run GH 38573069791: success.
 
   **Motivo:** el dueño pidió que el comportamiento "solo precio de lista" (s86, Arma tu PC) aplique a TODOS los productos. La ficha/cards mostraban el par "precio de lista tachado + precio en efectivo" cuando el comparePrice guardado era distinto del price (dato viejo), aunque no hubiera ninguna promoción cargada (cash_discount global = 0).
