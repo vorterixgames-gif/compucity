@@ -30,6 +30,9 @@ export async function GET() {
     // Mapear a formato liviano con precios calculados
     const products = (result.rows as any[]).map((p) => {
       const calculated = calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
+    // SESIÓN 85 (Opción A): el índice del autocomplete con precio GUARDADO (fuente única)
+    const saneIdx = !((Number(p.costPrice) > 0) && (Number(p.price) > 0) && (Number(p.price) / Number(p.costPrice) < 100))
+    if (saneIdx) { calculated.price = p.price; calculated.comparePrice = p.comparePrice }
       // Solo los campos que necesita el dropdown de búsqueda
       const effectivePrice = calculated.salePrice != null &&
         calculated.saleStart != null && calculated.saleEnd != null &&
