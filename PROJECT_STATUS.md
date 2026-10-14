@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-10-14 (sesión 88 — ficha y cards muestran SOLO precio de lista; se elimina la línea EFECTIVO)
+**Ultima actualizacion:** 2026-10-14 (sesión 89 — HOTFIX: pc-builder devolvía 500 en todos los slots por variable catMarkup indefinida en el guard USD)
 
 ---
 
@@ -15,10 +15,10 @@
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
 - **Commit estable:** b32d7f3 (fix: rubro 001-0331 + id Motherboards vigente)
-- **Commit actual:** 3fa49a0
+- **Commit actual:** 38ef392
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 88
+- **Sesiones totales:** 89
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1154,6 +1154,20 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-10-14 (s89): HOTFIX — el Arma tu PC devolvía HTTP 500 en TODOS los slots (no aparecía ningún producto).** Commit: 38ef392.
+
+  **Síntoma:** /api/pc-builder?slot=<cualquiera> → 500 "Error del servidor"; el Arma tu PC quedaba vacío en todas las categorías.
+
+  **Causa raíz:** en s83 agregué al map de productos del builder un guard de sanidad USD cuyo fallback llamaba `calculateProductPrices(p, dollar.rate, markup, cashDiscount, catMarkup)`, pero la variable `catMarkup` YA NO existía en ese scope (la había eliminado en s81 al hacer que el builder devuelva la fila guardada). Mientras el price guardado fue "sano" (ARS) el fallback nunca se ejecutó; pero cuando el sync de proveedores sobrescribió el price guardado con magnitud USD (los sync guardan costo×markup sin dólar), el guard activó el fallback → ReferenceError: catMarkup is not defined → el route entero tiró 500.
+
+  **Fix:** el fallback ahora resuelve el markup de categoría inline: `p.categoryId ? catMarkupMap.get(p.categoryId) : null`. Sin variables sueltas.
+
+  **Verificado en producción:** ram=141, motherboard=236, processor=148, ssd=112 productos, HTTP 200 en todos.
+
+  **Lección:** al editar un map/callback, verificar que toda variable referenciada en CUALQUIER rama (incluidas ramas de fallback que casi no se ejecutan) esté declarada en ese scope. Las ramas frías son las que rompen en producción cuando por fin se activan.
+
+  **Relacionado (pendiente de fondo):** los sync de proveedores siguen escribiendo el price guardado en magnitud USD; el guard lo detecta y cae al calculado ARS (correcto), pero el fix de raíz es que los sync guarden ARS (costo × (1+IVA+int) × (1+markup) × dólar). Queda como tarea para que la columna guardada sea confiable sin depender del guard.
+
 - **2026-10-14 (s88): Ficha de producto y ProductCard muestran SOLO el precio de lista; se elimina la línea "EFECTIVO" en toda la tienda.** Commits: 0bcb8b2 (ProductCard), 3fa49a0 (ficha).
 
   **Motivo:** el dueño reportó que aún veía dos precios en algunos productos (ej. CABLE NOGANET HDMI 4K 5M: "EFECTIVO $5.240 / Precio de lista $5.677"). Eso eran productos con comparePrice < price (descuento efectivo individual o dato viejo). La instrucción: "que quede solo el precio de lista".
