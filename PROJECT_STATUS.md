@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-10-10 (sesión 86 — Arma tu PC muestra solo precio de lista; efectivo únicamente con descuento real)
+**Ultima actualizacion:** 2026-10-14 (sesión 87 — comparePrice normalizado: todos los productos sin descuento muestran un único precio de lista)
 
 ---
 
@@ -15,10 +15,10 @@
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
 - **Commit estable:** b32d7f3 (fix: rubro 001-0331 + id Motherboards vigente)
-- **Commit actual:** d05f1d7
+- **Commit actual:** 2341d43
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 86
+- **Sesiones totales:** 87
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1154,6 +1154,16 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-10-14 (s87): comparePrice normalizado — TODOS los productos sin descuento efectivo muestran un único precio (lista) en toda la tienda.** Commits: 615e290 (script), 2341d43 (workflow). Run GH 38573069791: success.
+
+  **Motivo:** el dueño pidió que el comportamiento "solo precio de lista" (s86, Arma tu PC) aplique a TODOS los productos. La ficha/cards mostraban el par "precio de lista tachado + precio en efectivo" cuando el comparePrice guardado era distinto del price (dato viejo), aunque no hubiera ninguna promoción cargada (cash_discount global = 0).
+
+  **Regla aplicada (UPDATE one-shot en Turso):** `comparePrice = price` para todo producto con `comparePrice != price` y sin cashDiscount individual (`cashDiscount IS NULL OR = 0`). Filas normalizadas: **4.114**. Restantes: **0**.
+
+  **Excepción correcta:** los **67 productos con cashDiscount individual > 0** conservan su comparePrice (precio efectivo menor) y siguen mostrando el par lista+efectivo, porque ahí SÍ hay un descuento real.
+
+  **Verificado en producción:** Kingdian price == comparePrice (219.891); la ficha ya no muestra "Precio de lista" tachado. Con esto, sin promoción cargada, toda la tienda (ficha, cards, home, categorías, buscador, Arma tu PC, carrito, PDF, WhatsApp) muestra un único precio: el de lista. Si el dueño carga un descuento efectivo (global o individual), el precio en efectivo vuelve a aparecer destacado.
+
 - **2026-10-10 (s86): Arma tu PC muestra SOLO precio de lista; el "precio en efectivo" aparece únicamente si hay un descuento efectivo real.** Commit: d05f1d7.
 
   **Motivo:** el dueño veía "Precio de lista" y "Precio en efectivo" duplicados en el Arma tu PC aunque no haya ninguna promoción cargada (cash_discount global = 0, entonces efectivo == lista y la segunda línea era redundante).
