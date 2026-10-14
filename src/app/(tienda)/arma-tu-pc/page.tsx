@@ -629,8 +629,11 @@ export default function ArmaTuPCPage() {
         msg += `*${slotLabel}:* ${c.product.name} - ${formatARS(unitPrice)}\n`
       }
     })
-    msg += `\n💰 *Total en efectivo:* ${formatARS(totalPrice)}\n`
-    msg += `📋 *Total de lista:* ${formatARS(totalListPrice)}\n\n`
+    msg += `\n💰 *Total:* ${formatARS(totalListPrice)}\n`
+    if (totalPrice > 0 && totalPrice < totalListPrice) {
+      msg += `💵 *Total en efectivo:* ${formatARS(totalPrice)}\n`
+    }
+    msg += `\n`
     msg += `Consulto por la disponibilidad y tiempo de armado. Gracias!`
     return `https://wa.me/5493548402056?text=${encodeURIComponent(msg)}`
   }
@@ -747,15 +750,17 @@ export default function ArmaTuPCPage() {
     doc.text(formatARS(totalListPrice), pageWidth - margin, y, { align: 'right' })
     y += 8
 
-    // Total en efectivo (highlighted)
-    doc.setFillColor(232, 245, 242) // #EFF5F2
-    doc.roundedRect(margin - 3, y - 6, pageWidth - margin * 2 + 6, 14, 2, 2, 'F')
-    doc.setFontSize(13)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(58, 139, 104)
-    doc.text('Precio en efectivo:', margin, y)
-    doc.text(formatARS(totalPrice), pageWidth - margin, y, { align: 'right' })
-    y += 18
+    // Total en efectivo (highlighted) — SESIÓN 86: solo si hay descuento efectivo real
+    if (totalPrice > 0 && totalPrice < totalListPrice) {
+      doc.setFillColor(232, 245, 242) // #EFF5F2
+      doc.roundedRect(margin - 3, y - 6, pageWidth - margin * 2 + 6, 14, 2, 2, 'F')
+      doc.setFontSize(13)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(58, 139, 104)
+      doc.text('Precio en efectivo:', margin, y)
+      doc.text(formatARS(totalPrice), pageWidth - margin, y, { align: 'right' })
+      y += 18
+    }
 
     // 96hs note
     if (y < 270) {
@@ -986,10 +991,10 @@ export default function ArmaTuPCPage() {
                       <p className="text-sm font-medium text-green-900 truncate">{sel.product.name}</p>
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-xs text-green-700">
-                          Efectivo: {formatARS((sel.product.comparePrice || sel.product.price) * sel.quantity)}
+                          Lista: {formatARS(sel.product.price * sel.quantity)}
                           {sel.quantity > 1 && (
                             <span className="text-green-500 ml-1">
-                              ({sel.quantity}x {formatARS(sel.product.comparePrice || sel.product.price)} c/u)
+                              ({sel.quantity}x {formatARS(sel.product.price)} c/u)
                             </span>
                           )}
                         </p>
@@ -1029,10 +1034,10 @@ export default function ArmaTuPCPage() {
                         <p className="text-sm font-medium text-green-900 truncate">{sel.product.name}</p>
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-xs text-green-700">
-                            Efectivo: {formatARS((sel.product.comparePrice || sel.product.price) * sel.quantity)}
+                            Lista: {formatARS(sel.product.price * sel.quantity)}
                             {sel.quantity > 1 && (
                               <span className="text-green-500 ml-1">
-                                ({sel.quantity}x {formatARS(sel.product.comparePrice || sel.product.price)} c/u)
+                                ({sel.quantity}x {formatARS(sel.product.price)} c/u)
                               </span>
                             )}
                           </p>
