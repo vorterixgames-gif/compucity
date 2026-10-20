@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-10-19 (sesión 90 — REVERT: fuente única de precio = precio de lista CALCULADO en toda la tienda y pedidos; admin==web==orders)
+**Ultima actualizacion:** 2026-10-19 (sesión 91 — descuento efectivo global vuelto a 0%; solo precio de lista en toda la tienda)
 
 ---
 
@@ -15,10 +15,10 @@
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
 - **Commit estable:** b32d7f3 (fix: rubro 001-0331 + id Motherboards vigente)
-- **Commit actual:** 02ca930
+- **Commit actual:** s91-docs
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 90
+- **Sesiones totales:** 91
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1154,6 +1154,16 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-10-19 (s91): Descuento efectivo global vuelto a 0% (store_config cash_discount = 0). Solo precio de lista en toda la tienda.**
+
+  **Motivo:** el config global tenía cash_discount = 10 (alguien lo subió después de s56 que documenta 0). Con 10%, el "precio efectivo" volvía a aparecer ~9% por debajo del de lista en el Arma tu PC (resumen/WhatsApp/PDF, vía la condición totalPrice < totalListPrice de s86) y en cualquier vista que muestre efectivo, contradiciendo la decisión del dueño de "que quede solo el precio de lista" y generando discrepancias admin vs web.
+
+  **Acción:** PUT /api/admin/config con el formato correcto { configs: { cash_discount: "0" } } (los intentos anteriores fallaban por payload mal formado: el endpoint espera la clave configs). Verificado en DB: store_config cash_discount = 0, markup = 15.
+
+  **Propagación:** el cache en memoria de getStoreConfigNumber es por instancia de Vercel (TTL 5 min); el __clearConfigCache del PUT solo limpia la instancia que lo atendió. Para forzar lectura fresca en todas las instancias se deploya este commit (instancias nuevas = cache frío). Tras el deploy, /api/dolar debe reportar cashDiscount 0 y el Arma tu PC debe mostrar comparePrice == price (sin línea efectivo).
+
+  **Efecto esperado:** efectivo == lista en todos lados; el resumen/WhatsApp/PDF del Arma tu PC muestran un único "Precio de lista"; admin == web == pedido. Los productos con cashDiscount INDIVIDUAL (67) conservan su efectivo propio (descuento real), correcto.
+
 - **2026-10-14 (s89): HOTFIX — el Arma tu PC devolvía HTTP 500 en TODOS los slots (no aparecía ningún producto).** Commit: 38ef392.
 
   **Síntoma:** /api/pc-builder?slot=<cualquiera> → 500 "Error del servidor"; el Arma tu PC quedaba vacío en todas las categorías.
