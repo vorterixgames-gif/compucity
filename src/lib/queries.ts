@@ -422,11 +422,8 @@ async function _getProductBySlugRaw(slug: string): Promise<Product | null> {
   // SESIÓN 83 (Opción A): el precio GUARDADO es la fuente única de verdad.
   // La ficha muestra price/comparePrice guardados (igual que Arma tu PC y buscador),
   // no el recálculo en vivo que deriva con el dólar en productos manuales.
-  const savedSane = !((Number(rows[0].costPrice) > 0) && (Number(rows[0].price) > 0) && (Number(rows[0].price) / Number(rows[0].costPrice) < 100))
   return {
     ...row,
-    price: savedSane ? rows[0].price : row.price,
-    comparePrice: savedSane ? rows[0].comparePrice : row.comparePrice,
     category: row.categoryName ? {
       id: row.categoryId,
       name: row.categoryName,
@@ -629,5 +626,5 @@ export async function getStoreConfig(key: string): Promise<string | null> {
 // ficha y el Arma tu PC.
 function withSavedPrice(p: any, calculated: any) {
   const sane = !((Number(p.costPrice) > 0) && (Number(p.price) > 0) && (Number(p.price) / Number(p.costPrice) < 100))
-  return sane ? { ...calculated, price: p.price, comparePrice: p.comparePrice } : calculated
+  return calculated // SESIÓN 90: vuelve a calcular (fuente única = precio de lista calculado, igual que el admin)
 }
