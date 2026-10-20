@@ -197,13 +197,15 @@ export async function getStoreConfigNumber(key: string, defaultValue: number): P
       try {
         const parsed = JSON.parse(raw)
         if (typeof parsed === 'object' && parsed !== null && 'value' in parsed) {
-          value = Number(parsed.value) || defaultValue
+          const nPV = Number(parsed.value)
+          value = Number.isFinite(nPV) ? nPV : defaultValue
         } else if (typeof parsed === 'number') {
-          value = parsed || defaultValue
+          value = Number.isFinite(parsed) ? parsed : defaultValue
         }
       } catch {
         // Not valid JSON, treat as plain string number
-        value = Number(raw) || defaultValue
+        const nRaw = Number(raw)
+        value = Number.isFinite(nRaw) ? nRaw : defaultValue
       }
     } catch {
       value = defaultValue
