@@ -205,8 +205,7 @@ export async function POST(request: NextRequest) {
       // vio en toda la tienda), no el recalculado con el dólar del instante. Así el total
       // del pedido coincide con lo mostrado (evita el "doble precio" en manuales).
       // Guard de sanidad: si el guardado está en magnitud USD, caemos al calculado ARS.
-      const savedSane = !((Number(product.costPrice) > 0) && (Number(product.price) > 0) && (Number(product.price) / Number(product.costPrice) < 100))
-      const basePrice = savedSane ? Number(product.price) : calculated.price
+      const basePrice = calculated.price
       // Determinar precio a cobrar: si hay oferta activa, usarla; sino, precio base
       const activeSale = getActiveSale(calculated as any)
       const realPrice = activeSale !== null && activeSale < basePrice
