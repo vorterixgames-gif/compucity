@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-10-14 (sesión 89 — HOTFIX: pc-builder devolvía 500 en todos los slots por variable catMarkup indefinida en el guard USD)
+**Ultima actualizacion:** 2026-10-19 (sesión 90 — REVERT: fuente única de precio = precio de lista CALCULADO en toda la tienda y pedidos; admin==web==orders)
 
 ---
 
@@ -15,10 +15,10 @@
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
 - **Commit estable:** b32d7f3 (fix: rubro 001-0331 + id Motherboards vigente)
-- **Commit actual:** 38ef392
+- **Commit actual:** 02ca930
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 89
+- **Sesiones totales:** 90
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1167,6 +1167,18 @@ bash scripts/pre-change-safeguard.sh
   **Lección:** al editar un map/callback, verificar que toda variable referenciada en CUALQUIER rama (incluidas ramas de fallback que casi no se ejecutan) esté declarada en ese scope. Las ramas frías son las que rompen en producción cuando por fin se activan.
 
   **Relacionado (pendiente de fondo):** los sync de proveedores siguen escribiendo el price guardado en magnitud USD; el guard lo detecta y cae al calculado ARS (correcto), pero el fix de raíz es que los sync guarden ARS (costo × (1+IVA+int) × (1+markup) × dólar). Queda como tarea para que la columna guardada sea confiable sin depender del guard.
+
+- **2026-10-19 (s90): REVERT de la fuente de precio — vuelve a ser el precio de lista CALCULADO (calculateProductPrices) en TODAS las vistas y en pedidos. Admin == Web == Orders.** Commits: 9ad3ad2 (queries), 42ebbcc (search), b595b8a (products), 7c64cb2 (related), 5a345e9 (search-index), bad633a (pc-builder), 02ca930 (orders).
+
+  **Motivo (reporte del dueño, caso POWERSAFE):** el admin mostraba $80.686 y la web $73.397 para el mismo producto cargado en el día. La causa: las sesiones 83-85 habían hecho que varias vistas lean el `price` GUARDADO, pero la columna guardada no era confiable como fuente de verdad (los sync de proveedor la escriben en magnitud USD; las cargas manuales guardaban un precio tipo efectivo/con otro dólar; y el admin en realidad muestra el precio de lista CALCULADO, no el guardado). Resultado: guardado vs calculado divergían y admin != web.
+
+  **Decisión s90:** una sola fuente de verdad para mostrar y cobrar: el **precio de lista calculado** = costUSD × (1+IVA/100+int/100) × (1+markup/100) × dólar, con herencia producto→categoría→global (la MISMA fórmula que usa el dashboard del admin). Se revirtieron los overrides de "precio guardado" en: queries (ficha + listados + withSavedPrice), /api/search, /api/products, /api/related-products, /api/search-index, /api/pc-builder y /api/orders (el pedido cobra el calculado).
+
+  **NO se tocó (se conserva):** s86/s88 (se muestra UN solo precio de lista; la línea EFECTIVO no se muestra; las ofertas salePrice siguen con badge OFERTA y lista tachado), s89 (fix catMarkup del builder que evita el ReferenceError), filtros/compatibilidad/stock.
+
+  **Verificado en producción:** POWERSAFE GAMER 6 TOMAS = $80.686 en admin, /api/products?id, /api/search y ficha (coinciden). TRV POWERSAFE 2I = $58.288 en admin y search. Sin línea EFECTIVO.
+
+  **Consecuencia aceptada:** los precios se mueven con el dólar (recalculados), igual que el dashboard; la columna `price` guardada queda solo como snapshot histórico y ya no es fuente de display. Los guard anti-USD se retiraron porque al calcular en vivo nunca se muestra un precio en magnitud USD.
 
 - **2026-10-14 (s88): Ficha de producto y ProductCard muestran SOLO el precio de lista; se elimina la línea "EFECTIVO" en toda la tienda.** Commits: 0bcb8b2 (ProductCard), 3fa49a0 (ficha).
 
