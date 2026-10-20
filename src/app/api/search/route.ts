@@ -63,9 +63,8 @@ export async function GET(request: NextRequest) {
         id: calculated.id,
         name: calculated.name,
         slug: calculated.slug,
-        // SESIÓN 83 (Opción A): precio guardado como fuente única, con guard de sanidad USD
-        price: ((Number(p.costPrice) > 0) && (Number(p.price) > 0) && (Number(p.price) / Number(p.costPrice) < 100)) ? calculated.price : p.price,
-        comparePrice: ((Number(p.costPrice) > 0) && (Number(p.price) > 0) && (Number(p.price) / Number(p.costPrice) < 100)) ? calculated.comparePrice : p.comparePrice,
+        price: calculated.price,
+        comparePrice: calculated.comparePrice,
         costPrice: p.costPrice ?? null, // FIX s57: requerido por deduplicateProducts (fallback)
         stock: p.stock ?? 0, // FIX s57: requerido por deduplicateProducts (el SQL ya filtra stock > 0)
         images: calculated.images ? (() => { try { return JSON.parse(calculated.images) } catch { return [] } })() : [],
