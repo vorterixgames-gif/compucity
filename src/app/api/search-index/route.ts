@@ -61,7 +61,7 @@ export async function GET() {
       { ok: true, products, count: products.length, updatedAt: new Date().toISOString() },
       {
         headers: {
-          'Cache-Control': 's-maxage=3600, stale-while-revalidate=3600',
+          'Cache-Control': 's-maxage=300, stale-while-revalidate=3600', // SESIÓN 92: 5min (antes 1h) para no mostrar precios viejos
         },
       }
     )
