@@ -233,8 +233,8 @@ export interface CalculatedPrices {
 
 export async function calculatePrices(costUsd: number): Promise<CalculatedPrices> {
   const dollar = await fetchDollarRate()
-  const markup = await getStoreConfigNumber('markup', 30)
-  const cashDiscount = await getStoreConfigNumber('cash_discount', 10)
+  const markup = await getStoreConfigNumber('markup', 15)
+  const cashDiscount = await getStoreConfigNumber('cash_discount', 0)
 
   const ivaRate = await getStoreConfigNumber('default_iva_rate', 10.5)
   const listPrice = Math.ceil(costUsd * (1 + ivaRate / 100) * (1 + markup / 100) * dollar.rate)
