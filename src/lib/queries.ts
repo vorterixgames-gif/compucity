@@ -283,8 +283,8 @@ async function _getAllActiveProductsRaw(limit: number): Promise<Product[]> {
       args: [limit],
     }),
     fetchDollarRate(),
-    getStoreConfigNumber('markup', 30),
-    getStoreConfigNumber('cash_discount', 10),
+    getStoreConfigNumber('markup', 15),
+    getStoreConfigNumber('cash_discount', 0),
     getCategoryMarkupMap(),
   ])
 
@@ -312,8 +312,8 @@ async function _getFeaturedProductsRaw(): Promise<Product[]> {
       args: [],
     }),
     fetchDollarRate(),
-    getStoreConfigNumber('markup', 30),
-    getStoreConfigNumber('cash_discount', 10),
+    getStoreConfigNumber('markup', 15),
+    getStoreConfigNumber('cash_discount', 0),
     getCategoryMarkupMap(),
   ])
 
@@ -377,8 +377,8 @@ async function _getProductsByCategoryRaw(slug: string): Promise<Product[]> {
       args: allIds,
     }),
     fetchDollarRate(),
-    getStoreConfigNumber('markup', 30),
-    getStoreConfigNumber('cash_discount', 10),
+    getStoreConfigNumber('markup', 15),
+    getStoreConfigNumber('cash_discount', 0),
     getCategoryMarkupMap(),
   ])
 
@@ -405,8 +405,8 @@ async function _getProductBySlugRaw(slug: string): Promise<Product | null> {
       args: [slug],
     }),
     fetchDollarRate(),
-    getStoreConfigNumber('markup', 30),
-    getStoreConfigNumber('cash_discount', 10),
+    getStoreConfigNumber('markup', 15),
+    getStoreConfigNumber('cash_discount', 0),
     getCategoryMarkupMap(),
   ])
 
@@ -482,8 +482,8 @@ export async function searchProducts(query: string, limit = 20): Promise<Product
 
   const [dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
     fetchDollarRate(),
-    getStoreConfigNumber('markup', 30),
-    getStoreConfigNumber('cash_discount', 10),
+    getStoreConfigNumber('markup', 15),
+    getStoreConfigNumber('cash_discount', 0),
     getCategoryMarkupMap(),
   ])
 
@@ -538,8 +538,8 @@ async function _getTopProductsByCategorySlugRaw(slug: string, limit: number): Pr
     const [results, dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
       Promise.all(productPromises),
       fetchDollarRate(),
-      getStoreConfigNumber('markup', 30),
-      getStoreConfigNumber('cash_discount', 10),
+      getStoreConfigNumber('markup', 15),
+      getStoreConfigNumber('cash_discount', 0),
       getCategoryMarkupMap(),
     ])
 
@@ -576,8 +576,8 @@ async function _getTopProductsByCategorySlugRaw(slug: string, limit: number): Pr
       args: [...allIds, limit],
     }),
     fetchDollarRate(),
-    getStoreConfigNumber('markup', 30),
-    getStoreConfigNumber('cash_discount', 10),
+    getStoreConfigNumber('markup', 15),
+    getStoreConfigNumber('cash_discount', 0),
     getCategoryMarkupMap(),
   ])
 
