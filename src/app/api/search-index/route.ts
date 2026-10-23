@@ -22,8 +22,8 @@ export async function GET() {
         args: [],
       }),
       fetchDollarRate(),
-      getStoreConfigNumber('markup', 30),
-      getStoreConfigNumber('cash_discount', 10),
+      getStoreConfigNumber('markup', 15),
+      getStoreConfigNumber('cash_discount', 0),
       getCategoryMarkupMap(),
     ])
 
