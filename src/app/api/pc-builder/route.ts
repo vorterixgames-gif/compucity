@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { fetchDollarRate, calculateProductPrices } from '@/lib/dollar'
+import { fetchDollarRate, calculateProductPrices, getStoreConfigNumber } from '@/lib/dollar'
 import { deduplicateProducts } from '@/lib/queries'
 import {
   extractCompatibility,
@@ -156,11 +156,11 @@ export async function GET(request: NextRequest) {
     const slot = request.nextUrl.searchParams.get('slot')
 
     const dollar = await fetchDollarRate()
-    const markup = await getConfig('markup', 30)
-    const cashDiscount = await getConfig('cash_discount', 10)
+    const markup = await getStoreConfigNumber('markup', 15)
+    const cashDiscount = await getStoreConfigNumber('cash_discount', 0)
 
     // Build category markup map for price calculation
-    const catMarkupResult = await db.execute('SELECT id, markup, cashDiscount, ivaRate FROM categories')
+    const catMarkupResult = await db.execute('SELECT id, parentId, markup, cashDiscount, ivaRate FROM categories')
     const catMarkupMap = new Map<string, { markup: number | null; cashDiscount: number | null; ivaRate: number | null }>()
     for (const row of catMarkupResult.rows as any[]) {
       catMarkupMap.set(row.id, {
@@ -168,6 +168,26 @@ export async function GET(request: NextRequest) {
         cashDiscount: row.cashDiscount != null ? Number(row.cashDiscount) : null,
         ivaRate: row.ivaRate != null ? Number(row.ivaRate) : null,
       })
+    }
+    // SESIÓN 92: herencia de categoría padre (markup/cashDiscount/ivaRate), igual que queries.ts
+    const catRows = new Map<string, any>((catMarkupResult.rows as any[]).map(r => [r.id, r]))
+    const resolveCat = (id: string | null): { markup: number | null; cashDiscount: number | null; ivaRate: number | null } | null => {
+      if (!id || !catMarkupMap.has(id)) return null
+      const chain: any[] = []
+      let cur: string | null = id
+      const seen = new Set<string>()
+      while (cur && catMarkupMap.has(cur) && !seen.has(cur)) {
+        seen.add(cur)
+        chain.push(catMarkupMap.get(cur))
+        cur = catRows.get(cur)?.parentId ?? null
+      }
+      const out = { markup: null as number | null, cashDiscount: null as number | null, ivaRate: null as number | null }
+      for (const node of chain) {
+        if (out.markup == null && node.markup != null) out.markup = node.markup
+        if (out.cashDiscount == null && node.cashDiscount != null) out.cashDiscount = node.cashDiscount
+        if (out.ivaRate == null && node.ivaRate != null) out.ivaRate = node.ivaRate
+      }
+      return out
     }
 
     // If requesting a specific slot, return products for that component category
@@ -255,7 +275,7 @@ export async function GET(request: NextRequest) {
         // Antes el Arma tu PC recalculaba en vivo y mostraba un precio distinto al de
         // ficha/buscador (caso Kingdian 255.231 vs 219.891). Ahora devuelve el guardado.
         // SESIÓN 90: precio de lista CALCULADO (misma fórmula que el admin) como fuente única
-        return calculateProductPrices(p, dollar.rate, markup, cashDiscount, p.categoryId ? catMarkupMap.get(p.categoryId) : null)
+        return calculateProductPrices(p, dollar.rate, markup, cashDiscount, resolveCat(p.categoryId))
       })).filter(p => !isExcludedFromBuilder(slot, p.name))
 
       // Parse compatibility filters from query params
