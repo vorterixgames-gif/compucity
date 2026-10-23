@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-10-19 (sesión 91 — descuento efectivo global vuelto a 0%; solo precio de lista en toda la tienda)
+**Ultima actualizacion:** 2026-10-19 (sesión 92 — unificación DEFINITIVA de precios: misma fórmula+config+herencia en todas las vistas, caches alineados, sin snapshots)
 
 ---
 
@@ -15,10 +15,10 @@
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
 - **Commit estable:** b32d7f3 (fix: rubro 001-0331 + id Motherboards vigente)
-- **Commit actual:** s91-docs
+- **Commit actual:** af0d102
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 91
+- **Sesiones totales:** 92
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1154,6 +1154,20 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-10-19 (s92): Unificación DEFINITIVA de precios entre todas las secciones.** Commits: 3934a87 (search-index TTL), a0360fe (builder resumen vivo + totals lista), b9a8da8 (TTL dolar/config 60s), 95e9c39/c3a20eb/40b2508/dd4737a/786788f/fc051a0/4a89174 (defaults config 15/0 en 7 archivos), af0d102 (builder config real + herencia padre).
+
+  **Síntoma (screenshot del dueño):** el MISMO producto (Puskill 8GB DDR4) mostraba 3 precios distintos a la vez: autocomplete del navbar $128.117, lista del slot del Arma tu PC $148.707, y resumen del Arma tu PC $137.268.
+
+  **Causas raíz (4, todas corregidas):**
+  1. **Snapshots de precio en el cliente:** el resumen del Arma tu PC guardaba el objeto producto al seleccionar (precio/config de ese instante) y sumaba comparePrice||price. Fix: totals usan price (lista) y un useEffect al montar refresca el precio de cada componente seleccionado desde /api/products?id= (precio vivo). (a0360fe)
+  2. **Caches con TTL distintos:** search-index (autocomplete) tenía CDN s-maxage=3600 (1h); dólar en memoria 15min y config 5min por instancia. Fix: search-index s-maxage=300; DOLLAR/CONFIG_CACHE_TTL a 60s. (3934a87, b9a8da8)
+  3. **Defaults de config peligrosos:** varias rutas usaban getStoreConfigNumber('markup',30)/('cash_discount',10); si la lectura fallaba o devolvía 0 (falsy) caían a 30/10. Fix: defaults alineados a los globales reales (15/0) en 7 archivos. (7 commits)
+  4. **pc-builder con config y herencia propias:** usaba getConfig local con defaults 30/10 y catMarkupMap SIN herencia de categoría padre (hija null, padre Memorias RAM=12; queries/search sí heredaban). Fix: getStoreConfigNumber(15/0) + resolveCat() con herencia de padre idéntica a queries.ts. (af0d102)
+
+  **Verificado en producción (Puskill 8GB DDR4):** /api/products?id = 128.449, /api/search = 128.449, /api/pc-builder?slot=ram = 128.449 → IDÉNTICOS. El autocomplete puede tardar ≤1h en purgar el cache CDN viejo pre-cambio; después refresca cada 5 min.
+
+  **Regla que queda:** TODAS las vistas calculan el precio de lista con la MISMA fórmula (costo × (1+IVA/100+int/100) × (1+markup/100) × dólar) y los MISMOS inputs (dólar cache 60s, config cache 60s con defaults 15/0, herencia producto→categoría→padre→global). Sin snapshots de precio en cliente ni caches largos que desincronicen secciones.
+
 - **2026-10-19 (s91): Descuento efectivo global vuelto a 0% (store_config cash_discount = 0). Solo precio de lista en toda la tienda.**
 
   **Motivo:** el config global tenía cash_discount = 10 (alguien lo subió después de s56 que documenta 0). Con 10%, el "precio efectivo" volvía a aparecer ~9% por debajo del de lista en el Arma tu PC (resumen/WhatsApp/PDF, vía la condición totalPrice < totalListPrice de s86) y en cualquier vista que muestre efectivo, contradiciendo la decisión del dueño de "que quede solo el precio de lista" y generando discrepancias admin vs web.
