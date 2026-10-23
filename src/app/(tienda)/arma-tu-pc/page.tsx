@@ -320,6 +320,29 @@ export default function ArmaTuPCPage() {
   const [SLOTS, setSLOTS] = useState(DEFAULT_SLOTS)
   const [currentStep, setCurrentStep] = useState(0)
   const [selectedComponents, setSelectedComponents] = useState<SelectedComponent[]>([])
+
+  // SESIÓN 92: al montar, refrescar el precio de los componentes seleccionados desde
+  // /api/products?id= (precio vivo) para que el resumen NO use un snapshot viejo de
+  // precio guardado al seleccionar. Esto iguala resumen == lista del slot == ficha.
+  useEffect(() => {
+    if (selectedComponents.length === 0) return
+    let alive = true
+    ;(async () => {
+      const results = await Promise.allSettled(
+        selectedComponents.map(c => fetch(`/api/products?id=${c.product.id}`).then(r => r.json()))
+      )
+      if (!alive) return
+      setSelectedComponents(prev => prev.map((c, i) => {
+        const r = results[i]
+        if (r.status !== 'fulfilled') return c
+        const p = (r.value as any)?.product
+        if (!p || typeof p.price !== 'number') return c
+        return { ...c, product: { ...c.product, price: p.price, comparePrice: p.comparePrice ?? p.price } }
+      }))
+    })()
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [products, setProducts] = useState<BuilderProduct[]>([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
@@ -531,7 +554,7 @@ export default function ArmaTuPCPage() {
     }
   }
 
-  const totalPrice = selectedComponents.reduce((sum, c) => sum + (c.product.comparePrice || c.product.price) * c.quantity, 0)
+  const totalPrice = selectedComponents.reduce((sum, c) => sum + (c.product.price || 0) * c.quantity, 0) // SESIÓN 92: suma precio de lista (único)
   const totalListPrice = selectedComponents.reduce((sum, c) => sum + c.product.price * c.quantity, 0)
   const completedRequired = SLOTS.filter(s => s.required).every(s => selectedComponents.some(c => c.slot === s.slot))
   const completedCount = selectedComponents.length
