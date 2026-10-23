@@ -154,8 +154,8 @@ export async function POST(request: NextRequest) {
     // Cargar datos para recálculo de precios
     const [dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
       fetchDollarRate(),
-      getStoreConfigNumber('markup', 30),
-      getStoreConfigNumber('cash_discount', 10),
+      getStoreConfigNumber('markup', 15),
+      getStoreConfigNumber('cash_discount', 0),
       getCategoryMarkupMap(),
     ])
 
