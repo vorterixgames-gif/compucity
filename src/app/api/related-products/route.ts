@@ -20,8 +20,8 @@ export async function GET(request: NextRequest) {
     // evitando 1 SELECT extra en cada request a este endpoint.
     const [dollar, markup, cashDiscount, catMarkupMap] = await Promise.all([
       fetchDollarRate(),
-      getStoreConfigNumber('markup', 30),
-      getStoreConfigNumber('cash_discount', 10),
+      getStoreConfigNumber('markup', 15),
+      getStoreConfigNumber('cash_discount', 0),
       getCategoryMarkupMap(),
     ])
 
