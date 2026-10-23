@@ -27,7 +27,7 @@ const DOLAR_API_BLUE = 'https://api.bluelytics.com.ar/v2/latest' // misma URL, u
 //   para detectar el nuevo valor ~15 min después de que se publica.
 // - Queries Turso/día: ~96 (vs ~288 con TTL de 5 min) = 67% reducción.
 // - Banco Nación actualiza 1-2 veces por día, así que 15 min es bien fresco.
-const DOLLAR_CACHE_TTL_MS = 15 * 60 * 1000 // 15 minutos
+const DOLLAR_CACHE_TTL_MS = 60 * 1000 // SESIÓN 92: 60s (antes 15min) para que todas las instancias coincidan
 let dollarCache: { data: DollarInfo; expiresAt: number } | null = null
 
 export interface DollarInfo {
@@ -168,7 +168,7 @@ export function __clearDollarCache(): void {
 // query de products: markup + cash_discount). Sin caché, cada carga de home
 // hace 8-10 queries a store_config que siempre retornan lo mismo.
 // Con este caché de 5 min, las queries se reducen a 0 después del primer hit.
-const CONFIG_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutos
+const CONFIG_CACHE_TTL_MS = 60 * 1000 // SESIÓN 92: 60s (antes 5min) para que markup/cash coincidan en todas las instancias
 const configCache = new Map<string, { value: number; expiresAt: number }>()
 
 /** Invalida el caché de store_config (ej: al cambiar markup/descuento desde el admin) */
