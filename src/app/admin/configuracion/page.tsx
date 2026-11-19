@@ -83,7 +83,7 @@ export default function AdminConfiguracion() {
     try {
       const [configRes, dolarRes] = await Promise.all([
         fetch('/api/admin/config'),
-        fetch('/api/dolar'),
+        fetch('/api/dolar', { cache: 'no-store' }), // SESIÓN 93: fresco tras Guardar (antes cacheado → revertía al valor viejo)
       ])
 
       const configData = await configRes.json()
@@ -210,6 +210,11 @@ export default function AdminConfiguracion() {
         setDollarRate(data.dollar.rate)
         setDollarFecha(data.dollar.fecha)
         setDollarCached(data.dollar.cached)
+        // SESIÓN 93: persistir el valor fresco en dollar_rates para que el fallback de DB
+        // nunca quede congelado en una fecha vieja (ej: 23/10 17:00)
+        if (!data.dollar.cached) {
+          fetch('/api/admin/dollar', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rate: data.dollar.rate, source: dollarSource }) }).catch(() => {})
+        }
         if (data.ejemplo) {
           setEjemplo({ lista: data.ejemplo.precioLista, efectivo: data.ejemplo.precioEfectivo })
         }
