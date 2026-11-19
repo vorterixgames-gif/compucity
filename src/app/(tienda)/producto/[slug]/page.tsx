@@ -146,12 +146,17 @@ export default async function ProductPage({ params }: Props) {
             {(() => {
               const activeSale = getActiveSale(product as any)
               const isOnSale = activeSale !== null && activeSale < product.price
-              const hasCashDiscount = false // SESIÓN 88: solo precio de lista (se quita EFECTIVO)
+              // SESIÓN 94: el descuento efectivo vuelve a verse, como línea secundaria.
+              // El precio principal sigue siendo el de lista (coherente con carrito/pedido/PDF/WhatsApp).
+              // Solo aparece si hay descuento REAL (comparePrice < price): con cash_discount global en 0
+              // y sin descuento individual, comparePrice == price y no se muestra nada extra.
+              const hasCashDiscount = !!(product.comparePrice && product.comparePrice < product.price)
+              const cashPercent = hasCashDiscount ? Math.round((1 - (product.comparePrice! / product.price)) * 100) : 0
 
               if (isOnSale) {
                 const discountPercent = Math.round((1 - activeSale! / product.price) * 100)
                 // Calculate cash price from sale price as base
-                const saleCashPrice = null // SESIÓN 88: sin línea EFECTIVO incluso en oferta
+                const saleCashPrice = hasCashDiscount ? Math.ceil(activeSale! * (product.comparePrice! / product.price)) : null
                 return (
                   <>
                     <div className="flex items-center gap-2">
@@ -162,26 +167,24 @@ export default async function ProductPage({ params }: Props) {
                     {saleCashPrice !== null && (
                       <div className="mt-1 flex items-center gap-2">
                         <p className="text-lg font-bold text-compucity-green-700">{formatARS(saleCashPrice)}</p>
-                        <span className="bg-compucity-green-800 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">EFECTIVO</span>
+                        <span className="bg-compucity-green-800 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">EFECTIVO -{cashPercent}%</span>
                       </div>
                     )}
                   </>
                 )
               }
 
-              if (hasCashDiscount) {
-                return (
-                  <>
-                    <div className="flex items-center gap-2">
-                      <p className="text-3xl font-bold text-green-600">{formatARS(product.comparePrice!)}</p>
-                      <span className="bg-compucity-green-800 text-white text-xs font-bold px-2 py-0.5 rounded">EFECTIVO</span>
+              return (
+                <>
+                  <p className="text-3xl font-bold text-gray-900">{formatARS(product.price)}</p>
+                  {hasCashDiscount && (
+                    <div className="mt-1 flex items-center gap-2">
+                      <p className="text-lg font-bold text-compucity-green-700">{formatARS(product.comparePrice!)}</p>
+                      <span className="bg-compucity-green-800 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">EFECTIVO -{cashPercent}%</span>
                     </div>
-                    <p className="text-sm text-gray-400 mt-1">Precio de lista: {formatARS(product.price)}</p>
-                  </>
-                )
-              }
-
-              return <p className="text-3xl font-bold text-gray-900">{formatARS(product.price)}</p>
+                  )}
+                </>
+              )
             })()}
             <p className="text-sm text-gray-500 mt-1">Hacé tu pedido por WhatsApp</p>
           </div>
