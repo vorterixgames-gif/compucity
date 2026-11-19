@@ -31,7 +31,7 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
   // Check if there's an active sale
   const activeSale = getActiveSale({ price, comparePrice, salePrice, saleStart, saleEnd })
   const isOnSale = activeSale !== null && activeSale < price
-  const hasCashDiscount = false // SESIÓN 88: solo precio de lista (se quita la línea EFECTIVO)
+  const hasCashDiscount = !!(comparePrice && comparePrice < price && !isOnSale) // SESIÓN 94: descuento real visible
 
   // Determine cart price: sale price > cash price > list price
   const cartPrice = isOnSale ? activeSale : price // SESIÓN 88: carrito al precio de lista
@@ -153,16 +153,11 @@ export default function ProductCard({ id, name, slug, price, comparePrice, image
               </div>
               <p className="text-xs text-gray-400 line-through">Lista: {formatARS(price)}</p>
             </>
-          ) : hasCashDiscount ? (
-            <div className="flex items-center gap-2">
-              <p className="text-lg font-extrabold text-compucity-green-700">{formatARS(comparePrice!)}</p>
-              <span className="bg-compucity-green-800 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">EFECTIVO</span>
-            </div>
           ) : (
             <p className="text-lg font-extrabold text-compucity-green-800">{formatARS(price)}</p>
           )}
-          {!isOnSale && hasCashDiscount && (
-            <p className="text-xs text-gray-400">Lista: {formatARS(price)}</p>
+          {hasCashDiscount && (
+            <p className="text-xs font-bold text-compucity-green-700">Efectivo: {formatARS(comparePrice!)}</p>
           )}
         </div>
         <button
