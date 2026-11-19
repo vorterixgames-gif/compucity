@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-10-19 (sesión 92 — unificación DEFINITIVA de precios: misma fórmula+config+herencia en todas las vistas, caches alineados, sin snapshots)
+**Ultima actualizacion:** 2026-11-19 (sesión 93 — fix dólar: el valor ya no revierte al fallback viejo al guardar; failover de fuentes + caches sin envenenar)
 
 ---
 
@@ -15,10 +15,10 @@
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
 - **Commit estable:** b32d7f3 (fix: rubro 001-0331 + id Motherboards vigente)
-- **Commit actual:** af0d102
+- **Commit actual:** 979940b
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 92
+- **Sesiones totales:** 93
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1154,6 +1154,26 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-11-19 (s93): FIX dólar — el valor ya no revierte al fallback viejo (23/10 17:00) al guardar en /admin/configuracion.** Commits: bec2669 (dollar.ts), 979940b (admin configuracion).
+
+  **Síntoma del dueño:** en /admin/configuracion el dólar "trae" el valor correcto con Actualizar, pero al dar Guardar se vuelve a un valor con fecha 23/10/2026 05:00 p.m.
+
+  **Causa raíz (3 capas):**
+  1. El valor 23/10 17:00 era la fila de `dollar_rates` usada como FALLBACK cuando la API externa (Bluelytics) fallaba. Como `saveDollarRateToDb` solo escribe cuando el fetch externo tiene éxito, la fila quedó congelada en 23/10 mientras Bluelytics fallaba.
+  2. El fetch externo usaba `next: { revalidate: 900 }`: un solo 5xx de Bluelytics quedaba cacheado 15 min en el data-cache de Next → todas las lecturas de esa ventana caían al fallback viejo. Y el fallback a su vez se cacheaba en memoria 5 min (`expiresAt: now + 300_000`).
+  3. El botón Guardar (`handleSaveConfig`) terminaba en `loadConfig()` que hacía `fetch('/api/dolar')` SIN no-store → leía la respuesta cacheada/fallback vieja y pisaba en pantalla el valor fresco que Actualizar (no-store) sí traía. De ahí el "se vuelve".
+
+  **Fix en src/lib/dollar.ts (bec2669):**
+  - Nuevo `fetchDollarExternal(configSource)` con FAILOVER: Bluelytics → DolarApi.com (oficial/blue según dollar_source), ambos con `cache: 'no-store'` (elimina el envenenamiento de 15 min del data-cache de Next; el único buffer queda siendo el caché en memoria de 60s de s92).
+  - El bloque "3. Fetch a Bluelytics (revalidate 900)" se reemplazó por el helper con failover.
+  - Caché en memoria del fallback: 300s → 60s (no congela el valor viejo).
+
+  **Fix en src/app/admin/configuracion/page.tsx (979940b):**
+  - `loadConfig()` ahora pide `/api/dolar` con `{ cache: 'no-store' }` → tras Guardar se ve el valor fresco, no el cacheado viejo.
+  - `handleRefreshDollar` (Actualizar), cuando la lectura NO es cached, persiste el valor fresco en `dollar_rates` vía `PUT /api/admin/dollar` → el fallback de DB deja de congelarse en fechas viejas.
+
+  **Verificado en producción:** GET /api/dolar → rate 1583, source "Banco Nación", cached: false, fecha 2026-11-19T09:15 (hoy, no 23/10). El flujo Actualizar→Guardar ya no revierte.
+
 - **2026-10-19 (s92): Unificación DEFINITIVA de precios entre todas las secciones.** Commits: 3934a87 (search-index TTL), a0360fe (builder resumen vivo + totals lista), b9a8da8 (TTL dolar/config 60s), 95e9c39/c3a20eb/40b2508/dd4737a/786788f/fc051a0/4a89174 (defaults config 15/0 en 7 archivos), af0d102 (builder config real + herencia padre).
 
   **Síntoma (screenshot del dueño):** el MISMO producto (Puskill 8GB DDR4) mostraba 3 precios distintos a la vez: autocomplete del navbar $128.117, lista del slot del Arma tu PC $148.707, y resumen del Arma tu PC $137.268.
