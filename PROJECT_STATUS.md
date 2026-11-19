@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-11-18 (sesión 94 — el descuento efectivo individual vuelve a verse en ficha y cards, como línea secundaria)
+**Ultima actualizacion:** 2026-11-19 (sesión 94 CONFIRMADA en producción por el dueño + consolidado del estado final de precios/dólar s81-s94)
 
 ---
 
@@ -1164,7 +1164,19 @@ bash scripts/pre-change-safeguard.sh
 
   **Flujo de dinero sin cambios:** carrito, orders, PDF y WhatsApp siguen usando precio de lista (el descuento efectivo lo aplica el dueño al cobrar en efectivo/contado). Solo cambia el display informativo.
 
-  **Verificado en producción:** /producto/notebook-lenovo-ideapad-16-r5-5625-8gb-512sd-win muestra $1.428.375 (lista, principal) + $1.373.103 con badge EFECTIVO -4% — idéntico al preview del admin.
+  **Verificado en producción:** /producto/notebook-lenovo-ideapad-16-r5-5625-8gb-512sd-win muestra $1.428.375 (lista, principal) + $1.373.103 con badge EFECTIVO -4% — idéntico al preview del admin. **CONFIRMADO POR EL DUEÑO (2026-11-18/19): "ahí funciona" — el descuento efectivo individual se ve correcto en la tienda.**
+
+
+  ---
+  **CONSOLIDADO s81–s94 — ESTADO FINAL DEL SISTEMA DE PRECIOS Y DÓLAR (memoria definitiva):**
+
+  1. **Fuente única de precio de lista = CALCULADO en vivo** (s90/s92): `costUSD × (1 + IVA/100 + interno/100) × (1 + markup/100) × dólar`, con herencia producto → categoría → padre → global. TODAS las vistas (ficha, cards, home, categorías, buscador, autocomplete, relacionados, Arma tu PC, carrito, pedido, PDF, WhatsApp) y el admin usan la MISMA fórmula y los MISMOS inputs: dólar cache 60s, config cache 60s con defaults alineados (markup 15 / cash 0), `resolveCat`/`getCategoryMarkupMap` con herencia de padre idéntica en todos lados. La columna `price` guardada queda solo como snapshot histórico (los syncs la escriben en magnitud USD; nunca es fuente de display). Verificado: Puskill 8GB = 128.449 idéntico en products/search/builder.
+  2. **Un solo precio visible por defecto** (s86/s87/s88): sin descuento real se muestra únicamente el precio de lista en ficha, cards, resumen/PDF/WhatsApp del Arma tu PC. `comparePrice` normalizado (= price) en 4.114 filas sin descuento (s87).
+  3. **Descuento efectivo visible solo si es real** (s94): si `comparePrice < price` (descuento individual o de categoría cargado), la ficha muestra el precio de lista como principal + línea secundaria verde "EFECTIVO -X%"; las cards muestran línea chica "Efectivo: $X". Con cash_discount global en 0 y sin descuento individual, no se muestra nada extra. El dinero (carrito/pedido/PDF/WhatsApp) sigue usando precio de lista; el efectivo es informativo para cobro contado.
+  4. **Dólar que no revierte** (s93): failover Bluelytics → DolarApi con `cache:'no-store'` (elimina el envenenamiento del data-cache de Next de 15 min), fallback de DB cacheado 60s, `/admin/configuracion` recarga sin caché tras Guardar y "Actualizar" persiste el valor fresco en `dollar_rates`. El valor manual/actualizado ya no vuelve a fechas viejas (caso 23/10 17:00 resuelto). Verificado: /api/dolar rate 1583, cached false, fecha del día.
+  5. **Config global vigente:** markup 15%, cash_discount 0%, IVA default 10.5% (Notebooks/Monitores 21%), fuente dólar Banco Nación. `getStoreConfigNumber` con `Number.isFinite` (el 0 ya no cae al default, s91).
+  6. **Lecciones de proceso (no repetir):** (a) nunca dejar ramas de fallback que referencien variables eliminadas (s89: catMarkup → 500 en todo el builder); (b) nunca defaults de config distintos de los globales reales (30/10 causaron precios divergentes, s92); (c) nunca snapshots de precio en cliente (el resumen del builder guardaba el precio al seleccionar, s92); (d) caches con TTL distintos entre vistas desincronizan precios (s92: search-index 1h vs builder 5min); (e) verificar SIEMPRE en producción tras cada commit de precios (producto concreto en 3+ superficies).
+  ---
 
 - **2026-11-19 (s93): FIX dólar — el valor ya no revierte al fallback viejo (23/10 17:00) al guardar en /admin/configuracion.** Commits: bec2669 (dollar.ts), 979940b (admin configuracion).
 
