@@ -39,6 +39,33 @@ export interface DollarInfo {
   cached: boolean
 }
 
+// SESIÓN 93: fuentes externas con failover (Bluelytics primario, DolarApi secundario).
+// cache:'no-store' para que un 5xx transitorio NO quede cacheado por Next.js
+// (antes next.revalidate=900 envenenaba 15 min y todo caía al fallback de DB viejo).
+async function fetchDollarExternal(configSource: string): Promise<{ rate: number; compra: number | null; venta: number; fecha: string; sourceLabel: string }> {
+  try {
+    const res = await fetch(DOLAR_API_OFICIAL, { cache: 'no-store' })
+    if (res.ok) {
+      const data = await res.json()
+      const d = configSource === 'blue' ? data.blue : data.oficial
+      if (d && typeof d.value_sell === 'number') {
+        return { rate: d.value_sell, compra: d.value_buy ?? null, venta: d.value_sell, fecha: data.last_update ?? new Date().toISOString(), sourceLabel: configSource === 'blue' ? 'Dólar Blue' : 'Banco Nación' }
+      }
+    }
+  } catch {}
+  try {
+    const url = configSource === 'blue' ? 'https://dolarapi.com/v1/dolares/blue' : 'https://dolarapi.com/v1/dolares/oficial'
+    const res = await fetch(url, { cache: 'no-store' })
+    if (res.ok) {
+      const d = await res.json()
+      if (d && typeof d.venta === 'number') {
+        return { rate: d.venta, compra: d.compra ?? null, venta: d.venta, fecha: d.fecha ?? new Date().toISOString(), sourceLabel: (configSource === 'blue' ? 'Dólar Blue' : 'Banco Nación') + ' · DolarApi' }
+      }
+    }
+  } catch {}
+  throw new Error('Fuentes de dólar no disponibles')
+}
+
 export async function fetchDollarRate(): Promise<DollarInfo> {
   // 1. Caché en memoria (sin tocar Turso)
   const now = Date.now()
@@ -66,23 +93,16 @@ export async function fetchDollarRate(): Promise<DollarInfo> {
       return raw || 'nacion'
     })()
 
-    // 3. Fetch a Bluelytics (cacheado 15 min por Next.js además del caché en memoria)
-    const res = await fetch(DOLAR_API_OFICIAL, {
-      next: { revalidate: 900 },
-    })
-    if (!res.ok) throw new Error('Bluelytics no responde')
-
-    const data = await res.json()
-    // Bluelytics tiene un solo endpoint con oficial + blue adentro
-    const dolarData = configSource === 'blue' ? data.blue : data.oficial
-    const rate = dolarData.value_sell
-    const compra = dolarData.value_buy
-    const venta = dolarData.value_sell
-    const fecha = data.last_update
+    // 3. SESIÓN 93: fetch externo con failover y sin caché Next envenenable
+    const ext = await fetchDollarExternal(configSource)
+    const rate = ext.rate
+    const compra = ext.compra
+    const venta = ext.venta
+    const fecha = ext.fecha
 
     const result: DollarInfo = {
       rate,
-      source: configSource === 'blue' ? 'Dólar Blue' : 'Banco Nación',
+      source: ext.sourceLabel,
       compra,
       venta,
       fecha,
@@ -114,7 +134,7 @@ export async function fetchDollarRate(): Promise<DollarInfo> {
           cached: true,
         }
         // Cachear también el fallback por 5 min
-        dollarCache = { data: fallback, expiresAt: now + 300_000 }
+        dollarCache = { data: fallback, expiresAt: now + 60_000 } // SESIÓN 93: 60s (antes 5min) para no congelar el fallback viejo
         return fallback
       }
     } catch {}
