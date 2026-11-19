@@ -1,6 +1,6 @@
 # Compucity - Project Status
 
-**Ultima actualizacion:** 2026-11-19 (sesión 93 — fix dólar: el valor ya no revierte al fallback viejo al guardar; failover de fuentes + caches sin envenenar)
+**Ultima actualizacion:** 2026-11-18 (sesión 94 — el descuento efectivo individual vuelve a verse en ficha y cards, como línea secundaria)
 
 ---
 
@@ -15,10 +15,10 @@
 - **URL produccion:** https://www.compucityonline.com.ar/
 - **URL admin:** https://www.compucityonline.com.ar/admin
 - **Commit estable:** b32d7f3 (fix: rubro 001-0331 + id Motherboards vigente)
-- **Commit actual:** 979940b
+- **Commit actual:** 6e259f3
 - **Git tag ultimo:** v-seo-optimized (commit c5b7458)
 - **Credenciales admin:** admin@compucity.com / compucity2026
-- **Sesiones totales:** 93
+- **Sesiones totales:** 94
 - **Plan Turso:** Scaler ($5.99/mes, 2.5B rows reads) - upgradeado sesion 43
 
 ## Stack Tecnologico
@@ -1154,6 +1154,18 @@ bash scripts/pre-change-safeguard.sh
 ---
 
 ## Historial de Cambios
+- **2026-11-18 (s94): El descuento efectivo individual vuelve a verse en la tienda (ficha + cards), como línea secundaria.** Commits: 3693bcb (ficha), 6e259f3 (ProductCard).
+
+  **Reporte del dueño:** configuró Descuento efectivo individual 4.45% en SKU LENOT82XM0165AR (Notebook Lenovo IdeaPad 16) y el descuento NO aparecía en la página. El preview del admin sí mostraba lista $1.428.375 / efectivo $1.373.103.
+
+  **Causa:** en s88 se había hardcodeado `hasCashDiscount = false` en ficha y ProductCard para eliminar el par "lista+efectivo" que aparecía en TODOS los productos cuando el cash_discount global estaba en 10%. El efecto colateral: también ocultó los descuentos individuales reales (como este 4.45%).
+
+  **Fix (s94):** se restauró la condición real `comparePrice < price` (descuento verdadero), pero con diseño distinto al pre-s88: el **precio principal sigue siendo el de lista** (coherente con carrito, pedido, PDF y WhatsApp desde s86/s90) y el **precio efectivo aparece como línea secundaria verde con badge "EFECTIVO -X%"**. En cards: línea chica "Efectivo: $X" debajo del precio. Con cash_discount global en 0 y sin descuento individual, comparePrice == price → no se muestra nada extra (el reclamo original de s86 NO vuelve).
+
+  **Flujo de dinero sin cambios:** carrito, orders, PDF y WhatsApp siguen usando precio de lista (el descuento efectivo lo aplica el dueño al cobrar en efectivo/contado). Solo cambia el display informativo.
+
+  **Verificado en producción:** /producto/notebook-lenovo-ideapad-16-r5-5625-8gb-512sd-win muestra $1.428.375 (lista, principal) + $1.373.103 con badge EFECTIVO -4% — idéntico al preview del admin.
+
 - **2026-11-19 (s93): FIX dólar — el valor ya no revierte al fallback viejo (23/10 17:00) al guardar en /admin/configuracion.** Commits: bec2669 (dollar.ts), 979940b (admin configuracion).
 
   **Síntoma del dueño:** en /admin/configuracion el dólar "trae" el valor correcto con Actualizar, pero al dar Guardar se vuelve a un valor con fecha 23/10/2026 05:00 p.m.
